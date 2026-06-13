@@ -1,0 +1,20 @@
+# 機密 — 絕對不能 commit
+.env
+
+# C++ 建置產物
+build/
+out/
+*.o
+*.obj
+*.exe
+*.dll
+*.pdb
+
+# vcpkg / CMake
+vcpkg_installed/
+CMakeUserPresets.json
+
+# IDE
+.vscode/settings.json
+.vs/
+.DS_Store
