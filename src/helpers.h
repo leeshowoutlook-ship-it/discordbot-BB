@@ -4,6 +4,16 @@
 #include <sstream>
 #include <algorithm>
 #include <ctime>
+#include <cstdio>
+#include <filesystem>
+
+// Atomic JSON save: write to .tmp then rename to avoid corruption on forced kill.
+// Uses std::filesystem::rename which replaces existing files on Windows (unlike std::rename).
+static inline void atomic_write(const std::string& path, const std::string& data) {
+    std::string tmp = path + ".tmp";
+    { std::ofstream f(tmp); if (f) f << data; else return; }
+    std::filesystem::rename(tmp, path);
+}
 
 // ─── Config loader ────────────────────────────────────────────────────────────
 
@@ -19,11 +29,13 @@ static Config load_config() {
         auto parse = [&](const std::string& key, std::string& out) {
             if (line.rfind(key + "=", 0) == 0) out = strip(line.substr(key.size() + 1));
         };
-        parse("BOT_TOKEN",      c.token);
-        parse("NOTIFY_USER_ID", c.notify_user_id);
-        parse("IMG_NORMAL",     c.img_normal);
-        parse("IMG_HARD",       c.img_hard);
-        parse("IMG_FLAME",      c.img_flame);
+        parse("BOT_TOKEN",          c.token);
+        parse("NOTIFY_USER_ID",     c.notify_user_id);
+        parse("IMG_NORMAL",         c.img_normal);
+        parse("IMG_HARD",           c.img_hard);
+        parse("IMG_FLAME",          c.img_flame);
+        parse("MIN_BET_THREAD_ID",  c.min_bet_thread_id);
+        parse("ALLIN_THREAD_ID",    c.allin_thread_id);
     }
     return c;
 }
@@ -111,6 +123,13 @@ static bool is_draw_authorized_msg(dpp::snowflake uid,
             return true;
     }
     return false;
+}
+
+// Returns true if uid owns the page message (or no tracked owner).
+static bool page_is_mine(dpp::snowflake msg_id, dpp::snowflake uid) {
+    std::lock_guard<std::mutex> lk(data_mutex);
+    auto it = msg_owner.find(msg_id);
+    return it == msg_owner.end() || it->second == uid;
 }
 
 // Returns true if uid owns the message (or no tracked owner). Sends ephemeral error otherwise.

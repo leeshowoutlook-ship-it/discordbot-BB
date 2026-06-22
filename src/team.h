@@ -10,67 +10,83 @@ static bool has_slot(const Registration& r, const std::string& day, const std::s
     return false;
 }
 
+// ─── 組隊輔助：確保不同人 ────────────────────────────────────────────────────
+
+// Try to add one member from pool whose user_id isn't already in used_ids.
+static bool pick_one(std::vector<Registration>& team,
+                     std::set<dpp::snowflake>& used,
+                     const std::vector<Registration>& pool) {
+    for (auto& r : pool) {
+        if (!used.count(r.user_id)) {
+            team.push_back(r); used.insert(r.user_id); return true;
+        }
+    }
+    return false;
+}
+
+// Fill team to target_size using anyone from avail not yet in used_ids.
+static void fill_team(std::vector<Registration>& team,
+                      std::set<dpp::snowflake>& used,
+                      const std::vector<Registration>& avail,
+                      size_t target_size) {
+    for (auto& r : avail) {
+        if (team.size() >= target_size) break;
+        if (!used.count(r.user_id)) { team.push_back(r); used.insert(r.user_id); }
+    }
+}
+
 // ─── 組隊演算法 ───────────────────────────────────────────────────────────────
 
-// 普通拉圖斯：法師×1 + 火×1 + 敏職輸出×1 + 任意×3
+// 普通拉圖斯：法師×1 + 火×1 + 敏職輸出×1 + 任意×3（每人只能算一次）
 static std::optional<std::vector<Registration>> try_normal_latus(
     const std::vector<Registration>& avail) {
-    if (avail.size() < 6) return std::nullopt;
-    std::vector<Registration> huo, fa, min_out, rest;
+    std::vector<Registration> huo, fa, min_out;
     for (auto& r : avail) {
         if      (r.position == "火")       huo.push_back(r);
         else if (r.position == "法師")     fa.push_back(r);
         else if (r.position == "敏職輸出") min_out.push_back(r);
-        else                               rest.push_back(r);
     }
-    if (huo.empty() || fa.empty() || min_out.empty()) return std::nullopt;
-    std::vector<Registration> team = {huo[0], fa[0], min_out[0]};
-    std::vector<Registration> pool;
-    for (size_t i=1; i<huo.size();     i++) pool.push_back(huo[i]);
-    for (size_t i=1; i<fa.size();      i++) pool.push_back(fa[i]);
-    for (size_t i=1; i<min_out.size(); i++) pool.push_back(min_out[i]);
-    for (auto& r : rest) pool.push_back(r);
-    for (size_t i=0; i<pool.size() && team.size()<6; i++) team.push_back(pool[i]);
+    std::vector<Registration> team; std::set<dpp::snowflake> used;
+    if (!pick_one(team, used, huo))     return std::nullopt;
+    if (!pick_one(team, used, fa))      return std::nullopt;
+    if (!pick_one(team, used, min_out)) return std::nullopt;
+    fill_team(team, used, avail, 6);
     if (team.size() < 6) return std::nullopt;
     return team;
 }
 
-// 殘暴炎魔：(兩刀/三刀法師)×1 + 火×1(可選) + 填滿6人
+// 殘暴炎魔：(兩刀/三刀法師)×1 + 火×1(可選) + 填滿6人（每人只能算一次）
 static std::optional<std::vector<Registration>> try_flame_demon(
     const std::vector<Registration>& avail) {
-    if (avail.size() < 6) return std::nullopt;
-    std::vector<Registration> sword, huo, need_fire, no_fire;
+    std::vector<Registration> sword, huo, no_fire;
     for (auto& r : avail) {
         if      (r.position == "兩刀法師" || r.position == "三刀法師") sword.push_back(r);
-        else if (r.position == "火")             huo.push_back(r);
-        else if (r.position == "需要火的輸出")   need_fire.push_back(r);
-        else if (r.position == "不需要火的輸出") no_fire.push_back(r);
+        else if (r.position == "火")                                    huo.push_back(r);
+        else if (r.position == "不需要火的輸出")                        no_fire.push_back(r);
     }
     if (sword.empty()) return std::nullopt;
-    // 方案A：1 sword + 1 火 + 4 任意
+
+    // 方案A：1 sword + 1 火 + 填4人
     if (!huo.empty()) {
-        std::vector<Registration> team = {sword[0], huo[0]};
-        std::vector<Registration> pool;
-        for (size_t i=1; i<sword.size(); i++) pool.push_back(sword[i]);
-        for (size_t i=1; i<huo.size();   i++) pool.push_back(huo[i]);
-        for (auto& r : need_fire) pool.push_back(r);
-        for (auto& r : no_fire)   pool.push_back(r);
-        for (size_t i=0; i<pool.size() && team.size()<6; i++) team.push_back(pool[i]);
+        std::vector<Registration> team; std::set<dpp::snowflake> used;
+        pick_one(team, used, sword);
+        pick_one(team, used, huo);
+        fill_team(team, used, avail, 6);
         if (team.size() >= 6) return team;
     }
     // 方案B：1 sword + 5 不需要火的輸出
-    if (no_fire.size() >= 5) {
-        std::vector<Registration> team = {sword[0]};
-        for (int i=0; i<5; i++) team.push_back(no_fire[i]);
-        return team;
+    {
+        std::vector<Registration> team; std::set<dpp::snowflake> used;
+        pick_one(team, used, sword);
+        fill_team(team, used, no_fire, 6);
+        if (team.size() >= 6) return team;
     }
     return std::nullopt;
 }
 
-// 困難拉圖斯：主控法×1 + 清球兩刀法×1 + 火×1 + 時間副控×1 + 輸出×2
+// 困難拉圖斯：主控法×1 + 清球兩刀法×1 + 火×1 + 時間副控×1 + 輸出×2（每人只能算一次）
 static std::optional<std::vector<Registration>> try_hard_latus(
     const std::vector<Registration>& avail) {
-    if (avail.size() < 6) return std::nullopt;
     std::vector<Registration> main_c, ball_c, both_c, huo, time_c, output;
     for (auto& r : avail) {
         if      (r.position == "主控法")             main_c.push_back(r);
@@ -78,24 +94,29 @@ static std::optional<std::vector<Registration>> try_hard_latus(
         else if (r.position == "主控清球都可以的法")  both_c.push_back(r);
         else if (r.position == "火")                  huo.push_back(r);
         else if (r.position == "時間副控")            time_c.push_back(r);
-        else output.push_back(r); // 力職輸出, 敏職輸出
+        else                                          output.push_back(r);
     }
     if (huo.empty() || time_c.empty() || output.size() < 2) return std::nullopt;
+
     std::vector<Registration*> zhu_cands, qiu_cands;
     for (auto& r : main_c) zhu_cands.push_back(&r);
     for (auto& r : both_c) zhu_cands.push_back(&r);
     for (auto& r : ball_c) qiu_cands.push_back(&r);
     for (auto& r : both_c) qiu_cands.push_back(&r);
+
     for (auto* zhu : zhu_cands) {
         for (auto* qiu : qiu_cands) {
-            if (zhu == qiu) continue;
-            std::vector<Registration> team = {*zhu, *qiu, huo[0], time_c[0]};
-            int added = 0;
+            if (zhu == qiu || zhu->user_id == qiu->user_id) continue;
+            std::vector<Registration> team; std::set<dpp::snowflake> used;
+            team.push_back(*zhu); used.insert(zhu->user_id);
+            if (used.count(qiu->user_id)) continue;
+            team.push_back(*qiu); used.insert(qiu->user_id);
+            pick_one(team, used, huo);
+            pick_one(team, used, time_c);
+            // Fill 2 outputs
             for (auto& r : output) {
-                if (added >= 2) break;
-                bool dup = false;
-                for (auto& t : team) if (t.id == r.id) { dup = true; break; }
-                if (!dup) { team.push_back(r); added++; }
+                if (team.size() >= 6) break;
+                if (!used.count(r.user_id)) { team.push_back(r); used.insert(r.user_id); }
             }
             if (team.size() >= 6) return team;
         }

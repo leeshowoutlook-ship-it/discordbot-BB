@@ -1,0 +1,884 @@
+[
+  {
+    "id": 1,
+    "item_name": "肥肥的蛋",
+    "price": 10000,
+    "source": "maple",
+    "timestamp": 1781756187,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 2,
+    "item_name": "豪華孵蛋器",
+    "price": 10000,
+    "source": "maple",
+    "timestamp": 1781756245,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 3,
+    "item_name": "壓力給滿 給老子長",
+    "price": 3000,
+    "source": "maple",
+    "timestamp": 1781756337,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 4,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "maple",
+    "timestamp": 1781756344,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 5,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "maple",
+    "timestamp": 1781756348,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 6,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "maple",
+    "timestamp": 1781756354,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 7,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "maple",
+    "timestamp": 1781756359,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 8,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "maple",
+    "timestamp": 1781756363,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 9,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "maple",
+    "timestamp": 1781756392,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 10,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "maple",
+    "timestamp": 1781756397,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 11,
+    "item_name": "一階段進化祕笈",
+    "price": 10000,
+    "source": "maple",
+    "timestamp": 1781756424,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 12,
+    "item_name": "肥肥的蛋",
+    "price": 10000,
+    "source": "maple",
+    "timestamp": 1781757281,
+    "uid": 1376834202275676170,
+    "username": "zoey_703"
+  },
+  {
+    "id": 13,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781757387,
+    "uid": 1376834202275676170,
+    "username": "zoey_703"
+  },
+  {
+    "id": 14,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "maple",
+    "timestamp": 1781757480,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 15,
+    "item_name": "嫩寶的蛋",
+    "price": 10000,
+    "source": "maple",
+    "timestamp": 1781757490,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 16,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781757842,
+    "uid": 679878467097329719,
+    "username": "laocan1780"
+  },
+  {
+    "id": 17,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781757965,
+    "uid": 1376834202275676170,
+    "username": "zoey_703"
+  },
+  {
+    "id": 18,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781758014,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 19,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781758262,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 20,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781758296,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 21,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781758351,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 22,
+    "item_name": "普通孵蛋器",
+    "price": 2000,
+    "source": "maple",
+    "timestamp": 1781758553,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 23,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781759313,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 24,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781759413,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 25,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781759577,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 26,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781759729,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 27,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781759971,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 28,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781760033,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 29,
+    "item_name": "優質孵蛋器",
+    "price": 5500,
+    "source": "maple",
+    "timestamp": 1781760132,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 30,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781765097,
+    "uid": 1376834202275676170,
+    "username": "zoey_703"
+  },
+  {
+    "id": 31,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "maple",
+    "timestamp": 1781767236,
+    "uid": 1376834202275676170,
+    "username": "zoey_703"
+  },
+  {
+    "id": 32,
+    "item_name": "壓力給滿 給老子長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781776155,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 33,
+    "item_name": "菇菇仔的蛋",
+    "price": 10000,
+    "source": "virtual",
+    "timestamp": 1781778643,
+    "uid": 519124245150957578,
+    "username": ".amming"
+  },
+  {
+    "id": 34,
+    "item_name": "豪華孵蛋器",
+    "price": 10000,
+    "source": "virtual",
+    "timestamp": 1781778671,
+    "uid": 519124245150957578,
+    "username": ".amming"
+  },
+  {
+    "id": 35,
+    "item_name": "壓力給滿 給老子長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781778911,
+    "uid": 811232678590152790,
+    "username": "susu_16126"
+  },
+  {
+    "id": 36,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781778930,
+    "uid": 519124245150957578,
+    "username": ".amming"
+  },
+  {
+    "id": 37,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782404,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 38,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782412,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 39,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782418,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 40,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782470,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 41,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782475,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 42,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782481,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 43,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782485,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 44,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782490,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 45,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782495,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 46,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782499,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 47,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782504,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 48,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782508,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 49,
+    "item_name": "塞滿成長激素快快長大",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781782513,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 50,
+    "item_name": "二階段進化祕笈",
+    "price": 20000,
+    "source": "virtual",
+    "timestamp": 1781782614,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 51,
+    "item_name": "優質孵蛋器",
+    "price": 5500,
+    "source": "virtual",
+    "timestamp": 1781797267,
+    "uid": 1376834202275676170,
+    "username": "zoey_703"
+  },
+  {
+    "id": 52,
+    "item_name": "菇菇仔的蛋",
+    "price": 10000,
+    "source": "virtual",
+    "timestamp": 1781833074,
+    "uid": 843071419671904308,
+    "username": "ghoul1107"
+  },
+  {
+    "id": 53,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "virtual",
+    "timestamp": 1781833091,
+    "uid": 843071419671904308,
+    "username": "ghoul1107"
+  },
+  {
+    "id": 54,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "virtual",
+    "timestamp": 1781833098,
+    "uid": 843071419671904308,
+    "username": "ghoul1107"
+  },
+  {
+    "id": 55,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "virtual",
+    "timestamp": 1781838540,
+    "uid": 843071419671904308,
+    "username": "ghoul1107"
+  },
+  {
+    "id": 56,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "virtual",
+    "timestamp": 1781838546,
+    "uid": 843071419671904308,
+    "username": "ghoul1107"
+  },
+  {
+    "id": 57,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "virtual",
+    "timestamp": 1781846024,
+    "uid": 843071419671904308,
+    "username": "ghoul1107"
+  },
+  {
+    "id": 58,
+    "item_name": "豪華孵蛋器",
+    "price": 10000,
+    "source": "virtual",
+    "timestamp": 1781847539,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 59,
+    "item_name": "壓力給滿 給老子長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781847568,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 60,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781847574,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 61,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781847578,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 62,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781847583,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 63,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781847588,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 64,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781847593,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 65,
+    "item_name": "平平安安健健康康成長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781847600,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 66,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "virtual",
+    "timestamp": 1781849384,
+    "uid": 843071419671904308,
+    "username": "ghoul1107"
+  },
+  {
+    "id": 67,
+    "item_name": "嫩寶的蛋",
+    "price": 10000,
+    "source": "virtual",
+    "timestamp": 1781851488,
+    "uid": 959450115007975444,
+    "username": "lin.robert"
+  },
+  {
+    "id": 68,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "virtual",
+    "timestamp": 1781852482,
+    "uid": 843071419671904308,
+    "username": "ghoul1107"
+  },
+  {
+    "id": 69,
+    "item_name": "壓力給滿 給老子長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781853420,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 70,
+    "item_name": "壓力給滿 給老子長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781853428,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 71,
+    "item_name": "壓力給滿 給老子長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781853436,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 72,
+    "item_name": "壓力給滿 給老子長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781853444,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 73,
+    "item_name": "藍色染料",
+    "price": 500,
+    "source": "virtual",
+    "timestamp": 1781853480,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 74,
+    "item_name": "退化卡",
+    "price": 5000,
+    "source": "virtual",
+    "timestamp": 1781853510,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 75,
+    "item_name": "一階段進化祕笈",
+    "price": 10000,
+    "source": "virtual",
+    "timestamp": 1781853517,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 76,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "virtual",
+    "timestamp": 1781853934,
+    "uid": 1280168492255154230,
+    "username": "oohhhxxuan"
+  },
+  {
+    "id": 77,
+    "item_name": "普通孵蛋器",
+    "price": 2000,
+    "source": "virtual",
+    "timestamp": 1781854036,
+    "uid": 1280168492255154230,
+    "username": "oohhhxxuan"
+  },
+  {
+    "id": 78,
+    "item_name": "優質孵蛋器",
+    "price": 5500,
+    "source": "virtual",
+    "timestamp": 1781855954,
+    "uid": 1376834202275676170,
+    "username": "zoey_703"
+  },
+  {
+    "id": 79,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "virtual",
+    "timestamp": 1781856202,
+    "uid": 843071419671904308,
+    "username": "ghoul1107"
+  },
+  {
+    "id": 80,
+    "item_name": "飽含詛咒的符咒",
+    "price": 500,
+    "source": "virtual",
+    "timestamp": 1781859965,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 81,
+    "item_name": "二階段進化祕笈",
+    "price": 20000,
+    "source": "virtual",
+    "timestamp": 1781859985,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 82,
+    "item_name": "一階段進化祕笈",
+    "price": 10000,
+    "source": "virtual",
+    "timestamp": 1781860006,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 83,
+    "item_name": "企鵝的蛋",
+    "price": 10000,
+    "source": "virtual",
+    "timestamp": 1781860134,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 84,
+    "item_name": "豪華孵蛋器",
+    "price": 10000,
+    "source": "virtual",
+    "timestamp": 1781860149,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 85,
+    "item_name": "壓力給滿 給老子長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781860161,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 86,
+    "item_name": "壓力給滿 給老子長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781860169,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 87,
+    "item_name": "壓力給滿 給老子長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781860175,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 88,
+    "item_name": "壓力給滿 給老子長",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781860188,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 89,
+    "item_name": "一般孵蛋器",
+    "price": 500,
+    "source": "virtual",
+    "timestamp": 1781860432,
+    "uid": 843071419671904308,
+    "username": "ghoul1107"
+  },
+  {
+    "id": 90,
+    "item_name": "企鵝的蛋",
+    "price": 10000,
+    "source": "virtual",
+    "timestamp": 1781861590,
+    "uid": 1367598479110836335,
+    "username": "xu_dk"
+  },
+  {
+    "id": 91,
+    "item_name": "企鵝的蛋",
+    "price": 10000,
+    "source": "virtual",
+    "timestamp": 1781861723,
+    "uid": 1036953796007448606,
+    "username": "chu___0112"
+  },
+  {
+    "id": 92,
+    "item_name": "野放自己亂長我無所謂",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781871152,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 93,
+    "item_name": "野放自己亂長我無所謂",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781871157,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 94,
+    "item_name": "野放自己亂長我無所謂",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781871161,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 95,
+    "item_name": "野放自己亂長我無所謂",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781871166,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 96,
+    "item_name": "野放自己亂長我無所謂",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781871170,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 97,
+    "item_name": "野放自己亂長我無所謂",
+    "price": 3000,
+    "source": "virtual",
+    "timestamp": 1781871177,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  },
+  {
+    "id": 98,
+    "item_name": "一階段進化祕笈",
+    "price": 10000,
+    "source": "virtual",
+    "timestamp": 1781871275,
+    "uid": 457478323665240065,
+    "username": "leeshow"
+  }
+]

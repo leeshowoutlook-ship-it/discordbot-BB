@@ -15,13 +15,16 @@ static dpp::message make_giveaway_msg(const Giveaway& gw) {
     e.add_field("👥  參與人數", std::to_string(gw.participants.size()) + " 人",       true);
 
     // Row 2: optional fields (only shown when set)
+    if (gw.entry_cost > 0)     e.add_field("💰  報名費",    std::to_string(gw.entry_cost) + " 碼", true);
     if (!gw.provider.empty())  e.add_field("💝  提供者",    gw.provider,    true);
     if (!gw.role_name.empty()) e.add_field("🔒  限制身分組", gw.role_name,  true);
 
     // Note (full width)
     if (!gw.note.empty()) e.add_field("📝  備註", gw.note, false);
 
-    e.set_footer(dpp::embed_footer().set_text("點下方按鈕參加 / 再按一次取消"));
+    std::string footer_txt = "點下方按鈕參加 / 再按一次取消";
+    if (gw.entry_cost > 0) footer_txt += "（退出可退還報名費）";
+    e.set_footer(dpp::embed_footer().set_text(footer_txt));
 
     std::string content = gw.mention.empty() ? "" : (gw.mention + " ");
     dpp::message msg(gw.channel_id, content);

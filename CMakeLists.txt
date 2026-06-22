@@ -4,9 +4,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(dpp CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 add_executable(dcbot src/main.cpp)
-target_link_libraries(dcbot PRIVATE dpp::dpp)
+target_link_libraries(dcbot PRIVATE dpp::dpp nlohmann_json::nlohmann_json)
 
 if(MSVC)
     target_compile_options(dcbot PRIVATE /utf-8)
