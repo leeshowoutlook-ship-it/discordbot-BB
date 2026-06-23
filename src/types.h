@@ -212,6 +212,13 @@ struct ScratchStats {
     int64_t profit = 0;
 };
 
+struct WolfPlayerStats {
+    int good_games = 0;
+    int good_wins  = 0;
+    int bad_games  = 0;
+    int bad_wins   = 0;
+};
+
 // sq[i]: -1=炸彈, 0=空格, 10=1x, 15=1.5x, 20=2x
 struct ScratchGame {
     dpp::snowflake     uid;
@@ -270,6 +277,7 @@ inline std::map<dpp::snowflake, RocketGame>     rocket_games;
 inline std::map<dpp::snowflake, RocketStats>    rocket_stats_data;
 inline std::map<dpp::snowflake, ScratchGame>    scratch_games;
 inline std::map<dpp::snowflake, ScratchStats>   scratch_stats_data;
+inline std::map<dpp::snowflake, WolfPlayerStats> wolf_player_stats_data;
 inline std::mutex                               data_mutex;
 
 // ─── 交易系統 ─────────────────────────────────────────────────────────────────

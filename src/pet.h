@@ -50,6 +50,8 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"path_curse",         "飽含詛咒的符咒",   500, "path", "菇菇仔一階段進化時觸發殭屍分支",        60003},
     {"path_blue_dye",      "藍色染料",         500, "path", "菇菇仔一階段進化時觸發藍菇分支（符咒優先）", 60004},
     {"path_desert",        "移居沙漠的機緣",   500, "path", "肥肥一階段進化時觸發沙漠分支",          60005},
+    // ── Special collectibles ─────────────────────────────────────────────────
+    {"star_unknown", "未知的星星", 0, "special", "不知道有什麼用的星星，可能在未來某一天會用到", 70001},
 };
 
 static const VirtualShopItem* find_virtual_item(const std::string& key) {
@@ -382,6 +384,14 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
             .set_id("pet_release_" + uid_s).set_style(dpp::cos_danger);
         row2.add_component(ub); row2.add_component(rb); row2.add_component(rel2);
         msg.add_component(row2);
+        if (pet.stage == 3) {
+            dpp::component refrow; refrow.set_type(dpp::cot_action_row);
+            dpp::component rfb;
+            rfb.set_type(dpp::cot_button).set_label("✨ 提煉星星（-50 exp）")
+               .set_id("pet_refine_star_" + uid_s).set_style(dpp::cos_primary)
+               .set_disabled(pet.exp < 50);
+            refrow.add_component(rfb); msg.add_component(refrow);
+        }
         return msg;
     }
 
@@ -407,7 +417,67 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
        .set_id("pet_release_" + uid_s).set_style(dpp::cos_danger);
     row.add_component(ub); row.add_component(rn); row.add_component(rel);
     msg.add_component(row);
+    if (pet.stage == 3) {
+        dpp::component refrow; refrow.set_type(dpp::cot_action_row);
+        dpp::component rfb;
+        rfb.set_type(dpp::cot_button).set_label("✨ 提煉星星（-50 exp）")
+           .set_id("pet_refine_star_" + uid_s).set_style(dpp::cos_primary)
+           .set_disabled(pet.exp < 50);
+        refrow.add_component(rfb); msg.add_component(refrow);
+    }
     return msg;
+}
+
+// ─── Refine star (stage 3 only) ───────────────────────────────────────────────
+
+static dpp::message handle_pet_refine_star(dpp::snowflake uid) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    dpp::embed e; dpp::message m;
+    bool success = false;
+    int new_exp = 0, star_count = 0;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto pi = pet_data.find(uid);
+        if (pi == pet_data.end() || pi->second.stage != 3) {
+            e.set_title("❌  無法提煉").set_color(0xE74C3C);
+            e.set_description("需要三階段寵物才能提煉！");
+            m.add_embed(e); return m;
+        }
+        auto& pet = pi->second;
+        if (pet.exp < 50) {
+            e.set_title("❌  經驗值不足").set_color(0xE74C3C);
+            e.set_description("需要 **50** 經驗值才能提煉，目前只有 **" + std::to_string(pet.exp) + "**！");
+            m.add_embed(e); return m;
+        }
+        pet.exp -= 50;
+        new_exp = pet.exp;
+        static std::mt19937 rng(std::random_device{}());
+        success = std::uniform_int_distribution<int>(1, 100)(rng) <= 90;
+        if (success) {
+            inventory_data[uid]["star_unknown"]++;
+            star_count = inventory_data[uid]["star_unknown"];
+        }
+    }
+    save_pet_data();
+    save_inventory();
+    if (success) {
+        e.set_title("✨  提煉成功！").set_color(0xF1C40F);
+        e.set_description("消耗 **50** 經驗值，成功提煉出一顆 ⭐ **未知的星星**！\n"
+                          "不知道有什麼用的星星，可能在未來某一天會用到。\n\n"
+                          "目前持有：**" + std::to_string(star_count) + "** 顆星星\n"
+                          "剩餘經驗值：**" + std::to_string(new_exp) + "**");
+    } else {
+        e.set_title("💨  提煉失敗").set_color(0x95A5A6);
+        e.set_description("消耗 **50** 經驗值，但這次提煉失敗了...\n"
+                          "剩餘經驗值：**" + std::to_string(new_exp) + "**");
+    }
+    m.add_embed(e);
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    dpp::component back;
+    back.set_type(dpp::cot_button).set_label("↩ 返回寵物狀態")
+        .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary);
+    row.add_component(back); m.add_component(row);
+    return m;
 }
 
 // ─── Release pet ─────────────────────────────────────────────────────────────
@@ -489,6 +559,7 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid) {
             return (pet.stage == 0 || !pet.talent.empty()); // scroll/class: disabled if already has talent
         }
         if (vi->category == "path")      return false; // path items just sit in inventory
+        if (vi->category == "special")   return true;  // collectibles, no use action
         if (vi->category == "evolution") {
             if (key == "evo_degrade") return (pet.stage <= 1); // can't degrade egg or stage 1
             if (pet.stage == 0 || pet.stage == 3) return true;
@@ -621,7 +692,11 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
             std::lock_guard<std::mutex> lk(data_mutex);
             if (consume_item) inventory_data[uid][key]--;
             auto& p = pet_data[uid];
-            p.exp = std::max(0, p.exp + exp_gain);
+            int raw = p.exp + exp_gain;
+            if (p.stage > 0 && p.stage < 3)
+                p.exp = std::min(std::max(0, raw), exp_needed(p.stage));
+            else
+                p.exp = std::max(0, raw);
             new_exp = p.exp;
         }
         if (punished)
@@ -1033,8 +1108,12 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto& p = pet_data[uid];
-        if (p.stage > 0 && p.stage < 3)
-            p.exp = std::min(p.exp + exp_gain, exp_needed(p.stage));
+        if (p.stage > 0) {
+            if (p.stage < 3)
+                p.exp = std::min(p.exp + exp_gain, exp_needed(p.stage));
+            else
+                p.exp += exp_gain; // stage 3: no cap
+        }
         p.work_task = 0;
         p.work_end  = 0;
     }

@@ -1,5 +1,6 @@
 #pragma once
-// Must be included after pet.h and shoot.h
+// Must be included after pet.h, shoot.h, and wolfplayerstats.h
+#include "wolfplayerstats.h"
 
 static std::string wallet_work_status(const Pet& pet) {
     time_t now = time(nullptr);
@@ -179,6 +180,8 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("← 返回").set_id("wallet_home_" + sid).set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🐺 狼人殺").set_id("wallet_wolf_" + sid).set_style(dpp::cos_secondary));
 
     dpp::message msg; msg.add_embed(e); msg.add_component(row);
     return msg;

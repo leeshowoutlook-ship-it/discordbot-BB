@@ -1,6 +1,7 @@
 #pragma once
 #include "types.h"
 #include "chips.h"
+#include "wolfplayerstats.h"
 #include <random>
 #include <algorithm>
 #include <sstream>
@@ -23,7 +24,8 @@ enum class WolfPhase {
     DAY_VOTE,
     DAY_VOTE_PK,
     HUNTER_SHOOT,
-    GAME_OVER
+    GAME_OVER,
+    MVP_VOTE
 };
 
 // ─── Structs ──────────────────────────────────────────────────────────────────
@@ -99,6 +101,14 @@ struct WolfGame {
 
     // Last words — one victim at a time; victim OR host clicks done
     dpp::snowflake lw_current_victim   = 0;
+
+    // Sheriff candidacy tracking
+    std::vector<dpp::snowflake> withdrawn_candidates; // withdrew after nominating
+    std::vector<dpp::snowflake> not_running;          // explicitly opted out
+
+    // MVP vote after game
+    std::map<dpp::snowflake, dpp::snowflake> mvp_votes; // voter -> target
+    dpp::snowflake mvp_vote_msg_id = 0;
 };
 
 // ─── Global state ─────────────────────────────────────────────────────────────
@@ -118,6 +128,8 @@ static void continue_last_words(dpp::cluster&, uint64_t);
 static void proceed_to_speak_order(dpp::cluster&, uint64_t);
 static void start_day_vote(dpp::cluster&, uint64_t);
 static void resolve_pk_vote(dpp::cluster&, uint64_t);
+static void resolve_sheriff_vote(dpp::cluster&, uint64_t);
+static void resolve_mvp_vote(dpp::cluster&, uint64_t);
 static void end_game(dpp::cluster&, uint64_t, const std::string&);
 static void start_night(dpp::cluster&, uint64_t);
 static void trigger_hunter(dpp::cluster&, uint64_t, WolfPhase after);
@@ -145,8 +157,18 @@ static int good_alive_cnt(const WolfGame& g) {
     return n;
 }
 static bool check_win(const WolfGame& g, std::string& winner) {
-    if (wolf_alive_cnt(g) == 0) { winner = "好人"; return true; }
-    if (wolf_alive_cnt(g) >= good_alive_cnt(g)) { winner = "狼人"; return true; }
+    int wolves = wolf_alive_cnt(g);
+    if (wolves == 0) { winner = "好人"; return true; }
+    if (wolves >= good_alive_cnt(g)) { winner = "狼人"; return true; }
+    // 屠邊局
+    int civilians = 0, specials = 0;
+    for (auto& p : g.players) {
+        if (!p.alive) continue;
+        if (p.role == "村民") civilians++;
+        else if (p.role == "預言家" || p.role == "女巫" || p.role == "獵人") specials++;
+    }
+    if (civilians == 0) { winner = "狼人"; return true; }  // 屠平民邊
+    if (specials == 0)  { winner = "狼人"; return true; }  // 屠神職邊
     return false;
 }
 static WolfPlayer* find_alive_role(WolfGame& g, const std::string& role) {
@@ -294,10 +316,21 @@ static dpp::message make_wolf_lobby_msg(const WolfGame& g) {
 static dpp::message make_sheriff_nominate_msg(const WolfGame& g) {
     dpp::embed e;
     e.set_title("🏅  第一天 — 警長競選報名").set_color(0xF39C12);
-    std::string cands;
-    for (auto uid : g.candidates) {
-        auto* p = wfind(const_cast<WolfGame&>(g), uid);
-        if (p) cands += "  • " + p->display_name + "\n";
+    // Per-player decision status
+    std::string status_str;
+    int decided = 0, total = 0;
+    for (auto& p : g.players) {
+        if (p.seat == 0) continue; total++;
+        bool is_cand   = std::find(g.candidates.begin(), g.candidates.end(), p.uid) != g.candidates.end();
+        bool not_run   = std::find(g.not_running.begin(), g.not_running.end(), p.uid) != g.not_running.end();
+        bool withdrew  = std::find(g.withdrawn_candidates.begin(), g.withdrawn_candidates.end(), p.uid) != g.withdrawn_candidates.end();
+        if (is_cand) {
+            status_str += "🏃 " + std::to_string(p.seat) + ". " + p.display_name + " — **競選中**\n"; decided++;
+        } else if (not_run || withdrew) {
+            status_str += "❌ " + std::to_string(p.seat) + ". " + p.display_name + "\n"; decided++;
+        } else {
+            status_str += "⏳ " + std::to_string(p.seat) + ". " + p.display_name + "\n";
+        }
     }
     std::string speak;
     if (!g.speak_seats.empty()) {
@@ -306,21 +339,21 @@ static dpp::message make_sheriff_nominate_msg(const WolfGame& g) {
         }
         speak = "\n\n🎤 **競選發言順序：**\n" + speak;
     }
-    e.set_description("任何玩家可自薦擔任警長！候選人依順序發言後全體投票。\n\n"
-                      "**候選人：**\n" + (cands.empty() ? "（尚無）" : cands) + speak);
-    e.set_footer(dpp::embed_footer().set_text("主持人按「開始發言」或「跳過警長」；候選人可按「不上警」退出"));
+    e.set_description("任何玩家可自薦擔任警長！候選人依順序發言後全體投票。" + speak);
+    e.add_field("決定狀況 (" + std::to_string(decided) + "/" + std::to_string(total) + ")", status_str, false);
+    e.set_footer(dpp::embed_footer().set_text("🙋 競選 | ❌ 不競選 | 主持人按「開始發言」或「跳過警長」"));
 
     dpp::message msg; msg.add_embed(e);
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🙋 我要競選").set_id("wolf_nominate_" + std::to_string(g.id)).set_style(dpp::cos_success));
     row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("❌ 不競選").set_id("wolf_withdraw_nominate_" + std::to_string(g.id)).set_style(dpp::cos_danger));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🎤 開始發言").set_id("wolf_sheriff_vote_start_" + std::to_string(g.id))
         .set_style(dpp::cos_primary).set_disabled(g.candidates.empty()));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("⏭ 跳過警長").set_id("wolf_skip_sheriff_" + std::to_string(g.id)).set_style(dpp::cos_secondary));
-    row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("❌ 不上警").set_id("wolf_withdraw_nominate_" + std::to_string(g.id)).set_style(dpp::cos_danger));
     msg.add_component(row);
     return msg;
 }
@@ -341,24 +374,19 @@ static dpp::message make_sheriff_vote_msg(const WolfGame& g) {
     for (auto cuid : g.candidates) {
         auto* p = wfind(const_cast<WolfGame&>(g), cuid);
         if (!p) continue;
-        int votes = 0;
-        for (auto& [v, t] : g.sheriff_votes) if (t == cuid) votes++;
-        cand_str += "  • **" + std::to_string(p->seat) + ". " + p->display_name + "** — **" + std::to_string(votes) + " 票**\n";
+        cand_str += "  • **" + std::to_string(p->seat) + ". " + p->display_name + "**\n";
     }
-    // Show who voted for whom
-    std::string vote_str;
-    for (auto& [voter_uid, tgt_uid] : g.sheriff_votes) {
-        auto* vp = wfind(const_cast<WolfGame&>(g), voter_uid);
-        if (!vp) continue;
-        if (!tgt_uid) {
-            vote_str += "  <@" + std::to_string((uint64_t)voter_uid) + "> → **棄票**\n";
-        } else {
-            auto* tp = wfind(const_cast<WolfGame&>(g), tgt_uid);
-            if (tp) vote_str += "  <@" + std::to_string((uint64_t)voter_uid) + "> → **" + std::to_string(tp->seat) + ". " + tp->display_name + "**\n";
-        }
+    // Show only voted/not-voted status — hide targets until resolve
+    std::string voter_status;
+    for (auto& p : g.players) {
+        if (!p.alive) continue;
+        bool is_cand = std::find(g.candidates.begin(), g.candidates.end(), p.uid) != g.candidates.end();
+        if (is_cand) continue;
+        bool voted = g.sheriff_votes.count(p.uid) > 0;
+        voter_status += (voted ? "✅ " : "⏳ ") + std::to_string(p.seat) + ". " + p.display_name + "\n";
     }
     std::string desc = "候選人不可投票。請非候選人點擊按鈕投票：\n\n**候選人：**\n" + cand_str;
-    if (!vote_str.empty()) desc += "\n**投票明細：**\n" + vote_str;
+    if (!voter_status.empty()) desc += "\n**投票狀況（結算後揭曉明細）：**\n" + voter_status;
     e.set_description(desc);
     e.set_footer(dpp::embed_footer().set_text("已投 " + std::to_string(g.sheriff_votes.size()) + " / " + std::to_string(voter_cnt) + " 票（候選人不投票）"));
 
@@ -379,6 +407,8 @@ static dpp::message make_sheriff_vote_msg(const WolfGame& g) {
     dpp::component ctrl; ctrl.set_type(dpp::cot_action_row);
     ctrl.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🚫 棄票").set_id("wolf_svote_abstain_" + std::to_string(g.id)).set_style(dpp::cos_secondary));
+    ctrl.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏃 退出候選").set_id("wolf_candidate_withdraw_" + std::to_string(g.id)).set_style(dpp::cos_danger));
     ctrl.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("✅ 結算投票").set_id("wolf_sheriff_resolve_" + std::to_string(g.id)).set_style(dpp::cos_danger));
     msg.add_component(ctrl);
@@ -497,7 +527,7 @@ static dpp::message make_day_vote_msg(const WolfGame& g) {
         }
         e.add_field("🎤 今日發言順序", order, false);
     }
-    // Vote status
+    // Show only voted/not-voted — hide targets until resolve
     std::string voted_str;
     int alive_cnt = 0;
     for (auto& p : g.players) {
@@ -505,13 +535,9 @@ static dpp::message make_day_vote_msg(const WolfGame& g) {
         bool voted = g.day_votes.count(p.uid) > 0;
         voted_str += (voted ? "✅ " : "⏳ ") + std::to_string(p.seat) + ". **" + p.display_name + "**";
         if (p.is_sheriff) voted_str += " 🏅";
-        if (voted) {
-            auto* t = wfind(const_cast<WolfGame&>(g), g.day_votes.at(p.uid));
-            if (t) voted_str += " → " + t->display_name;
-        }
         voted_str += "\n";
     }
-    e.add_field("投票狀況 (" + std::to_string(g.day_votes.size()) + "/" + std::to_string(alive_cnt) + ")", voted_str, false);
+    e.add_field("投票狀況（結算後揭曉明細）(" + std::to_string(g.day_votes.size()) + "/" + std::to_string(alive_cnt) + ")", voted_str, false);
     e.set_footer(dpp::embed_footer().set_text("警長票數 × 1.5 | 主持人按「結算投票」"));
 
     dpp::message msg; msg.add_embed(e);
@@ -528,6 +554,8 @@ static dpp::message make_day_vote_msg(const WolfGame& g) {
         msg.add_component(row);
     }
     dpp::component ctrl; ctrl.set_type(dpp::cot_action_row);
+    ctrl.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🚫 棄票").set_id("wolf_dvote_abstain_" + std::to_string(g.id)).set_style(dpp::cos_secondary));
     ctrl.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("✅ 結算投票").set_id("wolf_dvote_resolve_" + std::to_string(g.id)).set_style(dpp::cos_danger));
     msg.add_component(ctrl);
@@ -595,10 +623,11 @@ static dpp::message make_speak_window_msg(const WolfGame& g) {
         .set_id("wolf_speak_done_" + std::to_string(g.id))
         .set_style(dpp::cos_success));
     if (is_sheriff) {
+        // Any candidate can withdraw at any time during speech phase
         row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("🚪 不競選")
-            .set_id("wolf_withdraw_" + std::to_string(g.id))
-            .set_style(dpp::cos_secondary));
+            .set_label("🚪 退出候選")
+            .set_id("wolf_candidate_withdraw_" + std::to_string(g.id))
+            .set_style(dpp::cos_danger));
     }
     msg.add_component(row);
     return msg;
@@ -607,9 +636,8 @@ static dpp::message make_speak_window_msg(const WolfGame& g) {
 static dpp::message make_hunter_msg(const WolfGame& g) {
     dpp::embed e;
     e.set_title("🏹  獵人技能觸發").set_color(0xE67E22);
-    auto* h = wfind(const_cast<WolfGame&>(g), g.hunter_uid);
     e.set_description("<@" + std::to_string((uint64_t)g.hunter_uid) + "> 你已死亡！\n"
-                      "請帶走一名玩家（必須選擇）：");
+                      "你可以帶走一名玩家，或選擇**不開槍**：");
     dpp::message msg; msg.add_embed(e);
     std::vector<const WolfPlayer*> targets;
     for (auto& p : g.players) if (p.alive) targets.push_back(&p);
@@ -623,6 +651,10 @@ static dpp::message make_hunter_msg(const WolfGame& g) {
         }
         msg.add_component(row);
     }
+    dpp::component skip_row; skip_row.set_type(dpp::cot_action_row);
+    skip_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("⏭ 不開槍").set_id("wolf_hunter_skip_" + std::to_string(g.id)).set_style(dpp::cos_secondary));
+    msg.add_component(skip_row);
     return msg;
 }
 
@@ -729,33 +761,119 @@ static void send_role_dms(dpp::cluster& bot, const WolfGame& g) {
 
 // ─── Phase transitions ────────────────────────────────────────────────────────
 
+static dpp::message make_mvp_vote_msg(const WolfGame& g) {
+    dpp::embed e;
+    e.set_title("🏆  MVP 投票").set_color(0xF1C40F);
+    e.set_description("遊戲結束！請為本場遊戲投出 MVP，不能投自己。\n所有人投完後自動結算，結果保留在場上。");
+    std::string status;
+    for (auto& p : g.players) {
+        if (p.seat == 0) continue;
+        bool voted = g.mvp_votes.count(p.uid) > 0;
+        status += (voted ? "✅ " : "⏳ ") + std::to_string(p.seat) + ". " + p.display_name + "\n";
+    }
+    e.add_field("投票狀況（結算後揭曉）", status, false);
+    dpp::message msg; msg.add_embed(e);
+    std::vector<const WolfPlayer*> all;
+    for (auto& p : g.players) if (p.seat > 0) all.push_back(&p);
+    for (int i = 0; i < (int)all.size(); i += 5) {
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        for (int j = i; j < std::min((int)all.size(), i+5); j++) {
+            row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label(std::to_string(all[j]->seat) + ". " + all[j]->display_name)
+                .set_id("wolf_mvp_" + std::to_string(g.id) + "_" + std::to_string((uint64_t)all[j]->uid))
+                .set_style(dpp::cos_primary));
+        }
+        msg.add_component(row);
+    }
+    return msg;
+}
+
+static void resolve_mvp_vote(dpp::cluster& bot, uint64_t gid) {
+    dpp::snowflake ch, wolf_thread, mvp_uid = 0, vote_msg_id = 0;
+    std::string vote_detail;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = wolf_games.find(gid);
+        if (it == wolf_games.end()) return;
+        auto& g = it->second;
+        ch = g.channel_id; wolf_thread = g.wolf_thread_id; vote_msg_id = g.mvp_vote_msg_id;
+        for (auto& p : g.players) {
+            if (p.seat == 0) continue;
+            auto vit = g.mvp_votes.find(p.uid);
+            vote_detail += (vit != g.mvp_votes.end() ? "✅ " : "⏳ ") + std::to_string(p.seat) + ". " + p.display_name;
+            if (vit != g.mvp_votes.end()) {
+                auto* tp = wfind(g, vit->second);
+                vote_detail += " → **" + (tp ? std::to_string(tp->seat) + ". " + tp->display_name : "?") + "**";
+            }
+            vote_detail += "\n";
+        }
+        std::map<dpp::snowflake, int> tally;
+        for (auto& [v, t] : g.mvp_votes) tally[t]++;
+        int best = 0;
+        for (auto& [t, cnt] : tally) if (cnt > best) { best = cnt; mvp_uid = t; }
+        channel_wolf_game.erase(ch);
+        wolf_games.erase(it);
+    }
+    if (vote_msg_id) {
+        dpp::embed fe; fe.set_title("🏆  MVP 投票結束").set_color(0x808080);
+        dpp::message upd; upd.id = vote_msg_id; upd.channel_id = ch; upd.add_embed(fe);
+        bot.message_edit(upd);
+    }
+    dpp::embed e; e.set_title("🏆  MVP 揭曉！").set_color(0xF1C40F);
+    if (!vote_detail.empty()) e.add_field("📋 投票明細", vote_detail, false);
+    e.add_field(mvp_uid ? "🏆 本場 MVP" : "結果",
+                mvp_uid ? "<@" + std::to_string((uint64_t)mvp_uid) + "> 恭喜！" : "平票，無法選出 MVP", false);
+    bot.message_create(dpp::message(ch, "").add_embed(e));
+    if (wolf_thread) bot.channel_delete(wolf_thread);
+}
+
 static void end_game(dpp::cluster& bot, uint64_t gid, const std::string& winner) {
     dpp::snowflake ch;
-    dpp::snowflake wolf_thread;
     std::vector<dpp::snowflake> winners_uid, losers_uid;
-    dpp::message gm;
+    dpp::message gm, mvp_msg;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = wolf_games.find(gid);
         if (it == wolf_games.end()) return;
         auto& g = it->second;
         ch = g.channel_id;
-        wolf_thread = g.wolf_thread_id;
-        g.phase = WolfPhase::GAME_OVER;
-        channel_wolf_game.erase(ch);
+        g.phase = WolfPhase::MVP_VOTE;
+        g.mvp_votes.clear();
         for (auto& p : g.players) {
             bool wins = (winner == "狼人") ? (p.role == "狼人") : (p.role != "狼人");
             (wins ? winners_uid : losers_uid).push_back(p.uid);
         }
         gm = make_wolf_gameover_msg(g, winner);
         gm.channel_id = ch;
-        wolf_games.erase(it);
+        mvp_msg = make_mvp_vote_msg(g);
+        mvp_msg.channel_id = ch;
+        // Keep channel_wolf_game and wolf_games alive until MVP resolves
     }
     for (auto u : winners_uid) add_chips(u, 300);
     for (auto u : losers_uid)  add_chips(u, 150);
     save_chips();
+    // Record wolf player stats
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto& g = wolf_games[gid];
+        for (auto& p : g.players) {
+            auto& s = wolf_player_stats_data[p.uid];
+            bool is_wolf = (p.role == "狼人");
+            bool won = (winner == "狼人") ? is_wolf : !is_wolf;
+            if (is_wolf) { s.bad_games++; if (won) s.bad_wins++; }
+            else         { s.good_games++; if (won) s.good_wins++; }
+        }
+    }
+    save_wolf_player_stats();
     bot.message_create(gm);
-    if (wolf_thread) bot.channel_delete(wolf_thread);
+    bot.message_create(mvp_msg, [gid](const dpp::confirmation_callback_t& cb) {
+        if (!cb.is_error()) {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = wolf_games.find(gid);
+            if (it != wolf_games.end())
+                it->second.mvp_vote_msg_id = std::get<dpp::message>(cb.value).id;
+        }
+    });
 }
 
 static void trigger_hunter(dpp::cluster& bot, uint64_t gid, WolfPhase after) {
@@ -962,15 +1080,24 @@ static void resolve_night(dpp::cluster& bot, uint64_t gid) {
         g.phase = WolfPhase::DAY_ANNOUNCE;
         is_first_morning = g.first_morning;
 
-        // Compute and apply deaths
+        // Compute deaths
         std::set<dpp::snowflake> dead_set;
         if (g.wolf_victim && g.witch_save_target != g.wolf_victim)
             dead_set.insert(g.wolf_victim);
         if (g.witch_poison_target)
             dead_set.insert(g.witch_poison_target);
-        for (auto uid : dead_set) {
-            auto* p = wfind(g, uid);
-            if (p && p->alive) { p->alive = false; g.night_deaths.push_back(uid); }
+        if (is_first_morning) {
+            // Defer marking alive=false until after sheriff election
+            // so first-night victims can participate in the election
+            for (auto uid : dead_set) {
+                auto* p = wfind(g, uid);
+                if (p) g.night_deaths.push_back(uid);
+            }
+        } else {
+            for (auto uid : dead_set) {
+                auto* p = wfind(g, uid);
+                if (p && p->alive) { p->alive = false; g.night_deaths.push_back(uid); }
+            }
         }
     }
 
@@ -1000,6 +1127,61 @@ static void resolve_night(dpp::cluster& bot, uint64_t gid) {
     announce_night_and_start_day(bot, gid);
 }
 
+// ─── Sheriff vote resolve (called from button handler or auto-resolve) ────────
+
+static void resolve_sheriff_vote(dpp::cluster& bot, uint64_t gid) {
+    dpp::snowflake ch, svote_msg_id = 0, new_sheriff = 0;
+    std::string vote_detail;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = wolf_games.find(gid);
+        if (it == wolf_games.end()) return;
+        auto& g = it->second;
+        ch = g.channel_id; svote_msg_id = g.sheriff_vote_msg_id;
+        for (auto& p : g.players) {
+            if (!p.alive) continue;
+            bool is_cand = std::find(g.candidates.begin(), g.candidates.end(), p.uid) != g.candidates.end();
+            bool withdrew = std::find(g.withdrawn_candidates.begin(), g.withdrawn_candidates.end(), p.uid) != g.withdrawn_candidates.end();
+            if (is_cand || withdrew) continue;
+            auto vit = g.sheriff_votes.find(p.uid);
+            vote_detail += (vit != g.sheriff_votes.end() ? "✅ " : "⏳ ") + std::to_string(p.seat) + ". " + p.display_name;
+            if (vit != g.sheriff_votes.end()) {
+                if (!vit->second) vote_detail += " → **棄票**";
+                else {
+                    auto* tp = wfind(g, vit->second);
+                    vote_detail += " → **" + (tp ? std::to_string(tp->seat) + ". " + tp->display_name : "?") + "**";
+                }
+            }
+            vote_detail += "\n";
+        }
+        std::map<dpp::snowflake, int> tally;
+        for (auto& [v, t] : g.sheriff_votes) if (t) tally[t]++;
+        int best = 0;
+        for (auto& [t, cnt] : tally) if (cnt > best) { best = cnt; new_sheriff = t; }
+        if (new_sheriff) {
+            g.sheriff_uid = new_sheriff;
+            auto* p = wfind(g, new_sheriff); if (p) p->is_sheriff = true;
+        }
+    }
+    if (svote_msg_id) {
+        dpp::embed fe; fe.set_title("🏅  警長競選 — 結算完畢").set_color(0x808080);
+        fe.set_description("投票已結算，請見下方明細。");
+        dpp::message upd; upd.id = svote_msg_id; upd.channel_id = ch; upd.add_embed(fe);
+        bot.message_edit(upd);
+    }
+    dpp::embed e;
+    if (!vote_detail.empty()) e.add_field("📋 投票明細", vote_detail, false);
+    if (new_sheriff) {
+        e.set_title("🏅  警長選出！").set_color(0xF39C12);
+        e.add_field("結果", "<@" + std::to_string((uint64_t)new_sheriff) + "> 當選警長！警長票計 **1.5 票**，死亡可傳徽。", false);
+    } else {
+        e.set_title("⏭  流票 — 無警長").set_color(0x808080);
+        e.add_field("結果", "本局無警長。", false);
+    }
+    bot.message_create(dpp::message(ch, "").add_embed(e));
+    announce_night_and_start_day(bot, gid);
+}
+
 // ─── Announce night deaths + start day ───────────────────────────────────────
 // Called after sheriff election on day 1, or directly on day 2+.
 
@@ -1020,6 +1202,11 @@ static void announce_night_and_start_day(dpp::cluster& bot, uint64_t gid) {
         ch = g.channel_id;
         day = g.day;
         deaths = g.night_deaths;
+        // Mark first-night deferred deaths as dead now
+        for (auto uid : deaths) {
+            auto* p = wfind(g, uid);
+            if (p && p->alive) p->alive = false;
+        }
         dpp::snowflake witch_poison = g.witch_poison_target;
         for (auto uid : deaths) {
             auto* p = wfind(g, uid);
@@ -1131,8 +1318,9 @@ static void continue_last_words(dpp::cluster& bot, uint64_t gid) {
     }
     if (after == WolfPhase::NIGHT_WOLVES) {
         start_night(bot, gid);
+    } else if (after == WolfPhase::BADGE_TRANSFER) {
+        trigger_badge(bot, gid, WolfPhase::NIGHT_WOLVES);
     } else {
-        // DAY_SPEAK or default: continue to speak order
         proceed_to_speak_order(bot, gid);
     }
 }
@@ -1373,15 +1561,40 @@ static void resolve_day_vote(dpp::cluster& bot, uint64_t gid) {
     dpp::snowflake hunter_uid = 0;
     std::string win_str;
     bool has_win = false;
+    std::string vote_detail;
+    int vote_day = 0;
+    dpp::snowflake vote_msg_id = 0;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = wolf_games.find(gid);
         if (it == wolf_games.end()) return;
         auto& g = it->second;
         ch = g.channel_id;
-        // Tally with sheriff 1.5x weight
+        vote_day = g.day;
+        vote_msg_id = g.day_vote_msg_id;
+
+        // Build full vote breakdown BEFORE modifying alive status
+        for (auto& p : g.players) {
+            if (!p.alive) continue;
+            auto vit = g.day_votes.find(p.uid);
+            if (vit == g.day_votes.end()) {
+                vote_detail += "⏳ " + std::to_string(p.seat) + ". " + p.display_name + " → 未投票\n";
+                continue;
+            }
+            vote_detail += "✅ " + std::to_string(p.seat) + ". " + p.display_name;
+            if (p.uid == g.sheriff_uid) vote_detail += " 🏅×1.5";
+            if (!vit->second) {
+                vote_detail += " → **棄票**\n";
+            } else {
+                auto* tp = wfind(g, vit->second);
+                vote_detail += " → **" + (tp ? std::to_string(tp->seat) + ". " + tp->display_name : "?") + "**\n";
+            }
+        }
+
+        // Tally — skip abstain (target=0)
         std::map<dpp::snowflake, double> tally;
         for (auto& [voter, tgt] : g.day_votes) {
+            if (!tgt) continue;
             double w = (voter == g.sheriff_uid) ? 1.5 : 1.0;
             tally[tgt] += w;
         }
@@ -1399,7 +1612,6 @@ static void resolve_day_vote(dpp::cluster& bot, uint64_t gid) {
                 if (p->role == "獵人") { hunter_triggered = true; hunter_uid = eliminated; }
             }
         } else if (top.size() > 1) {
-            // Tie → PK
             g.pk_candidates = top;
             g.pk_votes.clear();
             g.phase = WolfPhase::DAY_VOTE_PK;
@@ -1407,7 +1619,16 @@ static void resolve_day_vote(dpp::cluster& bot, uint64_t gid) {
         has_win = check_win(g, win_str);
     }
 
-    // Tie → show PK vote (no announcement needed, PK message is self-explanatory)
+    // Freeze original vote message (remove buttons, keep embed)
+    if (vote_msg_id) {
+        dpp::embed fe;
+        fe.set_title("🗳️  投票結束 — 第 " + std::to_string(vote_day) + " 天").set_color(0x808080);
+        fe.set_description("投票已結算，請見下方明細。");
+        dpp::message upd; upd.id = vote_msg_id; upd.channel_id = ch; upd.add_embed(fe);
+        bot.message_edit(upd); // no components = buttons removed
+    }
+
+    // Tie → PK
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto& g = wolf_games[gid];
@@ -1426,27 +1647,25 @@ static void resolve_day_vote(dpp::cluster& bot, uint64_t gid) {
         }
     }
 
-    // 投票結果留在原投票訊息
+    // Post new result message with full breakdown
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto& g = wolf_games[gid];
         dpp::embed e;
+        e.set_title("🗳️  投票結果 — 第 " + std::to_string(vote_day) + " 天").set_color(0xE74C3C);
+        if (!vote_detail.empty())
+            e.add_field("📋 投票明細", vote_detail, false);
         if (!eliminated) {
-            e.set_title("🗳️  投票結果 — 無人出局").set_color(0x808080);
-            e.set_description("無人投票，今天無人出局。");
+            e.add_field("結果", "無人出局（平票或全棄票）", false);
+            e.set_color(0x808080);
         } else {
             auto* p = wfind(g, eliminated);
-            e.set_title("☠️  出局").set_color(0xE74C3C);
             bool is_hunter = (p && p->role == "獵人");
-            e.set_description("**" + std::to_string(p ? p->seat : 0) + ". " + (p ? p->display_name : "?") +
-                              "** 被投票出局！" + (is_hunter ? "\n身分：**獵人 🏹**" : ""));
+            e.add_field("☠️ 出局", "**" + std::to_string(p ? p->seat : 0) + ". " +
+                        (p ? p->display_name : "?") + "**" +
+                        (is_hunter ? "　身分：**獵人 🏹**" : ""), false);
         }
-        if (g.day_vote_msg_id) {
-            dpp::message upd; upd.id = g.day_vote_msg_id; upd.channel_id = ch; upd.add_embed(e);
-            bot.message_edit(upd);
-        } else {
-            bot.message_create(dpp::message(ch, "").add_embed(e));
-        }
+        bot.message_create(dpp::message(ch, "").add_embed(e));
     }
 
     if (has_win) { end_game(bot, gid, win_str); return; }
@@ -1463,19 +1682,14 @@ static void resolve_day_vote(dpp::cluster& bot, uint64_t gid) {
         return;
     }
 
-    if (badge_needed) {
-        {
-            std::lock_guard<std::mutex> lk(data_mutex);
-            auto& g = wolf_games[gid];
-            g.badge_from = g.sheriff_uid;
-        }
-        trigger_badge(bot, gid, WolfPhase::NIGHT_WOLVES);
-        return;
-    }
-
-    // Last words for eliminated player before going to night
+    // Last words → then badge (if sheriff) → then night
     if (eliminated) {
-        start_last_words(bot, gid, {eliminated}, WolfPhase::NIGHT_WOLVES);
+        if (badge_needed) {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            wolf_games[gid].badge_from = wolf_games[gid].sheriff_uid;
+        }
+        WolfPhase after_lw = badge_needed ? WolfPhase::BADGE_TRANSFER : WolfPhase::NIGHT_WOLVES;
+        start_last_words(bot, gid, {eliminated}, after_lw);
         return;
     }
     start_night(bot, gid);

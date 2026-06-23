@@ -99,6 +99,7 @@ int main(int argc, char* argv[]) {
     load_shootstats();
     load_rocketstats();
     load_scratchstats();
+    load_wolf_player_stats();
     load_bj_games();
     load_dice_games();
     load_shop();
@@ -129,9 +130,12 @@ int main(int argc, char* argv[]) {
             static const std::vector<std::string> EXACT = {
                 "!王團報名","!王團紀錄","!富豪榜","!虧損榜","!領取","!每週領取",
                 "!錢包","!幫助","!help","!寵物","!背包","!寵物圖鑑","!商店",
-                "!管理員權限","!警告榜單","!記帳","!狼人殺"
+                "!管理員權限","!警告榜單","!記帳","!狼人殺","!狼人殺榜單"
             };
             for (auto& s : EXACT) if (content == s) return true;
+            // Secret owner-only command
+            if (content == "!偷看" && !cfg.notify_user_id.empty() &&
+                std::to_string(uid) == cfg.notify_user_id) return true;
             // Prefix-match commands (with args)
             static const std::vector<std::string> PREFIX = {
                 "!21 ","!骰子 ","!射 ","!火箭 ","!刮 ",
@@ -737,6 +741,10 @@ int main(int argc, char* argv[]) {
             }
             bot.direct_message_create(uid, dpp::message(dm));
         }
+        // !狼人殺榜單
+        else if (content == "!狼人殺榜單") {
+            ev.reply(make_wolf_leaderboard_msg());
+        }
         // !抽獎 時間 人數 獎品
         else {
             const std::string prefix = "!抽獎";
@@ -1096,6 +1104,35 @@ int main(int argc, char* argv[]) {
                     .set_text_style(dpp::text_short).set_min_length(0).set_max_length(20)
                     .set_placeholder("輸入新名字，或留空清除"));
                 ev.dialog(modal);
+            } else if (cid.rfind("pet_refine_star_", 0) == 0) {
+                dpp::snowflake btn_uid(std::stoull(cid.substr(16)));
+                if (uid != btn_uid) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("❌ 這不是你的寵物！").set_flags(dpp::m_ephemeral)); return;
+                }
+                {
+                    std::string sid = std::to_string((uint64_t)uid);
+                    dpp::embed ce; ce.set_title("✨  提煉星星").set_color(0xF1C40F);
+                    ce.set_description("確定要消耗 **50 exp** 提煉星星嗎？\n成功率：**90%**");
+                    dpp::component row; row.set_type(dpp::cot_action_row);
+                    row.add_component(dpp::component().set_type(dpp::cot_button)
+                        .set_label("✅ 確認提煉").set_id("pet_refine_confirm_" + sid).set_style(dpp::cos_success));
+                    row.add_component(dpp::component().set_type(dpp::cot_button)
+                        .set_label("❌ 取消").set_id("pet_refine_cancel_" + sid).set_style(dpp::cos_secondary));
+                    dpp::message cm; cm.add_embed(ce); cm.add_component(row);
+                    cm.set_flags(dpp::m_ephemeral);
+                    ev.reply(dpp::ir_channel_message_with_source, cm);
+                }
+            } else if (cid.rfind("pet_refine_confirm_", 0) == 0) {
+                dpp::snowflake btn_uid(std::stoull(cid.substr(19)));
+                if (uid != btn_uid) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("❌ 這不是你的寵物！").set_flags(dpp::m_ephemeral)); return;
+                }
+                ev.reply(dpp::ir_update_message, handle_pet_refine_star(uid));
+            } else if (cid.rfind("pet_refine_cancel_", 0) == 0) {
+                ev.reply(dpp::ir_update_message,
+                    dpp::message("❌ 已取消提煉。").set_flags(dpp::m_ephemeral));
             } else if (cid.rfind("pet_release_", 0) == 0) {
                 dpp::snowflake btn_uid(std::stoull(cid.substr(12)));
                 if (uid != btn_uid) {
@@ -1686,18 +1723,33 @@ int main(int argc, char* argv[]) {
             // ── 警長投票 棄票 ──────────────────────────────────────────────────
             else if (cid.rfind("wolf_svote_abstain_", 0) == 0) {
                 uint64_t gid = std::stoull(cid.substr(19));
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto it = wolf_games.find(gid);
-                if (it == wolf_games.end()) return;
-                auto& g = it->second;
-                if (g.phase != WolfPhase::SHERIFF_VOTE) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("⚠️ 投票已結束！").set_flags(dpp::m_ephemeral)); return; }
-                bool is_cand = std::find(g.candidates.begin(), g.candidates.end(), uid) != g.candidates.end();
-                if (is_cand) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 候選人不能投票！").set_flags(dpp::m_ephemeral)); return; }
-                auto* p = wfind(g, uid); if (!p || !p->alive) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你不在遊戲中！").set_flags(dpp::m_ephemeral)); return; }
-                g.sheriff_votes[uid] = dpp::snowflake(0); // 棄票
-                ev.reply(dpp::ir_update_message, make_sheriff_vote_msg(g));
+                bool auto_resolve = false;
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    auto it = wolf_games.find(gid);
+                    if (it == wolf_games.end()) return;
+                    auto& g = it->second;
+                    if (g.phase != WolfPhase::SHERIFF_VOTE) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("⚠️ 投票已結束！").set_flags(dpp::m_ephemeral)); return; }
+                    bool is_cand = std::find(g.candidates.begin(), g.candidates.end(), uid) != g.candidates.end();
+                    bool withdrew = std::find(g.withdrawn_candidates.begin(), g.withdrawn_candidates.end(), uid) != g.withdrawn_candidates.end();
+                    if (is_cand || withdrew) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 候選人不能投票！").set_flags(dpp::m_ephemeral)); return; }
+                    auto* p = wfind(g, uid); if (!p || !p->alive) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你不在遊戲中！").set_flags(dpp::m_ephemeral)); return; }
+                    g.sheriff_votes[uid] = dpp::snowflake(0);
+                    if (!g.sheriff_vote_msg_id) g.sheriff_vote_msg_id = ev.command.message_id;
+                    int eligible = 0, voted_cnt = 0;
+                    for (auto& p2 : g.players) {
+                        if (!p2.alive) continue;
+                        bool c = std::find(g.candidates.begin(), g.candidates.end(), p2.uid) != g.candidates.end();
+                        bool w = std::find(g.withdrawn_candidates.begin(), g.withdrawn_candidates.end(), p2.uid) != g.withdrawn_candidates.end();
+                        if (c || w) continue;
+                        eligible++; if (g.sheriff_votes.count(p2.uid)) voted_cnt++;
+                    }
+                    auto_resolve = (eligible > 0 && voted_cnt == eligible);
+                    if (!auto_resolve) ev.reply(dpp::ir_update_message, make_sheriff_vote_msg(g));
+                }
+                if (auto_resolve) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("✅ 所有人已投票，自動結算！").set_flags(dpp::m_ephemeral)); resolve_sheriff_vote(bot, gid); }
             }
-            // ── 競選報名期間退出 ───────────────────────────────────────────────
+            // ── 競選報名期間退出 / 不競選 ──────────────────────────────────────
             else if (cid.rfind("wolf_withdraw_nominate_", 0) == 0) {
                 uint64_t gid = std::stoull(cid.substr(23));
                 std::lock_guard<std::mutex> lk(data_mutex);
@@ -1705,10 +1757,19 @@ int main(int argc, char* argv[]) {
                 if (it == wolf_games.end()) return;
                 auto& g = it->second;
                 if (g.phase != WolfPhase::SHERIFF_NOMINATE) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("⚠️ 報名階段已結束！").set_flags(dpp::m_ephemeral)); return; }
-                auto& cands = g.candidates;
-                bool was_cand = std::find(cands.begin(), cands.end(), uid) != cands.end();
-                if (!was_cand) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("⚠️ 你尚未報名！").set_flags(dpp::m_ephemeral)); return; }
-                cands.erase(std::remove(cands.begin(), cands.end(), uid), cands.end());
+                auto& p = *wfind(g, uid); // may crash if not found
+                auto* pfound = wfind(g, uid);
+                if (!pfound) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你不在遊戲中！").set_flags(dpp::m_ephemeral)); return; }
+                bool is_cand = std::find(g.candidates.begin(), g.candidates.end(), uid) != g.candidates.end();
+                bool not_run = std::find(g.not_running.begin(), g.not_running.end(), uid) != g.not_running.end();
+                if (is_cand) {
+                    // Candidate withdrawing
+                    g.candidates.erase(std::remove(g.candidates.begin(), g.candidates.end(), uid), g.candidates.end());
+                    g.withdrawn_candidates.push_back(uid);
+                } else if (!not_run) {
+                    // Non-candidate opting out
+                    g.not_running.push_back(uid);
+                }
                 ev.reply(dpp::ir_update_message, make_sheriff_nominate_msg(g));
             }
             // ── 警長投票 ───────────────────────────────────────────────────────
@@ -1718,48 +1779,44 @@ int main(int argc, char* argv[]) {
                 if (sep == std::string::npos) return;
                 uint64_t gid = std::stoull(rest.substr(0, sep));
                 dpp::snowflake target(std::stoull(rest.substr(sep+1)));
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto it = wolf_games.find(gid);
-                if (it == wolf_games.end()) return;
-                auto& g = it->second;
-                if (g.phase != WolfPhase::SHERIFF_VOTE) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("⚠️ 投票已結束！").set_flags(dpp::m_ephemeral)); return; }
-                auto* p = wfind(g, uid);
-                if (!p || !p->alive) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你不在遊戲中！").set_flags(dpp::m_ephemeral)); return; }
-                if (std::find(g.candidates.begin(), g.candidates.end(), uid) != g.candidates.end()) {
-                    ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 候選人不能投票！").set_flags(dpp::m_ephemeral)); return;
-                }
-                g.sheriff_votes[uid] = target;
-                ev.reply(dpp::ir_update_message, make_sheriff_vote_msg(g));
-            }
-            else if (cid.rfind("wolf_sheriff_resolve_", 0) == 0) {
-                uint64_t gid = std::stoull(cid.substr(21));
-                dpp::snowflake new_sheriff = 0;
+                bool auto_resolve = false;
                 {
                     std::lock_guard<std::mutex> lk(data_mutex);
                     auto it = wolf_games.find(gid);
                     if (it == wolf_games.end()) return;
                     auto& g = it->second;
-                    if (uid != g.host_id) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 只有主持人可以結算！").set_flags(dpp::m_ephemeral)); return; }
-                    std::map<dpp::snowflake, int> tally;
-                    for (auto& [v, t] : g.sheriff_votes) if (t) tally[t]++; // 跳過棄票(0)
-                    int best = 0;
-                    for (auto& [t, cnt] : tally) if (cnt > best) { best = cnt; new_sheriff = t; }
-                    if (new_sheriff) {
-                        g.sheriff_uid = new_sheriff;
-                        auto* p = wfind(g, new_sheriff);
-                        if (p) p->is_sheriff = true;
+                    if (g.phase != WolfPhase::SHERIFF_VOTE) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("⚠️ 投票已結束！").set_flags(dpp::m_ephemeral)); return; }
+                    auto* p = wfind(g, uid);
+                    if (!p || !p->alive) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你不在遊戲中！").set_flags(dpp::m_ephemeral)); return; }
+                    bool is_cand = std::find(g.candidates.begin(), g.candidates.end(), uid) != g.candidates.end();
+                    bool withdrew = std::find(g.withdrawn_candidates.begin(), g.withdrawn_candidates.end(), uid) != g.withdrawn_candidates.end();
+                    if (is_cand || withdrew) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 候選人不能投票！").set_flags(dpp::m_ephemeral)); return; }
+                    g.sheriff_votes[uid] = target;
+                    if (!g.sheriff_vote_msg_id) g.sheriff_vote_msg_id = ev.command.message_id;
+                    int eligible = 0, voted_cnt = 0;
+                    for (auto& p2 : g.players) {
+                        if (!p2.alive) continue;
+                        bool c = std::find(g.candidates.begin(), g.candidates.end(), p2.uid) != g.candidates.end();
+                        bool w = std::find(g.withdrawn_candidates.begin(), g.withdrawn_candidates.end(), p2.uid) != g.withdrawn_candidates.end();
+                        if (c || w) continue;
+                        eligible++; if (g.sheriff_votes.count(p2.uid)) voted_cnt++;
                     }
+                    auto_resolve = (eligible > 0 && voted_cnt == eligible);
+                    if (!auto_resolve) ev.reply(dpp::ir_update_message, make_sheriff_vote_msg(g));
                 }
-                dpp::embed e;
-                if (new_sheriff) {
-                    e.set_title("🏅  警長選出！").set_color(0xF39C12);
-                    e.set_description("<@" + std::to_string((uint64_t)new_sheriff) + "> 當選警長！投票計 **1.5 票**，死亡可傳徽。");
-                } else {
-                    e.set_title("⏭  流票 — 無警長").set_color(0x808080).set_description("本局無警長。");
+                if (auto_resolve) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("✅ 所有人已投票，自動結算！").set_flags(dpp::m_ephemeral)); resolve_sheriff_vote(bot, gid); }
+            }
+            else if (cid.rfind("wolf_sheriff_resolve_", 0) == 0) {
+                uint64_t gid = std::stoull(cid.substr(21));
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    auto it = wolf_games.find(gid);
+                    if (it == wolf_games.end()) return;
+                    if (it->second.host_id != uid) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 只有主持人可以結算！").set_flags(dpp::m_ephemeral)); return; }
+                    if (it->second.phase != WolfPhase::SHERIFF_VOTE) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("⚠️ 不是投票階段！").set_flags(dpp::m_ephemeral)); return; }
                 }
-                // Post election result as new message; keep vote tally message intact
-                ev.reply(dpp::ir_channel_message_with_source, dpp::message().add_embed(e));
-                announce_night_and_start_day(bot, gid);
+                ev.reply(dpp::ir_channel_message_with_source, dpp::message("⏳ 結算中...").set_flags(dpp::m_ephemeral));
+                resolve_sheriff_vote(bot, gid);
             }
             // ── 狼人投票（在討論串）─────────────────────────────────────────────
             else if (cid.rfind("wolf_wvote_", 0) == 0) {
@@ -1894,6 +1951,30 @@ int main(int argc, char* argv[]) {
                 start_day_speak(bot, gid);
             }
             // ── 白天投票 ───────────────────────────────────────────────────────
+            else if (cid.rfind("wolf_dvote_abstain_", 0) == 0) {
+                uint64_t gid = std::stoull(cid.substr(19));
+                bool auto_resolve = false;
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    auto it = wolf_games.find(gid);
+                    if (it == wolf_games.end()) return;
+                    auto& g = it->second;
+                    if (g.phase != WolfPhase::DAY_VOTE) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("⚠️ 不是投票時間！").set_flags(dpp::m_ephemeral)); return; }
+                    auto* p = wfind(g, uid);
+                    if (!p || !p->alive) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你不在遊戲中或已死亡！").set_flags(dpp::m_ephemeral)); return; }
+                    g.day_votes[uid] = dpp::snowflake(0); // 棄票
+                    int alive_cnt = 0, voted_cnt = 0;
+                    for (auto& p2 : g.players) { if (p2.alive) { alive_cnt++; if (g.day_votes.count(p2.uid)) voted_cnt++; } }
+                    auto_resolve = (alive_cnt > 0 && voted_cnt == alive_cnt);
+                    if (!auto_resolve && g.day_vote_msg_id) {
+                        dpp::message upd = make_day_vote_msg(g);
+                        upd.id = g.day_vote_msg_id; upd.channel_id = g.channel_id;
+                        bot.message_edit(upd);
+                    }
+                }
+                if (auto_resolve) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("🚫 已棄票，所有人已投完，自動結算！").set_flags(dpp::m_ephemeral)); resolve_day_vote(bot, gid); }
+                else ev.reply(dpp::ir_channel_message_with_source, dpp::message("🚫 已棄票！").set_flags(dpp::m_ephemeral));
+            }
             else if (cid.rfind("wolf_dvote_resolve_", 0) == 0) {
                 uint64_t gid = std::stoull(cid.substr(19));
                 {
@@ -1913,6 +1994,7 @@ int main(int argc, char* argv[]) {
                 uint64_t gid = std::stoull(rest.substr(0, sep));
                 dpp::snowflake target(std::stoull(rest.substr(sep+1)));
                 std::string tname;
+                bool auto_resolve = false;
                 {
                     std::lock_guard<std::mutex> lk(data_mutex);
                     auto it = wolf_games.find(gid);
@@ -1923,13 +2005,95 @@ int main(int argc, char* argv[]) {
                     if (!p || !p->alive) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你不在遊戲中或已死亡！").set_flags(dpp::m_ephemeral)); return; }
                     g.day_votes[uid] = target;
                     auto* t = wfind(g, target); if (t) tname = t->display_name;
-                    if (g.day_vote_msg_id) {
+                    int alive_cnt = 0, voted_cnt = 0;
+                    for (auto& p2 : g.players) { if (p2.alive) { alive_cnt++; if (g.day_votes.count(p2.uid)) voted_cnt++; } }
+                    auto_resolve = (alive_cnt > 0 && voted_cnt == alive_cnt);
+                    if (!auto_resolve && g.day_vote_msg_id) {
                         dpp::message upd = make_day_vote_msg(g);
                         upd.id = g.day_vote_msg_id; upd.channel_id = g.channel_id;
                         bot.message_edit(upd);
                     }
                 }
-                ev.reply(dpp::ir_channel_message_with_source, dpp::message("✅ 已投票給 **" + tname + "**！").set_flags(dpp::m_ephemeral));
+                if (auto_resolve) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("✅ 已投票，所有人已投完，自動結算！").set_flags(dpp::m_ephemeral)); resolve_day_vote(bot, gid); }
+                else ev.reply(dpp::ir_channel_message_with_source, dpp::message("✅ 已投票給 **" + tname + "**！").set_flags(dpp::m_ephemeral));
+            }
+            // ── 獵人不開槍 ─────────────────────────────────────────────────────
+            else if (cid.rfind("wolf_hunter_skip_", 0) == 0) {
+                uint64_t gid = std::stoull(cid.substr(17));
+                WolfPhase after;
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    auto it = wolf_games.find(gid);
+                    if (it == wolf_games.end()) return;
+                    auto& g = it->second;
+                    if (g.phase != WolfPhase::HUNTER_SHOOT) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("⚠️ 已過時！").set_flags(dpp::m_ephemeral)); return; }
+                    if (uid != g.hunter_uid) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你不是獵人！").set_flags(dpp::m_ephemeral)); return; }
+                    g.hunter_pending = false;
+                    after = g.after_hunter;
+                }
+                dpp::embed e; e.set_title("🏹  獵人選擇不開槍").set_color(0x808080);
+                e.set_description("獵人選擇不帶走任何人。");
+                ev.reply(dpp::ir_update_message, dpp::message().add_embed(e));
+                continue_after_hunter(bot, gid);
+            }
+            // ── 候選人退選（任何時候）──────────────────────────────────────────
+            else if (cid.rfind("wolf_candidate_withdraw_", 0) == 0) {
+                uint64_t gid = std::stoull(cid.substr(24));
+                std::string pname;
+                bool ok = false;
+                bool is_speech = false;
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    auto it = wolf_games.find(gid);
+                    if (it == wolf_games.end()) return;
+                    auto& g = it->second;
+                    bool in_speech = (g.phase == WolfPhase::SHERIFF_SPEECH);
+                    bool in_vote   = (g.phase == WolfPhase::SHERIFF_VOTE);
+                    if (!in_speech && !in_vote) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("⚠️ 不是競選階段！").set_flags(dpp::m_ephemeral)); return; }
+                    bool is_cand = std::find(g.candidates.begin(), g.candidates.end(), uid) != g.candidates.end();
+                    if (!is_cand) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你不是候選人！").set_flags(dpp::m_ephemeral)); return; }
+                    auto* p = wfind(g, uid); if (p) pname = std::to_string(p->seat) + ". " + p->display_name;
+                    g.candidates.erase(std::remove(g.candidates.begin(), g.candidates.end(), uid), g.candidates.end());
+                    g.withdrawn_candidates.push_back(uid);
+                    // Remove from speak order
+                    g.speak_seats.erase(std::remove(g.speak_seats.begin(), g.speak_seats.end(), p ? p->seat : -1), g.speak_seats.end());
+                    ok = true; is_speech = in_speech;
+                }
+                if (ok) {
+                    bot.message_create(dpp::message(ev.command.channel_id, "📢 **" + pname + "** 退出了警長競選！"));
+                    ev.reply(dpp::ir_channel_message_with_source, dpp::message("🚪 已退出候選！").set_flags(dpp::m_ephemeral));
+                    if (is_speech) advance_speaker(bot, gid);
+                }
+            }
+            // ── MVP 投票 ────────────────────────────────────────────────────────
+            else if (cid.rfind("wolf_mvp_", 0) == 0) {
+                std::string rest = cid.substr(9);
+                size_t sep = rest.find('_');
+                if (sep == std::string::npos) return;
+                uint64_t gid = std::stoull(rest.substr(0, sep));
+                dpp::snowflake target(std::stoull(rest.substr(sep+1)));
+                bool auto_resolve = false;
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    auto it = wolf_games.find(gid);
+                    if (it == wolf_games.end()) return;
+                    auto& g = it->second;
+                    if (g.phase != WolfPhase::MVP_VOTE) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("⚠️ 不是 MVP 投票階段！").set_flags(dpp::m_ephemeral)); return; }
+                    auto* p = wfind(g, uid);
+                    if (!p) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你不在本場遊戲中！").set_flags(dpp::m_ephemeral)); return; }
+                    if (target == uid) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 不能投自己！").set_flags(dpp::m_ephemeral)); return; }
+                    g.mvp_votes[uid] = target;
+                    int total = 0, voted = 0;
+                    for (auto& p2 : g.players) { if (p2.seat > 0) { total++; if (g.mvp_votes.count(p2.uid)) voted++; } }
+                    auto_resolve = (total > 0 && voted == total);
+                    if (!auto_resolve && g.mvp_vote_msg_id) {
+                        dpp::message upd = make_mvp_vote_msg(g);
+                        upd.id = g.mvp_vote_msg_id; upd.channel_id = g.channel_id;
+                        bot.message_edit(upd);
+                    }
+                }
+                if (auto_resolve) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("✅ 已投票，所有人投完，自動結算！").set_flags(dpp::m_ephemeral)); resolve_mvp_vote(bot, gid); }
+                else ev.reply(dpp::ir_channel_message_with_source, dpp::message("✅ 已投票！").set_flags(dpp::m_ephemeral));
             }
             // ── 獵人射擊 ───────────────────────────────────────────────────────
             else if (cid.rfind("wolf_hunter_", 0) == 0) {
@@ -2413,7 +2577,7 @@ int main(int argc, char* argv[]) {
             }
         }
         // ── 錢包分頁按鈕 ──────────────────────────────────────────────────────
-        else if (cid.rfind("wallet_home_", 0) == 0 || cid.rfind("wallet_games_", 0) == 0) {
+        else if (cid.rfind("wallet_home_", 0) == 0 || cid.rfind("wallet_games_", 0) == 0 || cid.rfind("wallet_wolf_", 0) == 0) {
             dpp::snowflake owner(std::stoull(cid.substr(cid.rfind('_') + 1)));
             if (uid != owner) {
                 ev.reply(dpp::ir_channel_message_with_source,
@@ -2421,6 +2585,8 @@ int main(int argc, char* argv[]) {
             }
             if (cid.rfind("wallet_games_", 0) == 0)
                 ev.reply(dpp::ir_update_message, make_wallet_games_msg(uid));
+            else if (cid.rfind("wallet_wolf_", 0) == 0)
+                ev.reply(dpp::ir_update_message, make_wallet_wolf_msg(uid));
             else
                 ev.reply(dpp::ir_update_message, make_wallet_home_msg(uid));
         }

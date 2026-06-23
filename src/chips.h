@@ -376,11 +376,14 @@ inline void announce_bankrupt(dpp::snowflake uid, dpp::snowflake channel_id) {
     if (!g_bot || !channel_id) return;
     static const std::string IMG =
         "https://media.discordapp.net/attachments/1514918524164898966/1518545976535814144/flipped-image.webp";
-    g_bot->message_create(dpp::message(channel_id, IMG),
-        [channel_id, uid](const dpp::confirmation_callback_t&) {
-            g_bot->message_create(dpp::message(channel_id,
-                "<@" + std::to_string(uid) + "> 哈哈這人又破產了"));
-        });
+    g_bot->start_timer([channel_id, uid](dpp::timer t) {
+        g_bot->stop_timer(t);
+        g_bot->message_create(dpp::message(channel_id, IMG),
+            [channel_id, uid](const dpp::confirmation_callback_t&) {
+                g_bot->message_create(dpp::message(channel_id,
+                    "<@" + std::to_string(uid) + "> 哈哈這人又破產了"));
+            });
+    }, 1);
 }
 
 // ─── Loss leaderboard ─────────────────────────────────────────────────────────
