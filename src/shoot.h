@@ -30,12 +30,15 @@ static void load_shootstats() {
 
 static void save_shootstats() {
     nlohmann::json j;
-    std::lock_guard<std::mutex> lk(data_mutex);
-    for (auto& [uid, s] : shoot_stats_data)
-        j[std::to_string((uint64_t)uid)] = {
-            {"wins",   s.wins},   {"losses", s.losses},
-            {"bumps",  s.bumps},  {"passes", s.passes},
-            {"profit", s.profit}};
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [uid, s] : shoot_stats_data)
+            j[std::to_string((uint64_t)uid)] = {
+                {"wins",   s.wins},   {"losses", s.losses},
+                {"bumps",  s.bumps},  {"passes", s.passes},
+                {"profit", s.profit}};
+    }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(SHOOT_STATS_FILE, j.dump(2));
 }
 
@@ -67,14 +70,15 @@ static std::string sh_card(int c) {
 // ─── Payout by gap ────────────────────────────────────────────────────────────
 // gap=0 same rank (射上/射下), gap=1 auto re-deal, gap>=2 normal shoot
 
-static int sh_payout(int gap) {
+static double sh_payout(int gap) {
     switch (gap) {
-        case 0: return 2;
-        case 2: return 12;
-        case 3: return 6;
-        case 4: return 4;
-        case 5: return 3;
-        default: return 2;  // gap>=6 (gap==1 never reaches here)
+        case 0: return 2.0;
+        case 2: return 12.0;
+        case 3: return 6.0;
+        case 4: return 4.0;
+        case 5: return 3.0;
+        case 6: return 2.5;
+        default: return 2.0;  // gap>=7 (gap==1 never reaches here)
     }
 }
 
@@ -136,7 +140,7 @@ static dpp::message make_shoot_start_msg(const ShootGame& sg) {
     int hi_c = (r1 <= r2) ? sg.c2 : sg.c1;
     int lo = lo_c/4+1, hi = hi_c/4+1;
     int gap = hi - lo;
-    int pay = sh_payout(gap);
+    double pay = sh_payout(gap);
 
     dpp::embed e;
     e.set_title("🃏  射龍門").set_color(0xE67E22);
@@ -145,10 +149,14 @@ static dpp::message make_shoot_start_msg(const ShootGame& sg) {
     desc << "下柱：**" << sg.bet << "** 碼\n";
     if (gap == 0) desc << "同點牌 — 請選擇方向\n";
     int64_t pass_cost = std::max((int64_t)1, sg.bet / 5);
-    desc << "賠率 **" << pay << "x**\n";
-    desc << "✅ 射中  **+" << sg.bet*(pay-1) << "** 碼\n";
+    int64_t bump_penalty = (gap == 0) ? sg.bet * 3 : sg.bet * 2;
+    std::string bump_label = (gap == 0) ? "💥 超級撞柱" : "💥 撞柱";
+    desc << "賠率 **";
+    if (pay == (int)pay) desc << (int)pay; else desc << pay;
+    desc << "x**\n";
+    desc << "✅ 射中  **+" << (int64_t)(sg.bet*(pay-1)) << "** 碼\n";
     desc << "❌ 射偏  **-" << sg.bet << "** 碼\n";
-    desc << "💥 撞柱  **-" << sg.bet*2 << "** 碼\n";
+    desc << bump_label << "  **-" << bump_penalty << "** 碼\n";
     desc << "🙅 PASS  **-" << pass_cost << "** 碼（退還 80%）";
     e.set_description(desc.str());
     sh_set_user(e, sg);
@@ -158,9 +166,10 @@ static dpp::message make_shoot_start_msg(const ShootGame& sg) {
     row.set_type(dpp::cot_action_row);
 
     if (gap == 0) {
-        row.add_component(dpp::component().set_type(dpp::cot_button)
+        // AA (lo==1): only allow shoot up; KK (lo==13): only allow shoot down
+        if (lo != 13) row.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("射上 ↑").set_id("shoot_up_" + sid).set_style(dpp::cos_primary));
-        row.add_component(dpp::component().set_type(dpp::cot_button)
+        if (lo != 1) row.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("射下 ↓").set_id("shoot_dn_" + sid).set_style(dpp::cos_primary));
     } else {
         row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -204,7 +213,7 @@ static dpp::message make_shoot_result_msg(const ShootGame& sg, int direction) {
     int hi_c = (r1 <= r2) ? sg.c2 : sg.c1;
     int lo = lo_c/4+1, hi = hi_c/4+1;
     int gap = hi - lo;
-    int pay = sh_payout(gap);
+    double pay = sh_payout(gap);
 
     int c3 = sh_draw_third(sg.c1, sg.c2);
     int r3 = c3/4+1;
@@ -222,12 +231,17 @@ static dpp::message make_shoot_result_msg(const ShootGame& sg, int direction) {
     std::string title;
     uint32_t color;
     if (win) {
-        delta = sg.bet * (pay - 1);
+        delta = (int64_t)(sg.bet * (pay - 1));
         title = "✅  射中！";
         color = 0x2ECC71;
     } else if (bump) {
-        delta = -(sg.bet * 2);
-        title = "💥  撞柱！";
+        if (gap == 0) {
+            delta = -(sg.bet * 3);
+            title = "💥  超級撞柱！";
+        } else {
+            delta = -(sg.bet * 2);
+            title = "💥  撞柱！";
+        }
         color = 0xFF6B00;
     } else {
         delta = -sg.bet;
@@ -272,6 +286,31 @@ static dpp::message make_shoot_result_msg(const ShootGame& sg, int direction) {
     msg.set_content(cards);
     msg.add_embed(e);
     sh_add_replay_row(msg, (uint64_t)sg.uid, sg.bet, new_chips);
+    if (delta < 0) {
+        int gc = 0, hr = 0;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          if (inventory_data.count(sg.uid)) {
+              auto& inv = inventory_data[sg.uid];
+              gc = inv.count("game_cancel") ? inv["game_cancel"] : 0;
+              hr = inv.count("half_refund") ? inv["half_refund"] : 0;
+          }
+        }
+        if (gc > 0 || hr > 0) {
+            std::string stat_type = bump ? "b" : "l";
+            std::string sh_uid_s = std::to_string((uint64_t)sg.uid);
+            std::string sh_loss_s = std::to_string(-delta);
+            dpp::component gc_row; gc_row.set_type(dpp::cot_action_row);
+            if (gc > 0) gc_row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("這局不算!!")
+                .set_id("game_cancel_" + sh_uid_s + "_sh" + stat_type + "_" + sh_loss_s)
+                .set_style(dpp::cos_success));
+            if (hr > 0) gc_row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("對不起我錯了！！")
+                .set_id("half_refund_" + sh_uid_s + "_sh" + stat_type + "_" + sh_loss_s)
+                .set_style(dpp::cos_primary));
+            msg.add_component(gc_row);
+        }
+    }
     return msg;
 }
 

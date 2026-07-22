@@ -11,24 +11,28 @@ static const std::string GIVEAWAY_FILE = "giveaways.json";
 
 static void save_registrations() {
     nlohmann::json j = nlohmann::json::array();
-    std::lock_guard<std::mutex> lk(data_mutex);
-    for (auto& r : registrations) {
-        nlohmann::json slots_j = nlohmann::json::array();
-        for (auto& [d, t] : r.slots)
-            slots_j.push_back({d, t});
-        j.push_back({
-            {"id",         r.id},
-            {"user_id",    (uint64_t)r.user_id},
-            {"channel_id", (uint64_t)r.channel_id},
-            {"username",   r.username},
-            {"boss",       r.boss},
-            {"slots",      slots_j},
-            {"position",   r.position}
-        });
+    nlohmann::json root;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& r : registrations) {
+            nlohmann::json slots_j = nlohmann::json::array();
+            for (auto& [d, t] : r.slots)
+                slots_j.push_back({d, t});
+            j.push_back({
+                {"id",         r.id},
+                {"user_id",    (uint64_t)r.user_id},
+                {"channel_id", (uint64_t)r.channel_id},
+                {"username",   r.username},
+                {"boss",       r.boss},
+                {"slots",      slots_j},
+                {"position",   r.position}
+            });
+        }
+        uint64_t max_id = 0;
+        for (auto& r : registrations) if (r.id > max_id) max_id = r.id;
+        root["records"] = j; root["max_id"] = max_id;
     }
-    uint64_t max_id = 0;
-    for (auto& r : registrations) if (r.id > max_id) max_id = r.id;
-    nlohmann::json root; root["records"] = j; root["max_id"] = max_id;
+    std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(REG_FILE, root.dump(2));
 }
 
@@ -87,18 +91,21 @@ static Registration reg_from_json(const nlohmann::json& item) {
 
 static void save_proposed_teams() {
     nlohmann::json j;
-    std::lock_guard<std::mutex> lk(data_mutex);
-    for (auto& [tid, pt] : proposed_teams) {
-        nlohmann::json members_j = nlohmann::json::array();
-        for (auto& m : pt.members) members_j.push_back(reg_to_json(m));
-        j[std::to_string(tid)] = {
-            {"id",        pt.id},
-            {"boss",      pt.boss},
-            {"day",       pt.day},
-            {"time_slot", pt.time_slot},
-            {"members",   members_j}
-        };
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [tid, pt] : proposed_teams) {
+            nlohmann::json members_j = nlohmann::json::array();
+            for (auto& m : pt.members) members_j.push_back(reg_to_json(m));
+            j[std::to_string(tid)] = {
+                {"id",        pt.id},
+                {"boss",      pt.boss},
+                {"day",       pt.day},
+                {"time_slot", pt.time_slot},
+                {"members",   members_j}
+            };
+        }
     }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(TEAMS_FILE, j.dump(2));
 }
 
@@ -129,28 +136,31 @@ static void load_proposed_teams() {
 
 static void save_giveaways() {
     nlohmann::json j;
-    std::lock_guard<std::mutex> lk(data_mutex);
-    for (auto& [gid, gw] : giveaways) {
-        nlohmann::json parts_j = nlohmann::json::array();
-        for (auto& p : gw.participants) parts_j.push_back((uint64_t)p);
-        j[std::to_string(gid)] = {
-            {"id",               gw.id},
-            {"channel_id",       (uint64_t)gw.channel_id},
-            {"msg_id",           (uint64_t)gw.msg_id},
-            {"host_id",          (uint64_t)gw.host_id},
-            {"prize",            gw.prize},
-            {"winner_count",     gw.winner_count},
-            {"provider",         gw.provider},
-            {"mention",          gw.mention},
-            {"note",             gw.note},
-            {"role_restriction", (uint64_t)gw.role_restriction},
-            {"role_name",        gw.role_name},
-            {"end_time",         (int64_t)gw.end_time},
-            {"entry_cost",       gw.entry_cost},
-            {"participants",     parts_j},
-            {"ended",            gw.ended}
-        };
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [gid, gw] : giveaways) {
+            nlohmann::json parts_j = nlohmann::json::array();
+            for (auto& p : gw.participants) parts_j.push_back((uint64_t)p);
+            j[std::to_string(gid)] = {
+                {"id",               gw.id},
+                {"channel_id",       (uint64_t)gw.channel_id},
+                {"msg_id",           (uint64_t)gw.msg_id},
+                {"host_id",          (uint64_t)gw.host_id},
+                {"prize",            gw.prize},
+                {"winner_count",     gw.winner_count},
+                {"provider",         gw.provider},
+                {"mention",          gw.mention},
+                {"note",             gw.note},
+                {"role_restriction", (uint64_t)gw.role_restriction},
+                {"role_name",        gw.role_name},
+                {"end_time",         (int64_t)gw.end_time},
+                {"entry_cost",       gw.entry_cost},
+                {"participants",     parts_j},
+                {"ended",            gw.ended}
+            };
+        }
     }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(GIVEAWAY_FILE, j.dump(2));
 }
 

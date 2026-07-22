@@ -40,11 +40,15 @@ static void load_purchases() {
 
 static void save_purchases() {
     nlohmann::json j = nlohmann::json::array();
-    for (auto& r : purchase_records)
-        j.push_back({{"id", r.id}, {"uid", (uint64_t)r.uid},
-                     {"username", r.username}, {"item_name", r.item_name},
-                     {"price", r.price}, {"timestamp", (int64_t)r.timestamp},
-                     {"source", r.source}});
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& r : purchase_records)
+            j.push_back({{"id", r.id}, {"uid", (uint64_t)r.uid},
+                         {"username", r.username}, {"item_name", r.item_name},
+                         {"price", r.price}, {"timestamp", (int64_t)r.timestamp},
+                         {"source", r.source}});
+    }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(PURCHASES_FILE, j.dump(2));
 }
 
@@ -428,6 +432,9 @@ static dpp::message make_virtual_shop_msg() {
     e.add_field("⚡  進化工具","使用後讓寵物進化到下一個階段",   true);
     e.add_field("🌿  成長路徑","購買道具開啟分支進化路線",       true);
     e.add_field("✨  天賦道具","賦予或重抽寵物天賦技能",         true);
+    e.add_field("📜  特殊道具","怪物狩獵卷等特殊消耗品",         true);
+    e.add_field("💊  恢復道具","解除寵物負面狀態的藥品",         true);
+    e.add_field("⭐  特權道具","VIP 自動領籌碼、寵物監工等特殊效果", true);
     dpp::message msg; msg.add_embed(e);
     dpp::component row1; row1.set_type(dpp::cot_action_row);
     auto mk = [&](const std::string& lbl, const std::string& id) {
@@ -442,10 +449,15 @@ static dpp::message make_virtual_shop_msg() {
     mk("🌿 成長路徑","shop_vcat_path");
     msg.add_component(row1);
     dpp::component row2; row2.set_type(dpp::cot_action_row);
-    dpp::component talent_btn;
-    talent_btn.set_type(dpp::cot_button).set_label("✨ 天賦道具")
-              .set_id("shop_vcat_talent").set_style(dpp::cos_primary);
-    row2.add_component(talent_btn);
+    auto mk2 = [&](const std::string& lbl, const std::string& id) {
+        dpp::component b;
+        b.set_type(dpp::cot_button).set_label(lbl).set_id(id).set_style(dpp::cos_primary);
+        row2.add_component(b);
+    };
+    mk2("✨ 天賦道具","shop_vcat_talent");
+    mk2("📜 特殊道具","shop_vcat_hunt");
+    mk2("💊 恢復道具","shop_vcat_recovery");
+    mk2("⭐ 特權道具","shop_vcat_privilege");
     dpp::component back_btn;
     back_btn.set_type(dpp::cot_button).set_label("↩ 返回商店主頁")
             .set_id("shop_main").set_style(dpp::cos_secondary);
@@ -461,9 +473,12 @@ static dpp::message make_vcat_shop_msg(dpp::snowflake uid, const std::string& ca
     static const std::map<std::string,std::string> titles = {
         {"egg","🥚  寵物蛋"}, {"incubator","🔥  孵蛋工具"},
         {"growth","🌱  成長工具"}, {"evolution","⚡  進化工具"},
-        {"path","🌿  成長路徑"}, {"talent","✨  天賦道具"}
+        {"path","🌿  成長路徑"}, {"talent","✨  天賦道具"},
+        {"hunt","📜  特殊道具"}, {"recovery","💊  恢復道具"},
+        {"privilege","⭐  特權道具"}
     };
-    bool can_buy = can_buy_virtual_cat(uid, cat);
+    // hunt, recovery and privilege are always purchasable
+    bool can_buy = (cat == "hunt" || cat == "recovery" || cat == "privilege") ? true : can_buy_virtual_cat(uid, cat);
     dpp::embed e;
     e.set_title(titles.count(cat) ? titles.at(cat) : "虛擬商店");
     e.set_color(0x1ABC9C);
@@ -525,7 +540,8 @@ static dpp::message make_vbuy_confirm_msg(dpp::snowflake uid, const std::string&
         dpp::embed err; err.set_title("❌  籌碼不足").set_color(0xE74C3C);
         dpp::message m; m.add_embed(err); return m;
     }
-    if (!can_buy_virtual_cat(uid, vi->category)) {
+    if (vi->category != "hunt" && vi->category != "recovery" && vi->category != "privilege"
+        && !can_buy_virtual_cat(uid, vi->category)) {
         dpp::embed err; err.set_title("❌  條件不符").set_color(0xE74C3C);
         dpp::message m; m.add_embed(err); return m;
     }
@@ -549,7 +565,8 @@ static dpp::message handle_vbuy(dpp::snowflake uid, const std::string& username,
         dpp::message m; m.add_embed(e); return m;
     }
     // Check restriction again
-    if (!can_buy_virtual_cat(uid, vi->category)) {
+    if (vi->category != "hunt" && vi->category != "recovery" && vi->category != "privilege"
+        && !can_buy_virtual_cat(uid, vi->category)) {
         e.set_title("❌  條件不符").set_color(0xE74C3C);
         dpp::message m; m.add_embed(e); return m;
     }
@@ -568,15 +585,28 @@ static dpp::message handle_vbuy(dpp::snowflake uid, const std::string& username,
         dpp::message m; m.add_embed(e); return m;
     }
 
-    // Special handling for eggs — create pet instead of adding to inventory
+    // Eggs: create pet if no pet exists, otherwise add to inventory
     if (vi->category == "egg") {
-        std::string chain = chain_from_egg_key(key);
+        bool has_existing = false;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
-            Pet p; p.chain = chain; p.stage = 0; p.exp = 0;
-            pet_data[uid] = p;
+            has_existing = (pet_data.count(uid) > 0);
         }
-        save_pet_data();
+        if (!has_existing) {
+            std::string chain = chain_from_egg_key(key);
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                Pet p; p.chain = chain; p.stage = 0; p.exp = 0;
+                pet_data[uid] = p;
+            }
+            save_pet_data();
+        } else {
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                inventory_data[uid][key]++;
+            }
+            save_inventory();
+        }
     } else {
         {
             std::lock_guard<std::mutex> lk(data_mutex);

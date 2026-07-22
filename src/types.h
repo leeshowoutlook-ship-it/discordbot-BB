@@ -72,9 +72,25 @@ using SlotKey = std::tuple<std::string, std::string, std::string>; // boss,day,t
 // ─── Chip system ──────────────────────────────────────────────────────────────
 
 struct ChipData {
-    int64_t chips       = 0;
-    time_t  last_claim  = 0;
-    time_t  last_weekly = 0;
+    int64_t chips              = 0;
+    time_t  last_claim         = 0;
+    time_t  last_weekly        = 0;
+    time_t  last_hunt_daily    = 0;
+    time_t  last_weekly_scroll = 0;
+    time_t  vip_until          = 0; // 尊爵VIP 到期時間
+    time_t  vip_last_claim     = 0; // VIP 上次自動領取時間（獨立於手動領取）
+    time_t  supervisor_until   = 0; // 寵物監工 到期時間
+    time_t  insurance_until    = 0; // 醫療保險 到期時間
+    int     free_xfer          = 0; // 免手續費轉帳次數
+};
+
+struct BankData {
+    int64_t deposited         = 0;
+    int64_t deposit_time      = 0;  // legacy, kept for JSON compat
+    int64_t loan              = 0;
+    int64_t loan_time         = 0;
+    int64_t daily_min         = 0;  // 當天最低存款（計息基礎）
+    int64_t last_interest_day = 0;  // 上次計息的 UTC+8 day number
 };
 
 struct PendingTransfer {
@@ -124,6 +140,202 @@ struct Pet {
     std::string variant   = ""; // "" | "苔蘚" | "殭屍" | "藍菇" | "沙漠" | "企鵝王"
     std::string custom_name = "";
     std::string talent    = ""; // "" | "迅捷" | "招人喜歡" | "幸運" | "天然呆" | "喜歡作夢"
+    std::vector<std::string> statuses; // "受傷"|"憂鬱"|"肌肉緊繃"|"疲勞"
+    time_t      onsen_end  = 0;      // 泡溫泉到期時間 (0 = 未在泡溫泉)
+    bool        is_supervisor_work = false; // 由監工自動派出的打工，收益×0.6
+    bool        notify_after_work  = false; // 打工/溫泉完成後私訊通知
+    bool        work_notified      = false; // 打工：已發送通知（防重複）
+    bool        onsen_notified     = false; // 溫泉：已發送通知（防重複）
+};
+
+// ─── Equipment ────────────────────────────────────────────────────────────────
+
+struct PlayerEquipment {
+    std::string weapon;   // GachaItem key or ""
+    std::string glove;
+    std::string clothes;
+    std::string shoes;
+    std::string orb;
+};
+
+// ─── Village game ─────────────────────────────────────────────────────────────
+
+struct VillageSpirit {
+    std::string name;
+    int hp;
+    int max_hp;
+    int atk;
+    int def;
+};
+
+struct VillageGame {
+    dpp::snowflake uid;
+    dpp::snowflake channel_id;
+    dpp::snowflake msg_id  = 0;
+    std::string    group_key;
+    std::vector<VillageSpirit> spirits;
+    int  pet_hp     = 0;
+    int  pet_max_hp = 0;
+    int  pet_atk    = 0;
+    int  pet_def    = 0;
+    int  turn           = 1;
+    int  selected_target = -1;
+    time_t started_at = 0;
+    dpp::timer timer_id = 0;
+    std::string log_line;
+    std::string orb_key;
+    bool        latus_orb_triggered = false;
+};
+
+// ─── Monster hunt active game ─────────────────────────────────────────────────
+
+struct MonsterHuntGame {
+    dpp::snowflake uid;
+    dpp::snowflake channel_id;
+    dpp::snowflake msg_id      = 0;
+    std::string    difficulty;     // "easy"/"normal"/"hard"/"king"
+    std::string    monster_key;
+    std::string    monster_name;
+    int            monster_hp     = 0;
+    int            monster_max_hp = 0;
+    int            monster_atk    = 0;
+    int            monster_def    = 0;
+    int            pet_hp         = 0;
+    int            pet_max_hp     = 0;
+    int            pet_atk        = 0;
+    int            pet_def        = 0;
+    bool           player_first   = true;
+    int            turn            = 1;
+    time_t         started_at     = 0;
+    dpp::timer     timer_id       = 0;
+    std::string    log_line;
+    std::string    orb_key;
+    bool           battlecry_pending = false;
+    int            atk_down_turns    = 0;  // wargod orb: turns of 60% monster ATK reduction remaining
+    bool           latus_orb_triggered = false;
+};
+
+// ─── Raid system ─────────────────────────────────────────────────────────────
+
+struct RaidPlayer {
+    dpp::snowflake uid;
+    std::string    display_name;
+    std::string    avatar_url;
+    int            hp         = 0;
+    int            max_hp     = 0;
+    int            atk        = 0;
+    int            def        = 0;
+    std::string    orb_key;          // equipped orb
+    bool           alive          = true;
+    int            stunned_turns  = 0;     // turns remaining stunned (boss skill)
+    bool           power_skip     = false; // skip next turn after using 強攻
+    bool           speed_extra_used = false; // 迅捷：already got extra turn this round
+    bool           battlecry_next = false; // next attack +25% (from 戰吼 targeting)
+    bool           latus_orb_triggered = false;
+};
+
+struct RaidRoom {
+    dpp::snowflake         channel_id;
+    dpp::snowflake         host_uid;
+    dpp::snowflake         msg_id   = 0;
+    std::string            boss_key = "latus";
+    std::vector<dpp::snowflake>     member_uids;
+    std::map<dpp::snowflake, std::string> member_names;
+    std::map<dpp::snowflake, std::string> member_avatars;
+    time_t                 created_at = 0;
+    bool                   practice_mode = false;
+};
+
+struct RaidGame {
+    dpp::snowflake              channel_id;
+    dpp::snowflake              msg_id         = 0;
+    std::string                 boss_key;
+    std::string                 boss_name;
+    std::string                 boss_image;
+    int                         boss_hp        = 0;
+    int                         boss_max_hp    = 0;
+    int                         boss_atk       = 0;
+    int                         boss_def       = 0;
+    std::vector<RaidPlayer>     players;
+    int                         current_player = 0;  // index into players
+    int                         round          = 1;
+    bool                        boss_turn      = false; // true = boss acts next
+    bool                        block_active        = false;  // 防禦 used this round
+    bool                        round_first_action  = true;   // 先鋒：每輪第一個出手
+    bool                        speed_extra_pending = false;  // 迅捷：extra turn queued
+    bool                        last_boss_aoe       = false;  // 防連續 AOE 保護
+    bool                        last_boss_single    = false;  // 單體後禁 AOE+單體
+    // battlecry: src player uid -> target player idx
+    std::map<dpp::snowflake, int> battlecry_pending;
+    // cry target picking: src uid is waiting for target selection
+    dpp::snowflake              cry_pending_uid = 0;
+    std::string                 log_line;
+    time_t                      started_at     = 0;
+    dpp::timer                  timer_id       = 0;
+    bool                        game_over      = false;
+    bool                        victory        = false;
+    bool                        practice_mode  = false;
+};
+
+// ─── 暗黑龍王 ─────────────────────────────────────────────────────────────────
+
+struct DDHead {
+    std::string name;
+    int hp       = 0;
+    int max_hp   = 0;
+    int atk      = 0;
+    int def      = 0;
+    bool alive   = true;
+    int skill_idx      = 0;    // 左/右頭技能輪轉 index（0-3）
+    int chain_cd       = 0;    // 中頭：黑暗鎖鍊冷卻（1回合間隔）
+    int rage_turns     = 0;    // 右頭：狂暴剩餘回合
+    bool rage_triggered = false; // 右頭：已進入狂暴（只觸發一次）
+};
+
+struct DDPlayer {
+    dpp::snowflake uid;
+    std::string    display_name;
+    std::string    avatar_url;
+    int hp       = 0;
+    int max_hp   = 0;
+    int atk      = 0;
+    int def      = 0;
+    std::string  orb_key;
+    bool         alive          = true;
+    bool         at_altar       = false;
+    int          stunned_turns  = 0;
+    bool         power_skip     = false;
+    bool         speed_extra_used = false;
+    bool         has_bomb       = false;
+    int          bomb_turns     = 0;        // 倒數回合（0=死亡）
+    int          atk_down_turns = 0;        // 力量竊取剩餘回合
+    int          def_down_turns = 0;        // 防禦瓦解剩餘回合
+    bool         burning        = false;    // 燃燒狀態（下回合+10傷）
+    bool         latus_orb_triggered = false;
+};
+
+struct DDGame {
+    dpp::snowflake            channel_id;
+    dpp::snowflake            msg_id         = 0;
+    std::vector<DDPlayer>     players;
+    std::array<DDHead, 3>     heads;         // [0]=左頭 [1]=中頭 [2]=右頭
+    int                       altar_hp       = 3;    // 祭壇血量（0=毀滅）
+    int                       altar_counter  = 0;    // 連續有人在祭壇的 boss 回合數
+    bool                      atk_triple     = false; // 祭壇毀滅後 ATK×3
+    int                       current_player = 0;
+    int                       round          = 1;
+    bool                      boss_turn      = false;
+    bool                      game_over      = false;
+    bool                      victory        = false;
+    bool                      practice_mode  = false;
+    bool                      block_active   = false;
+    bool                      round_first_action = true;
+    bool                      speed_extra_pending = false;
+    int                       bomb_cooldown  = 4;    // 中頭投彈冷卻（4~5回合）
+    int                       selected_head  = -1;   // 玩家選擇的目標頭部
+    std::string               log_line;
+    time_t                    started_at     = 0;
+    dpp::timer                timer_id       = 0;
 };
 
 // ─── Dice game ────────────────────────────────────────────────────────────────
@@ -219,6 +431,15 @@ struct WolfPlayerStats {
     int bad_wins   = 0;
 };
 
+struct ONWStats {
+    int wolf_games    = 0;
+    int wolf_wins     = 0;
+    int village_games = 0;
+    int village_wins  = 0;
+    int tanner_games  = 0;
+    int tanner_wins   = 0;
+};
+
 // sq[i]: -1=炸彈, 0=空格, 10=1x, 15=1.5x, 20=2x
 struct ScratchGame {
     dpp::snowflake     uid;
@@ -251,6 +472,7 @@ inline std::set<SlotKey>                        proposed_slots;
 inline std::vector<Registration>                registrations;
 inline std::map<uint64_t, Giveaway>             giveaways;
 inline std::map<dpp::snowflake, ChipData>       chip_data;
+inline std::map<dpp::snowflake, BankData>       bank_data;
 inline std::map<uint64_t, BJGame>               bj_games;
 inline std::map<dpp::snowflake, uint64_t>       user_bj; // uid -> game id
 inline std::map<uint64_t, std::string>          emoji_tag_map;       // emoji_id   -> "<:name:id>"
@@ -271,6 +493,7 @@ inline std::vector<PurchaseRecord>              purchase_records;
 inline std::atomic<uint64_t>                    purchase_counter{1};
 inline std::map<dpp::snowflake, Pet>            pet_data;
 inline std::map<dpp::snowflake, std::map<std::string,int>> inventory_data;
+inline std::map<uint64_t, int>                              gacha_pity_data; // 一般池保底計數器
 inline std::map<dpp::snowflake, ShootGame>      shoot_games;
 inline std::map<dpp::snowflake, ShootStats>     shoot_stats_data;
 inline std::map<dpp::snowflake, RocketGame>     rocket_games;
@@ -278,7 +501,17 @@ inline std::map<dpp::snowflake, RocketStats>    rocket_stats_data;
 inline std::map<dpp::snowflake, ScratchGame>    scratch_games;
 inline std::map<dpp::snowflake, ScratchStats>   scratch_stats_data;
 inline std::map<dpp::snowflake, WolfPlayerStats> wolf_player_stats_data;
+inline std::map<dpp::snowflake, ONWStats>           onw_stats_data;
+inline std::map<dpp::snowflake, PlayerEquipment>    equipped_data;
+inline std::map<dpp::snowflake, std::set<std::string>> hunt_clear_data;
+inline std::map<dpp::snowflake, MonsterHuntGame>    monster_hunt_games;
+inline std::map<dpp::snowflake, VillageGame>        village_games;
+inline std::map<dpp::snowflake, RaidRoom>           raid_rooms;       // channel_id -> room
+inline std::map<dpp::snowflake, RaidGame>           raid_games;       // channel_id -> game
+inline std::map<dpp::snowflake, DDGame>             dd_games;         // channel_id -> game
+inline std::atomic<uint64_t>                        raid_counter{1};
 inline std::mutex                               data_mutex;
+inline std::mutex                               io_mutex;   // serializes disk writes, held only during atomic_write
 
 // ─── 交易系統 ─────────────────────────────────────────────────────────────────
 
@@ -294,3 +527,180 @@ struct TradeOffer {
 };
 inline std::map<uint64_t, TradeOffer> trade_offers;
 inline std::atomic<uint64_t>          trade_counter{1};
+
+// ─── 一夜狼人 ─────────────────────────────────────────────────────────────────
+
+enum class ONWPhase {
+    WAITING,
+    NIGHT_WOLVES,
+    NIGHT_SEER,
+    NIGHT_ROBBER,
+    NIGHT_TROUBLEMAKER,
+    NIGHT_VILLAGE_IDIOT,
+    NIGHT_WITCH,
+    NIGHT_DRUNK,
+    NIGHT_INSOMNIAC,
+    DAY_DISCUSS,
+    DAY_VOTE,
+    GAME_OVER
+};
+
+struct ONWPlayer {
+    dpp::snowflake uid;
+    std::string    display_name;
+    std::string    original_role;
+    std::string    current_role;
+    dpp::snowflake vote_target = 0;
+};
+
+struct ONWGame {
+    uint64_t       id;
+    dpp::snowflake channel_id;
+    dpp::snowflake guild_id;
+    dpp::snowflake host_id;
+    dpp::snowflake lobby_msg_id = 0;
+    dpp::snowflake vote_msg_id  = 0;
+    ONWPhase       phase = ONWPhase::WAITING;
+
+    std::vector<ONWPlayer>    players;
+    std::array<std::string,3> center = {};
+
+    // Role pool (host configures in lobby)
+    std::map<std::string,int> role_counts;
+
+    // Night state
+    std::set<dpp::snowflake> wolves_confirmed; // 已確認的一般狼人
+    bool           wolf_done         = false;
+    bool           seer_done         = false;
+    bool           robber_done       = false;
+    dpp::snowflake tm_first          = 0;   // troublemaker first pick
+    bool           troublemaker_done = false;
+    bool           drunk_done        = false;
+    bool           insomniac_done    = false;
+    bool           alpha_done        = true;  // 頭狼行動完成（預設true；有頭狼+中央狼人牌時設false）
+    bool           vi_done           = false;
+    bool           witch_done        = false;
+    bool           witch_peeked      = false; // 女巫已偷看，等待交換/略過
+    int            witch_center      = -1;    // 女巫偷看的中央牌 index
+
+    std::vector<std::string> night_log; // post-game recap
+};
+
+inline std::map<uint64_t, ONWGame>        onw_games;
+inline std::map<dpp::snowflake, uint64_t> channel_onw_game;
+inline std::atomic<uint64_t>              onw_counter{1};
+
+// ─── 誰是臥底 ─────────────────────────────────────────────────────────────────
+
+enum class UCPhase { WAITING, DESCRIBING, VOTING, VOTE_PK, GAME_OVER };
+
+struct UCPlayer {
+    dpp::snowflake uid;
+    std::string    display_name;
+    int            seat          = 0;
+    bool           is_undercover = false;
+    bool           is_blank      = false;  // white-board mode: no word
+    bool           alive         = true;
+};
+
+struct UCGame {
+    uint64_t       id           = 0;
+    dpp::snowflake channel_id;
+    dpp::snowflake guild_id;
+    dpp::snowflake host_id;
+    UCPhase        phase        = UCPhase::WAITING;
+
+    std::vector<UCPlayer> players;
+    std::string civilian_word;
+    std::string undercover_word;  // empty in blank_mode
+
+    bool blank_mode    = false;   // true = 白板模式, false = 臥底模式
+    bool adult_allowed = false;   // 僅 !臥底 遊玩成人內容 才開啟
+    std::string word_pool = "general";
+
+    int round     = 1;
+    std::vector<dpp::snowflake> seat_order;   // permanent order set in round 1
+    std::vector<dpp::snowflake> speak_order;  // alive players for current round
+    int speak_pos = 0;
+
+    std::map<dpp::snowflake, std::string>     answers;   // uid → answer text for current round
+    std::map<dpp::snowflake, dpp::snowflake> votes;
+    std::vector<dpp::snowflake> pk_candidates;
+    std::map<dpp::snowflake, dpp::snowflake> pk_votes;
+
+    dpp::snowflake pending_elim = 0;  // player waiting to guess (0 = none)
+    dpp::timer     guess_timer  = 0;  // 30-second guess countdown
+
+    dpp::snowflake lobby_msg_id    = 0;
+    dpp::snowflake describe_msg_id = 0;
+    dpp::snowflake vote_msg_id     = 0;
+    dpp::snowflake pk_msg_id       = 0;
+};
+
+struct UCStats {
+    int civ_games = 0, civ_wins = 0;
+    int spy_games = 0, spy_wins = 0;
+};
+
+inline std::map<uint64_t, UCGame>          uc_games;
+inline std::map<dpp::snowflake, uint64_t>  channel_uc_game;
+inline std::atomic<uint64_t>               uc_counter{1};
+inline std::map<dpp::snowflake, UCStats>   uc_stats_data;
+
+// ── 猜數字 ────────────────────────────────────────────────────────────────────
+struct GuessGame {
+    dpp::snowflake uid;
+    dpp::snowflake channel_id;
+    std::string    secret;
+    int            attempts     = 0;
+    static const int MAX_ATTEMPTS = 10;
+    std::vector<std::pair<std::string, std::string>> history;
+    dpp::snowflake msg_id       = 0;
+    std::string    avatar_url;
+    std::string    display_name;
+    std::string    input_buf;
+};
+
+struct GuessStats {
+    int games             = 0;
+    int wins              = 0;
+    int total_win_attempts = 0;  // sum of attempts for won games → avg = total_win_attempts/wins
+};
+
+inline std::map<dpp::snowflake, GuessGame> guess_games;
+inline std::map<uint64_t, GuessStats>      guess_stats_data;
+
+// ── 輪盤賭 ────────────────────────────────────────────────────────────────────
+struct RouletteSideBet {
+    dpp::snowflake uid;
+    std::string    display_name;
+    std::string    bet_type;   // "p1"|"p2"|"odd"|"even"|"ch1"~"ch6"
+    int64_t        amount = 0;
+};
+
+struct RouletteRoom {
+    // ── 房間設定 ──
+    dpp::snowflake channel_id;
+    dpp::snowflake msg_id      = 0;
+    dpp::snowflake p1_uid      = 0;
+    std::string    p1_name, p1_avatar;
+    dpp::snowflake p2_uid      = 0;
+    std::string    p2_name, p2_avatar;
+    dpp::snowflake invited_uid = 0;  // 0 = 開放任何人加入
+    int64_t        stake       = 0;
+    std::vector<RouletteSideBet> side_bets;  // 旁觀者邊注（遊戲前下注）
+    // ── 遊戲狀態 ──
+    // 規則：每回合必須先射一槍，miss 後可繼續射或 PASS 給對方。
+    //       射了第 5 發後不能繼續射第 6 發，只能 PASS。
+    bool started         = false;
+    int  bullet_chamber  = 0;  // 1-6，遊戲開始時決定（雙方不知）
+    int  current_chamber = 1;  // 當前要射的發數
+    int  active_player   = 1;  // 1=P1, 2=P2
+    int  shots_this_turn = 0;  // 本回合已射幾槍（PASS 時歸零）
+    int  shot5_shooter   = 0;  // 射了第 5 發的人（0=未到）
+    bool game_over       = false;
+    int  loser           = 0;  // 1=P1, 2=P2
+};
+
+inline std::map<dpp::snowflake, RouletteRoom> roulette_rooms;
+

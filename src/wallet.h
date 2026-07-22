@@ -1,6 +1,7 @@
 #pragma once
-// Must be included after pet.h, shoot.h, and wolfplayerstats.h
+// Must be included after pet.h, shoot.h, wolfplayerstats.h, and guess.h
 #include "wolfplayerstats.h"
+#include "guess.h"
 
 static std::string wallet_work_status(const Pet& pet) {
     time_t now = time(nullptr);
@@ -22,6 +23,7 @@ static dpp::message make_wallet_home_msg(dpp::snowflake uid) {
 
     Pet pet;
     bool has_pet = false;
+    ChipData cd;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = pet_data.find(uid);
@@ -29,6 +31,8 @@ static dpp::message make_wallet_home_msg(dpp::snowflake uid) {
             pet = it->second;
             has_pet = true;
         }
+        auto ci = chip_data.find(uid);
+        if (ci != chip_data.end()) cd = ci->second;
     }
 
     dpp::embed e;
@@ -47,10 +51,33 @@ static dpp::message make_wallet_home_msg(dpp::snowflake uid) {
         e.add_field("🐾  寵物", "尚無寵物（可至商店購買）", false);
     }
 
+    // 特權到期時間
+    {
+        time_t now = time(nullptr);
+        auto fmt_remain = [now](time_t until) -> std::string {
+            if (until == 0 || until <= now) return "";
+            int rem = (int)(until - now);
+            int d = rem / 86400, h = (rem % 86400) / 3600, m = (rem % 3600) / 60;
+            if (d > 0) return "剩 " + std::to_string(d) + " 天 " + std::to_string(h) + " 小時";
+            if (h > 0) return "剩 " + std::to_string(h) + " 小時 " + std::to_string(m) + " 分";
+            return "剩 " + std::to_string(m) + " 分鐘";
+        };
+        std::string priv;
+        std::string v = fmt_remain(cd.vip_until);
+        std::string s = fmt_remain(cd.supervisor_until);
+        std::string ins = fmt_remain(cd.insurance_until);
+        if (!v.empty())   priv += "👑 **尊爵VIP** — " + v + "\n";
+        if (!s.empty())   priv += "🏭 **寵物監工** — " + s + "\n";
+        if (!ins.empty()) priv += "💊 **醫療保險** — " + ins + "\n";
+        if (!priv.empty()) e.add_field("✨  特權狀態", priv, false);
+    }
+
     std::string sid = std::to_string((uint64_t)uid);
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📊 遊戲統計").set_id("wallet_games_" + sid).set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏦 銀行").set_id("wallet_bank_" + sid).set_style(dpp::cos_secondary));
 
     dpp::message msg; msg.add_embed(e); msg.add_component(row);
     return msg;
@@ -108,7 +135,7 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
     if (bj_total > 0) {
         e.add_field("🃏  21點",
             "勝/負/平 **" + std::to_string(bj_w) + "/" + std::to_string(bj_l) + "/" + std::to_string(bj_p) + "**"
-            + "　勝率 **" + fmt_rate(bj_w, bj_w + bj_l) + "**"
+            + "　勝率 **" + fmt_rate(bj_w, bj_total) + "**"
             + "\n盈虧 **" + fmt_profit(bj_profit) + "**", false);
     } else {
         e.add_field("🃏  21點", "尚無紀錄", false);
@@ -176,12 +203,61 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
         e.add_field("🎴  刮刮樂", "尚無紀錄", false);
     }
 
+    // 一夜狼人
+    int onw_w = 0, onw_v = 0, onw_t = 0, onw_ww = 0, onw_vw = 0, onw_tw = 0;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = onw_stats_data.find(uid);
+        if (it != onw_stats_data.end()) {
+            onw_w  = it->second.wolf_games;    onw_ww = it->second.wolf_wins;
+            onw_v  = it->second.village_games; onw_vw = it->second.village_wins;
+            onw_t  = it->second.tanner_games;  onw_tw = it->second.tanner_wins;
+        }
+    }
+    int onw_total = onw_w + onw_v + onw_t;
+    int onw_total_wins = onw_ww + onw_vw + onw_tw;
+    if (onw_total > 0) {
+        e.add_field("🌙  一夜狼人",
+            "總場次 **" + std::to_string(onw_total) + "**　"
+            "勝場 **" + std::to_string(onw_total_wins) + "**　"
+            "勝率 **" + fmt_rate(onw_total_wins, onw_total) + "**", false);
+    } else {
+        e.add_field("🌙  一夜狼人", "尚無紀錄", false);
+    }
+
+    // 猜數字
+    e.add_field("🔢  猜數字", guess_stats_line(uid), false);
+
+    // 誰是臥底
+    int uc_cg = 0, uc_cw = 0, uc_sg = 0, uc_sw = 0;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = uc_stats_data.find(uid);
+        if (it != uc_stats_data.end()) {
+            uc_cg = it->second.civ_games; uc_cw = it->second.civ_wins;
+            uc_sg = it->second.spy_games; uc_sw = it->second.spy_wins;
+        }
+    }
+    int uc_total = uc_cg + uc_sg, uc_wins = uc_cw + uc_sw;
+    if (uc_total > 0) {
+        e.add_field("🕵️  誰是臥底",
+            "總場次 **" + std::to_string(uc_total) + "**　"
+            "勝場 **" + std::to_string(uc_wins) + "**　"
+            "勝率 **" + fmt_rate(uc_wins, uc_total) + "**", false);
+    } else {
+        e.add_field("🕵️  誰是臥底", "尚無紀錄", false);
+    }
+
     std::string sid = std::to_string((uint64_t)uid);
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("← 返回").set_id("wallet_home_" + sid).set_style(dpp::cos_secondary));
     row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🌙 一夜狼人").set_id("wallet_onw_" + sid).set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🐺 狼人殺").set_id("wallet_wolf_" + sid).set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏦 銀行").set_id("wallet_bank_" + sid).set_style(dpp::cos_secondary));
 
     dpp::message msg; msg.add_embed(e); msg.add_component(row);
     return msg;

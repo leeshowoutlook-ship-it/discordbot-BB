@@ -25,10 +25,14 @@ static void load_bjstats() {
 
 static void save_bjstats() {
     nlohmann::json j;
-    for (auto& [uid, s] : bj_stats_data)
-        j[std::to_string((uint64_t)uid)] = {
-            {"wins", s.wins}, {"losses", s.losses},
-            {"pushes", s.pushes}, {"profit", s.profit}};
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [uid, s] : bj_stats_data)
+            j[std::to_string((uint64_t)uid)] = {
+                {"wins", s.wins}, {"losses", s.losses},
+                {"pushes", s.pushes}, {"profit", s.profit}};
+    }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(BJSTATS_FILE, j.dump(2));
 }
 
@@ -55,29 +59,32 @@ static BJHand hand_from_json(const nlohmann::json& j) {
 
 static void save_bj_games() {
     nlohmann::json j;
-    std::lock_guard<std::mutex> lk(data_mutex);
-    for (auto& [gid, g] : bj_games) {
-        if (g.game_over) continue; // don't persist finished games
-        nlohmann::json deck = nlohmann::json::array();
-        for (auto& c : g.deck) deck.push_back(card_to_json(c));
-        nlohmann::json dealer = nlohmann::json::array();
-        for (auto& c : g.dealer_cards) dealer.push_back(card_to_json(c));
-        j[std::to_string(gid)] = {
-            {"id",           gid},
-            {"uid",          (uint64_t)g.user_id},
-            {"ch",           (uint64_t)g.channel_id},
-            {"msg_id",       (uint64_t)g.msg_id},
-            {"bet",          g.bet},
-            {"deck",         deck},
-            {"main_hand",    hand_to_json(g.main_hand)},
-            {"split_hand",   hand_to_json(g.split_hand)},
-            {"has_split",    g.has_split},
-            {"split_active", g.split_active},
-            {"dealer_cards", dealer},
-            {"avatar_url",   g.avatar_url},
-            {"display_name", g.display_name},
-        };
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [gid, g] : bj_games) {
+            if (g.game_over) continue; // don't persist finished games
+            nlohmann::json deck = nlohmann::json::array();
+            for (auto& c : g.deck) deck.push_back(card_to_json(c));
+            nlohmann::json dealer = nlohmann::json::array();
+            for (auto& c : g.dealer_cards) dealer.push_back(card_to_json(c));
+            j[std::to_string(gid)] = {
+                {"id",           gid},
+                {"uid",          (uint64_t)g.user_id},
+                {"ch",           (uint64_t)g.channel_id},
+                {"msg_id",       (uint64_t)g.msg_id},
+                {"bet",          g.bet},
+                {"deck",         deck},
+                {"main_hand",    hand_to_json(g.main_hand)},
+                {"split_hand",   hand_to_json(g.split_hand)},
+                {"has_split",    g.has_split},
+                {"split_active", g.split_active},
+                {"dealer_cards", dealer},
+                {"avatar_url",   g.avatar_url},
+                {"display_name", g.display_name},
+            };
+        }
     }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(BJ_GAMES_FILE, j.dump(2));
 }
 

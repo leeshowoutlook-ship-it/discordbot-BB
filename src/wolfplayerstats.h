@@ -24,11 +24,14 @@ static void load_wolf_player_stats() {
 
 static void save_wolf_player_stats() {
     nlohmann::json j;
-    std::lock_guard<std::mutex> lk(data_mutex);
-    for (auto& [uid, s] : wolf_player_stats_data)
-        j[std::to_string((uint64_t)uid)] = {
-            {"good_games", s.good_games}, {"good_wins", s.good_wins},
-            {"bad_games",  s.bad_games},  {"bad_wins",  s.bad_wins}};
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [uid, s] : wolf_player_stats_data)
+            j[std::to_string((uint64_t)uid)] = {
+                {"good_games", s.good_games}, {"good_wins", s.good_wins},
+                {"bad_games",  s.bad_games},  {"bad_wins",  s.bad_wins}};
+    }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(WOLF_PLAYER_STATS_FILE, j.dump(2));
 }
 

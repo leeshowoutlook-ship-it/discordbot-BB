@@ -123,7 +123,7 @@ static dpp::message make_bj_msg(const BJGame& g, const std::string& status = "")
             : "🂡  你的手牌";
         desc << label << "：**" << v << "**";
         if (h.doubled)                             desc << "  ⚡ 加倍";
-        if (!g.has_split && is_blackjack(h.cards)) desc << "  🌟 BJ！";
+        if (is_blackjack(h.cards)) desc << "  🌟 BJ！";
         if (v > 21)                                desc << "  💥 爆牌";
         desc << "\n";
     }
@@ -134,8 +134,9 @@ static dpp::message make_bj_msg(const BJGame& g, const std::string& status = "")
         int v = hand_value(h.cards);
         std::string label = g.split_active ? "🂡  手牌 2 ▶" : "🂡  手牌 2";
         desc << label << "：**" << v << "**";
-        if (h.doubled) desc << "  ⚡ 加倍";
-        if (v > 21)    desc << "  💥 爆牌";
+        if (h.doubled)          desc << "  ⚡ 加倍";
+        if (is_blackjack(h.cards)) desc << "  🌟 BJ！";
+        if (v > 21)             desc << "  💥 爆牌";
         desc << "\n";
     }
 
@@ -227,7 +228,7 @@ static HandResult resolve_hand(
     const BJHand& h, const std::vector<BJCard>& dealer, int64_t bet, bool is_split)
 {
     int pv = hand_value(h.cards), dv = hand_value(dealer);
-    bool pbj = !is_split && is_blackjack(h.cards);
+    bool pbj = is_blackjack(h.cards);
     bool dbj = is_blackjack(dealer);
     int64_t ab = h.doubled ? bet * 2 : bet;
     bool fcc = ((int)h.cards.size() >= 5 && pv <= 21); // 過五關
@@ -248,7 +249,7 @@ static HandResult resolve_hand(
 
 // ─── Resolve full game (called UNDER data_mutex — uses chip_data directly) ────
 
-static std::string resolve_bj(BJGame& g) {
+static std::string resolve_bj(BJGame& g, int64_t& out_net) {
     // #9: only play dealer if at least one player hand didn't bust
     bool all_bust = (hand_value(g.main_hand.cards) > 21);
     if (g.has_split) all_bust = all_bust && (hand_value(g.split_hand.cards) > 21);
@@ -279,6 +280,7 @@ static std::string resolve_bj(BJGame& g) {
     else stats.pushes++;
     stats.profit += net;
 
+    out_net = net;
     if (net > 0)      oss << "\n\n✅ 總計 +**" << net << "** 碼";
     else if (net < 0) oss << "\n\n❌ 總計 **"  << net << "** 碼";
     else              oss << "\n\n⚖️ 平局，退回籌碼";
@@ -312,6 +314,7 @@ static dpp::message handle_bj_button(const std::string& action, uint64_t gid,
     BJGame snap;
     std::string status;
     bool do_save = false;
+    int64_t bj_net = 0;
 
     {
         std::lock_guard<std::mutex> lk(data_mutex);
@@ -329,7 +332,7 @@ static dpp::message handle_bj_button(const std::string& action, uint64_t gid,
                 if (g.split_hand.cards.size() == 1) // deal 2nd card to split
                     g.split_hand.cards.push_back(draw_card(g));
             } else {
-                status  = resolve_bj(g); // modifies chip_data under lock
+                status  = resolve_bj(g, bj_net); // modifies chip_data under lock
                 do_save = true;
             }
         };
@@ -386,5 +389,42 @@ static dpp::message handle_bj_button(const std::string& action, uint64_t gid,
     if (do_save && snap.game_over && get_chips(uid) <= 0)
         announce_bankrupt(uid, snap.channel_id);
 
-    return make_bj_msg(snap, status); // get_chips locks briefly — no conflict
+    dpp::message bj_msg = make_bj_msg(snap, status); // get_chips locks briefly — no conflict
+    if (bj_net < 0) {
+        int gc = 0, hr = 0;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          if (inventory_data.count(uid)) {
+              auto& inv = inventory_data[uid];
+              gc = inv.count("game_cancel") ? inv["game_cancel"] : 0;
+              hr = inv.count("half_refund") ? inv["half_refund"] : 0;
+          }
+        }
+        if (gc > 0 || hr > 0) {
+            std::string bj_uid_s = std::to_string((uint64_t)uid);
+            std::string bj_loss_s = std::to_string(-bj_net);
+            dpp::component gc_row; gc_row.set_type(dpp::cot_action_row);
+            if (gc > 0) gc_row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("這局不算!!")
+                .set_id("game_cancel_" + bj_uid_s + "_bj_" + bj_loss_s)
+                .set_style(dpp::cos_success));
+            if (hr > 0) gc_row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("對不起我錯了！！")
+                .set_id("half_refund_" + bj_uid_s + "_bj_" + bj_loss_s)
+                .set_style(dpp::cos_primary));
+            bj_msg.add_component(gc_row);
+        }
+    }
+    return bj_msg;
+}
+
+// Disable all buttons on an old game message so stale clicks don't confuse players
+static void bj_disable_old_msg(dpp::cluster& bot, const BJGame& g) {
+    if ((uint64_t)g.msg_id == 0) return;
+    dpp::message dm = make_bj_msg(g, "");
+    for (auto& row : dm.components)
+        for (auto& btn : row.components)
+            btn.disabled = true;
+    dm.id = g.msg_id;
+    dm.channel_id = g.channel_id;
+    bot.message_edit(dm);
 }

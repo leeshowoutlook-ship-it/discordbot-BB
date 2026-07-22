@@ -26,12 +26,15 @@ static void load_rocketstats() {
 
 static void save_rocketstats() {
     nlohmann::json j;
-    std::lock_guard<std::mutex> lk(data_mutex);
-    for (auto& [uid, s] : rocket_stats_data)
-        j[std::to_string((uint64_t)uid)] = {
-            {"wins",   s.wins},
-            {"losses", s.losses},
-            {"profit", s.profit}};
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [uid, s] : rocket_stats_data)
+            j[std::to_string((uint64_t)uid)] = {
+                {"wins",   s.wins},
+                {"losses", s.losses},
+                {"profit", s.profit}};
+    }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(ROCKET_STATS_FILE, j.dump(2));
 }
 
@@ -195,6 +198,29 @@ static dpp::message make_rocket_explode_msg(const RocketGame& rg) {
 
     dpp::message msg; msg.add_embed(e);
     rk_add_replay_row(msg, rg, new_chips);
+    // 這局不算 + 對不起我錯了 buttons
+    int gc = 0, hr = 0;
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      if (inventory_data.count(rg.uid)) {
+          auto& inv = inventory_data[rg.uid];
+          gc = inv.count("game_cancel") ? inv["game_cancel"] : 0;
+          hr = inv.count("half_refund") ? inv["half_refund"] : 0;
+      }
+    }
+    if (gc > 0 || hr > 0) {
+        std::string rk_uid_s = std::to_string((uint64_t)rg.uid);
+        std::string rk_bet_s = std::to_string(rg.bet);
+        dpp::component gc_row; gc_row.set_type(dpp::cot_action_row);
+        if (gc > 0) gc_row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("這局不算!!")
+            .set_id("game_cancel_" + rk_uid_s + "_rk_" + rk_bet_s)
+            .set_style(dpp::cos_success));
+        if (hr > 0) gc_row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("對不起我錯了！！")
+            .set_id("half_refund_" + rk_uid_s + "_rk_" + rk_bet_s)
+            .set_style(dpp::cos_primary));
+        msg.add_component(gc_row);
+    }
     return msg;
 }
 

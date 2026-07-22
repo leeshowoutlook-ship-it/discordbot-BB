@@ -26,25 +26,31 @@ static void load_dicestats() {
 
 static void save_dicestats() {
     nlohmann::json j;
-    std::lock_guard<std::mutex> lk(data_mutex);
-    for (auto& [uid, s] : dice_stats_data)
-        j[std::to_string((uint64_t)uid)] = {
-            {"wins", s.wins}, {"losses", s.losses}, {"profit", s.profit}};
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [uid, s] : dice_stats_data)
+            j[std::to_string((uint64_t)uid)] = {
+                {"wins", s.wins}, {"losses", s.losses}, {"profit", s.profit}};
+    }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(DICESTATS_FILE, j.dump(2));
 }
 
 static void save_dice_games() {
     nlohmann::json j;
-    std::lock_guard<std::mutex> lk(data_mutex);
-    for (auto& [gid, g] : dice_games)
-        j[std::to_string(gid)] = {
-            {"id",           gid},
-            {"uid",          (uint64_t)g.uid},
-            {"ch",           (uint64_t)g.ch},
-            {"bet",          g.bet},
-            {"avatar_url",   g.avatar_url},
-            {"display_name", g.display_name},
-        };
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [gid, g] : dice_games)
+            j[std::to_string(gid)] = {
+                {"id",           gid},
+                {"uid",          (uint64_t)g.uid},
+                {"ch",           (uint64_t)g.ch},
+                {"bet",          g.bet},
+                {"avatar_url",   g.avatar_url},
+                {"display_name", g.display_name},
+            };
+    }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(DICE_GAMES_FILE, j.dump(2));
 }
 
@@ -248,5 +254,27 @@ static dpp::message handle_dice_pick(uint64_t gid, int choice, dpp::snowflake ui
     row.add_component(again_btn);
     row.add_component(double_btn);
     msg.add_component(row);
+    if (!win) {
+        int gc = 0, hr = 0;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          if (inventory_data.count(uid)) {
+              auto& inv = inventory_data[uid];
+              gc = inv.count("game_cancel") ? inv["game_cancel"] : 0;
+              hr = inv.count("half_refund") ? inv["half_refund"] : 0;
+          }
+        }
+        if (gc > 0 || hr > 0) {
+            dpp::component gc_row; gc_row.set_type(dpp::cot_action_row);
+            if (gc > 0) gc_row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("這局不算!!")
+                .set_id("game_cancel_" + uid_s + "_di_" + bet_s)
+                .set_style(dpp::cos_success));
+            if (hr > 0) gc_row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("對不起我錯了！！")
+                .set_id("half_refund_" + uid_s + "_di_" + bet_s)
+                .set_style(dpp::cos_primary));
+            msg.add_component(gc_row);
+        }
+    }
     return msg;
 }

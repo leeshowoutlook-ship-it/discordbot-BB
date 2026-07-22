@@ -35,14 +35,17 @@ static void load_warns() {
 
 static void save_warns() {
     nlohmann::json j;
-    std::lock_guard<std::mutex> lk(data_mutex);
-    for (auto& [uid, records] : warn_data) {
-        if (records.empty()) continue;
-        nlohmann::json arr = nlohmann::json::array();
-        for (auto& r : records)
-            arr.push_back({{"ts", (int64_t)r.timestamp}, {"reason", r.reason}});
-        j[std::to_string((uint64_t)uid)] = arr;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [uid, records] : warn_data) {
+            if (records.empty()) continue;
+            nlohmann::json arr = nlohmann::json::array();
+            for (auto& r : records)
+                arr.push_back({{"ts", (int64_t)r.timestamp}, {"reason", r.reason}});
+            j[std::to_string((uint64_t)uid)] = arr;
+        }
     }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(WARN_FILE, j.dump(2));
 }
 

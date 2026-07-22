@@ -159,8 +159,7 @@ static int good_alive_cnt(const WolfGame& g) {
 static bool check_win(const WolfGame& g, std::string& winner) {
     int wolves = wolf_alive_cnt(g);
     if (wolves == 0) { winner = "好人"; return true; }
-    if (wolves >= good_alive_cnt(g)) { winner = "狼人"; return true; }
-    // 屠邊局
+    // 屠邊局（數量壓制不算贏，必須屠邊）
     int civilians = 0, specials = 0;
     for (auto& p : g.players) {
         if (!p.alive) continue;
@@ -310,30 +309,41 @@ static dpp::message make_wolf_lobby_msg(const WolfGame& g) {
         .set_label("▶ 開始遊戲").set_id("wolf_start_" + std::to_string(g.id))
         .set_style(dpp::cos_primary).set_disabled(n != 9));
     msg.add_component(row);
+    dpp::component row2; row2.set_type(dpp::cot_action_row);
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🗑️ 解散房間").set_id("wolf_dissolve_" + std::to_string(g.id)).set_style(dpp::cos_danger));
+    msg.add_component(row2);
     return msg;
 }
 
 static dpp::message make_sheriff_nominate_msg(const WolfGame& g) {
     dpp::embed e;
     e.set_title("🏅  第一天 — 警長競選報名").set_color(0xF39C12);
-    // Per-player decision status
     std::string status_str;
     int decided = 0, total = 0;
     for (auto& p : g.players) {
-        if (p.seat == 0) continue; total++;
-        bool is_cand   = std::find(g.candidates.begin(), g.candidates.end(), p.uid) != g.candidates.end();
-        bool not_run   = std::find(g.not_running.begin(), g.not_running.end(), p.uid) != g.not_running.end();
-        bool withdrew  = std::find(g.withdrawn_candidates.begin(), g.withdrawn_candidates.end(), p.uid) != g.withdrawn_candidates.end();
-        if (is_cand) {
-            status_str += "🏃 " + std::to_string(p.seat) + ". " + p.display_name + " — **競選中**\n"; decided++;
-        } else if (not_run || withdrew) {
-            status_str += "❌ " + std::to_string(p.seat) + ". " + p.display_name + "\n"; decided++;
+        if (p.seat == 0 || !p.alive) continue; total++;
+        bool is_cand  = std::find(g.candidates.begin(), g.candidates.end(), p.uid) != g.candidates.end();
+        bool not_run  = std::find(g.not_running.begin(), g.not_running.end(), p.uid) != g.not_running.end();
+        bool withdrew = std::find(g.withdrawn_candidates.begin(), g.withdrawn_candidates.end(), p.uid) != g.withdrawn_candidates.end();
+        if (is_cand || not_run || withdrew) decided++;
+    }
+    bool all_decided = (decided == total);
+    for (auto& p : g.players) {
+        if (p.seat == 0 || !p.alive) continue;
+        bool is_cand  = std::find(g.candidates.begin(), g.candidates.end(), p.uid) != g.candidates.end();
+        bool not_run  = std::find(g.not_running.begin(), g.not_running.end(), p.uid) != g.not_running.end();
+        bool withdrew = std::find(g.withdrawn_candidates.begin(), g.withdrawn_candidates.end(), p.uid) != g.withdrawn_candidates.end();
+        if (all_decided) {
+            if (is_cand)              status_str += "🏃 " + std::to_string(p.seat) + ". " + p.display_name + " — **競選中**\n";
+            else if (not_run || withdrew) status_str += "❌ " + std::to_string(p.seat) + ". " + p.display_name + "\n";
         } else {
-            status_str += "⏳ " + std::to_string(p.seat) + ". " + p.display_name + "\n";
+            bool has_decided = is_cand || not_run || withdrew;
+            status_str += (has_decided ? "✅ " : "⏳ ") + std::to_string(p.seat) + ". " + p.display_name + "\n";
         }
     }
     std::string speak;
-    if (!g.speak_seats.empty()) {
+    if (all_decided && !g.speak_seats.empty()) {
         for (int i = 0; i < (int)g.speak_seats.size(); i++) {
             if (i) speak += " → "; speak += "**" + std::to_string(g.speak_seats[i]) + "**";
         }
@@ -874,6 +884,11 @@ static void end_game(dpp::cluster& bot, uint64_t gid, const std::string& winner)
                 it->second.mvp_vote_msg_id = std::get<dpp::message>(cb.value).id;
         }
     });
+    // Auto-resolve MVP vote after 90s if not all players vote
+    bot.start_timer([&bot, gid](dpp::timer t) {
+        resolve_mvp_vote(bot, gid);
+        bot.stop_timer(t);
+    }, 90);
 }
 
 static void trigger_hunter(dpp::cluster& bot, uint64_t gid, WolfPhase after) {
@@ -1132,6 +1147,7 @@ static void resolve_night(dpp::cluster& bot, uint64_t gid) {
 static void resolve_sheriff_vote(dpp::cluster& bot, uint64_t gid) {
     dpp::snowflake ch, svote_msg_id = 0, new_sheriff = 0;
     std::string vote_detail;
+    bool is_tie = false;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = wolf_games.find(gid);
@@ -1158,6 +1174,11 @@ static void resolve_sheriff_vote(dpp::cluster& bot, uint64_t gid) {
         for (auto& [v, t] : g.sheriff_votes) if (t) tally[t]++;
         int best = 0;
         for (auto& [t, cnt] : tally) if (cnt > best) { best = cnt; new_sheriff = t; }
+        if (best > 0) {
+            int top_count = 0;
+            for (auto& [t, cnt] : tally) if (cnt == best) top_count++;
+            if (top_count > 1) { new_sheriff = 0; is_tie = true; } // 平票 → 撕毀警徽
+        }
         if (new_sheriff) {
             g.sheriff_uid = new_sheriff;
             auto* p = wfind(g, new_sheriff); if (p) p->is_sheriff = true;
@@ -1174,6 +1195,9 @@ static void resolve_sheriff_vote(dpp::cluster& bot, uint64_t gid) {
     if (new_sheriff) {
         e.set_title("🏅  警長選出！").set_color(0xF39C12);
         e.add_field("結果", "<@" + std::to_string((uint64_t)new_sheriff) + "> 當選警長！警長票計 **1.5 票**，死亡可傳徽。", false);
+    } else if (is_tie) {
+        e.set_title("🗳️  平票 — 警徽撕毀").set_color(0xE74C3C);
+        e.add_field("結果", "競選**平票**，警徽撕毀，本局**無警長**。", false);
     } else {
         e.set_title("⏭  流票 — 無警長").set_color(0x808080);
         e.add_field("結果", "本局無警長。", false);
