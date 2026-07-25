@@ -2,6 +2,7 @@
 // Must be included after pet.h, shoot.h, wolfplayerstats.h, and guess.h
 #include "wolfplayerstats.h"
 #include "guess.h"
+#include "rl_stats.h"
 
 static std::string wallet_work_status(const Pet& pet) {
     time_t now = time(nullptr);
@@ -246,6 +247,25 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
             "勝率 **" + fmt_rate(uc_wins, uc_total) + "**", false);
     } else {
         e.add_field("🕵️  誰是臥底", "尚無紀錄", false);
+    }
+
+    // 俄羅斯輪盤
+    int rl_w = 0, rl_l = 0; int64_t rl_profit = 0;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = roulette_stats_data.find(uid);
+        if (it != roulette_stats_data.end()) {
+            rl_w = it->second.wins; rl_l = it->second.losses; rl_profit = it->second.profit;
+        }
+    }
+    int rl_total = rl_w + rl_l;
+    if (rl_total > 0) {
+        e.add_field("🎲  俄羅斯輪盤",
+            "勝/負 **" + std::to_string(rl_w) + "/" + std::to_string(rl_l) + "**"
+            + "　勝率 **" + fmt_rate(rl_w, rl_total) + "**"
+            + "\n盈虧 **" + fmt_profit(rl_profit) + "**", false);
+    } else {
+        e.add_field("🎲  俄羅斯輪盤", "尚無紀錄", false);
     }
 
     std::string sid = std::to_string((uint64_t)uid);

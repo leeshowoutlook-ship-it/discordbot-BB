@@ -647,8 +647,8 @@ static dpp::message make_equip_msg(dpp::snowflake uid, const Pet& pet,
     msg.add_component(row1);
     dpp::component nav_row; nav_row.set_type(dpp::cot_action_row);
     dpp::component pet_back;
-    pet_back.set_type(dpp::cot_button).set_label("↩ 返回寵物頁面")
-            .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary);
+    pet_back.set_type(dpp::cot_button).set_label("🏠 大廳")
+            .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
     nav_row.add_component(pet_back);
     msg.add_component(nav_row);
     return msg;

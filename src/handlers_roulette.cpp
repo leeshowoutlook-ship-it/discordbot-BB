@@ -1,9 +1,10 @@
 #include "types.h"
 #include "chips.h"
+#include "rl_stats.h"
 #include "roulette.h"
 #include "handler_decls.h"
 
-// ─── Message: !輪盤賭 ─────────────────────────────────────────────────────────
+// ─── Message: !輪盤 ───────────────────────────────────────────────────────────
 void handle_roulette_message(const dpp::message_create_t& ev,
                               const std::string& content,
                               dpp::snowflake uid, dpp::snowflake ch)
@@ -13,18 +14,18 @@ void handle_roulette_message(const dpp::message_create_t& ev,
         std::lock_guard<std::mutex> lk(data_mutex);
         if (roulette_rooms.count(ch)) {
             dpp::message m; m.channel_id = ch;
-            m.set_content("❌ 此頻道已有進行中的輪盤賭！");
+            m.set_content("❌ 此頻道已有進行中的輪盤！");
             g_bot->message_create(m); return;
         }
     }
-    // 解析 "!輪盤賭 [amount] [@mention]"
-    const std::string prefix = "!輪盤賭";
+    // 解析 "!輪盤 [amount] [@mention]"
+    const std::string prefix = "!輪盤";
     std::string rest;
     if (content.size() > prefix.size() && content[prefix.size()] == ' ')
         rest = content.substr(prefix.size() + 1);
     if (rest.empty()) {
         dpp::message m; m.channel_id = ch;
-        m.set_content("用法：`!輪盤賭 [籌碼]` 或 `!輪盤賭 [籌碼] @玩家`\n例：`!輪盤賭 1000` 或 `!輪盤賭 5000 @someone`");
+        m.set_content("用法：`!輪盤 [籌碼]` 或 `!輪盤 [籌碼] @玩家`\n例：`!輪盤 1000` 或 `!輪盤 5000 @someone`");
         g_bot->message_create(m); return;
     }
     std::istringstream iss_rl(rest);
@@ -62,6 +63,8 @@ void handle_roulette_message(const dpp::message_create_t& ev,
     rr.p1_avatar = ev.msg.author.get_avatar_url();
     rr.stake = stake_rl;
     rr.invited_uid = invited_rl;
+    if (invited_rl != 0)
+        rr.invited_name = "<@" + std::to_string((uint64_t)invited_rl) + ">";
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         roulette_rooms[ch] = rr;
@@ -77,21 +80,21 @@ void handle_roulette_message(const dpp::message_create_t& ev,
     });
 }
 
-// ─── Slash: /輪盤賭 ───────────────────────────────────────────────────────────
+// ─── Slash: /輪盤 ─────────────────────────────────────────────────────────────
 void handle_roulette_slash(const dpp::slashcommand_t& ev, dpp::snowflake uid, dpp::snowflake ch)
 {
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         if (roulette_rooms.count(ch)) {
             ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 此頻道已有進行中的輪盤賭！").set_flags(dpp::m_ephemeral)); return;
+                dpp::message("❌ 此頻道已有進行中的輪盤！").set_flags(dpp::m_ephemeral)); return;
         }
     }
     auto stake_p = ev.get_parameter("籌碼");
     int64_t stake_rl = std::holds_alternative<int64_t>(stake_p) ? std::get<int64_t>(stake_p) : 0LL;
     if (stake_rl <= 0) {
         ev.reply(dpp::ir_channel_message_with_source,
-            dpp::message("用法：`/輪盤賭 籌碼:1000` 或 `/輪盤賭 籌碼:5000 對象:@someone`").set_flags(dpp::m_ephemeral)); return;
+            dpp::message("用法：`/輪盤 籌碼:1000` 或 `/輪盤 籌碼:5000 對象:@someone`").set_flags(dpp::m_ephemeral)); return;
     }
     {
         std::lock_guard<std::mutex> lk(data_mutex);
@@ -104,8 +107,18 @@ void handle_roulette_slash(const dpp::slashcommand_t& ev, dpp::snowflake uid, dp
     }
     dpp::snowflake invited_rl = 0;
     auto inv_p = ev.get_parameter("對象");
-    if (std::holds_alternative<dpp::snowflake>(inv_p))
+    std::string invited_name_rl;
+    if (std::holds_alternative<dpp::snowflake>(inv_p)) {
         invited_rl = std::get<dpp::snowflake>(inv_p);
+        auto uit = ev.command.resolved.users.find(invited_rl);
+        if (uit != ev.command.resolved.users.end()) {
+            auto mit = ev.command.resolved.members.find(invited_rl);
+            invited_name_rl = (mit != ev.command.resolved.members.end() && !mit->second.get_nickname().empty())
+                              ? mit->second.get_nickname() : uit->second.username;
+        }
+        if (invited_name_rl.empty())
+            invited_name_rl = "<@" + std::to_string((uint64_t)invited_rl) + ">";
+    }
     std::string dn_rl = ev.command.member.get_nickname();
     if (dn_rl.empty()) dn_rl = ev.command.get_issuing_user().username;
     RouletteRoom rr;
@@ -114,6 +127,7 @@ void handle_roulette_slash(const dpp::slashcommand_t& ev, dpp::snowflake uid, dp
     rr.p1_avatar = ev.command.get_issuing_user().get_avatar_url();
     rr.stake = stake_rl;
     rr.invited_uid = invited_rl;
+    rr.invited_name = invited_name_rl;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         roulette_rooms[ch] = rr;
@@ -179,21 +193,36 @@ void handle_roulette_button(const dpp::button_click_t& ev)
     // ── 開始遊戲 ──────────────────────────────────────────────────────────────
     else if (cid.rfind("rl_start_", 0) == 0) {
         dpp::snowflake ch(std::stoull(cid.substr(9)));
-        std::lock_guard<std::mutex> lk(data_mutex);
-        auto it = roulette_rooms.find(ch);
-        if (it == roulette_rooms.end()) { rl_err("❌ 房間已不存在！"); return; }
-        auto& r = it->second;
-        if (uid != r.p1_uid)  { rl_err("❌ 只有玩家一（先手）可開始遊戲！"); return; }
-        if (r.p2_uid == 0)    { rl_err("❌ 尚未有第二名玩家！"); return; }
-        if (r.started)        { rl_err("❌ 遊戲已開始！"); return; }
-        auto c1 = chip_data.find(r.p1_uid), c2 = chip_data.find(r.p2_uid);
-        if (c1 == chip_data.end() || c1->second.chips < r.stake) { rl_err("❌ 玩家一籌碼不足！"); return; }
-        if (c2 == chip_data.end() || c2->second.chips < r.stake) { rl_err("❌ 玩家二籌碼不足！"); return; }
-        r.started = true;
-        r.bullet_chamber = rl_rand(1, 6);
-        r.current_chamber = 1;
-        r.active_player = 1;
-        ev.reply(dpp::ir_update_message, make_roulette_game_msg(r));
+        dpp::message game_msg;
+        dpp::snowflake room_msg_id = 0;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = roulette_rooms.find(ch);
+            if (it == roulette_rooms.end()) { rl_err("❌ 房間已不存在！"); return; }
+            auto& r = it->second;
+            if (uid != r.p1_uid)  { rl_err("❌ 只有玩家一（先手）可開始遊戲！"); return; }
+            if (r.p2_uid == 0)    { rl_err("❌ 尚未有第二名玩家！"); return; }
+            if (r.started)        { rl_err("❌ 遊戲已開始！"); return; }
+            auto c1 = chip_data.find(r.p1_uid), c2 = chip_data.find(r.p2_uid);
+            if (c1 == chip_data.end() || c1->second.chips < r.stake) { rl_err("❌ 玩家一籌碼不足！"); return; }
+            if (c2 == chip_data.end() || c2->second.chips < r.stake) { rl_err("❌ 玩家二籌碼不足！"); return; }
+            r.started = true;
+            r.bullet_chamber = rl_rand(1, 6);
+            r.current_chamber = 1;
+            r.active_player = 1;
+            game_msg    = make_roulette_game_msg(r);
+            room_msg_id = r.msg_id;
+        }
+        // 發新訊息視窗（不更新舊房間訊息）
+        ev.reply(dpp::ir_channel_message_with_source, game_msg);
+        // 把舊房間訊息改成「遊戲進行中」並移除按鈕
+        if (room_msg_id != 0 && g_bot) {
+            dpp::embed e;
+            e.set_title("🎲  俄羅斯輪盤 — 遊戲進行中").set_color(0xE74C3C);
+            e.set_description("已開始遊戲，請看下方訊息繼續操作。");
+            dpp::message dm; dm.id = room_msg_id; dm.channel_id = ch; dm.add_embed(e);
+            g_bot->message_edit(dm);
+        }
     }
     // ── 解散房間 ──────────────────────────────────────────────────────────────
     else if (cid.rfind("rl_dissolve_", 0) == 0) {
@@ -260,11 +289,20 @@ void handle_roulette_button(const dpp::button_click_t& ev)
                 r.game_over = true;
                 dpp::snowflake winner_uid = (r.loser == 1) ? r.p2_uid : r.p1_uid;
                 dpp::snowflake loser_uid  = (r.loser == 1) ? r.p1_uid : r.p2_uid;
-                chip_data[winner_uid].chips += (int64_t)(r.stake * 0.95);
+                int64_t winner_net = (int64_t)(r.stake * 0.95);
+                chip_data[winner_uid].chips += winner_net;
                 chip_data[loser_uid].chips  -= r.stake;
-                for (auto& b : r.side_bets)
-                    if (rl_bet_wins(b.bet_type, r.bullet_chamber, r.loser))
+                // 主賽統計
+                roulette_stats_data[winner_uid].wins++;
+                roulette_stats_data[winner_uid].profit += winner_net;
+                roulette_stats_data[loser_uid].losses++;
+                roulette_stats_data[loser_uid].profit -= r.stake;
+                // 邊注結算（不計入勝負統計）
+                for (auto& b : r.side_bets) {
+                    bool bet_won = rl_bet_wins(b.bet_type, r.bullet_chamber, r.loser);
+                    if (bet_won)
                         chip_data[b.uid].chips += (int64_t)(b.amount * rl_multiplier(b.bet_type));
+                }
                 reply_msg = make_roulette_result_msg(r);
                 roulette_rooms.erase(it);
                 game_ended = true;
@@ -273,7 +311,7 @@ void handle_roulette_button(const dpp::button_click_t& ev)
                 reply_msg = make_roulette_game_msg(r);
             }
         } // mutex released
-        if (game_ended) save_chips();
+        if (game_ended) { save_chips(); save_roulettestats(); }
         ev.reply(dpp::ir_update_message, reply_msg);
     }
     // ── PASS ──────────────────────────────────────────────────────────────────
@@ -292,9 +330,24 @@ void handle_roulette_button(const dpp::button_click_t& ev)
         r.active_player   = (r.active_player == 1) ? 2 : 1;
         ev.reply(dpp::ir_update_message, make_roulette_game_msg(r));
     }
+    else if (cid.rfind("rl_refresh_", 0) == 0) {
+        dpp::snowflake ch(std::stoull(cid.substr(11)));
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = roulette_rooms.find(ch);
+        if (it == roulette_rooms.end()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 遊戲不存在或已結束！").set_flags(dpp::m_ephemeral)); return;
+        }
+        auto& r = it->second;
+        if (!r.started) {
+            ev.reply(dpp::ir_update_message, make_roulette_room_msg(r));
+        } else {
+            ev.reply(dpp::ir_update_message, make_roulette_game_msg(r));
+        }
+    }
     else {
         ev.reply(dpp::ir_channel_message_with_source,
-            dpp::message("❌ 未知的輪盤賭按鈕！").set_flags(dpp::m_ephemeral));
+            dpp::message("❌ 未知的輪盤按鈕！").set_flags(dpp::m_ephemeral));
     }
 }
 

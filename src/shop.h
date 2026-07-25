@@ -263,7 +263,7 @@ static void save_shop() {
 
 // ─── Shop UI ──────────────────────────────────────────────────────────────────
 
-static dpp::message make_shop_main_msg() {
+static dpp::message make_shop_main_msg(const std::string& back_uid = "") {
     dpp::embed e;
     e.set_title("🏪  商店").set_color(0x1ABC9C);
     e.set_description("請選擇要前往的商店：");
@@ -278,6 +278,10 @@ static dpp::message make_shop_main_msg() {
     virtual_btn.set_type(dpp::cot_button).set_label("💻 虛擬商店")
                .set_id("shop_virtual").set_style(dpp::cos_primary);
     row.add_component(maple_btn); row.add_component(virtual_btn);
+    if (!back_uid.empty()) {
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🏠 大廳").set_id("lobby_main_" + back_uid).set_style(dpp::cos_secondary));
+    }
     msg.add_component(row);
     return msg;
 }

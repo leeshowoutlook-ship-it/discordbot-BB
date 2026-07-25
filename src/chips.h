@@ -1,6 +1,7 @@
 #pragma once
 #include "helpers.h"
 #include <fstream>
+#include <set>
 #include <nlohmann/json.hpp>
 #include <cmath>
 
@@ -158,11 +159,17 @@ static dpp::message handle_weekly_claim(dpp::snowflake uid, bool* claimed_out = 
             success = false;
             balance = cd.chips;
         }
-        // Give weekly raid scroll if not yet given this week
+        // Top up weekly raid scroll to max (1) if not yet done this week
+        static const int MAX_WEEKLY_SCROLL = 1;
         if (cur_week > weekly_id(cd.last_weekly_scroll)) {
-            inventory_data[uid]["weekly_hunt_scroll"]++;
+            int cur = inventory_data[uid].count("weekly_hunt_scroll")
+                      ? inventory_data[uid]["weekly_hunt_scroll"] : 0;
+            int to_give = std::max(0, MAX_WEEKLY_SCROLL - cur);
+            if (to_give > 0) {
+                inventory_data[uid]["weekly_hunt_scroll"] += to_give;
+                scroll_given = true;
+            }
             cd.last_weekly_scroll = now;
-            scroll_given = true;
         }
     }
     if (claimed_out) *claimed_out = success;
@@ -194,12 +201,19 @@ static dpp::message handle_leaderboard(int page = 0) {
     std::vector<std::pair<dpp::snowflake, int64_t>> sorted;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
+        std::set<dpp::snowflake> seen;
         for (auto& [uid, cd] : chip_data) {
             int64_t wealth = cd.chips;
             auto bit = bank_data.find(uid);
             if (bit != bank_data.end() && bit->second.deposited > 0)
                 wealth += bit->second.deposited;
             if (wealth > 0) sorted.push_back({uid, wealth});
+            seen.insert(uid);
+        }
+        // 只有銀行存款、沒有 chip_data 記錄的人也要列入
+        for (auto& [uid, bd] : bank_data) {
+            if (seen.count(uid)) continue;
+            if (bd.deposited > 0) sorted.push_back({uid, bd.deposited});
         }
     }
     std::sort(sorted.begin(), sorted.end(),

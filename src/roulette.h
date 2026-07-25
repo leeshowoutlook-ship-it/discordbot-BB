@@ -79,7 +79,11 @@ static dpp::message make_roulette_room_msg(const RouletteRoom& r) {
     desc += "🔴 **玩家一（先手）：** " + r.p1_name + "\n";
     desc += "⚫ **玩家二（後手）：** "
           + (r.p2_uid ? r.p2_name : "*等待加入...*") + "\n";
-    if (r.invited_uid) desc += "\n🔒 邀請制 — 僅限受邀玩家加入";
+    if (r.invited_uid) {
+        desc += "\n🔒 邀請制 — 僅限 **" + (r.invited_name.empty()
+            ? "<@" + std::to_string((uint64_t)r.invited_uid) + ">"
+            : r.invited_name) + "** 加入";
+    }
     desc += "\n\n> 旁觀者可在開始前下注，玩家本人不可下注";
     e.set_description(desc);
 
@@ -115,6 +119,9 @@ static dpp::message make_roulette_room_msg(const RouletteRoom& r) {
     row1.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🗑 解散房間").set_id("rl_dissolve_" + ch_s)
         .set_style(dpp::cos_danger));
+    row1.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🔄 狀態刷新").set_id("rl_refresh_" + ch_s)
+        .set_style(dpp::cos_secondary));
     msg.add_component(row1);
 
     // Row 2: P1/P2 win bets
@@ -203,6 +210,9 @@ static dpp::message make_roulette_game_msg(const RouletteRoom& r) {
         .set_label(pass_label).set_id("rl_pass_" + ch_s)
         .set_style(dpp::cos_secondary)
         .set_disabled(!can_pass));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🔄").set_id("rl_refresh_" + ch_s)
+        .set_style(dpp::cos_secondary));
 
     msg.add_component(row);
     return msg;
@@ -246,6 +256,23 @@ static dpp::message make_roulette_result_msg(const RouletteRoom& r) {
         }
         e.add_field("📋 旁觀者下注結算", sres, false);
     }
+
+    // 主賽雙方累計統計（呼叫方已持 data_mutex，直接讀）
+    dpp::snowflake winner_uid = (r.loser == 1) ? r.p2_uid : r.p1_uid;
+    dpp::snowflake loser_uid  = (r.loser == 1) ? r.p1_uid : r.p2_uid;
+    auto stats_line = [](dpp::snowflake uid) -> std::string {
+        auto it = roulette_stats_data.find(uid);
+        if (it == roulette_stats_data.end()) return "首局";
+        auto& s = it->second;
+        int total = s.wins + s.losses;
+        char rate[16] = "0.0%";
+        if (total > 0) snprintf(rate, sizeof(rate), "%.1f%%", s.wins * 100.0 / total);
+        return "勝/負 " + std::to_string(s.wins) + "/" + std::to_string(s.losses)
+             + "　勝率 " + rate
+             + "　盈虧 " + (s.profit >= 0 ? "+" : "") + std::to_string(s.profit) + " 碼";
+    };
+    e.add_field("📊 " + winner_name + " 統計", stats_line(winner_uid), false);
+    e.add_field("📊 " + loser_name  + " 統計", stats_line(loser_uid),  false);
 
     dpp::message msg; msg.add_embed(e);
     return msg;

@@ -320,6 +320,64 @@ static void load_inventory() {
 
 // ─── Pet view ─────────────────────────────────────────────────────────────────
 
+static dpp::message make_lobby_msg(dpp::snowflake uid,
+                                    const std::string& avatar_url = "",
+                                    const std::string& display_name = "") {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    dpp::embed e;
+    e.set_title("🏠  大廳").set_color(0x5865F2);
+    e.set_description("請選擇要前往的頁面：");
+    {
+        dpp::embed_footer footer;
+        footer.text = "👤 " + (display_name.empty() ? uid_s : display_name);
+        if (!avatar_url.empty()) footer.icon_url = avatar_url;
+        e.set_footer(footer);
+    }
+    dpp::message msg; msg.add_embed(e);
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🐾 寵物").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_primary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🎒 背包").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("⚔️ 裝備").set_id("equip_main_" + uid_s).set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏪 商店").set_id("lobby_shop_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component(row);
+    return msg;
+}
+
+static dpp::message make_pet_work_select_msg(dpp::snowflake uid) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    Pet pet;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = pet_data.find(uid);
+        if (it != pet_data.end()) pet = it->second;
+    }
+    auto opts = work_options(pet.stage);
+    dpp::embed e;
+    e.set_title("💼  選擇打工時長").set_color(0x9B59B6);
+    e.set_description("請選擇打工時長：");
+    dpp::message msg; msg.add_embed(e);
+    dpp::component row1; row1.set_type(dpp::cot_action_row);
+    row1.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏃 1小時 (+" + std::to_string(opts[0].pay) + "碼/+" + std::to_string(opts[0].exp_gain) + "exp)")
+        .set_id("pet_work_" + uid_s + "_1").set_style(dpp::cos_primary));
+    row1.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏋 4小時 (+" + std::to_string(opts[1].pay) + "碼/+" + std::to_string(opts[1].exp_gain) + "exp)")
+        .set_id("pet_work_" + uid_s + "_4").set_style(dpp::cos_primary));
+    row1.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🌙 8小時 (+" + std::to_string(opts[2].pay) + "碼/+" + std::to_string(opts[2].exp_gain) + "exp)")
+        .set_id("pet_work_" + uid_s + "_8").set_style(dpp::cos_primary));
+    msg.add_component(row1);
+    dpp::component row2; row2.set_type(dpp::cot_action_row);
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component(row2);
+    return msg;
+}
+
 static dpp::message make_pet_view_msg(dpp::snowflake uid,
                                        const std::string& avatar_url = "",
                                        const std::string& display_name = "") {
@@ -362,6 +420,10 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
            .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_primary);
         row.add_component(btn);
         msg.add_component(row);
+        dpp::component rowlob; rowlob.set_type(dpp::cot_action_row);
+        rowlob.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component(rowlob);
         dpp::component rowrel; rowrel.set_type(dpp::cot_action_row);
         dpp::component rel0;
         rel0.set_type(dpp::cot_button).set_label("🕊️ 放生")
@@ -437,17 +499,25 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
     bool working   = (pet.work_task > 0 && pet.work_end > now);
     bool work_done = (pet.work_task > 0 && pet.work_end <= now);
 
-    // 打工後通知 toggle 按鈕（每個狀態都顯示）
-    auto add_notify_row = [&]() {
+    // Common row helpers
+    auto add_lobby_row = [&]() {
+        dpp::component r; r.set_type(dpp::cot_action_row);
+        r.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component(r);
+    };
+    auto add_utility_row = [&]() {
         bool notify = pet.notify_after_work;
-        dpp::component nrow; nrow.set_type(dpp::cot_action_row);
-        dpp::component nb;
-        nb.set_type(dpp::cot_button)
-          .set_label(notify ? "🔔 完成通知：是" : "🔕 完成通知：否")
-          .set_id("pet_notify_toggle_" + uid_s)
-          .set_style(notify ? dpp::cos_success : dpp::cos_secondary);
-        nrow.add_component(nb);
-        msg.add_component(nrow);
+        dpp::component r; r.set_type(dpp::cot_action_row);
+        r.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("✏️ 改名").set_id("pet_rename_" + uid_s).set_style(dpp::cos_secondary));
+        r.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🕊️ 放生").set_id("pet_release_" + uid_s).set_style(dpp::cos_danger));
+        r.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label(notify ? "🔔 通知" : "🔕 通知")
+            .set_id("pet_notify_toggle_" + uid_s)
+            .set_style(notify ? dpp::cos_success : dpp::cos_secondary));
+        msg.add_component(r);
     };
 
     // Onsen state
@@ -457,28 +527,14 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
         char buf[32]; snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, s);
         e.add_field("🛀  溫泉狀態", "🌊 泡溫泉中，剩餘 " + std::string(buf) + "\n結束後自動清除所有負面狀態", false);
         msg.add_embed(e);
-        dpp::component row; row.set_type(dpp::cot_action_row);
-        dpp::component cxb, ub, eqb;
-        cxb.set_type(dpp::cot_button).set_label("❌ 取消泡溫泉")
-           .set_id("pet_cancel_onsen_" + uid_s).set_style(dpp::cos_danger);
-        ub.set_type(dpp::cot_button).set_label("🎒 背包")
-          .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary);
-        eqb.set_type(dpp::cot_button).set_label("⚔️ 裝備")
-           .set_id("equip_main_" + uid_s).set_style(dpp::cos_secondary);
-        row.add_component(cxb); row.add_component(ub); row.add_component(eqb);
-        msg.add_component(row);
-        dpp::component row2o; row2o.set_type(dpp::cot_action_row);
-        dpp::component rn, rel;
-        rn.set_type(dpp::cot_button).set_label("✏️ 改名")
-          .set_id("pet_rename_" + uid_s).set_style(dpp::cos_secondary);
-        rel.set_type(dpp::cot_button).set_label("🕊️ 放生")
-           .set_id("pet_release_" + uid_s).set_style(dpp::cos_danger);
-        dpp::component rfb;
-        rfb.set_type(dpp::cot_button).set_label("🔄 重新整理")
-           .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary);
-        row2o.add_component(rn); row2o.add_component(rel); row2o.add_component(rfb);
-        msg.add_component(row2o);
-        add_notify_row();
+        dpp::component row1; row1.set_type(dpp::cot_action_row);
+        row1.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🔄 刷新").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary));
+        row1.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("❌ 取消泡溫泉").set_id("pet_cancel_onsen_" + uid_s).set_style(dpp::cos_danger));
+        msg.add_component(row1);
+        add_lobby_row();
+        add_utility_row();
         return msg;
     }
 
@@ -492,101 +548,46 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
         int h = remain/3600, m = (remain%3600)/60, s = remain%60;
         char buf[32]; snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, s);
         e.add_field("💼  打工狀態", status_label + "，剩餘 " + std::string(buf), false);
+        msg.add_embed(e);
+        dpp::component row1; row1.set_type(dpp::cot_action_row);
+        row1.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🔄 刷新").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary));
+        row1.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("❌ 取消打工").set_id("pet_cancel_work_" + uid_s).set_style(dpp::cos_danger));
+        msg.add_component(row1);
+        add_lobby_row();
+        add_utility_row();
+        return msg;
     } else if (work_done) {
         e.add_field("💼  打工狀態", "✅ 打工完成！按下按鈕領取獎勵", false);
+        msg.add_embed(e);
+        dpp::component row1; row1.set_type(dpp::cot_action_row);
+        row1.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("💰 領取打工獎勵").set_id("pet_claim_" + uid_s).set_style(dpp::cos_success));
+        msg.add_component(row1);
+        add_lobby_row();
+        add_utility_row();
+        return msg;
     } else {
-        auto opts = work_options(pet.stage);
         e.add_field("💼  打工狀態", "😴 閒置", false);
         msg.add_embed(e);
-        dpp::component row; row.set_type(dpp::cot_action_row);
-        auto mk = [&](const std::string& lbl, const std::string& id, dpp::component_style sty, bool disabled = false) {
-            dpp::component b;
-            b.set_type(dpp::cot_button).set_label(lbl).set_id(id).set_style(sty).set_disabled(disabled);
-            row.add_component(b);
-        };
-        mk("🏃 1小時 (+" + std::to_string(opts[0].pay) + "碼/+" + std::to_string(opts[0].exp_gain) + "exp)",
-           "pet_work_" + uid_s + "_1", dpp::cos_primary);
-        mk("🏋 4小時 (+" + std::to_string(opts[1].pay) + "碼/+" + std::to_string(opts[1].exp_gain) + "exp)",
-           "pet_work_" + uid_s + "_4", dpp::cos_primary);
-        mk("🌙 8小時 (+" + std::to_string(opts[2].pay) + "碼/+" + std::to_string(opts[2].exp_gain) + "exp)",
-           "pet_work_" + uid_s + "_8", dpp::cos_primary);
-        mk("🛀 泡溫泉（2h）", "pet_start_onsen_" + uid_s, dpp::cos_primary, pet.statuses.empty());
-        msg.add_component(row);
-        dpp::component row2; row2.set_type(dpp::cot_action_row);
-        dpp::component ub, eqb;
-        ub.set_type(dpp::cot_button).set_label("🎒 背包")
-          .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary);
-        eqb.set_type(dpp::cot_button).set_label("⚔️ 裝備")
-           .set_id("equip_main_" + uid_s).set_style(dpp::cos_secondary);
-        row2.add_component(ub); row2.add_component(eqb);
-        msg.add_component(row2);
-        dpp::component row3i; row3i.set_type(dpp::cot_action_row);
-        dpp::component rb, rel2;
-        rb.set_type(dpp::cot_button).set_label("✏️ 改名")
-          .set_id("pet_rename_" + uid_s).set_style(dpp::cos_secondary);
-        rel2.set_type(dpp::cot_button).set_label("🕊️ 放生")
-            .set_id("pet_release_" + uid_s).set_style(dpp::cos_danger);
-        row3i.add_component(rb); row3i.add_component(rel2);
-        msg.add_component(row3i);
-        if (pet.stage == 3) {
-            dpp::component refrow; refrow.set_type(dpp::cot_action_row);
-            dpp::component rfb;
-            rfb.set_type(dpp::cot_button).set_label("✨ 提煉星星（-50 exp）")
-               .set_id("pet_refine_star_" + uid_s).set_style(dpp::cos_primary)
-               .set_disabled(pet.exp < 50);
-            refrow.add_component(rfb); msg.add_component(refrow);
+        dpp::component row1; row1.set_type(dpp::cot_action_row);
+        row1.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🏃 打工").set_id("pet_work_select_" + uid_s).set_style(dpp::cos_primary));
+        if (!pet.statuses.empty()) {
+            row1.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("🛀 泡溫泉（2h）").set_id("pet_start_onsen_" + uid_s).set_style(dpp::cos_primary));
         }
-        add_notify_row();
+        if (pet.stage == 3) {
+            row1.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("✨ 提煉星星（-50 exp）").set_id("pet_refine_star_" + uid_s)
+                .set_style(dpp::cos_primary).set_disabled(pet.exp < 50));
+        }
+        msg.add_component(row1);
+        add_lobby_row();
+        add_utility_row();
         return msg;
     }
-
-    msg.add_embed(e);
-    dpp::component row; row.set_type(dpp::cot_action_row);
-    if (work_done) {
-        dpp::component cb;
-        cb.set_type(dpp::cot_button).set_label("💰 領取打工獎勵")
-          .set_id("pet_claim_" + uid_s).set_style(dpp::cos_success);
-        row.add_component(cb);
-    } else {
-        dpp::component rb;
-        rb.set_type(dpp::cot_button).set_label("🔄 重新整理")
-          .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary);
-        row.add_component(rb);
-    }
-    dpp::component ub, eqb2;
-    ub.set_type(dpp::cot_button).set_label("🎒 背包")
-      .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary);
-    eqb2.set_type(dpp::cot_button).set_label("⚔️ 裝備")
-        .set_id("equip_main_" + uid_s).set_style(dpp::cos_secondary);
-    row.add_component(ub); row.add_component(eqb2);
-    msg.add_component(row);
-    {
-        dpp::component row2w; row2w.set_type(dpp::cot_action_row);
-        dpp::component rn, rel;
-        rn.set_type(dpp::cot_button).set_label("✏️ 改名")
-          .set_id("pet_rename_" + uid_s).set_style(dpp::cos_secondary);
-        rel.set_type(dpp::cot_button).set_label("🕊️ 放生")
-           .set_id("pet_release_" + uid_s).set_style(dpp::cos_danger);
-        row2w.add_component(rn);
-        if (working) {
-            dpp::component cxb;
-            cxb.set_type(dpp::cot_button).set_label("❌ 取消打工")
-               .set_id("pet_cancel_work_" + uid_s).set_style(dpp::cos_danger);
-            row2w.add_component(cxb);
-        }
-        row2w.add_component(rel);
-        msg.add_component(row2w);
-    }
-    if (pet.stage == 3) {
-        dpp::component refrow; refrow.set_type(dpp::cot_action_row);
-        dpp::component rfb;
-        rfb.set_type(dpp::cot_button).set_label("✨ 提煉星星（-50 exp）")
-           .set_id("pet_refine_star_" + uid_s).set_style(dpp::cos_primary)
-           .set_disabled(pet.exp < 50);
-        refrow.add_component(rfb); msg.add_component(refrow);
-    }
-    add_notify_row();
-    return msg;
 }
 
 // ─── Refine star (stage 3 only) ───────────────────────────────────────────────
@@ -635,8 +636,8 @@ static dpp::message handle_pet_refine_star(dpp::snowflake uid) {
     m.add_embed(e);
     dpp::component row; row.set_type(dpp::cot_action_row);
     dpp::component back;
-    back.set_type(dpp::cot_button).set_label("↩ 返回寵物狀態")
-        .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary);
+    back.set_type(dpp::cot_button).set_label("🏠 大廳")
+        .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
     row.add_component(back); m.add_component(row);
     return m;
 }
@@ -725,8 +726,8 @@ static dpp::message make_bag_equip_msg(dpp::snowflake uid) {
         dpp::component to_items, back;
         to_items.set_type(dpp::cot_button).set_label("🎒 道具")
                 .set_id("bag_tab_items_" + uid_s).set_style(dpp::cos_secondary);
-        back.set_type(dpp::cot_button).set_label("↩ 返回寵物狀態")
-            .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary);
+        back.set_type(dpp::cot_button).set_label("🏠 大廳")
+            .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
         nav.add_component(to_items); nav.add_component(back);
         msg.add_component(nav);
         return msg;
@@ -770,8 +771,8 @@ static dpp::message make_bag_equip_msg(dpp::snowflake uid) {
             .set_id("bag_tab_items_" + uid_s).set_style(dpp::cos_secondary);
     sell_btn.set_type(dpp::cot_button).set_label("💰 售出")
             .set_id("bag_sell_page_equip_" + uid_s).set_style(dpp::cos_danger);
-    back.set_type(dpp::cot_button).set_label("↩ 返回寵物狀態")
-        .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary);
+    back.set_type(dpp::cot_button).set_label("🏠 大廳")
+        .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
     nav_row.add_component(to_items); nav_row.add_component(sell_btn); nav_row.add_component(back);
     msg.add_component(nav_row);
     return msg;
@@ -918,8 +919,8 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
         dpp::component to_eq, back;
         to_eq.set_type(dpp::cot_button).set_label("⚔️ 裝備")
              .set_id("bag_tab_equip_" + uid_s).set_style(dpp::cos_secondary);
-        back.set_type(dpp::cot_button).set_label("↩ 返回寵物狀態")
-            .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary);
+        back.set_type(dpp::cot_button).set_label("🏠 大廳")
+            .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
         nav.add_component(to_eq); nav.add_component(back);
         msg.add_component(nav);
         return msg;
@@ -1021,8 +1022,8 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
          .set_id("bag_tab_equip_" + uid_s).set_style(dpp::cos_secondary);
     sell_btn2.set_type(dpp::cot_button).set_label("💰 售出")
              .set_id("bag_sell_page_items_" + uid_s).set_style(dpp::cos_danger);
-    back_btn.set_type(dpp::cot_button).set_label("↩ 返回寵物狀態")
-            .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary);
+    back_btn.set_type(dpp::cot_button).set_label("🏠 大廳")
+            .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
     discard_btn.set_type(dpp::cot_button).set_label("🗑️ 丟棄道具")
                .set_id("pet_discard_mode_" + uid_s).set_style(dpp::cos_danger);
     nav_row.add_component(to_eq); nav_row.add_component(sell_btn2);

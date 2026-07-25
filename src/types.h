@@ -670,6 +670,14 @@ struct GuessStats {
 inline std::map<dpp::snowflake, GuessGame> guess_games;
 inline std::map<uint64_t, GuessStats>      guess_stats_data;
 
+// ── 輪盤統計 ──────────────────────────────────────────────────────────────────
+struct RouletteStats {
+    int     wins   = 0;
+    int     losses = 0;
+    int64_t profit = 0;
+};
+inline std::map<dpp::snowflake, RouletteStats> roulette_stats_data;
+
 // ── 輪盤賭 ────────────────────────────────────────────────────────────────────
 struct RouletteSideBet {
     dpp::snowflake uid;
@@ -686,7 +694,8 @@ struct RouletteRoom {
     std::string    p1_name, p1_avatar;
     dpp::snowflake p2_uid      = 0;
     std::string    p2_name, p2_avatar;
-    dpp::snowflake invited_uid = 0;  // 0 = 開放任何人加入
+    dpp::snowflake invited_uid  = 0;  // 0 = 開放任何人加入
+    std::string    invited_name;      // 邀請對象的顯示名稱
     int64_t        stake       = 0;
     std::vector<RouletteSideBet> side_bets;  // 旁觀者邊注（遊戲前下注）
     // ── 遊戲狀態 ──

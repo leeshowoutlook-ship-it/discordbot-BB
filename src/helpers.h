@@ -6,12 +6,32 @@
 #include <ctime>
 #include <cstdio>
 #include <filesystem>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
-// Atomic JSON save: write to .tmp then rename to avoid corruption on forced kill.
-// Uses std::filesystem::rename which replaces existing files on Windows (unlike std::rename).
+// Atomic JSON save: write to .tmp, fsync to flush OS write cache, then rename.
+// fsync ensures data reaches disk before rename, protecting against power-loss corruption.
 static inline void atomic_write(const std::string& path, const std::string& data) {
     std::string tmp = path + ".tmp";
-    { std::ofstream f(tmp); if (f) f << data; else return; }
+    {
+        std::ofstream f(tmp);
+        if (!f) return;
+        f << data;
+        f.flush();
+        if (!f) return;
+#ifdef _WIN32
+        HANDLE h = CreateFileA(tmp.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h != INVALID_HANDLE_VALUE) { FlushFileBuffers(h); CloseHandle(h); }
+#else
+        int fd = ::open(tmp.c_str(), O_WRONLY);
+        if (fd >= 0) { ::fsync(fd); ::close(fd); }
+#endif
+    }
     std::filesystem::rename(tmp, path);
 }
 

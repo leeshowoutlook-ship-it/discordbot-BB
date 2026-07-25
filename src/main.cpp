@@ -21,6 +21,7 @@
 // raid.h, darkdragon.h, undercover.h → moved to handlers_raid.cpp / handlers_uc.cpp
 #include "ucstats.h"
 #include "guess.h"
+#include "rl_stats.h"
 #include "handler_decls.h"
 
 // ─── Helpers shared by slash + message command handlers ───────────────────────
@@ -139,6 +140,7 @@ int main(int argc, char* argv[]) {
     load_gacha_pity();
     load_uc_stats();
     load_guess_stats();
+    load_roulettestats();
 
     dpp::cluster bot(cfg.token, dpp::i_default_intents | dpp::i_message_content);
     g_bot = &bot;
@@ -159,13 +161,13 @@ int main(int argc, char* argv[]) {
         auto is_our_cmd = [&]() -> bool {
             static const std::vector<std::string> EXACT = {
                 "!王團報名","!王團紀錄","!富豪榜","!虧損榜","!領取","!每週領取",
-                "!錢包","!幫助","!help","!寵物","!背包","!寵物圖鑑","!商店",
+                "!錢包","!幫助","!help","!寵物","!背包","!寵物圖鑑","!商店","!大廳",
                 "!管理員權限","!警告榜單","!記帳","!狼人殺","!狼人殺榜單","!銀行",
                 "!一夜狼人","!一夜狼人規則","!狼人殺規則",
                 "!臥底","!誰是臥底",
                 "!臥底 遊玩成人內容","!誰是臥底 遊玩成人內容",
                 "!世足","!貓","!笑話","!轉蛋","!裝備","!怪物狩獵","!狩獵規則",
-                "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤賭"
+                "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤"
             };
             for (auto& s : EXACT) if (content == s) return true;
             // Secret owner-only command
@@ -174,7 +176,7 @@ int main(int argc, char* argv[]) {
             // Prefix-match commands (with args)
             static const std::vector<std::string> PREFIX = {
                 "!21 ","!骰子 ","!射 ","!火箭 ","!刮 ","!猜 ",
-                "!幸運頻道 ","!警告 ","!轉帳 ","!交易 ","!卷軸使用 ","!輪盤賭 ",
+                "!幸運頻道 ","!警告 ","!轉帳 ","!交易 ","!卷軸使用 ","!輪盤 ",
             };
             for (auto& s : PREFIX) if (content.rfind(s, 0) == 0) return true;
             // standalone (no args)
@@ -265,6 +267,7 @@ int main(int argc, char* argv[]) {
             // Daily hunt scroll grant — independent of chip claim result
             {
                 bool gave_scrolls = false;
+                bool updated_daily = false;
                 {
                     std::lock_guard<std::mutex> lk(data_mutex);
                     auto& cd = chip_data[uid];
@@ -281,7 +284,8 @@ int main(int argc, char* argv[]) {
                             inventory_data[uid]["hunt_scroll"] += to_give;
                             gave_scrolls = true;
                         }
-                        cd.last_hunt_daily = now2; // always mark as checked today
+                        cd.last_hunt_daily = now2;
+                        updated_daily = true;
                     }
                 }
                 if (gave_scrolls) {
@@ -297,6 +301,8 @@ int main(int argc, char* argv[]) {
                         se.set_description("📜 " + scroll_msg);
                         m.embeds.push_back(se);
                     }
+                } else if (updated_daily) {
+                    save_chips(); // persist last_hunt_daily even when player already had max scrolls
                 }
             }
             m.channel_id = ch;
@@ -353,6 +359,18 @@ int main(int argc, char* argv[]) {
         }
         else if (content == "!寵物") {
             dpp::message msg = make_pet_view_msg(uid,
+                ev.msg.author.get_avatar_url(),
+                ev.msg.member.get_nickname());
+            msg.channel_id = ch;
+            bot.message_create(msg, [uid](const dpp::confirmation_callback_t& cb) {
+                if (!cb.is_error()) {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    msg_owner[std::get<dpp::message>(cb.value).id] = uid;
+                }
+            });
+        }
+        else if (content == "!大廳") {
+            dpp::message msg = make_lobby_msg(uid,
                 ev.msg.author.get_avatar_url(),
                 ev.msg.member.get_nickname());
             msg.channel_id = ch;
@@ -1193,8 +1211,8 @@ int main(int argc, char* argv[]) {
                 }
             });
         }
-        // ── 輪盤賭 → handlers_roulette.cpp
-        else if (content.rfind("!輪盤賭", 0) == 0) {
+        // ── 輪盤 → handlers_roulette.cpp
+        else if (content.rfind("!輪盤", 0) == 0) {
             handle_roulette_message(ev, content, uid, ch); return;
         }
 #if 0 // ── roulette message block moved to handlers_roulette.cpp ──────────────
@@ -3510,9 +3528,35 @@ int main(int argc, char* argv[]) {
             }
         }
         // ── 寵物按鈕 ──────────────────────────────────────────────────────────
+        else if (cid.rfind("lobby_", 0) == 0) {
+            if (cid.rfind("lobby_main_", 0) == 0) {
+                dpp::snowflake btn_uid(std::stoull(cid.substr(11)));
+                if (uid != btn_uid) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("❌ 這不是你的視窗！").set_flags(dpp::m_ephemeral)); return;
+                }
+                ev.reply(dpp::ir_update_message, make_lobby_msg(uid,
+                    ev.command.usr.get_avatar_url(),
+                    ev.command.member.get_nickname()));
+            } else if (cid.rfind("lobby_shop_", 0) == 0) {
+                dpp::snowflake btn_uid(std::stoull(cid.substr(11)));
+                if (uid != btn_uid) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("❌ 這不是你的視窗！").set_flags(dpp::m_ephemeral)); return;
+                }
+                ev.reply(dpp::ir_update_message, make_shop_main_msg(std::to_string((uint64_t)uid)));
+            }
+        }
         else if (cid.rfind("pet_", 0) == 0) {
             // All pet buttons embed the owner uid in the button ID
-            if (cid.rfind("pet_work_", 0) == 0) {
+            if (cid.rfind("pet_work_select_", 0) == 0) {
+                dpp::snowflake btn_uid(std::stoull(cid.substr(16)));
+                if (uid != btn_uid) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("❌ 這不是你的寵物！").set_flags(dpp::m_ephemeral)); return;
+                }
+                ev.reply(dpp::ir_update_message, make_pet_work_select_msg(uid));
+            } else if (cid.rfind("pet_work_", 0) == 0) {
                 std::string rest = cid.substr(9);
                 size_t sep = rest.find('_');
                 if (sep == std::string::npos) return;
@@ -5042,6 +5086,7 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
+#endif // ── end onw/wolf button blocks (warn/admin/ledger handlers follow) ────
         // ── 警告榜單按鈕 ──────────────────────────────────────────────────────
         else if (cid == "warn_board") {
             ev.reply(dpp::ir_update_message, handle_warn_board());
@@ -5180,7 +5225,6 @@ int main(int argc, char* argv[]) {
             int page = std::stoi(rest2.substr(s2 + 1));
             ev.reply(dpp::ir_update_message, make_my_ledger_msg(uid, page, filter));
         }
-#endif // re-enable dice, guess, boss/signup, team buttons
         // ── 骰子押注選擇 ──────────────────────────────────────────────────────
         else if (cid.rfind("dc_", 0) == 0 && cid.rfind("dc_again_", 0) != 0) {
             // format: dc_{gid}_{choice}
@@ -7934,6 +7978,17 @@ int main(int argc, char* argv[]) {
                 }
             });
         }
+        else if (cmd_name == "大廳" || cmd_name == "lobby") {
+            ev.reply(dpp::ir_channel_message_with_source, make_lobby_msg(uid,
+                user.get_avatar_url(),
+                ev.command.member.get_nickname()));
+            ev.get_original_response([uid](const dpp::confirmation_callback_t& cb) {
+                if (!cb.is_error()) {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    msg_owner[std::get<dpp::message>(cb.value).id] = uid;
+                }
+            });
+        }
         else if (cmd_name == "寵物" || cmd_name == "pet") {
             ev.reply(dpp::ir_channel_message_with_source, make_pet_view_msg(uid,
                 user.get_avatar_url(),
@@ -8265,7 +8320,7 @@ int main(int argc, char* argv[]) {
                 }
             });
         }
-        else if (cmd_name == "輪盤賭" || cmd_name == "roulette") {
+        else if (cmd_name == "輪盤" || cmd_name == "roulette") {
             handle_roulette_slash(ev, uid, ch); return;
         }
         // ── wolf/onenight slash → handlers_wolf.cpp ───────────────────────────
@@ -8735,7 +8790,7 @@ int main(int argc, char* argv[]) {
                     .add_option(dpp::command_option(dpp::co_integer, "對方道具", "Their item ID (0=none)",false))
                     .add_option(dpp::command_option(dpp::co_integer, "對方籌碼", "Their chips (0=none)",  false));
 
-            dpp::slashcommand roulette_cmd("輪盤賭", "向玩家發起輪盤賭（賭注輸贏）", bot.me.id);
+            dpp::slashcommand roulette_cmd("輪盤", "向玩家發起俄羅斯輪盤（賭注輸贏）", bot.me.id);
             roulette_cmd.add_option(dpp::command_option(dpp::co_integer, "籌碼", "下注籌碼數量", true))
                         .add_option(dpp::command_option(dpp::co_user,    "對象", "邀請特定玩家（選填）", false));
 
@@ -8755,6 +8810,7 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("商店",      "瀏覽並購買道具",                bot.me.id),
                 dpp::slashcommand("記帳",      "查看購買記帳本（管理員）",      bot.me.id),
                 dpp::slashcommand("警告榜單",  "查看警告次數排行榜",            bot.me.id),
+                dpp::slashcommand("大廳",      "進入大廳（寵物/背包/裝備/商店）",bot.me.id),
                 dpp::slashcommand("寵物",      "查看你的寵物狀態",              bot.me.id),
                 dpp::slashcommand("背包",      "查看背包道具，點選使用",         bot.me.id),
                 dpp::slashcommand("寵物圖鑑",  "查看所有寵物進化路線",          bot.me.id),
@@ -8769,6 +8825,7 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("claim",     "Claim hourly 500 chips",        bot.me.id),
                 dpp::slashcommand("weekly",    "Claim weekly 2000 chips",       bot.me.id),
                 dpp::slashcommand("help",      "Show command list",             bot.me.id),
+                dpp::slashcommand("lobby",     "Open lobby (pet/bag/equip/shop)",bot.me.id),
                 dpp::slashcommand("pet",       "View your pet status",          bot.me.id),
                 dpp::slashcommand("bag",       "View backpack and use items",   bot.me.id),
                 dpp::slashcommand("petdex",    "View pet evolution chart",      bot.me.id),
@@ -8869,6 +8926,26 @@ int main(int argc, char* argv[]) {
         bot.start_timer([&bot](dpp::timer) { check_giveaways(bot); save_giveaways(); }, 30);
         bot.start_timer([](dpp::timer)     { apply_daily_interest(); }, 300); // 每 5 分鐘檢查是否跨日
 
+        // ── 每小時自動備份所有 JSON 資料（覆蓋同一份，不累積） ──────────────
+        bot.start_timer([](dpp::timer) {
+            namespace fs = std::filesystem;
+            try {
+                fs::create_directories("backup");
+                static const char* FILES[] = {
+                    "chips.json","bank.json","inventory.json","pets.json",
+                    "hunt_clear.json","equipped.json","purchases.json",
+                    "rlstats.json","bjstats.json","dicestats.json",
+                    "shootstats.json","scratchstats.json","warnings.json", nullptr
+                };
+                for (int i = 0; FILES[i]; i++) {
+                    fs::path src(FILES[i]);
+                    if (fs::exists(src))
+                        fs::copy_file(src, fs::path("backup") / FILES[i],
+                                      fs::copy_options::overwrite_existing);
+                }
+            } catch (...) {}
+        }, 3600);
+
         // ── 尊爵VIP 自動領取 (每 5 分鐘掃一次) ──────────────────────────────
         bot.start_timer([](dpp::timer) {
             time_t now = time(nullptr);
@@ -8923,6 +9000,8 @@ int main(int argc, char* argv[]) {
                     changed_chips = true;
                     if (pet.stage < 3)
                         pet.exp = std::min(pet.exp + exp_gain, exp_needed(pet.stage));
+                    else
+                        pet.exp += exp_gain;
                     // 再派（監工出勤，領取時收益 ×0.6）
                     int dur_sec = task * 3600;
                     if (pet.talent == "迅捷") dur_sec = (int)(dur_sec * 0.9);
