@@ -67,7 +67,17 @@ static dpp::message make_wallet_home_msg(dpp::snowflake uid) {
         std::string v = fmt_remain(cd.vip_until);
         std::string s = fmt_remain(cd.supervisor_until);
         std::string ins = fmt_remain(cd.insurance_until);
-        if (!v.empty())   priv += "👑 **尊爵VIP** — " + v + "\n";
+        if (!v.empty()) {
+            std::string last_str;
+            if (cd.vip_last_claim > 0) {
+                int mins = (int)((now - cd.vip_last_claim) / 60);
+                if (mins < 60) last_str = "（" + std::to_string(mins) + " 分鐘前自動領取）";
+                else           last_str = "（" + std::to_string(mins / 60) + " 小時前自動領取）";
+            } else {
+                last_str = "（尚未自動領取）";
+            }
+            priv += "👑 **尊爵VIP** — " + v + " " + last_str + "\n";
+        }
         if (!s.empty())   priv += "🏭 **寵物監工** — " + s + "\n";
         if (!ins.empty()) priv += "💊 **醫療保險** — " + ins + "\n";
         if (!priv.empty()) e.add_field("✨  特權狀態", priv, false);

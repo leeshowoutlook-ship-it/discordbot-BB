@@ -867,6 +867,7 @@ int main(int argc, char* argv[]) {
                 t.from_uid = uid; t.to_uid = target; t.channel_id = ch;
                 t.from_item_id = from_item_id; t.from_chips = from_chips;
                 t.to_item_id   = to_item_id;   t.to_chips   = to_chips;
+                t.created_at   = time(nullptr);
                 trade_offers[t.id] = t;
             }
             std::string from_name = ev.msg.author.username;
@@ -8308,6 +8309,7 @@ int main(int argc, char* argv[]) {
                 t.from_uid = uid; t.to_uid = target; t.channel_id = ch;
                 t.from_item_id = from_item_id; t.from_chips = from_chips;
                 t.to_item_id   = to_item_id;   t.to_chips   = to_chips;
+                t.created_at   = time(nullptr);
                 trade_offers[t.id] = t;
             }
             std::string from_name = ev.command.get_issuing_user().username;
@@ -8956,9 +8958,11 @@ int main(int argc, char* argv[]) {
                 for (auto& [uid, cd] : chip_data) {
                     if (cd.vip_until <= now) continue;       // VIP 未啟用或已過期
                     int64_t last_hour = cd.vip_last_claim / 3600;
-                    if (now_hour > last_hour) {
-                        cd.chips          += CLAIM_AMOUNT;
+                    int64_t hours_missed = std::min(now_hour - last_hour, (int64_t)24);
+                    if (hours_missed > 0) {
+                        cd.chips          += CLAIM_AMOUNT * hours_missed;
                         cd.vip_last_claim  = now;
+                        cd.last_claim      = now; // 防止同小時重複手動領取
                         changed            = true;
                     }
                 }
@@ -8996,6 +9000,7 @@ int main(int argc, char* argv[]) {
                         if (s == "憂鬱") reward = (int64_t)(reward * 0.8);
                     }
                     if (pet.talent == "招人喜歡") reward = (int64_t)(reward * 1.1);
+                    if (pet.is_supervisor_work) reward = (int64_t)(reward * 0.6);
                     chip_data[uid].chips += reward;
                     changed_chips = true;
                     if (pet.stage < 3)

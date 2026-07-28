@@ -520,6 +520,7 @@ struct TradeOffer {
     dpp::snowflake from_uid;
     dpp::snowflake to_uid;
     dpp::snowflake channel_id;
+    time_t         created_at   = 0;
     int            from_item_id = 0;  // 0 = no item
     int64_t        from_chips   = 0;
     int            to_item_id   = 0;  // 0 = no item
@@ -709,6 +710,7 @@ struct RouletteRoom {
     int  shot5_shooter   = 0;  // 射了第 5 發的人（0=未到）
     bool game_over       = false;
     int  loser           = 0;  // 1=P1, 2=P2
+    dpp::timer timer_id  = 0;  // 10分鐘自動解散
 };
 
 inline std::map<dpp::snowflake, RouletteRoom> roulette_rooms;

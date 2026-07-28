@@ -66,13 +66,6 @@ void handle_dd_button(const dpp::button_click_t& ev)
         dg.current_player = -1;
         for (int i = 0; i < (int)dg.players.size(); i++) if (dg.players[i].alive) { dg.current_player = i; break; }
         dg.practice_mode = room.practice_mode;
-        if (!room.practice_mode) {
-            std::lock_guard<std::mutex> lk(data_mutex);
-            for (auto& muid : room.member_uids)
-                if (inventory_data.count(muid) && inventory_data[muid].count("weekly_hunt_scroll"))
-                    inventory_data[muid]["weekly_hunt_scroll"]--;
-            save_inventory();
-        }
         { std::lock_guard<std::mutex> lk(data_mutex); dd_games[rch] = dg; }
         auto ddmsg = make_dd_combat_msg(dg); ddmsg.channel_id = rch;
         g_bot->message_create(ddmsg, [rch](const dpp::confirmation_callback_t& cb) {
@@ -92,11 +85,13 @@ void handle_dd_button(const dpp::button_click_t& ev)
               dd_games.erase(it);
             }
             if (!is_practice) {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                for (auto puid : player_uids) {
-                    auto& pet2 = pet_data[puid]; bool already = false;
-                    for (auto& s : pet2.statuses) if (s == "受傷") { already = true; break; }
-                    if (!already) pet2.statuses.push_back("受傷");
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    for (auto puid : player_uids) {
+                        auto& pet2 = pet_data[puid]; bool already = false;
+                        for (auto& s : pet2.statuses) if (s == "受傷") { already = true; break; }
+                        if (!already) pet2.statuses.push_back("受傷");
+                    }
                 }
                 save_pet_data();
             }
@@ -110,12 +105,18 @@ void handle_dd_button(const dpp::button_click_t& ev)
 
     // ── dd_* combat buttons ───────────────────────────────────────────────────
     if (cid.rfind("dd_", 0) == 0) {
+        bool dd_need_pet_save = false;
         auto dd_try_end = [&](DDGame& dg, bool need_lock) -> bool {
             if (!dg.game_over) return false;
             g_bot->stop_timer(dg.timer_id);
             if (dg.victory) {
                 std::vector<std::pair<std::string,std::string>> rewards;
                 if (!dg.practice_mode) {
+                    { std::lock_guard<std::mutex> lk2(data_mutex);
+                      for (auto& p : dg.players)
+                          if (inventory_data.count(p.uid) && inventory_data[p.uid].count("weekly_hunt_scroll") && inventory_data[p.uid].at("weekly_hunt_scroll") > 0)
+                              inventory_data[p.uid]["weekly_hunt_scroll"]--;
+                    }
                     if (need_lock) { std::lock_guard<std::mutex> lk2(data_mutex); for (auto& p : dg.players) rewards.push_back({p.display_name, dd_give_rewards_one(p.uid)}); }
                     else           { for (auto& p : dg.players) rewards.push_back({p.display_name, dd_give_rewards_one(p.uid)}); }
                     save_chips(); save_inventory();
@@ -129,7 +130,7 @@ void handle_dd_button(const dpp::button_click_t& ev)
                     for (auto& s : pet2.statuses) if (s == "受傷") { al = true; break; }
                     if (!al) pet2.statuses.push_back("受傷");
                 }
-                save_pet_data();
+                dd_need_pet_save = true; // 鎖釋放後由 caller save
             }
             auto emsg = make_dd_end_msg(dg, {}); emsg.channel_id = ch;
             dd_games.erase(ch); ev.reply(dpp::ir_update_message, emsg); return true;
@@ -164,90 +165,115 @@ void handle_dd_button(const dpp::button_click_t& ev)
             std::string pfx = (cid.rfind("dd_atk_",0)==0) ? "dd_atk_" : (cid.rfind("dd_gamble_",0)==0) ? "dd_gamble_" : "dd_pow_";
             dpp::snowflake bu(std::stoull(cid.substr(pfx.size()))); if (uid != bu) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 不是你的回合！").set_flags(dpp::m_ephemeral)); return; }
             int atype = (pfx == "dd_atk_") ? 0 : (pfx == "dd_gamble_") ? 1 : 2;
-            std::lock_guard<std::mutex> lk(data_mutex);
-            auto git = dd_games.find(ch); if (git == dd_games.end()) return;
-            auto& dg = git->second;
-            if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid || dg.selected_head < 0) return;
-            dg.log_line = dd_do_attack(dg, atype);
-            if (dd_try_end(dg, false)) return;
-            dd_finish_turn(dg);
-            if (dd_try_end(dg, false)) return;
-            ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg)); return;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto git = dd_games.find(ch); if (git == dd_games.end()) return;
+                auto& dg = git->second;
+                if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid || dg.selected_head < 0) return;
+                dg.log_line = dd_do_attack(dg, atype);
+                if (!dd_try_end(dg, false)) {
+                    dd_finish_turn(dg);
+                    if (!dd_try_end(dg, false))
+                        ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
+                }
+            }
+            if (dd_need_pet_save) save_pet_data();
+            return;
         }
         if (cid.rfind("dd_block_", 0) == 0) {
             dpp::snowflake bu(std::stoull(cid.substr(9))); if (uid != bu) return;
-            std::lock_guard<std::mutex> lk(data_mutex);
-            auto git = dd_games.find(ch); if (git == dd_games.end()) return;
-            auto& dg = git->second;
-            if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
-            dg.block_active = true; dg.selected_head = -1;
-            dg.log_line = "🛡️ **" + dg.players[dg.current_player].display_name + "** 進入防禦姿態！";
-            dd_finish_turn(dg);
-            if (dd_try_end(dg, false)) return;
-            ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg)); return;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto git = dd_games.find(ch); if (git == dd_games.end()) return;
+                auto& dg = git->second;
+                if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
+                dg.block_active = true; dg.selected_head = -1;
+                dg.log_line = "🛡️ **" + dg.players[dg.current_player].display_name + "** 進入防禦姿態！";
+                dd_finish_turn(dg);
+                if (!dd_try_end(dg, false))
+                    ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
+            }
+            if (dd_need_pet_save) save_pet_data();
+            return;
         }
         if (cid.rfind("dd_altar_", 0) == 0) {
             dpp::snowflake bu(std::stoull(cid.substr(9))); if (uid != bu) return;
-            std::lock_guard<std::mutex> lk(data_mutex);
-            auto git = dd_games.find(ch); if (git == dd_games.end()) return;
-            auto& dg = git->second;
-            if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
-            if (dg.atk_triple) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 祭壇已毀滅！").set_flags(dpp::m_ephemeral)); return; }
-            auto& cp = dg.players[dg.current_player];
-            cp.at_altar = true; dg.selected_head = -1;
-            dg.log_line = "🏛️ **" + cp.display_name + "** 移動至祭壇。";
-            dd_finish_turn(dg);
-            if (dd_try_end(dg, false)) return;
-            ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg)); return;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto git = dd_games.find(ch); if (git == dd_games.end()) return;
+                auto& dg = git->second;
+                if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
+                if (dg.atk_triple) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 祭壇已毀滅！").set_flags(dpp::m_ephemeral)); return; }
+                auto& cp = dg.players[dg.current_player];
+                cp.at_altar = true; dg.selected_head = -1;
+                dg.log_line = "🏛️ **" + cp.display_name + "** 移動至祭壇。";
+                dd_finish_turn(dg);
+                if (!dd_try_end(dg, false))
+                    ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
+            }
+            if (dd_need_pet_save) save_pet_data();
+            return;
         }
         if (cid.rfind("dd_pool_", 0) == 0) {
             dpp::snowflake bu(std::stoull(cid.substr(8))); if (uid != bu) return;
-            std::lock_guard<std::mutex> lk(data_mutex);
-            auto git = dd_games.find(ch); if (git == dd_games.end()) return;
-            auto& dg = git->second;
-            if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
-            auto& cp = dg.players[dg.current_player];
-            cp.at_altar = false; dg.log_line = "🏊 **" + cp.display_name + "** 回到龍池。";
-            dd_finish_turn(dg);
-            if (dd_try_end(dg, false)) return;
-            ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg)); return;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto git = dd_games.find(ch); if (git == dd_games.end()) return;
+                auto& dg = git->second;
+                if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
+                auto& cp = dg.players[dg.current_player];
+                cp.at_altar = false; dg.log_line = "🏊 **" + cp.display_name + "** 回到龍池。";
+                dd_finish_turn(dg);
+                if (!dd_try_end(dg, false))
+                    ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
+            }
+            if (dd_need_pet_save) save_pet_data();
+            return;
         }
         if (cid.rfind("dd_pray_", 0) == 0) {
             dpp::snowflake bu(std::stoull(cid.substr(8))); if (uid != bu) return;
-            std::lock_guard<std::mutex> lk(data_mutex);
-            auto git = dd_games.find(ch); if (git == dd_games.end()) return;
-            auto& dg = git->second;
-            if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
-            auto& cp = dg.players[dg.current_player];
-            if (cp.has_bomb) { cp.has_bomb = false; cp.bomb_turns = 0; dg.log_line = "🙏 **" + cp.display_name + "** 向女神祈禱，炸彈解除！"; }
-            else dg.log_line = "🙏 **" + cp.display_name + "** 你誠心誠意的祈禱...";
-            dd_finish_turn(dg);
-            if (dd_try_end(dg, false)) return;
-            ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg)); return;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto git = dd_games.find(ch); if (git == dd_games.end()) return;
+                auto& dg = git->second;
+                if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
+                auto& cp = dg.players[dg.current_player];
+                if (cp.has_bomb) { cp.has_bomb = false; cp.bomb_turns = 0; dg.log_line = "🙏 **" + cp.display_name + "** 向女神祈禱，炸彈解除！"; }
+                else dg.log_line = "🙏 **" + cp.display_name + "** 你誠心誠意的祈禱...";
+                dd_finish_turn(dg);
+                if (!dd_try_end(dg, false))
+                    ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
+            }
+            if (dd_need_pet_save) save_pet_data();
+            return;
         }
         if (cid.rfind("dd_demolish_", 0) == 0) {
             dpp::snowflake bu(std::stoull(cid.substr(12))); if (uid != bu) return;
-            std::lock_guard<std::mutex> lk(data_mutex);
-            auto git = dd_games.find(ch); if (git == dd_games.end()) return;
-            auto& dg = git->second;
-            if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
-            auto& cp = dg.players[dg.current_player];
-            if (!cp.at_altar || dg.atk_triple) return;
-            dg.altar_hp--;
-            std::string plog = "⛏️ **" + cp.display_name + "** 拆除祭壇！（剩餘 " + std::to_string(dg.altar_hp) + " 格血）";
-            if (dg.altar_hp <= 0) {
-                dg.atk_triple = true; plog += "\n💥 **祭壇毀滅！全體 ATK×3！**";
-                for (auto& p : dg.players) {
-                    if (!p.alive) continue;
-                    if (p.at_altar) p.at_altar = false;
-                    int old = p.hp; p.hp = std::min(p.hp + 25, p.max_hp);
-                    if (p.hp > old) plog += "\n  → " + p.display_name + " 回復 " + std::to_string(p.hp - old) + " HP";
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto git = dd_games.find(ch); if (git == dd_games.end()) return;
+                auto& dg = git->second;
+                if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
+                auto& cp = dg.players[dg.current_player];
+                if (!cp.at_altar || dg.atk_triple) return;
+                dg.altar_hp--;
+                std::string plog = "⛏️ **" + cp.display_name + "** 拆除祭壇！（剩餘 " + std::to_string(dg.altar_hp) + " 格血）";
+                if (dg.altar_hp <= 0) {
+                    dg.atk_triple = true; plog += "\n💥 **祭壇毀滅！全體 ATK×3！**";
+                    for (auto& p : dg.players) {
+                        if (!p.alive) continue;
+                        if (p.at_altar) p.at_altar = false;
+                        int old = p.hp; p.hp = std::min(p.hp + 25, p.max_hp);
+                        if (p.hp > old) plog += "\n  → " + p.display_name + " 回復 " + std::to_string(p.hp - old) + " HP";
+                    }
                 }
+                dg.log_line = plog;
+                dd_finish_turn(dg);
+                if (!dd_try_end(dg, false))
+                    ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
             }
-            dg.log_line = plog;
-            dd_finish_turn(dg);
-            if (dd_try_end(dg, false)) return;
-            ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg)); return;
+            if (dd_need_pet_save) save_pet_data();
+            return;
         }
     }
 }

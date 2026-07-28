@@ -159,10 +159,16 @@ static dpp::message make_onw_vote_msg(const ONWGame& g) {
     e.set_title("☀️  投票 — 誰是狼人？").set_color(0xF39C12);
     e.set_description("每人投一票，票數最多的人出局。\n所有人投完或主持人強制結算後公布結果。");
 
+    std::map<dpp::snowflake, std::string> uid_name;
+    for (auto& p : g.players) uid_name[p.uid] = p.display_name;
+
     std::string status;
     for (auto& p : g.players) {
         bool has_voted = (p.vote_target != 0);
-        status += (has_voted ? "✅ " : "⏳ ") + p.display_name + "\n";
+        status += (has_voted ? "✅ " : "⏳ ") + p.display_name;
+        if (has_voted)
+            status += " → **" + (uid_name.count(p.vote_target) ? uid_name.at(p.vote_target) : "?") + "**";
+        status += "\n";
     }
     e.add_field("投票狀況（" + std::to_string(voted) + "/" + std::to_string((int)g.players.size()) + "）", status, false);
     e.set_footer(dpp::embed_footer().set_text("可投自己 | 同票則無人出局"));

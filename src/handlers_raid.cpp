@@ -245,7 +245,7 @@ void handle_raid_button(const dpp::button_click_t& ev)
         dpp::message gmsg = make_raid_combat_msg(g);
         ev.reply(dpp::ir_update_message, gmsg);
         { std::lock_guard<std::mutex> lk(data_mutex); if (raid_games.count(ch)) raid_games[ch].msg_id = ev.command.message_id; }
-        g_bot->start_timer([ch](dpp::timer t){
+        dpp::timer raid_tid = g_bot->start_timer([ch](dpp::timer t){
             dpp::snowflake mid = 0; std::string boss_name;
             std::vector<dpp::snowflake> player_uids; bool is_practice_latus = false;
             { std::lock_guard<std::mutex> lk(data_mutex);
@@ -258,11 +258,13 @@ void handle_raid_button(const dpp::button_click_t& ev)
               raid_games.erase(it);
             }
             if (!is_practice_latus) {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                for (auto puid : player_uids) {
-                    auto& pet = pet_data[puid]; bool already = false;
-                    for (auto& s : pet.statuses) if (s == "受傷") { already = true; break; }
-                    if (!already) pet.statuses.push_back("受傷");
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    for (auto puid : player_uids) {
+                        auto& pet = pet_data[puid]; bool already = false;
+                        for (auto& s : pet.statuses) if (s == "受傷") { already = true; break; }
+                        if (!already) pet.statuses.push_back("受傷");
+                    }
                 }
                 save_pet_data();
             }
@@ -274,6 +276,7 @@ void handle_raid_button(const dpp::button_click_t& ev)
             }
             g_bot->stop_timer(t);
         }, 1200);
+        { std::lock_guard<std::mutex> lk(data_mutex); if (raid_games.count(ch)) raid_games[ch].timer_id = raid_tid; }
         return;
     }
 
@@ -327,9 +330,26 @@ void handle_raid_button(const dpp::button_click_t& ev)
           else cryt_combat = make_raid_combat_msg(g);
         }
         if (cryt_over) {
+            g_bot->stop_timer(cryt_snap.timer_id);
             if (cryt_snap.victory && !cryt_snap.practice_mode) {
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  for (auto& p : cryt_snap.players)
+                      if (inventory_data.count(p.uid) && inventory_data[p.uid].count("weekly_hunt_scroll") && inventory_data[p.uid].at("weekly_hunt_scroll") > 0)
+                          inventory_data[p.uid]["weekly_hunt_scroll"]--;
+                }
                 for (auto& p : cryt_snap.players) reward_lines.push_back({p.display_name, raid_give_rewards(p.uid, p.display_name)});
                 save_chips(); save_inventory();
+            }
+            if (!cryt_snap.victory && !cryt_snap.practice_mode) {
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    for (auto& p : cryt_snap.players) {
+                        auto& pet2 = pet_data[p.uid]; bool already = false;
+                        for (auto& s : pet2.statuses) if (s == "受傷") { already = true; break; }
+                        if (!already) pet2.statuses.push_back("受傷");
+                    }
+                }
+                save_pet_data();
             }
             ev.reply(dpp::ir_update_message, make_raid_end_msg(cryt_snap, reward_lines)); return;
         }
@@ -381,9 +401,26 @@ void handle_raid_button(const dpp::button_click_t& ev)
             else combat_msg_out = make_raid_combat_msg(g);
         }
         if (game_over) {
+            g_bot->stop_timer(g_snap.timer_id);
             if (victory && !g_snap.practice_mode) {
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  for (auto& p : g_snap.players)
+                      if (inventory_data.count(p.uid) && inventory_data[p.uid].count("weekly_hunt_scroll") && inventory_data[p.uid].at("weekly_hunt_scroll") > 0)
+                          inventory_data[p.uid]["weekly_hunt_scroll"]--;
+                }
                 for (auto& p : g_snap.players) reward_lines.push_back({p.display_name, raid_give_rewards(p.uid, p.display_name)});
                 save_chips(); save_inventory();
+            }
+            if (!victory && !g_snap.practice_mode) {
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    for (auto& p : g_snap.players) {
+                        auto& pet2 = pet_data[p.uid]; bool already = false;
+                        for (auto& s : pet2.statuses) if (s == "受傷") { already = true; break; }
+                        if (!already) pet2.statuses.push_back("受傷");
+                    }
+                }
+                save_pet_data();
             }
             ev.reply(dpp::ir_update_message, make_raid_end_msg(g_snap, reward_lines));
         } else {

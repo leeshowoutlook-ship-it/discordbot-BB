@@ -78,6 +78,33 @@ void handle_roulette_message(const dpp::message_create_t& ev,
                 roulette_rooms[ch].msg_id = std::get<dpp::message>(cb.value).id;
         }
     });
+    // 10 分鐘後若房間未開始則自動解散
+    dpp::timer rl_tid = g_bot->start_timer([ch](dpp::timer t) {
+        std::vector<std::pair<dpp::snowflake, int64_t>> refunds;
+        dpp::snowflake mid = 0;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = roulette_rooms.find(ch);
+            if (it == roulette_rooms.end() || it->second.started) return;
+            mid = it->second.msg_id;
+            for (auto& b : it->second.side_bets) refunds.emplace_back(b.uid, b.amount);
+            roulette_rooms.erase(it);
+        }
+        if (!refunds.empty()) {
+            { std::lock_guard<std::mutex> lk(data_mutex);
+              for (auto& [bid, bamt] : refunds) chip_data[bid].chips += bamt; }
+            save_chips();
+        }
+        if (mid && g_bot) {
+            dpp::embed e; e.set_title("⌛ 輪盤房間逾時解散").set_color(0x808080)
+              .set_description("10 分鐘內無人開始遊戲，房間自動解散，邊注已退還。");
+            dpp::message dm; dm.id = mid; dm.channel_id = ch; dm.add_embed(e);
+            g_bot->message_edit(dm);
+        }
+        g_bot->stop_timer(t);
+    }, 600);
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      if (roulette_rooms.count(ch)) roulette_rooms[ch].timer_id = rl_tid; }
 }
 
 // ─── Slash: /輪盤 ─────────────────────────────────────────────────────────────
@@ -140,6 +167,33 @@ void handle_roulette_slash(const dpp::slashcommand_t& ev, dpp::snowflake uid, dp
                 roulette_rooms[ch].msg_id = std::get<dpp::message>(cb.value).id;
         }
     });
+    // 10 分鐘後若房間未開始則自動解散
+    dpp::timer rl_tid2 = g_bot->start_timer([ch](dpp::timer t) {
+        std::vector<std::pair<dpp::snowflake, int64_t>> refunds;
+        dpp::snowflake mid = 0;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = roulette_rooms.find(ch);
+            if (it == roulette_rooms.end() || it->second.started) return;
+            mid = it->second.msg_id;
+            for (auto& b : it->second.side_bets) refunds.emplace_back(b.uid, b.amount);
+            roulette_rooms.erase(it);
+        }
+        if (!refunds.empty()) {
+            { std::lock_guard<std::mutex> lk(data_mutex);
+              for (auto& [bid, bamt] : refunds) chip_data[bid].chips += bamt; }
+            save_chips();
+        }
+        if (mid && g_bot) {
+            dpp::embed e; e.set_title("⌛ 輪盤房間逾時解散").set_color(0x808080)
+              .set_description("10 分鐘內無人開始遊戲，房間自動解散，邊注已退還。");
+            dpp::message dm; dm.id = mid; dm.channel_id = ch; dm.add_embed(e);
+            g_bot->message_edit(dm);
+        }
+        g_bot->stop_timer(t);
+    }, 600);
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      if (roulette_rooms.count(ch)) roulette_rooms[ch].timer_id = rl_tid2; }
 }
 
 // ─── Button: rl_* ─────────────────────────────────────────────────────────────
@@ -206,6 +260,7 @@ void handle_roulette_button(const dpp::button_click_t& ev)
             auto c1 = chip_data.find(r.p1_uid), c2 = chip_data.find(r.p2_uid);
             if (c1 == chip_data.end() || c1->second.chips < r.stake) { rl_err("❌ 玩家一籌碼不足！"); return; }
             if (c2 == chip_data.end() || c2->second.chips < r.stake) { rl_err("❌ 玩家二籌碼不足！"); return; }
+            g_bot->stop_timer(r.timer_id);
             r.started = true;
             r.bullet_chamber = rl_rand(1, 6);
             r.current_chamber = 1;
@@ -234,6 +289,7 @@ void handle_roulette_button(const dpp::button_click_t& ev)
             if (it == roulette_rooms.end()) { rl_err("❌ 房間已不存在！"); return; }
             if (uid != it->second.p1_uid)   { rl_err("❌ 只有玩家一可解散房間！"); return; }
             if (it->second.started)          { rl_err("❌ 遊戲進行中無法解散！"); return; }
+            g_bot->stop_timer(it->second.timer_id);
             for (auto& b : it->second.side_bets) refunds.emplace_back(b.uid, b.amount);
             roulette_rooms.erase(it);
         }

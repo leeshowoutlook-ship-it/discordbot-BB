@@ -1384,8 +1384,10 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
             auto& p = pet_data[uid];
             auto& ss = p.statuses;
             auto it2 = std::find(ss.begin(), ss.end(), target_status);
-            if (it2 != ss.end()) { ss.erase(it2); found = true; }
-            if (consume_item) inventory_data[uid][key]--;
+            if (it2 != ss.end()) {
+                ss.erase(it2); found = true;
+                if (consume_item) inventory_data[uid][key]--;
+            }
         }
         if (!found) return err("你的寵物目前沒有「" + target_status + "」狀態！");
         save_pet_data(); save_inventory();
@@ -1679,9 +1681,10 @@ static dpp::message handle_pet_work_start(dpp::snowflake uid, int task) {
     for (auto& s : pet.statuses) if (s == "疲勞") { dur = (int)(dur * 1.3); break; }
     {
         std::lock_guard<std::mutex> lk(data_mutex);
-        pet_data[uid].work_task      = task;
-        pet_data[uid].work_end       = time(nullptr) + dur;
-        pet_data[uid].work_notified  = false;
+        pet_data[uid].work_task          = task;
+        pet_data[uid].work_end           = time(nullptr) + dur;
+        pet_data[uid].work_notified      = false;
+        pet_data[uid].is_supervisor_work = false;
     }
     save_pet_data();
     return make_pet_view_msg(uid);
@@ -1867,7 +1870,7 @@ static dpp::message handle_pet_start_onsen(dpp::snowflake uid) {
         }
         p.onsen_end      = time(nullptr) + 7200; // 2 hours
         p.onsen_notified = false;
-        p.work_task = 0; p.work_end = 0;
+        p.work_task = 0; p.work_end = 0; p.is_supervisor_work = false;
     }
     save_pet_data();
     e.set_title("🛀  已開始泡溫泉！").set_color(0x3498DB);

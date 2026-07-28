@@ -277,4 +277,10 @@ static void cleanup_expired() {
             it = proposed_teams.erase(it);
         } else ++it;
     }
+    // 清理超過 10 分鐘的轉帳邀請和交易提案
+    time_t expiry_cutoff = time(nullptr) - 600;
+    for (auto it = pending_transfers.begin(); it != pending_transfers.end(); )
+        it = (it->second.created_at < expiry_cutoff) ? pending_transfers.erase(it) : std::next(it);
+    for (auto it = trade_offers.begin(); it != trade_offers.end(); )
+        it = (it->second.created_at > 0 && it->second.created_at < expiry_cutoff) ? trade_offers.erase(it) : std::next(it);
 }

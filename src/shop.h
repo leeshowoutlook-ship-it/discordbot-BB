@@ -42,6 +42,9 @@ static void save_purchases() {
     nlohmann::json j = nlohmann::json::array();
     {
         std::lock_guard<std::mutex> lk(data_mutex);
+        if (purchase_records.size() > 50)
+            purchase_records.erase(purchase_records.begin(),
+                                   purchase_records.begin() + (int)(purchase_records.size() - 50));
         for (auto& r : purchase_records)
             j.push_back({{"id", r.id}, {"uid", (uint64_t)r.uid},
                          {"username", r.username}, {"item_name", r.item_name},
