@@ -1,6 +1,9 @@
 # 機密 — 絕對不能 commit
 .env
 
+# 玩家資料
+data/
+
 # C++ 建置產物
 build/
 out/
