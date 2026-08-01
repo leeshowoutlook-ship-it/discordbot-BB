@@ -88,6 +88,31 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"col_mb_staff",        "菇菇寶貝的手杖",   0, "collectible", "從菇菇王國探險取得的蒐藏品（稀有）", 90009},
     {"col_slim_wallet",     "皮包消瘦的皮包",   0, "collectible", "持有後每次打工金額增加 3%（可與膨脹皮包疊加）", 90010},
     {"col_fat_wallet",      "皮包膨脹的皮包",   0, "collectible", "持有後每次打工金額增加 7%（可與消瘦皮包疊加）", 90011},
+    // ── 綠水靈洞窟 蒐藏品 ───────────────────────────────────────────────────────
+    {"col_gwl_popsicle",    "綠水靈的情人果冰棒",  0, "collectible", "從綠水靈洞窟探險取得的蒐藏品", 90012},
+    {"col_bwl_cake",        "藍水靈的藍莓蛋糕",    0, "collectible", "從綠水靈洞窟探險取得的蒐藏品", 90013},
+    {"col_dwl_tiramisu",    "惡魔水靈的提拉米蘇",  0, "collectible", "從綠水靈洞窟探險取得的蒐藏品", 90014},
+    {"col_rwl_velvet",      "紅水靈的紅絲絨",      0, "collectible", "從綠水靈洞窟探險取得的蒐藏品", 90015},
+    {"col_awl_avocado",     "天使綠水靈的酪梨奶酪",0, "collectible", "從綠水靈洞窟探險取得的蒐藏品（稀有）", 90016},
+    {"col_sqwl_brownie",    "方塊水靈的布朗尼",    0, "collectible", "從綠水靈洞窟探險取得的蒐藏品（稀有）", 90017},
+    {"col_ywl_caramel",     "黃水靈的焦糖布丁",    0, "collectible", "從綠水靈洞窟探險取得的蒐藏品（稀有）", 90018},
+    {"col_phone_tianxin",   "恬心貸的電話號碼",    0, "collectible", "借款上限增加 30000 碼，借款利率改為 2.98%/天（限定）", 90019},
+    {"col_bath_huaxuan",    "華瑄的洗澡卡",        0, "collectible", "每週可迴避 3 次打工造成的負面狀態（限定）", 90020},
+    {"col_rod_zoey",        "Zoey的黃金釣竿",      0, "collectible", "泡溫泉結束時：25% 獲得商城道具、25% 獲得 2500 碼、50% 無（限定）", 90021},
+    // ── 亡魂墓地 蒐藏品 ──────────────────────────────────────────────────────────
+    {"col_ghost_heels",     "幽魂的玻璃高跟鞋",    0, "collectible", "從亡魂墓地探險取得的蒐藏品", 90022},
+    {"col_kappa_cucumber",  "河童奇形怪狀的小黃瓜",0, "collectible", "從亡魂墓地探險取得的蒐藏品", 90023},
+    {"col_zombie_eyepatch", "礦山殭屍發霉的眼罩",  0, "collectible", "從亡魂墓地探險取得的蒐藏品", 90024},
+    {"col_ghost_cloak",     "幽魂髒到不行的斗篷",  0, "collectible", "從亡魂墓地探險取得的蒐藏品", 90025},
+    {"col_witch_broom",     "巫婆的飛天掃帚",      0, "collectible", "從亡魂墓地探險取得的蒐藏品", 90026},
+    {"col_demon_tear",      "魔精靈的冰晶眼淚",    0, "collectible", "從亡魂墓地探險取得的蒐藏品（稀有）", 90027},
+    {"col_demon_heart",     "魔精靈跳動的心臟",    0, "collectible", "從亡魂墓地探險取得的蒐藏品（稀有）", 90028},
+    {"col_demon_horn",      "魔精靈破損的角",      0, "collectible", "從亡魂墓地探險取得的蒐藏品（稀有）", 90029},
+    {"col_demon_costume",   "魔精靈的布偶裝",      0, "collectible", "從亡魂墓地探險取得的蒐藏品（稀有）", 90030},
+    {"col_penguin_relic",   "企鵝幫的聖物",        0, "collectible", "持有後寵物防禦力 +1（限定）", 90031},
+    {"col_shark_relic",     "鬼鯊隊的聖物",        0, "collectible", "持有後寵物攻擊力 +1（限定）", 90032},
+    {"col_koala_relic",     "考拉幫的聖物",        0, "collectible", "持有後寵物生命值 +10（限定）", 90033},
+    {"col_koala_autograph", "考拉的親筆簽名",      0, "collectible", "持有後打工時長減少 3%（限定）", 90034},
 };
 
 static const VirtualShopItem* find_virtual_item(const std::string& key) {
@@ -498,6 +523,7 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
 
     // Handle onsen completion: auto-clear debuffs
     bool onsen_done = (pet.onsen_end > 0 && pet.onsen_end <= now);
+    std::string onsen_bonus_msg;
     if (onsen_done) {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
@@ -507,6 +533,34 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
             pet = p;
         }
         save_pet_data();
+        // 收藏品：Zoey的黃金釣竿 — 溫泉完成時額外獎勵
+        bool has_rod = false;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          auto wi = inventory_data.find(uid);
+          if (wi != inventory_data.end()) {
+              auto jt = wi->second.find("col_rod_zoey");
+              has_rod = (jt != wi->second.end() && jt->second > 0);
+          }
+        }
+        if (has_rod) {
+            static std::mt19937 onsen_rng(std::random_device{}());
+            int roll = std::uniform_int_distribution<int>(1,100)(onsen_rng);
+            if (roll <= 25) {
+                static const std::vector<std::string> SHOP_ITEMS = {
+                    "recover_depress","recover_injury","recover_muscle","recover_fatigue"
+                };
+                std::string gift = SHOP_ITEMS[std::uniform_int_distribution<int>(0,3)(onsen_rng)];
+                { std::lock_guard<std::mutex> lk(data_mutex); inventory_data[uid][gift]++; }
+                save_inventory();
+                auto* vi = find_virtual_item(gift);
+                onsen_bonus_msg = "🎣 **Zoey的黃金釣竿**：獲得商城道具「**" + (vi ? vi->name : gift) + "**」×1！";
+            } else if (roll <= 50) {
+                add_chips(uid, 2500); save_chips();
+                onsen_bonus_msg = "🎣 **Zoey的黃金釣竿**：獲得 **+2500 碼**！";
+            } else {
+                onsen_bonus_msg = "🎣 **Zoey的黃金釣竿**：這次什麼都沒有...";
+            }
+        }
     }
 
     bool in_onsen  = (pet.onsen_end > 0 && pet.onsen_end > now);
@@ -552,8 +606,11 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
         return msg;
     }
 
-    if (onsen_done)
-        e.add_field("🛀  泡溫泉結果", "✨ 溫泉療癒完成！所有負面狀態已清除！", false);
+    if (onsen_done) {
+        std::string onsen_result = "✨ 溫泉療癒完成！所有負面狀態已清除！";
+        if (!onsen_bonus_msg.empty()) onsen_result += "\n" + onsen_bonus_msg;
+        e.add_field("🛀  泡溫泉結果", onsen_result, false);
+    }
 
     if (working) {
         std::string status_label = pet.is_supervisor_work
@@ -1109,9 +1166,52 @@ static dpp::message make_bag_sell_items_msg(dpp::snowflake uid) {
     return msg;
 }
 
+// ─── Qty selection page ───────────────────────────────────────────────────────
+
+static dpp::message make_pet_use_qty_msg(dpp::snowflake uid, const std::string& key) {
+    int item_count = 0;
+    std::string uid_s = std::to_string((uint64_t)uid);
+    auto* vi = find_virtual_item(key);
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto ii = inventory_data.find(uid);
+        if (ii != inventory_data.end()) {
+            auto ci = ii->second.find(key);
+            if (ci != ii->second.end()) item_count = ci->second;
+        }
+    }
+    dpp::embed e;
+    e.set_title("📦  " + (vi ? vi->name : key)).set_color(0x3498DB);
+    e.set_description("目前持有 **" + std::to_string(item_count) + "** 個，選擇使用數量：");
+    if (vi && !vi->desc.empty()) e.add_field("道具說明", vi->desc, false);
+    dpp::message m;
+    m.add_embed(e);
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    for (int q : {1, 3, 5, 10}) {
+        if (q > item_count) break;
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("×" + std::to_string(q))
+            .set_id("pet_useqty_" + uid_s + "_" + std::to_string(q) + "_" + key)
+            .set_style(q == 1 ? dpp::cos_primary : dpp::cos_success));
+    }
+    bool all_covered = (item_count == 1 || item_count == 3 || item_count == 5 || item_count == 10);
+    if (!all_covered) {
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("全部 ×" + std::to_string(item_count))
+            .set_id("pet_useqty_" + uid_s + "_" + std::to_string(item_count) + "_" + key)
+            .set_style(dpp::cos_danger));
+    }
+    m.add_component(row);
+    dpp::component row2; row2.set_type(dpp::cot_action_row);
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回背包").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+    m.add_component(row2);
+    return m;
+}
+
 // ─── Use item handler ─────────────────────────────────────────────────────────
 
-static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& key) {
+static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& key, int qty = 1) {
     Pet pet; bool has_pet = false; int item_count = 0;
     std::map<std::string,int> inv_snapshot;
     {
@@ -1255,60 +1355,79 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
         else if (key == "inc_60") pct = 60;
         else if (key == "inc_30") pct = 30;
         else if (key == "inc_10") pct = 10;
-        success = roll(pct);
+        int used_inc = 0;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
-            if (consume_item) inventory_data[uid][key]--;
-            if (success) { pet_data[uid].stage = 1; pet_data[uid].exp = 0; }
+            for (int i = 0; i < qty; i++) {
+                auto& cnt = inventory_data[uid][key];
+                if (cnt <= 0) break;
+                success = roll(pct);
+                if (consume_item) cnt--;
+                used_inc++;
+                if (success) { pet_data[uid].stage = 1; pet_data[uid].exp = 0; break; }
+            }
         }
         if (success) {
             Pet updated;
             { std::lock_guard<std::mutex> lk(data_mutex); updated = pet_data[uid]; }
             result_desc = "🎉 孵化成功！**" + pet_name(updated.chain, 1) + "** 誕生了！";
+            if (used_inc > 1) result_desc += "\n（共嘗試 " + std::to_string(used_inc) + " 次）";
             e.set_title("🎉  孵化成功！").set_color(0x2ECC71);
         } else {
             result_desc = "😢 孵化失敗...蛋還在，可以再試！";
+            if (used_inc > 1) result_desc += "\n（共嘗試 " + std::to_string(used_inc) + " 次）";
             e.set_title("😢  孵化失敗").set_color(0xE74C3C);
         }
     }
     // ── 成長工具 ──────────────────────────────────────────────────────────────
     else if (vi->category == "growth") {
-        if (pet.stage == 0)
-            return err("蛋還沒孵化！");
-        int exp_gain = 0; bool punished = false;
-        if (key == "grow_1") { exp_gain = 10; success = true; }
-        else if (key == "grow_2") { success = roll(60); if (success) exp_gain = 15; }
-        else if (key == "grow_3") { success = roll(30); if (success) exp_gain = 30; }
-        else if (key == "grow_4") { success = roll(10); if (success) exp_gain = 50; }
-        else if (key == "grow_5") { success = roll(1);  if (success) exp_gain = 250; }
-        else if (key == "grow_6") {
-            int r = std::uniform_int_distribution<int>(1,100)(rng);
-            if (r <= 50)      { exp_gain = 30; success = true; }
-            else if (r <= 75) { exp_gain = 10; success = true; }
-            else              { exp_gain = -20; punished = true; }
-        }
-        int new_exp = 0;
+        if (pet.stage == 0) return err("蛋還沒孵化！");
+        int total_exp = 0; int used_grow = 0; int success_count = 0; bool any_punished = false; int new_exp = 0;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
-            if (consume_item) inventory_data[uid][key]--;
             auto& p = pet_data[uid];
-            int raw = p.exp + exp_gain;
+            for (int i = 0; i < qty; i++) {
+                auto& cnt = inventory_data[uid][key];
+                if (cnt <= 0) break;
+                int eg = 0; bool suc = false; bool pun = false;
+                if (key == "grow_1") { eg = 10; suc = true; }
+                else if (key == "grow_2") { suc = roll(60); if (suc) eg = 15; }
+                else if (key == "grow_3") { suc = roll(30); if (suc) eg = 30; }
+                else if (key == "grow_4") { suc = roll(10); if (suc) eg = 50; }
+                else if (key == "grow_5") { suc = roll(1);  if (suc) eg = 250; }
+                else if (key == "grow_6") {
+                    int r = std::uniform_int_distribution<int>(1,100)(rng);
+                    if (r <= 50)      { eg = 30; suc = true; }
+                    else if (r <= 75) { eg = 10; suc = true; }
+                    else              { eg = -20; pun = true; }
+                }
+                if (consume_item) cnt--;
+                total_exp += eg;
+                used_grow++;
+                if (suc) { success_count++; success = true; }
+                if (pun) any_punished = true;
+            }
+            int raw = p.exp + total_exp;
             if (p.stage > 0 && p.stage < 3)
                 p.exp = std::min(std::max(0, raw), exp_needed(p.stage));
             else
                 p.exp = std::max(0, raw);
             new_exp = p.exp;
         }
-        if (punished)
-            result_desc = "😰 壓力太大！-20 經驗值";
-        else if (!success)
-            result_desc = "😢 成長失敗...沒有獲得經驗值";
-        else
-            result_desc = "✨ 成長！+" + std::to_string(exp_gain) + " 經驗值";
+        if (used_grow == 0) return err("背包中沒有足夠的道具！");
+        bool punished = any_punished && !success;
+        if (qty == 1) {
+            if (punished)       result_desc = "😰 壓力太大！-20 經驗值";
+            else if (!success)  result_desc = "😢 成長失敗...沒有獲得經驗值";
+            else                result_desc = "✨ 成長！+" + std::to_string(total_exp) + " 經驗值";
+        } else {
+            std::string sign = total_exp >= 0 ? "+" : "";
+            result_desc = "✨ 共使用 **" + std::to_string(used_grow) + "** 個，成功 **" + std::to_string(success_count) + "** 次\n經驗值 " + sign + std::to_string(total_exp);
+        }
         result_desc += "\n目前經驗值：**" + std::to_string(new_exp) + "**";
-        if (punished) e.set_title("😰  成長懲罰").set_color(0xE74C3C);
-        else if (success) e.set_title("✨  成長成功！").set_color(0x2ECC71);
-        else e.set_title("😢  成長失敗").set_color(0xE74C3C);
+        if (punished)       e.set_title("😰  成長懲罰").set_color(0xE74C3C);
+        else if (success)   e.set_title("✨  成長成功！").set_color(0x2ECC71);
+        else                e.set_title("😢  成長失敗").set_color(0xE74C3C);
     }
     // ── 天賦道具 ─────────────────────────────────────────────────────────────
     else if (vi->category == "talent") {
@@ -1386,28 +1505,33 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
     }
     // ── 成長路徑道具（path）── 不可直接使用，提示 ────────────────────────────
     else if (vi->category == "recovery") {
-        // Recovery items remove a status from the pet
         static const std::map<std::string,std::string> ITEM_STATUS = {
             {"recover_depress","憂鬱"}, {"recover_injury","受傷"},
             {"recover_muscle","肌肉緊繃"}, {"recover_fatigue","疲勞"},
         };
         if (!ITEM_STATUS.count(key)) return err("無效的恢復道具！");
         std::string target_status = ITEM_STATUS.at(key);
-        bool found = false;
+        int used_rec = 0;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& p = pet_data[uid];
             auto& ss = p.statuses;
-            auto it2 = std::find(ss.begin(), ss.end(), target_status);
-            if (it2 != ss.end()) {
-                ss.erase(it2); found = true;
-                if (consume_item) inventory_data[uid][key]--;
+            for (int i = 0; i < qty; i++) {
+                auto& cnt = inventory_data[uid][key];
+                if (cnt <= 0) break;
+                auto it2 = std::find(ss.begin(), ss.end(), target_status);
+                if (it2 == ss.end()) break;
+                ss.erase(it2);
+                if (consume_item) cnt--;
+                used_rec++;
             }
         }
-        if (!found) return err("你的寵物目前沒有「" + target_status + "」狀態！");
+        if (used_rec == 0) return err("你的寵物目前沒有「" + target_status + "」狀態！");
         save_pet_data(); save_inventory();
         e.set_title("💊  恢復成功！").set_color(0x2ECC71);
-        e.set_description("解除了「**" + target_status + "**」狀態！");
+        std::string rdesc = "解除了「**" + target_status + "**」狀態！";
+        if (used_rec > 1) rdesc += "\n（共使用了 " + std::to_string(used_rec) + " 個）";
+        e.set_description(rdesc);
         m.add_embed(e);
         dpp::component row; row.set_type(dpp::cot_action_row);
         dpp::component vb;
@@ -1702,6 +1826,14 @@ static dpp::message handle_pet_work_start(dpp::snowflake uid, int task) {
     int dur = (task == 1) ? 3600 : (task == 4) ? 14400 : 28800;
     // 天賦：迅捷 — 打工時間縮短 10%
     if (pet.talent == "迅捷") dur = (int)(dur * 0.9);
+    // 收藏品：考拉の親筆簽名 — 打工時長 -3%
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      auto wi = inventory_data.find(uid);
+      if (wi != inventory_data.end()) {
+          auto jt = wi->second.find("col_koala_autograph");
+          if (jt != wi->second.end() && jt->second > 0) dur = (int)(dur * 0.97);
+      }
+    }
     // 負面狀態：疲勞 — 打工時長 +30%
     for (auto& s : pet.statuses) if (s == "疲勞") { dur = (int)(dur * 1.3); break; }
     {
@@ -1799,6 +1931,26 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
         new_neg_status = NEG_STATUS[si];
     }
 
+    // 收藏品：華瑄の洗澡卡 — 每週可迴避 3 次打工負面狀態
+    bool bath_blocked = false;
+    if (!new_neg_status.empty()) {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto wi = inventory_data.find(uid);
+        if (wi != inventory_data.end()) {
+            auto jt = wi->second.find("col_bath_huaxuan");
+            if (jt != wi->second.end() && jt->second > 0) {
+                // 計算本週的 key（YYYYWW 格式）
+                time_t now_t = time(nullptr); struct tm tmw = {}; localtime_s(&tmw, &now_t);
+                char wbuf[8]; strftime(wbuf, sizeof(wbuf), "%G%V", &tmw);
+                int cur_week = std::stoi(wbuf);
+                int& stored_week = wi->second["_bath_week"];
+                int& stored_uses = wi->second["_bath_uses"];
+                if (stored_week != cur_week) { stored_week = cur_week; stored_uses = 3; }
+                if (stored_uses > 0) { stored_uses--; bath_blocked = true; new_neg_status.clear(); }
+            }
+        }
+    }
+
     // 醫療保險：打工回來生病時觸發（受傷不算，但工作負面狀態都不含受傷）
     int64_t insurance_payout = 0;
     {
@@ -1845,6 +1997,7 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
     if (dream_triggered)      e.add_field("🌙  喜歡作夢", "🎆 籌碼翻倍！！", false);
     if (!new_neg_status.empty()) e.add_field("⚠️  新增狀態", "「**" + new_neg_status + "**」", false);
     if (insurance_payout > 0) e.add_field("🏥  醫療保險", "+4000 碼 保險金理賠！效果已結束。", false);
+    if (bath_blocked)         e.add_field("🛁  華瑄的洗澡卡", "✨ 負面狀態已被迴避！（本週剩餘次數請查收藏）", false);
     m.add_embed(e);
 
     std::string uid_s = std::to_string((uint64_t)uid);

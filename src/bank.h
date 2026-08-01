@@ -7,6 +7,27 @@
 static const double  DEPOSIT_RATE = 0.005;   // 0.5% 每日最低餘額
 static const double  LOAN_RATE    = 0.05;
 static const int64_t MAX_LOAN     = 10000;
+
+// 恬心貸的電話號碼：借款上限 +30000, 利率 2.98%
+// NOTE: 呼叫前不可持有 data_mutex
+static int64_t effective_max_loan(dpp::snowflake uid) {
+    std::lock_guard<std::mutex> lk(data_mutex);
+    auto it = inventory_data.find(uid);
+    if (it != inventory_data.end()) {
+        auto jt = it->second.find("col_phone_tianxin");
+        if (jt != it->second.end() && jt->second > 0) return MAX_LOAN + 30000;
+    }
+    return MAX_LOAN;
+}
+static double effective_loan_rate(dpp::snowflake uid) {
+    std::lock_guard<std::mutex> lk(data_mutex);
+    auto it = inventory_data.find(uid);
+    if (it != inventory_data.end()) {
+        auto jt = it->second.find("col_phone_tianxin");
+        if (jt != it->second.end() && jt->second > 0) return 0.0298;
+    }
+    return LOAN_RATE;
+}
 static const std::string BANK_FILE = "bank.json";
 
 // UTC+8 的「天」編號（每天 00:00 CST = UTC 16:00 前一天）

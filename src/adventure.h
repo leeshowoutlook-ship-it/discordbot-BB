@@ -53,7 +53,58 @@ static const std::vector<AdvRegion> ADV_REGIONS = {
                 {"col_fat_wallet",    10},
             }},
         }
-    }
+    },
+    {
+        "water_spirit_cave", "綠水靈洞窟", "💧",
+        {
+            { 23, 37, {
+                {"",                    43},
+                {"col_gwl_popsicle",    30},
+                {"col_bwl_cake",        25},
+                {"col_phone_tianxin",    2},
+            }},
+            { 61, 32, {
+                {"col_dwl_tiramisu",    41},
+                {"col_rwl_velvet",      41},
+                {"",                    16},
+                {"col_bath_huaxuan",     2},
+            }},
+            {100, 31, {
+                {"",                    35},
+                {"col_awl_avocado",     21},
+                {"col_sqwl_brownie",    21},
+                {"col_ywl_caramel",     21},
+                {"col_rod_zoey",         2},
+            }},
+        }
+    },
+    {
+        "ghost_graveyard", "亡魂墓地", "💀",
+        {
+            { 25, 40, {
+                {"",                     30},
+                {"col_ghost_heels",      20},
+                {"col_kappa_cucumber",   20},
+                {"col_zombie_eyepatch",  20},
+                {"col_ghost_cloak",      10},
+            }},
+            { 61, 10, {
+                {"",                     60},
+                {"col_penguin_relic",     2},
+                {"col_shark_relic",       2},
+                {"col_koala_relic",       2},
+                {"col_witch_broom",      34},
+            }},
+            {100, 40, {
+                {"",                     32},
+                {"col_demon_tear",       19},
+                {"col_demon_heart",      19},
+                {"col_demon_horn",       19},
+                {"col_demon_costume",    10},
+                {"col_koala_autograph",   1},
+            }},
+        }
+    },
 };
 
 static const AdvRegion* find_adv_region(const std::string& key) {
@@ -64,13 +115,15 @@ static const AdvRegion* find_adv_region(const std::string& key) {
 // Collection display regions (3 pages; empty adv_key = locked/coming soon)
 struct ColDisplayRegion { std::string adv_key; std::string name; std::string emoji; };
 static const std::vector<ColDisplayRegion> COL_DISPLAY_REGIONS = {
-    {"mushroom_kingdom", "菇菇王國", "🍄"},
-    {"",                 "???",      "🔒"},
-    {"",                 "???",      "🔒"},
+    {"mushroom_kingdom",   "菇菇王國",   "🍄"},
+    {"water_spirit_cave",  "綠水靈洞窟", "💧"},
+    {"ghost_graveyard",    "亡魂墓地",   "💀"},
 };
 
 static const std::set<std::string> LIMITED_COL_ITEMS = {
-    "col_yaya_bounty", "col_slim_wallet", "col_fat_wallet"
+    "col_yaya_bounty", "col_slim_wallet", "col_fat_wallet",
+    "col_phone_tianxin", "col_bath_huaxuan", "col_rod_zoey",
+    "col_penguin_relic", "col_shark_relic", "col_koala_relic", "col_koala_autograph"
 };
 
 // ─── Progress calculation ──────────────────────────────────────────────────────

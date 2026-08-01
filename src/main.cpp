@@ -2612,7 +2612,12 @@ int main(int argc, char* argv[]) {
                 vg.pet_atk = ps.atk; vg.pet_def = ps.def;
                 vg.started_at = time(nullptr);
                 { std::lock_guard<std::mutex> lk(data_mutex);
-                  vg.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : ""; }
+                  vg.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : "";
+                  vg.pet_atk += col_pet_atk_bonus(uid);
+                  vg.pet_def += col_pet_def_bonus(uid);
+                  int hp_bonus = col_pet_hp_bonus(uid);
+                  vg.pet_hp += hp_bonus; vg.pet_max_hp += hp_bonus;
+                }
                 vg.msg_id = ev.command.message_id;
                 dpp::timer vtid = g_bot->start_timer([uid](dpp::timer) {
                     VillageGame tg;
@@ -2831,6 +2836,10 @@ int main(int argc, char* argv[]) {
                 {
                     std::lock_guard<std::mutex> lk(data_mutex);
                     g.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : "";
+                    g.pet_atk += col_pet_atk_bonus(uid);
+                    g.pet_def += col_pet_def_bonus(uid);
+                    int hp_bonus = col_pet_hp_bonus(uid);
+                    g.pet_hp += hp_bonus; g.pet_max_hp += hp_bonus;
                 }
                 g.player_first = (g.orb_key == "EQ_K_SPEED") ||
                                  std::uniform_int_distribution<int>(0,3)(hunt_rng()) < 3; // 75%, orb=100%
@@ -3715,7 +3724,30 @@ int main(int argc, char* argv[]) {
                     ev.reply(dpp::ir_channel_message_with_source,
                         dpp::message("❌ 這不是你的寵物！").set_flags(dpp::m_ephemeral)); return;
                 }
-                ev.reply(dpp::ir_update_message, handle_pet_use_item(uid, item_key));
+                int cnt = 0;
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    auto ii = inventory_data.find(uid);
+                    if (ii != inventory_data.end()) { auto ci = ii->second.find(item_key); if (ci != ii->second.end()) cnt = ci->second; }
+                }
+                if (cnt > 1) { ev.reply(dpp::ir_update_message, make_pet_use_qty_msg(uid, item_key)); return; }
+                ev.reply(dpp::ir_update_message, handle_pet_use_item(uid, item_key, 1));
+            } else if (cid.rfind("pet_useqty_", 0) == 0) {
+                // pet_useqty_{uid}_{qty}_{item_key}
+                std::string rest = cid.substr(11);
+                size_t s1 = rest.find('_');
+                if (s1 == std::string::npos) return;
+                dpp::snowflake btn_uid(std::stoull(rest.substr(0, s1)));
+                rest = rest.substr(s1 + 1);
+                size_t s2 = rest.find('_');
+                if (s2 == std::string::npos) return;
+                int qty = std::stoi(rest.substr(0, s2));
+                std::string item_key = rest.substr(s2 + 1);
+                if (uid != btn_uid) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("❌ 這不是你的寵物！").set_flags(dpp::m_ephemeral)); return;
+                }
+                ev.reply(dpp::ir_update_message, handle_pet_use_item(uid, item_key, qty));
             } else if (cid.rfind("pet_discard_mode_", 0) == 0) {
                 dpp::snowflake btn_uid(std::stoull(cid.substr(17)));
                 if (uid != btn_uid) {
@@ -3907,7 +3939,7 @@ int main(int argc, char* argv[]) {
             dpp::interaction_modal_response modal(
                 "bank_borrow_modal_" + std::to_string((uint64_t)uid), "💸 借款");
             modal.add_component(dpp::component().set_type(dpp::cot_text)
-                .set_label("借款金額（上限 " + std::to_string(MAX_LOAN) + " 碼，利率 5%/天）")
+                .set_label("借款金額（上限 " + std::to_string(effective_max_loan(uid)) + " 碼，利率 " + std::to_string((int)(effective_loan_rate(uid)*100)) + "%/天）")
                 .set_id("amount").set_text_style(dpp::text_short)
                 .set_min_length(1).set_max_length(15)
                 .set_placeholder("輸入要借的碼數"));
@@ -7249,15 +7281,20 @@ int main(int argc, char* argv[]) {
                     notice = "❌ 已有未還清的借款！請先還款。";
                 } else if (bd.deposited > 0) {
                     notice = "❌ 有存款時不可借款！請先提款。";
-                } else if (amount <= 0 || amount > MAX_LOAN) {
-                    notice = "❌ 借款金額需在 1 ~ " + std::to_string(MAX_LOAN) + " 碼之間！";
                 } else {
+                    int64_t mloan = effective_max_loan(modal_uid);
+                    double  mrate = effective_loan_rate(modal_uid);
+                    if (amount <= 0 || amount > mloan) {
+                        notice = "❌ 借款金額需在 1 ~ " + std::to_string(mloan) + " 碼之間！";
+                    } else {
                     chip_data[modal_uid].chips += amount;
-                    bd.loan      = (int64_t)(amount * (1.0 + LOAN_RATE) + 0.5);
+                    bd.loan      = (int64_t)(amount * (1.0 + mrate) + 0.5);
                     bd.loan_time = time(nullptr);
-                    notice = "✅ 已借入 **" + std::to_string(amount) + "** 碼！（立即計息，需還款 **" + std::to_string(bd.loan) + "** 碼起）每日再加 5% 利息。";
+                    int rate_pct = (int)(mrate * 100);
+                    notice = "✅ 已借入 **" + std::to_string(amount) + "** 碼！（立即計息，需還款 **" + std::to_string(bd.loan) + "** 碼起）每日再加 " + std::to_string(rate_pct) + "% 利息。";
                     saved = true;
-                }
+                    } // inner else
+                } // outer else
             }
             if (saved) { save_chips(); save_bank(); }
             ev.reply(dpp::ir_channel_message_with_source,
@@ -7878,6 +7915,44 @@ int main(int argc, char* argv[]) {
 #endif // ── end roulette select block ──────────────────────────────────────────
     });
 
+    // ── Autocomplete ──────────────────────────────────────────────────────────
+    bot.on_autocomplete([](const dpp::autocomplete_t& ev) {
+        std::string cmd = ev.name;
+        if (cmd != "交易" && cmd != "trade") return;
+        dpp::snowflake uid = ev.command.get_issuing_user().id;
+        for (auto& opt : ev.options) {
+            if (opt.name != "我的道具" || !opt.focused) continue;
+            std::string filter;
+            if (opt.value.index() != 0) try { filter = std::get<std::string>(opt.value); } catch (...) {}
+            std::map<std::string,int> inv;
+            { std::lock_guard<std::mutex> lk(data_mutex);
+              auto it = inventory_data.find(uid);
+              if (it != inventory_data.end()) inv = it->second;
+            }
+            std::vector<dpp::command_option_choice> choices;
+            for (auto& [key, cnt] : inv) {
+                if (cnt <= 0 || key.empty() || key[0] == '_') continue;
+                std::string name; int item_id = 0;
+                if (auto* vi = find_virtual_item(key))  { name = vi->name; item_id = vi->item_id; }
+                else if (auto* gi = find_gacha_item(key)) { name = gi->name; item_id = gi->item_id; }
+                else continue;
+                if (item_id == 0) continue;
+                std::string label = name + " ×" + std::to_string(cnt) + "（ID: " + std::to_string(item_id) + "）";
+                if (!filter.empty()) {
+                    // match by name or ID
+                    if (label.find(filter) == std::string::npos &&
+                        std::to_string(item_id).find(filter) == std::string::npos) continue;
+                }
+                choices.push_back(dpp::command_option_choice(label, std::to_string(item_id)));
+                if (choices.size() >= 25) break;
+            }
+            dpp::interaction_response res(dpp::ir_autocomplete_reply);
+            for (auto& c : choices) res.add_autocomplete_choice(c);
+            ev.from()->creator->interaction_response_create(ev.command.id, ev.command.token, res);
+            return;
+        }
+    });
+
     // ── 斜線指令 ──────────────────────────────────────────────────────────────
     bot.on_slashcommand([&bot](const dpp::slashcommand_t& ev) {
         const std::string  cmd_name = ev.command.get_command_name();
@@ -8296,7 +8371,10 @@ int main(int argc, char* argv[]) {
                 auto p = ev.get_parameter(name);
                 return p.index() == 0 ? 0 : std::get<int64_t>(p);
             };
-            int from_item_id = (int)get_int("我的道具");
+            // 我的道具 is now string (autocomplete) — parse as integer ID
+            int from_item_id = 0;
+            { auto p = ev.get_parameter("我的道具");
+              if (p.index() != 0) try { from_item_id = std::stoi(std::get<std::string>(p)); } catch (...) {} }
             int64_t from_chips = get_int("我的籌碼");
             int to_item_id   = (int)get_int("對方道具");
             int64_t to_chips = get_int("對方籌碼");
@@ -8808,16 +8886,18 @@ int main(int argc, char* argv[]) {
                      .add_option(dpp::command_option(dpp::co_integer, "張數",   "How many to use (max 100)",         false));
 
             dpp::slashcommand trade_cmd("交易", "向另一名玩家發起道具/籌碼交易", bot.me.id);
-            trade_cmd.add_option(dpp::command_option(dpp::co_user,    "對象",     "交易對象",           true))
-                     .add_option(dpp::command_option(dpp::co_integer, "我的道具", "我出的道具ID（0=無）", false))
-                     .add_option(dpp::command_option(dpp::co_integer, "我的籌碼", "我出的籌碼（0=無）",  false))
+            trade_cmd.add_option(dpp::command_option(dpp::co_user, "對象", "交易對象", true));
+            { auto p = dpp::command_option(dpp::co_string, "我的道具", "我出的道具（從清單選擇或手動輸入ID）", false);
+              p.set_auto_complete(true); trade_cmd.add_option(p); }
+            trade_cmd.add_option(dpp::command_option(dpp::co_integer, "我的籌碼", "我出的籌碼（0=無）",  false))
                      .add_option(dpp::command_option(dpp::co_integer, "對方道具", "要對方出的道具ID（0=無）", false))
                      .add_option(dpp::command_option(dpp::co_integer, "對方籌碼", "要對方出的籌碼（0=無）",  false));
 
             dpp::slashcommand trade_en("trade", "Propose an item/chip trade with another player", bot.me.id);
-            trade_en.add_option(dpp::command_option(dpp::co_user,    "對象",     "Trade target",         true))
-                    .add_option(dpp::command_option(dpp::co_integer, "我的道具", "Your item ID (0=none)", false))
-                    .add_option(dpp::command_option(dpp::co_integer, "我的籌碼", "Your chips (0=none)",   false))
+            trade_en.add_option(dpp::command_option(dpp::co_user, "對象", "Trade target", true));
+            { auto p = dpp::command_option(dpp::co_string, "我的道具", "Your item (pick from list or type ID)", false);
+              p.set_auto_complete(true); trade_en.add_option(p); }
+            trade_en.add_option(dpp::command_option(dpp::co_integer, "我的籌碼", "Your chips (0=none)",   false))
                     .add_option(dpp::command_option(dpp::co_integer, "對方道具", "Their item ID (0=none)",false))
                     .add_option(dpp::command_option(dpp::co_integer, "對方籌碼", "Their chips (0=none)",  false));
 

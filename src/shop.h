@@ -538,33 +538,48 @@ static dpp::message make_vbuy_confirm_msg(dpp::snowflake uid, const std::string&
         dpp::message m; m.add_embed(e); return m;
     }
     int64_t bal = get_chips(uid);
-    e.set_title("🛒  購買確認").set_color(0xF39C12);
-    e.add_field("📦  商品",    vi->name,                           true);
-    e.add_field("💰  售價",    std::to_string(vi->price) + " 碼", true);
-    e.add_field("💼  你的餘額", std::to_string(bal) + " 碼",      false);
-    dpp::message msg; msg.add_embed(e);
     if (bal < vi->price) {
-        dpp::embed err; err.set_title("❌  籌碼不足").set_color(0xE74C3C);
-        dpp::message m; m.add_embed(err); return m;
+        e.set_title("❌  籌碼不足").set_color(0xE74C3C);
+        dpp::message m; m.add_embed(e); return m;
     }
     if (vi->category != "hunt" && vi->category != "recovery" && vi->category != "privilege"
         && !can_buy_virtual_cat(uid, vi->category)) {
-        dpp::embed err; err.set_title("❌  條件不符").set_color(0xE74C3C);
-        dpp::message m; m.add_embed(err); return m;
+        e.set_title("❌  條件不符").set_color(0xE74C3C);
+        dpp::message m; m.add_embed(e); return m;
     }
+    e.set_title("🛒  購買確認").set_color(0xF39C12);
+    e.add_field("📦  商品",    vi->name,                           true);
+    e.add_field("💰  單價",    std::to_string(vi->price) + " 碼", true);
+    e.add_field("💼  你的餘額", std::to_string(bal) + " 碼",      false);
+    e.set_description("選擇購買數量：");
+    dpp::message msg; msg.add_embed(e);
+    // Quantity buttons: ×1 ×3 ×5 ×10 (disable if not enough chips)
     dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component ok_btn, cancel_btn;
-    ok_btn.set_type(dpp::cot_button).set_label("✅ 確認購買")
-          .set_id("shop_vconfirm_" + key).set_style(dpp::cos_success);
-    cancel_btn.set_type(dpp::cot_button).set_label("❌ 取消")
-              .set_id("shop_vcat_" + vi->category).set_style(dpp::cos_danger);
-    row.add_component(ok_btn); row.add_component(cancel_btn);
-    msg.add_component(row);
+    for (int qty : {1, 3, 5, 10}) {
+        int64_t cost = (int64_t)qty * vi->price;
+        bool dis = (bal < cost);
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("×" + std::to_string(qty) + "（" + std::to_string(cost) + "碼）")
+            .set_id("shop_vconfirm_" + std::to_string(qty) + "_" + key)
+            .set_style(dpp::cos_success).set_disabled(dis));
+    }
+    dpp::component row2; row2.set_type(dpp::cot_action_row);
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("❌ 取消").set_id("shop_vcat_" + vi->category).set_style(dpp::cos_danger));
+    msg.add_component(row); msg.add_component(row2);
     return msg;
 }
 
+// key format passed from button: "<qty>_<item_key>" e.g. "3_recover_depress"
 static dpp::message handle_vbuy(dpp::snowflake uid, const std::string& username,
-                                 const std::string& key) {
+                                 const std::string& qty_key) {
+    // Parse qty and key: first number before first '_'
+    int qty = 1; std::string key = qty_key;
+    size_t sep = qty_key.find('_');
+    if (sep != std::string::npos) {
+        try { qty = std::stoi(qty_key.substr(0, sep)); key = qty_key.substr(sep + 1); } catch (...) { qty = 1; }
+    }
+    if (qty < 1) qty = 1; if (qty > 10) qty = 10;
     const VirtualShopItem* vi = find_virtual_item(key);
     dpp::embed e;
     if (!vi) {
@@ -577,12 +592,13 @@ static dpp::message handle_vbuy(dpp::snowflake uid, const std::string& username,
         e.set_title("❌  條件不符").set_color(0xE74C3C);
         dpp::message m; m.add_embed(e); return m;
     }
+    int64_t total_cost = (int64_t)qty * vi->price;
     int64_t bal = 0; bool ok = false;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         bal = chip_data[uid].chips;
-        if (bal >= vi->price) {
-            chip_data[uid].chips -= vi->price;
+        if (bal >= total_cost) {
+            chip_data[uid].chips -= total_cost;
             bal = chip_data[uid].chips;
             ok = true;
         }
@@ -592,33 +608,25 @@ static dpp::message handle_vbuy(dpp::snowflake uid, const std::string& username,
         dpp::message m; m.add_embed(e); return m;
     }
 
-    // Eggs: create pet if no pet exists, otherwise add to inventory
+    // Eggs: qty=1 for first-time pet creation, rest go to inventory
     if (vi->category == "egg") {
         bool has_existing = false;
-        {
-            std::lock_guard<std::mutex> lk(data_mutex);
-            has_existing = (pet_data.count(uid) > 0);
-        }
+        { std::lock_guard<std::mutex> lk(data_mutex); has_existing = (pet_data.count(uid) > 0); }
         if (!has_existing) {
             std::string chain = chain_from_egg_key(key);
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                Pet p; p.chain = chain; p.stage = 0; p.exp = 0;
-                pet_data[uid] = p;
-            }
+            { std::lock_guard<std::mutex> lk(data_mutex); Pet p; p.chain = chain; p.stage = 0; p.exp = 0; pet_data[uid] = p; }
             save_pet_data();
-        } else {
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                inventory_data[uid][key]++;
+            // Remaining qty-1 eggs go to inventory
+            if (qty > 1) {
+                { std::lock_guard<std::mutex> lk(data_mutex); inventory_data[uid][key] += (qty - 1); }
+                save_inventory();
             }
+        } else {
+            { std::lock_guard<std::mutex> lk(data_mutex); inventory_data[uid][key] += qty; }
             save_inventory();
         }
     } else {
-        {
-            std::lock_guard<std::mutex> lk(data_mutex);
-            inventory_data[uid][key]++;
-        }
+        { std::lock_guard<std::mutex> lk(data_mutex); inventory_data[uid][key] += qty; }
         save_inventory();
     }
 
@@ -628,8 +636,8 @@ static dpp::message handle_vbuy(dpp::snowflake uid, const std::string& username,
         rec.id        = purchase_counter.fetch_add(1);
         rec.uid       = uid;
         rec.username  = username;
-        rec.item_name = vi->name;
-        rec.price     = vi->price;
+        rec.item_name = vi->name + (qty > 1 ? " ×" + std::to_string(qty) : "");
+        rec.price     = total_cost;
         rec.timestamp = std::time(nullptr);
         rec.source    = "virtual";
         std::lock_guard<std::mutex> lk(data_mutex);
@@ -638,8 +646,8 @@ static dpp::message handle_vbuy(dpp::snowflake uid, const std::string& username,
     save_chips(); save_purchases();
 
     e.set_title("✅  購買成功").set_color(0x2ECC71);
-    e.add_field("📦  商品", vi->name,                           true);
-    e.add_field("💰  花費", std::to_string(vi->price) + " 碼", true);
+    e.add_field("📦  商品", vi->name + (qty > 1 ? " ×" + std::to_string(qty) : ""), true);
+    e.add_field("💰  花費", std::to_string(total_cost) + " 碼", true);
     e.add_field("💼  餘額", std::to_string(bal)        + " 碼", false);
     if (vi->category == "egg")
         e.set_footer(dpp::embed_footer().set_text("使用 !寵物 查看你的蛋！"));

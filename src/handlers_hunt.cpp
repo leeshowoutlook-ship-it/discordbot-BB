@@ -118,7 +118,12 @@ void handle_hunt_button(const dpp::button_click_t& ev)
         vg.pet_atk = ps.atk; vg.pet_def = ps.def;
         vg.started_at = time(nullptr);
         { std::lock_guard<std::mutex> lk(data_mutex);
-          vg.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : ""; }
+          vg.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : "";
+          vg.pet_atk += col_pet_atk_bonus(uid);
+          vg.pet_def += col_pet_def_bonus(uid);
+          int hp_bonus = col_pet_hp_bonus(uid);
+          vg.pet_hp += hp_bonus; vg.pet_max_hp += hp_bonus;
+        }
         vg.msg_id = ev.command.message_id;
         dpp::timer vtid = g_bot->start_timer([uid](dpp::timer) {
             VillageGame tg;
@@ -384,7 +389,12 @@ void handle_hunt_button(const dpp::button_click_t& ev)
         g.pet_def        = ps.def;
         g.started_at     = time(nullptr);
         { std::lock_guard<std::mutex> lk(data_mutex);
-          g.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : ""; }
+          g.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : "";
+          g.pet_atk += col_pet_atk_bonus(uid);
+          g.pet_def += col_pet_def_bonus(uid);
+          int hp_bonus = col_pet_hp_bonus(uid);
+          g.pet_hp += hp_bonus; g.pet_max_hp += hp_bonus;
+        }
         g.player_first = (g.orb_key == "EQ_K_SPEED") ||
                          std::uniform_int_distribution<int>(0,3)(hunt_rng()) < 3;
 

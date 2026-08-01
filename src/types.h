@@ -528,7 +528,24 @@ inline std::map<dpp::snowflake, MonsterHuntGame>    monster_hunt_games;
 inline std::map<dpp::snowflake, VillageGame>        village_games;
 inline std::map<dpp::snowflake, AdventureSetup>     adv_setups;
 inline std::map<dpp::snowflake, AdventureGame>      adv_games;
-inline std::map<dpp::snowflake, RaidRoom>           raid_rooms;       // channel_id -> room
+inline std::map<dpp::snowflake, RaidRoom>           raid_rooms;
+
+// 寵物聖物加成（需持有 data_mutex 呼叫）
+inline int col_pet_atk_bonus(dpp::snowflake uid) {
+    auto it = inventory_data.find(uid); if (it == inventory_data.end()) return 0;
+    auto jt = it->second.find("col_shark_relic");
+    return (jt != it->second.end() && jt->second > 0) ? 1 : 0;
+}
+inline int col_pet_def_bonus(dpp::snowflake uid) {
+    auto it = inventory_data.find(uid); if (it == inventory_data.end()) return 0;
+    auto jt = it->second.find("col_penguin_relic");
+    return (jt != it->second.end() && jt->second > 0) ? 1 : 0;
+}
+inline int col_pet_hp_bonus(dpp::snowflake uid) {
+    auto it = inventory_data.find(uid); if (it == inventory_data.end()) return 0;
+    auto jt = it->second.find("col_koala_relic");
+    return (jt != it->second.end() && jt->second > 0) ? 10 : 0;
+}       // channel_id -> room
 inline std::map<dpp::snowflake, RaidGame>           raid_games;       // channel_id -> game
 inline std::map<dpp::snowflake, DDGame>             dd_games;         // channel_id -> game
 inline std::atomic<uint64_t>                        raid_counter{1};
