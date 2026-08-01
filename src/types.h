@@ -185,6 +185,26 @@ struct VillageGame {
     std::string log_line;
     std::string orb_key;
     bool        latus_orb_triggered = false;
+    int         bear_block_turns = 0;
+};
+
+// ─── Adventure ────────────────────────────────────────────────────────────────
+
+struct AdventureSetup {
+    std::string region_key;
+    int     duration_hours = 0;
+    int64_t funds          = -1; // -1 = not set
+    int     partner        = -1; // -1 = unset, 0 = no pet, 1 = with pet
+};
+
+struct AdventureGame {
+    dpp::snowflake uid;
+    std::string region_key;
+    int     duration_hours = 0;
+    int64_t funds          = 0;
+    bool    pet_along      = false;
+    time_t  start_time     = 0;
+    time_t  end_time       = 0;
 };
 
 // ─── Monster hunt active game ─────────────────────────────────────────────────
@@ -506,6 +526,8 @@ inline std::map<dpp::snowflake, PlayerEquipment>    equipped_data;
 inline std::map<dpp::snowflake, std::set<std::string>> hunt_clear_data;
 inline std::map<dpp::snowflake, MonsterHuntGame>    monster_hunt_games;
 inline std::map<dpp::snowflake, VillageGame>        village_games;
+inline std::map<dpp::snowflake, AdventureSetup>     adv_setups;
+inline std::map<dpp::snowflake, AdventureGame>      adv_games;
 inline std::map<dpp::snowflake, RaidRoom>           raid_rooms;       // channel_id -> room
 inline std::map<dpp::snowflake, RaidGame>           raid_games;       // channel_id -> game
 inline std::map<dpp::snowflake, DDGame>             dd_games;         // channel_id -> game

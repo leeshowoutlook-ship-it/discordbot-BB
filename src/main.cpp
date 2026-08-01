@@ -22,6 +22,7 @@
 #include "ucstats.h"
 #include "guess.h"
 #include "rl_stats.h"
+#include "adventure.h"
 #include "handler_decls.h"
 
 // ─── Helpers shared by slash + message command handlers ───────────────────────
@@ -137,6 +138,7 @@ int main(int argc, char* argv[]) {
     load_giveaways();
     load_equipped();
     load_hunt_clear();
+    load_adv_games();
     load_gacha_pity();
     load_uc_stats();
     load_guess_stats();
@@ -167,7 +169,7 @@ int main(int argc, char* argv[]) {
                 "!臥底","!誰是臥底",
                 "!臥底 遊玩成人內容","!誰是臥底 遊玩成人內容",
                 "!世足","!貓","!笑話","!轉蛋","!裝備","!怪物狩獵","!狩獵規則",
-                "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤"
+                "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤","!探險"
             };
             for (auto& s : EXACT) if (content == s) return true;
             // Secret owner-only command
@@ -279,7 +281,11 @@ int main(int argc, char* argv[]) {
                     if (new_day) {
                         int cur_scrolls = inventory_data[uid].count("hunt_scroll")
                                           ? inventory_data[uid]["hunt_scroll"] : 0;
-                        int to_give = std::max(0, 2 - cur_scrolls);
+                        int max_scrolls = 2;
+                        // 呀呀的懸賞令：每日+1狩獵卷上限
+                        if (inventory_data[uid].count("col_yaya_bounty") && inventory_data[uid]["col_yaya_bounty"] > 0)
+                            max_scrolls = 3;
+                        int to_give = std::max(0, max_scrolls - cur_scrolls);
                         if (to_give > 0) {
                             inventory_data[uid]["hunt_scroll"] += to_give;
                             gave_scrolls = true;
@@ -382,10 +388,22 @@ int main(int argc, char* argv[]) {
             });
         }
         else if (content == "!收藏") {
-            dpp::embed ce; ce.set_title("📚  收藏").set_color(0x9B59B6);
-            ce.set_description("收藏系統開發中，敬請期待！\n（將與探險功能一同上線）");
-            dpp::message cm; cm.add_embed(ce); cm.channel_id = ch;
-            bot.message_create(cm);
+            std::string dn_ = ev.msg.member.get_nickname().empty() ? ev.msg.author.global_name : ev.msg.member.get_nickname();
+            std::string av_ = ev.msg.author.get_avatar_url();
+            dpp::message cm = make_collection_msg(uid, dn_, av_);
+            cm.channel_id = ch;
+            bot.message_create(cm, [uid](const dpp::confirmation_callback_t& cb) {
+                if (!cb.is_error()) { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[std::get<dpp::message>(cb.value).id] = uid; }
+            });
+        }
+        else if (content == "!探險" || content == "！探險") {
+            std::string dn_ = ev.msg.member.get_nickname().empty() ? ev.msg.author.global_name : ev.msg.member.get_nickname();
+            std::string av_ = ev.msg.author.get_avatar_url();
+            dpp::message am = make_adv_main_msg(uid, dn_, av_);
+            am.channel_id = ch;
+            bot.message_create(am, [uid](const dpp::confirmation_callback_t& cb) {
+                if (!cb.is_error()) { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[std::get<dpp::message>(cb.value).id] = uid; }
+            });
         }
         else if (content == "!背包") {
             dpp::message msg = make_pet_use_msg(uid);
@@ -1805,6 +1823,10 @@ int main(int argc, char* argv[]) {
         // ── 暗黑龍王 → handlers_dd.cpp ───────────────────────────────────────
         else if (cid.rfind("dd_", 0) == 0) {
             handle_dd_button(ev); return;
+        }
+        // ── 探險系統 ──────────────────────────────────────────────────────────
+        else if (cid.rfind("adv_", 0) == 0) {
+            handle_adv_button(ev); return;
         }
         // ── 單人怪物狩獵 / 村落按鈕 → handlers_hunt.cpp ──────────────────────
         else if (cid.rfind("hunt_", 0) == 0 || cid.rfind("village_", 0) == 0) {
@@ -8002,9 +8024,16 @@ int main(int argc, char* argv[]) {
             });
         }
         else if (cmd_name == "收藏" || cmd_name == "collect") {
-            dpp::embed ce; ce.set_title("📚  收藏").set_color(0x9B59B6);
-            ce.set_description("收藏系統開發中，敬請期待！\n（將與探險功能一同上線）");
-            ev.reply(dpp::ir_channel_message_with_source, dpp::message().add_embed(ce));
+            ev.reply(dpp::ir_channel_message_with_source, make_collection_msg(uid, ev.command.member.get_nickname(), user.get_avatar_url()));
+            ev.get_original_response([uid](const dpp::confirmation_callback_t& cb) {
+                if (!cb.is_error()) { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[std::get<dpp::message>(cb.value).id] = uid; }
+            });
+        }
+        else if (cmd_name == "探險" || cmd_name == "adventure") {
+            ev.reply(dpp::ir_channel_message_with_source, make_adv_main_msg(uid, ev.command.member.get_nickname(), user.get_avatar_url()));
+            ev.get_original_response([uid](const dpp::confirmation_callback_t& cb) {
+                if (!cb.is_error()) { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[std::get<dpp::message>(cb.value).id] = uid; }
+            });
         }
         else if (cmd_name == "背包" || cmd_name == "bag" || cmd_name == "petuse") {
             ev.reply(dpp::ir_channel_message_with_source, make_pet_use_msg(uid));
@@ -8860,8 +8889,10 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("wwrules",   "View Werewolf game rules",       bot.me.id),
                 dpp::slashcommand("狼人殺榜單", "查看狼人殺勝率排行",            bot.me.id),
                 dpp::slashcommand("wwboard",   "View Werewolf leaderboard",      bot.me.id),
-                dpp::slashcommand("收藏",      "查看收藏（開發中）",              bot.me.id),
-                dpp::slashcommand("collect",   "View collection (coming soon)",  bot.me.id),
+                dpp::slashcommand("收藏",      "查看收藏",                        bot.me.id),
+                dpp::slashcommand("collect",   "View collection",                bot.me.id),
+                dpp::slashcommand("探險",      "前往探險頁面",                    bot.me.id),
+                dpp::slashcommand("adventure", "Go to adventure page",           bot.me.id),
                 dpp::slashcommand("onenight",  "Start One Night Werewolf game",  bot.me.id),
                 dpp::slashcommand("undercover","Start Undercover (Who is spy?)", bot.me.id),
                 dpp::slashcommand("猜數字",    "猜四位不重複數字（1A2B）",       bot.me.id),
@@ -8980,6 +9011,8 @@ int main(int argc, char* argv[]) {
                 for (auto& [uid, pet] : pet_data) {
                     if (pet.stage == 0) continue;                           // 蛋不能打工
                     if (pet.work_task == 0 || pet.work_end > now) continue; // 無打工或打工中
+                    // 探險中不自動再派
+                    { auto ai = adv_games.find(uid); if (ai != adv_games.end() && ai->second.pet_along && ai->second.end_time > now) continue; }
                     if (pet.onsen_end > now) continue;                      // 泡溫泉中
                     auto ci = chip_data.find(uid);
                     if (ci == chip_data.end() || ci->second.supervisor_until <= now) continue;

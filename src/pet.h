@@ -76,6 +76,18 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"vip_daily",            "尊爵VIP（每日）",  8000, "privilege", "使用後 24 小時內，每小時自動為你領取籌碼", 99001},
     {"pet_supervisor_daily", "寵物監工（每日）", 1000, "privilege", "使用後 24 小時內，寵物打工結束 10 分鐘後若未領取，自動以 0.6 倍收益再次出勤", 99002},
     {"pet_insurance",        "醫療保險",         1000, "privilege", "使用後三天內，寵物打工回來若生病（受傷除外），立即給付 4000 保險金並結束效果", 99003},
+    // ── 探險收藏品 ───────────────────────────────────────────────────────────
+    {"col_ms_handkerchief", "菇菇仔的小手帕",   0, "collectible", "從菇菇王國探險取得的蒐藏品", 90001},
+    {"col_gm_beret",        "綠菇菇的貝雷帽",   0, "collectible", "從菇菇王國探險取得的蒐藏品", 90002},
+    {"col_sm_spine",        "刺菇菇軟掉的刺",   0, "collectible", "從菇菇王國探險取得的蒐藏品", 90003},
+    {"col_bm_tear",         "傷心藍菇菇的眼淚", 0, "collectible", "從菇菇王國探險取得的蒐藏品", 90004},
+    {"col_zm_cheese",       "殭屍菇菇的起士",   0, "collectible", "從菇菇王國探險取得的蒐藏品", 90005},
+    {"col_yaya_bounty",     "呀呀的懸賞令",     0, "collectible", "持有後每天多獲得 1 張怪物狩獵卷（與日常上限分開計算）", 90006},
+    {"col_mushroom_head",   "蘑菇頭",           0, "collectible", "從菇菇王國探險取得的蒐藏品（稀有）", 90007},
+    {"col_mb_crown",        "菇菇寶貝的王冠",   0, "collectible", "從菇菇王國探險取得的蒐藏品（稀有）", 90008},
+    {"col_mb_staff",        "菇菇寶貝的手杖",   0, "collectible", "從菇菇王國探險取得的蒐藏品（稀有）", 90009},
+    {"col_slim_wallet",     "皮包消瘦的皮包",   0, "collectible", "持有後每次打工金額增加 3%（可與膨脹皮包疊加）", 90010},
+    {"col_fat_wallet",      "皮包膨脹的皮包",   0, "collectible", "持有後每次打工金額增加 7%（可與消瘦皮包疊加）", 90011},
 };
 
 static const VirtualShopItem* find_virtual_item(const std::string& key) {
@@ -343,6 +355,8 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
         .set_label("⚔️ 裝備").set_id("equip_main_" + uid_s).set_style(dpp::cos_secondary));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏪 商店").set_id("lobby_shop_" + uid_s).set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🗺️ 探險").set_id("adv_main_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component(row);
     return msg;
 }
@@ -952,6 +966,7 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
             if (key == "talent_scroll") return (pet.stage == 0);
             return (pet.stage == 0 || !pet.talent.empty());
         }
+        if (vi->category == "collectible") return true; // 蒐藏品不可使用，僅展示
         if (vi->category == "path")      return false;
         if (vi->category == "special")   return key != "orb_ticket";
         if (vi->category == "recovery")  return !has_pet || pet.stage == 0;
@@ -1669,6 +1684,16 @@ static dpp::message handle_pet_work_start(dpp::snowflake uid, int task) {
         e.set_description("你沒有可以打工的寵物！");
         m.add_embed(e); return m;
     }
+    // 探險中寵物不可打工
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto ai = adv_games.find(uid);
+        if (ai != adv_games.end() && ai->second.pet_along && ai->second.end_time > time(nullptr)) {
+            e.set_title("❌  探險中").set_color(0xE74C3C);
+            e.set_description("寵物正在探險中，探險結束前無法打工！");
+            m.add_embed(e); return m;
+        }
+    }
     if (pet.work_task > 0) {
         e.set_title("❌  已在打工").set_color(0xE74C3C);
         e.set_description("你的寵物已經在打工中！");
@@ -1730,6 +1755,17 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
     // 負面狀態：憂鬱 — 報酬 -20%
     if (status_depress) reward = (int64_t)(reward * 0.8);
 
+    // 收藏品皮包加成
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto wi = inventory_data.find(uid);
+        if (wi != inventory_data.end()) {
+            if (wi->second.count("col_slim_wallet") && wi->second.at("col_slim_wallet") > 0)
+                reward = (int64_t)(reward * 1.03);
+            if (wi->second.count("col_fat_wallet") && wi->second.at("col_fat_wallet") > 0)
+                reward = (int64_t)(reward * 1.07);
+        }
+    }
     // 天賦：招人喜歡 — 報酬 +10%
     bool doubled_lucky = false;
     if (pet.talent == "招人喜歡") reward = (int64_t)(reward * 1.1);

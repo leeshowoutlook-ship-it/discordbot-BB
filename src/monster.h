@@ -603,6 +603,13 @@ static dpp::message make_village_combat_msg(const VillageGame& g,
         msg.add_component(exec_row);
     }
 
+    if (g.orb_key == "EQ_K_BEAR") {
+        dpp::component bear_row; bear_row.set_type(dpp::cot_action_row);
+        bear_row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🛡️ 防禦").set_id("village_block_" + uid_s)
+            .set_style(dpp::cos_secondary));
+        msg.add_component(bear_row);
+    }
     dpp::component ref_row; ref_row.set_type(dpp::cot_action_row);
     ref_row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🔄 刷新").set_id("village_refresh_" + uid_s)
@@ -613,11 +620,12 @@ static dpp::message make_village_combat_msg(const VillageGame& g,
 
 // ─── Village process one attack ───────────────────────────────────────────────
 
-// attack_type: 0=一般攻擊, 1=氣力攻擊（×0.5~2.0隨機）
+// attack_type: 0=一般攻擊, 1=氣力攻擊（×0.5~2.0隨機）; is_block=true 時跳過攻擊、啟動熊寶珠防禦
 static bool process_village_combat(VillageGame& g, int target_idx, int attack_type,
                                     bool& win_out, int64_t& reward_out,
                                     int& spirits_killed_out,
-                                    HuntDropList& drops_out) {
+                                    HuntDropList& drops_out,
+                                    bool is_block = false) {
     static const std::vector<std::string> SHARD_TYPES = {
         "orb_shard_speed","orb_shard_athena","orb_shard_bear","orb_shard_viking","orb_shard_wargod"
     };
@@ -626,7 +634,12 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
     };
     std::string log;
 
-    // Player attacks chosen spirit
+    // Player attacks chosen spirit (skipped when blocking)
+    if (is_block) {
+        g.bear_block_turns = 2;
+        log += "🛡️ **防禦！** 怪物下兩次攻擊降低 **60%**！";
+    }
+    if (!is_block) {
     auto& tgt = g.spirits[target_idx];
     int dmg = 0;
     if (attack_type == 1) {
@@ -673,13 +686,18 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
         g.log_line = log + "\n🎉 **所有敵人被消滅！勝利！**";
         return true;
     }
+    } // end if (!is_block)
 
     // All alive spirits counter-attack
     int total_atk = 0;
     for (auto& s : g.spirits) if (s.hp > 0) total_atk += s.atk;
-    int mon_dmg = std::max(0, total_atk - g.pet_def);
+    bool block_active = g.bear_block_turns > 0;
+    int effective_atk = block_active ? (int)(total_atk * 0.4) : total_atk;
+    if (block_active) g.bear_block_turns--;
+    int mon_dmg = std::max(0, effective_atk - g.pet_def);
     g.pet_hp = std::max(0, g.pet_hp - mon_dmg);
     log += "　👹 全體反擊 **" + std::to_string(mon_dmg) + "** 傷害（合計 " + std::to_string(total_atk) + "-防 " + std::to_string(g.pet_def) + "）";
+    if (block_active) log += "（削弱-60%）";
 
     // 拉圖斯寶珠：HP≤20% 回復至 50%（每場一次）
     if (g.pet_hp > 0 && g.orb_key == "EQ_K_LATUS" && !g.latus_orb_triggered && g.pet_hp <= g.pet_max_hp / 5) {
