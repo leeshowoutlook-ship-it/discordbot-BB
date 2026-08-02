@@ -704,18 +704,14 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         ev.reply(dpp::ir_update_message, make_adv_duration_select_msg(uid, dn, av)); return;
     }
     if (cid == "adv_set_funds_" + uid_s) {
-        dpp::interaction_modal_response modal;
-        modal.set_custom_id("adv_funds_modal_" + uid_s);
-        modal.set_title("設定探險資金");
-        modal.add_component(
-            dpp::component().set_type(dpp::cot_action_row).add_component(
-                dpp::component()
-                    .set_type(dpp::cot_text)
-                    .set_label("資金（0 ~ 10000 碼，每 250 碼 +1 探索度）")
-                    .set_id("funds_input")
-                    .set_min_length(1).set_max_length(5)
-                    .set_placeholder("輸入 0 ~ 10000")
-                    .set_required(true).set_text_style(dpp::text_short)));
+        dpp::interaction_modal_response modal("adv_funds_modal_" + uid_s, "設定探險資金");
+        modal.add_component(dpp::component()
+            .set_type(dpp::cot_text)
+            .set_label("資金（0 ~ 10000 碼）")
+            .set_id("funds_input")
+            .set_min_length(1).set_max_length(5)
+            .set_placeholder("輸入 0 ~ 10000")
+            .set_required(true).set_text_style(dpp::text_short));
         ev.dialog(modal);
         return;
     }
