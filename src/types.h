@@ -780,3 +780,24 @@ struct RouletteRoom {
 
 inline std::map<dpp::snowflake, RouletteRoom> roulette_rooms;
 
+// ── 猜拳 ──────────────────────────────────────────────────────────────────────
+struct RpsStats {
+    int     wins   = 0;
+    int     losses = 0;
+    int64_t profit = 0;
+};
+inline std::map<dpp::snowflake, RpsStats> rps_stats_data;
+
+struct RpsGame {
+    dpp::snowflake host_uid   = 0;
+    dpp::snowflake channel_id = 0;
+    dpp::snowflake message_id = 0;
+    int64_t        bet        = 0;
+    bool           started    = false;
+    bool           draw_state = false;
+    std::map<dpp::snowflake, std::string> players;    // uid → display_name
+    std::map<dpp::snowflake, std::string> avatars;    // uid → avatar_url
+    std::map<dpp::snowflake, int>         choices;    // uid → 0=未選 1=石頭 2=剪刀 3=布
+    std::map<dpp::snowflake, bool>        draw_votes; // uid → true=再來 false=離場
+};
+inline std::map<dpp::snowflake, RpsGame> rps_games; // key = channel_id

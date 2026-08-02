@@ -278,6 +278,25 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
         e.add_field("🎲  俄羅斯輪盤", "尚無紀錄", false);
     }
 
+    // 猜拳
+    int rps_w = 0, rps_l = 0; int64_t rps_profit = 0;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = rps_stats_data.find(uid);
+        if (it != rps_stats_data.end()) {
+            rps_w = it->second.wins; rps_l = it->second.losses; rps_profit = it->second.profit;
+        }
+    }
+    int rps_total = rps_w + rps_l;
+    if (rps_total > 0) {
+        e.add_field("✊  猜拳",
+            "勝/負 **" + std::to_string(rps_w) + "/" + std::to_string(rps_l) + "**"
+            + "　勝率 **" + fmt_rate(rps_w, rps_total) + "**"
+            + "\n盈虧 **" + fmt_profit(rps_profit) + "**", false);
+    } else {
+        e.add_field("✊  猜拳", "尚無紀錄", false);
+    }
+
     std::string sid = std::to_string((uint64_t)uid);
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)

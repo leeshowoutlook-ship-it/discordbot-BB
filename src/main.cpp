@@ -23,6 +23,7 @@
 #include "guess.h"
 #include "rl_stats.h"
 #include "adventure.h"
+#include "rps.h"
 #include "handler_decls.h"
 
 // ─── Helpers shared by slash + message command handlers ───────────────────────
@@ -143,6 +144,7 @@ int main(int argc, char* argv[]) {
     load_uc_stats();
     load_guess_stats();
     load_roulettestats();
+    load_rps_stats();
 
     dpp::cluster bot(cfg.token, dpp::i_default_intents | dpp::i_message_content);
     g_bot = &bot;
@@ -169,7 +171,7 @@ int main(int argc, char* argv[]) {
                 "!臥底","!誰是臥底",
                 "!臥底 遊玩成人內容","!誰是臥底 遊玩成人內容",
                 "!世足","!貓","!笑話","!轉蛋","!裝備","!怪物狩獵","!狩獵規則",
-                "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤","!探險"
+                "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤","!探險","!猜拳","！猜拳"
             };
             for (auto& s : EXACT) if (content == s) return true;
             // Secret owner-only command
@@ -178,7 +180,7 @@ int main(int argc, char* argv[]) {
             // Prefix-match commands (with args)
             static const std::vector<std::string> PREFIX = {
                 "!21 ","!骰子 ","!射 ","!火箭 ","!刮 ","!猜 ",
-                "!幸運頻道 ","!警告 ","!轉帳 ","!交易 ","!卷軸使用 ","!輪盤 ",
+                "!幸運頻道 ","!警告 ","!轉帳 ","!交易 ","!卷軸使用 ","!輪盤 ","!猜拳 ","！猜拳 ",
             };
             for (auto& s : PREFIX) if (content.rfind(s, 0) == 0) return true;
             // standalone (no args)
@@ -1233,6 +1235,10 @@ int main(int argc, char* argv[]) {
         // ── 輪盤 → handlers_roulette.cpp
         else if (content.rfind("!輪盤", 0) == 0) {
             handle_roulette_message(ev, content, uid, ch); return;
+        }
+        // ── 猜拳
+        else if (content.rfind("!猜拳", 0) == 0 || content.rfind("！猜拳", 0) == 0) {
+            handle_rps_message(ev, content, uid, ch); return;
         }
 #if 0 // ── roulette message block moved to handlers_roulette.cpp ──────────────
         else if (content.rfind("!輪盤賭", 0) == 0) {
@@ -6937,6 +6943,10 @@ int main(int argc, char* argv[]) {
         else if (cid.rfind("rl_", 0) == 0) {
             handle_roulette_button(ev); return;
         }
+        // ── 猜拳 ────────────────────────────────────────────────────────────────
+        else if (cid.rfind("rps_", 0) == 0) {
+            handle_rps_button(ev); return;
+        }
         else {
             // Unknown / unhandled button — must still reply to prevent Discord 3-second timeout
             ev.reply(dpp::ir_channel_message_with_source,
@@ -8146,6 +8156,9 @@ int main(int argc, char* argv[]) {
                 if (!cb.is_error()) { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[std::get<dpp::message>(cb.value).id] = uid; }
             });
         }
+        else if (cmd_name == "猜拳" || cmd_name == "janken") {
+            handle_rps_slash(ev, uid, ch);
+        }
         else if (cmd_name == "背包" || cmd_name == "bag" || cmd_name == "petuse") {
             ev.reply(dpp::ir_channel_message_with_source, make_pet_use_msg(uid));
             ev.get_original_response([uid](const dpp::confirmation_callback_t& cb) {
@@ -8945,6 +8958,12 @@ int main(int argc, char* argv[]) {
             roulette_en.add_option(dpp::command_option(dpp::co_integer, "籌碼", "Bet amount", true))
                        .add_option(dpp::command_option(dpp::co_user,    "對象", "Invite a specific player (optional)", false));
 
+            dpp::slashcommand rps_cmd("猜拳", "開 2~5 人猜拳房間，同時出拳結算", bot.me.id);
+            rps_cmd.add_option(dpp::command_option(dpp::co_integer, "籌碼", "下注籌碼數量", true));
+
+            dpp::slashcommand rps_en("janken", "Open a 2–5 player rock-paper-scissors room", bot.me.id);
+            rps_en.add_option(dpp::command_option(dpp::co_integer, "籌碼", "Bet amount", true));
+
             bot.guild_bulk_command_create({
                 dpp::slashcommand("ping",      "測試機器人是否在線",            bot.me.id),
                 dpp::slashcommand("王團報名",  "王團報名",                      bot.me.id),
@@ -9021,6 +9040,7 @@ int main(int argc, char* argv[]) {
                 scroll_cmd, scroll_en,
                 dice_en, bj_en, draw_en,
                 roulette_cmd, roulette_en,
+                rps_cmd, rps_en,
             }, gid);
         }
     });
