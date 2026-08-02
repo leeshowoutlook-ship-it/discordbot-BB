@@ -363,23 +363,30 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
     }
 
     std::string desc = "限定收藏品為**全球唯一**，每種只有一件存在。\n可透過探險獲得，也可透過 `!交易` 轉讓。\n\n";
-    // Ordered display
     static const std::vector<std::pair<std::string,std::string>> LIMITED_ORDER = {
-        {"col_yaya_bounty",  "每日狩獵卷上限 +1"},
-        {"col_slim_wallet",  "打工收益 +3%"},
-        {"col_fat_wallet",   "打工收益 +7%"},
+        {"col_yaya_bounty",     "每日狩獵卷上限 +1"},
+        {"col_slim_wallet",     "打工收益 +3%"},
+        {"col_fat_wallet",      "打工收益 +7%"},
+        {"col_phone_tianxin",   "借款上限 +30000，利率降至 2.98%"},
+        {"col_bath_huaxuan",    "每週 3 次，阻擋寵物負面狀態"},
+        {"col_rod_zoey",        "寵物泡溫泉完成後觸發釣魚效果"},
+        {"col_penguin_relic",   "寵物戰鬥防禦力 +1"},
+        {"col_shark_relic",     "寵物戰鬥攻擊力 +1"},
+        {"col_koala_relic",     "寵物戰鬥血量 +10"},
+        {"col_koala_autograph", "打工時間縮短 3%"},
     };
     for (auto& [key, effect] : LIMITED_ORDER) {
         auto* vi = find_virtual_item(key);
-        int owned = 0; auto it = inv.find(key); if (it != inv.end()) owned = it->second;
+        int owned = 0; auto oit = inv.find(key); if (oit != inv.end()) owned = oit->second;
         std::string id_s = vi ? "**ID: " + std::to_string(vi->item_id) + "**" : key;
         std::string name = vi ? vi->name : key;
+        bool discovered = globally_held[key];
         if (owned > 0) {
             desc += "✅ " + id_s + "　" + name + "\n　效果：" + effect + "\n\n";
-        } else if (globally_held[key]) {
+        } else if (discovered) {
             desc += "🔒 " + id_s + "　" + name + "\n　效果：" + effect + "　（已被其他探險者持有）\n\n";
         } else {
-            desc += "❓ " + id_s + "　" + name + "\n　效果：" + effect + "　（尚未被任何人發現）\n\n";
+            desc += "❓ " + id_s + "　" + name + "\n　效果：?????　（尚未被任何人發現）\n\n";
         }
     }
     e.set_description(desc);
@@ -558,18 +565,25 @@ static dpp::message make_adv_duration_select_msg(dpp::snowflake uid, const std::
     }
     dpp::message msg; msg.add_embed(e);
     dpp::component row1; row1.set_type(dpp::cot_action_row);
-    for (int h : {2, 4, 6, 8, 10})
+    for (int h : {2, 3, 4, 5, 6})
         row1.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label(std::to_string(h) + "小時")
             .set_id("adv_dur_" + uid_s + "_" + std::to_string(h))
             .set_style(dpp::cos_primary));
     msg.add_component(row1);
     dpp::component row2; row2.set_type(dpp::cot_action_row);
-    row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("12小時").set_id("adv_dur_" + uid_s + "_12").set_style(dpp::cos_primary));
-    row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("↩ 返回").set_id("adv_main_" + uid_s).set_style(dpp::cos_secondary));
+    for (int h : {7, 8, 9, 10, 11})
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label(std::to_string(h) + "小時")
+            .set_id("adv_dur_" + uid_s + "_" + std::to_string(h))
+            .set_style(dpp::cos_primary));
     msg.add_component(row2);
+    dpp::component row3; row3.set_type(dpp::cot_action_row);
+    row3.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("12小時").set_id("adv_dur_" + uid_s + "_12").set_style(dpp::cos_primary));
+    row3.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回").set_id("adv_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component(row3);
     return msg;
 }
 
@@ -679,7 +693,20 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         ev.reply(dpp::ir_update_message, make_adv_duration_select_msg(uid, dn, av)); return;
     }
     if (cid == "adv_set_funds_" + uid_s) {
-        ev.reply(dpp::ir_update_message, make_adv_funds_select_msg(uid, dn, av)); return;
+        dpp::interaction_modal_response modal;
+        modal.set_custom_id("adv_funds_modal_" + uid_s);
+        modal.set_title("設定探險資金");
+        modal.add_component(
+            dpp::component().set_type(dpp::cot_action_row).add_component(
+                dpp::component()
+                    .set_type(dpp::cot_text)
+                    .set_label("資金（0 ~ 10000 碼，每 250 碼 +1 探索度）")
+                    .set_id("funds_input")
+                    .set_min_length(1).set_max_length(5)
+                    .set_placeholder("輸入 0 ~ 10000")
+                    .set_required(true).set_text_style(dpp::text_short)));
+        ev.dialog(modal);
+        return;
     }
     if (cid == "adv_set_partner_" + uid_s) {
         ev.reply(dpp::ir_update_message, make_adv_partner_select_msg(uid, dn, av)); return;

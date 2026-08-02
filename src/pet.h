@@ -2047,7 +2047,9 @@ static dpp::message handle_pet_start_onsen(dpp::snowflake uid) {
             m.add_embed(e); return m;
         }
         auto& p = it->second;
-        if (p.statuses.empty()) {
+        bool has_zoey_rod = false;
+        { auto wi = inventory_data.find(uid); if (wi != inventory_data.end()) { auto ji = wi->second.find("col_rod_zoey"); if (ji != wi->second.end() && ji->second > 0) has_zoey_rod = true; } }
+        if (p.statuses.empty() && !has_zoey_rod) {
             e.set_title("❌  寵物沒有負面狀態").set_color(0xE74C3C);
             e.set_description("泡溫泉的用途是清除負面狀態，但你的寵物目前狀態很好！");
             m.add_embed(e); return m;

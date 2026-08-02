@@ -7665,6 +7665,36 @@ int main(int argc, char* argv[]) {
         }
 #endif // ── end roulette modal blocks ──────────────────────────────────────────
 
+        // Adventure funds modal
+        if (cid.rfind("adv_funds_modal_", 0) == 0) {
+            dpp::snowflake modal_uid(std::stoull(cid.substr(16)));
+            if (issuer != modal_uid) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 這不是你的操作！").set_flags(dpp::m_ephemeral)); return;
+            }
+            std::string input;
+            for (auto& row : ev.components) {
+                if (std::holds_alternative<std::string>(row.value))
+                    input = std::get<std::string>(row.value);
+                for (auto& sub : row.components)
+                    if (std::holds_alternative<std::string>(sub.value))
+                        input = std::get<std::string>(sub.value);
+            }
+            int64_t amount = 0;
+            try { amount = std::stoll(input); } catch (...) {}
+            amount = std::max((int64_t)0, std::min((int64_t)10000, amount));
+            int64_t chips = get_chips(modal_uid);
+            if (amount > chips) amount = chips;
+            { std::lock_guard<std::mutex> lk(data_mutex); adv_setups[modal_uid].funds = amount; }
+            std::string mdn = ev.command.member.get_nickname();
+            if (mdn.empty()) mdn = ev.command.get_issuing_user().global_name.empty()
+                                 ? ev.command.get_issuing_user().username
+                                 : ev.command.get_issuing_user().global_name;
+            std::string mav = ev.command.get_issuing_user().get_avatar_url();
+            ev.reply(dpp::ir_update_message, make_adv_setup_msg(modal_uid, mdn, mav));
+            return;
+        }
+
         if (cid != "admin_chips_modal" && cid != "admin_egg_modal" && cid != "admin_item_modal") return;
         if (cfg.notify_user_id.empty() || std::to_string(issuer) != cfg.notify_user_id) {
             ev.reply(dpp::ir_channel_message_with_source,
