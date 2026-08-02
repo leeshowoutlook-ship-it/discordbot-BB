@@ -761,11 +761,11 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             { std::lock_guard<std::mutex> lk(data_mutex);
               auto it = pet_data.find(uid);
               if (it != pet_data.end() && it->second.stage > 0) {
-                  bool busy = (it->second.work_task > 0 && it->second.work_end > time(nullptr));
-                  ok = !busy;
+                  auto& p = it->second;
+                  ok = (p.work_task == 0 && p.onsen_end == 0);
               }
             }
-            if (!ok) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 寵物不可用！").set_flags(dpp::m_ephemeral)); return; }
+            if (!ok) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 寵物必須空閒才能帶去探險！\n（打工中、有未領取的打工、泡溫泉中皆無法出發）").set_flags(dpp::m_ephemeral)); return; }
         }
         { std::lock_guard<std::mutex> lk(data_mutex); adv_setups[uid].partner = with_pet ? 1 : 0; }
         ev.reply(dpp::ir_update_message, make_adv_setup_msg(uid, dn, av)); return;
@@ -789,11 +789,15 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             { std::lock_guard<std::mutex> lk(data_mutex);
               auto it = pet_data.find(uid);
               if (it != pet_data.end() && it->second.stage > 0) {
-                  bool busy = (it->second.work_task > 0 && it->second.work_end > time(nullptr));
-                  ok = !busy;
+                  auto& p = it->second;
+                  ok = (p.work_task == 0 && p.onsen_end == 0);
               }
             }
-            if (!ok) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 寵物不可用！").set_flags(dpp::m_ephemeral)); return; }
+            if (!ok) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 寵物必須空閒才能帶去探險！\n（打工中、有未領取的打工、泡溫泉中皆無法出發）").set_flags(dpp::m_ephemeral));
+                return;
+            }
         }
         if (setup.funds > 0) { add_chips(uid, -setup.funds); save_chips(); }
         AdventureGame g;

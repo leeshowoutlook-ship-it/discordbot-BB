@@ -1808,13 +1808,13 @@ static dpp::message handle_pet_work_start(dpp::snowflake uid, int task) {
         e.set_description("你沒有可以打工的寵物！");
         m.add_embed(e); return m;
     }
-    // 探險中寵物不可打工
+    // 探險中（或探險完成未收取）寵物不可打工
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto ai = adv_games.find(uid);
-        if (ai != adv_games.end() && ai->second.pet_along && ai->second.end_time > time(nullptr)) {
-            e.set_title("❌  探險中").set_color(0xE74C3C);
-            e.set_description("寵物正在探險中，探險結束前無法打工！");
+        if (ai != adv_games.end() && ai->second.pet_along) {
+            e.set_title("❌  寵物探險中").set_color(0xE74C3C);
+            e.set_description("寵物正在探險，請先收取探險結果後才能打工！");
             m.add_embed(e); return m;
         }
     }
