@@ -1826,13 +1826,14 @@ static dpp::message handle_pet_work_start(dpp::snowflake uid, int task) {
     int dur = (task == 1) ? 3600 : (task == 4) ? 14400 : 28800;
     // 天賦：迅捷 — 打工時間縮短 10%
     if (pet.talent == "迅捷") dur = (int)(dur * 0.9);
-    // 收藏品：考拉の親筆簽名 — 打工時長 -3%
+    // 收藏品：考拉の親筆簽名 — 打工時長 -3%；菇菇王國高級套組 — 打工時長 -1%
     { std::lock_guard<std::mutex> lk(data_mutex);
       auto wi = inventory_data.find(uid);
       if (wi != inventory_data.end()) {
           auto jt = wi->second.find("col_koala_autograph");
           if (jt != wi->second.end() && jt->second > 0) dur = (int)(dur * 0.97);
       }
+      if (col_set_mushroom_adv(uid)) dur = (int)std::ceil(dur * 0.99);
     }
     // 負面狀態：疲勞 — 打工時長 +30%
     for (auto& s : pet.statuses) if (s == "疲勞") { dur = (int)(dur * 1.3); break; }
@@ -1887,7 +1888,7 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
     // 負面狀態：憂鬱 — 報酬 -20%
     if (status_depress) reward = (int64_t)(reward * 0.8);
 
-    // 收藏品皮包加成
+    // 收藏品皮包加成 + 亡魂墓地高級套組 +1%
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto wi = inventory_data.find(uid);
@@ -1897,6 +1898,7 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
             if (wi->second.count("col_fat_wallet") && wi->second.at("col_fat_wallet") > 0)
                 reward = (int64_t)(reward * 1.07);
         }
+        if (col_set_ghost_adv(uid)) reward = (int64_t)std::ceil(reward * 1.01);
     }
     // 天賦：招人喜歡 — 報酬 +10%
     bool doubled_lucky = false;
@@ -2059,7 +2061,9 @@ static dpp::message handle_pet_start_onsen(dpp::snowflake uid) {
             e.set_description("寵物正在打工，請先取消或等打工結束。");
             m.add_embed(e); return m;
         }
-        p.onsen_end      = time(nullptr) + 7200; // 2 hours
+        int64_t onsen_secs = 7200LL;
+        if (col_set_water_adv(uid)) onsen_secs = (int64_t)std::ceil(7200.0 * 0.95);
+        p.onsen_end      = time(nullptr) + onsen_secs;
         p.onsen_notified = false;
         p.work_task = 0; p.work_end = 0; p.is_supervisor_work = false;
     }

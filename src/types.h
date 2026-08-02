@@ -545,7 +545,33 @@ inline int col_pet_hp_bonus(dpp::snowflake uid) {
     auto it = inventory_data.find(uid); if (it == inventory_data.end()) return 0;
     auto jt = it->second.find("col_koala_relic");
     return (jt != it->second.end() && jt->second > 0) ? 10 : 0;
-}       // channel_id -> room
+}
+
+// 收藏套組完成判定（需持有 data_mutex 呼叫）
+inline bool col_all_owned(dpp::snowflake uid, std::initializer_list<const char*> keys) {
+    auto it = inventory_data.find(uid); if (it == inventory_data.end()) return false;
+    for (auto k : keys) { auto jt = it->second.find(k); if (jt == it->second.end() || jt->second <= 0) return false; }
+    return true;
+}
+// 初級：寵物攻擊力 ×1.01
+inline bool col_set_mushroom_basic(dpp::snowflake uid) { return col_all_owned(uid, {"col_ms_handkerchief","col_gm_beret","col_sm_spine"}); }
+// 初級：寵物生命值 ×1.01
+inline bool col_set_water_basic(dpp::snowflake uid)    { return col_all_owned(uid, {"col_gwl_popsicle","col_bwl_cake"}); }
+// 初級：寵物防禦力 ×1.02
+inline bool col_set_ghost_basic(dpp::snowflake uid)    { return col_all_owned(uid, {"col_ghost_heels","col_kappa_cucumber","col_zombie_eyepatch","col_ghost_cloak"}); }
+// 中級：探險時長 -1%（三區各一）
+inline bool col_set_mushroom_mid(dpp::snowflake uid)   { return col_all_owned(uid, {"col_bm_tear","col_zm_cheese"}); }
+inline bool col_set_water_mid(dpp::snowflake uid)      { return col_all_owned(uid, {"col_dwl_tiramisu","col_rwl_velvet"}); }
+inline bool col_set_ghost_mid(dpp::snowflake uid)      { return col_all_owned(uid, {"col_witch_broom"}); }
+inline int col_adv_reduction_count(dpp::snowflake uid) {
+    return (col_set_mushroom_mid(uid)?1:0)+(col_set_water_mid(uid)?1:0)+(col_set_ghost_mid(uid)?1:0);
+}
+// 高級
+inline bool col_set_mushroom_adv(dpp::snowflake uid)   { return col_all_owned(uid, {"col_mushroom_head","col_mb_crown","col_mb_staff"}); }
+inline bool col_set_water_adv(dpp::snowflake uid)      { return col_all_owned(uid, {"col_awl_avocado","col_sqwl_brownie","col_ywl_caramel"}); }
+inline bool col_set_ghost_adv(dpp::snowflake uid)      { return col_all_owned(uid, {"col_demon_tear","col_demon_heart","col_demon_horn","col_demon_costume"}); }
+
+// channel_id -> room
 inline std::map<dpp::snowflake, RaidGame>           raid_games;       // channel_id -> game
 inline std::map<dpp::snowflake, DDGame>             dd_games;         // channel_id -> game
 inline std::atomic<uint64_t>                        raid_counter{1};

@@ -296,33 +296,48 @@ static dpp::message make_normal_col_msg(dpp::snowflake uid,
         if (!av.empty()) f.icon_url = av; e.set_footer(f);
     }
 
-    std::string desc;
     if (cr.adv_key.empty()) {
-        desc = "🔒 **此地區尚未開放**，敬請期待！";
+        e.set_description("🔒 **此地區尚未開放**，敬請期待！");
     } else {
-        const AdvRegion* reg = find_adv_region(cr.adv_key);
-        std::vector<std::string> keys;
-        if (reg)
-            for (auto& cp : reg->checkpoints)
-                for (auto& entry : cp.items)
-                    if (!entry.key.empty() && !LIMITED_COL_ITEMS.count(entry.key))
-                        if (std::find(keys.begin(), keys.end(), entry.key) == keys.end())
-                            keys.push_back(entry.key);
-        if (keys.empty()) {
-            desc = "此地區暫無一般收藏品。";
-        } else {
-            for (auto& k : keys) {
+        struct SubDef { std::string name; std::string reward; std::vector<std::string> keys; };
+        static const std::vector<std::vector<SubDef>> PAGE_SUBS = {
+            { // 菇菇王國
+                {"🌱 初級區", "寵物攻擊力 ×1.01", {"col_ms_handkerchief","col_gm_beret","col_sm_spine"}},
+                {"🌿 中級區", "探險時長 -1%",      {"col_bm_tear","col_zm_cheese"}},
+                {"🌳 高級區", "打工時長 -1%",      {"col_mushroom_head","col_mb_crown","col_mb_staff"}},
+            },
+            { // 綠水靈洞窟
+                {"🌱 初級區", "寵物生命值 ×1.01", {"col_gwl_popsicle","col_bwl_cake"}},
+                {"🌿 中級區", "探險時長 -1%",      {"col_dwl_tiramisu","col_rwl_velvet"}},
+                {"🌳 高級區", "溫泉時長 -5%",      {"col_awl_avocado","col_sqwl_brownie","col_ywl_caramel"}},
+            },
+            { // 亡魂墓地
+                {"🌱 初級區", "寵物防禦力 ×1.02", {"col_ghost_heels","col_kappa_cucumber","col_zombie_eyepatch","col_ghost_cloak"}},
+                {"🌿 中級區", "探險時長 -1%",      {"col_witch_broom"}},
+                {"🌳 高級區", "打工報酬 +1%",      {"col_demon_tear","col_demon_heart","col_demon_horn","col_demon_costume"}},
+            },
+        };
+        auto has_all = [&](const std::vector<std::string>& ks) {
+            for (auto& k : ks) { auto it = inv.find(k); if (it == inv.end() || it->second <= 0) return false; }
+            return true;
+        };
+        for (auto& sr : PAGE_SUBS[page - 1]) {
+            bool done = has_all(sr.keys);
+            std::string fname = sr.name + "　獎勵：" + sr.reward;
+            if (done) fname = "✅ " + fname + "（**已完成！**）";
+            std::string fval;
+            for (auto& k : sr.keys) {
                 auto* vi = find_virtual_item(k);
                 int owned = 0; auto it = inv.find(k); if (it != inv.end()) owned = it->second;
                 std::string id_s = vi ? "ID: " + std::to_string(vi->item_id) : k;
                 if (owned > 0)
-                    desc += "✅ **" + id_s + "**　" + (vi ? vi->name : k) + " ×" + std::to_string(owned) + "\n";
+                    fval += "✅ **" + id_s + "**　" + (vi ? vi->name : k) + " ×" + std::to_string(owned) + "\n";
                 else
-                    desc += "❓ **" + id_s + "**　????\n";
+                    fval += "❓ **" + id_s + "**　????\n";
             }
+            e.add_field(fname, fval.empty() ? "（無）" : fval, false);
         }
     }
-    e.set_description(desc);
 
     dpp::message msg; msg.add_embed(e);
     dpp::component nav; nav.set_type(dpp::cot_action_row);
@@ -785,8 +800,14 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         g.uid = uid; g.region_key = setup.region_key;
         g.duration_hours = setup.duration_hours; g.funds = setup.funds;
         g.pet_along = (setup.partner == 1);
-        g.start_time = time(nullptr); g.end_time = g.start_time + g.duration_hours * 3600LL;
-        { std::lock_guard<std::mutex> lk(data_mutex); adv_games[uid] = g; adv_setups.erase(uid); }
+        g.start_time = time(nullptr);
+        int64_t adv_secs = (int64_t)g.duration_hours * 3600LL;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          int reductions = col_adv_reduction_count(uid);
+          if (reductions > 0) adv_secs = (int64_t)std::ceil(adv_secs * std::pow(0.99, reductions));
+          g.end_time = g.start_time + adv_secs;
+          adv_games[uid] = g; adv_setups.erase(uid);
+        }
         save_adv_games();
         ev.reply(dpp::ir_update_message, make_adv_active_msg(uid, dn, av)); return;
     }

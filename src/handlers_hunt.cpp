@@ -119,6 +119,9 @@ void handle_hunt_button(const dpp::button_click_t& ev)
         vg.started_at = time(nullptr);
         { std::lock_guard<std::mutex> lk(data_mutex);
           vg.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : "";
+          if (col_set_mushroom_basic(uid)) vg.pet_atk = (int)std::ceil(vg.pet_atk * 1.01);
+          if (col_set_water_basic(uid))  { vg.pet_hp = (int)std::ceil(vg.pet_hp * 1.01); vg.pet_max_hp = (int)std::ceil(vg.pet_max_hp * 1.01); }
+          if (col_set_ghost_basic(uid))    vg.pet_def = (int)std::ceil(vg.pet_def * 1.02);
           vg.pet_atk += col_pet_atk_bonus(uid);
           vg.pet_def += col_pet_def_bonus(uid);
           int hp_bonus = col_pet_hp_bonus(uid);
@@ -390,6 +393,9 @@ void handle_hunt_button(const dpp::button_click_t& ev)
         g.started_at     = time(nullptr);
         { std::lock_guard<std::mutex> lk(data_mutex);
           g.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : "";
+          if (col_set_mushroom_basic(uid)) g.pet_atk = (int)std::ceil(g.pet_atk * 1.01);
+          if (col_set_water_basic(uid))  { g.pet_hp = (int)std::ceil(g.pet_hp * 1.01); g.pet_max_hp = (int)std::ceil(g.pet_max_hp * 1.01); }
+          if (col_set_ghost_basic(uid))    g.pet_def = (int)std::ceil(g.pet_def * 1.02);
           g.pet_atk += col_pet_atk_bonus(uid);
           g.pet_def += col_pet_def_bonus(uid);
           int hp_bonus = col_pet_hp_bonus(uid);
