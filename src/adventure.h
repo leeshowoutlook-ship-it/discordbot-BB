@@ -433,13 +433,13 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
     std::string desc;
     desc += "🌍 **探險地區**：" + (reg ? reg->emoji + " " + reg->name : "（未選擇）") + "\n";
     desc += "⏰ **探險時長**：";
-    if (setup.duration_hours > 0) desc += std::to_string(setup.duration_hours) + " 小時（+**" + std::to_string(setup.duration_hours * 4) + "** 探索度）";
+    if (setup.duration_hours > 0) desc += std::to_string(setup.duration_hours) + " 小時";
     else desc += "（未選擇）";
     desc += "\n💰 **探險資金**：";
-    if (setup.funds >= 0) desc += std::to_string(setup.funds) + " 碼（+**" + std::to_string((int)(setup.funds / 250)) + "** 探索度）";
+    if (setup.funds >= 0) desc += std::to_string(setup.funds) + " 碼";
     else desc += "（未設定）";
     desc += "\n🐾 **探險夥伴**：";
-    if (setup.partner == 1) desc += "🐾 帶寵物（+**20** 探索度）";
+    if (setup.partner == 1) desc += "🐾 帶寵物";
     else if (setup.partner == 0) desc += "🚫 不帶寵物";
     else desc += "（未選擇）";
 
@@ -448,6 +448,7 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
         int prog = calc_adv_progress(setup.duration_hours, setup.funds, setup.partner == 1);
         desc += "\n\n✨ **預計探索度：" + std::to_string(prog) + "**";
     }
+    desc += "\n\n⚠️ **注意：探索度並不是越高越好。**";
     e.set_description(desc);
 
     dpp::message msg; msg.add_embed(e);
@@ -503,7 +504,6 @@ static dpp::message make_adv_active_msg(dpp::snowflake uid,
     desc += "▸ 探索時長：" + std::to_string(g.duration_hours) + " 小時\n";
     desc += "▸ 探險資金：" + std::to_string(g.funds) + " 碼\n";
     desc += "▸ 探險夥伴：" + (g.pet_along ? std::string("🐾 寵物同行") : std::string("🚫 無寵物")) + "\n";
-    desc += "▸ 預計探索度：**" + std::to_string(progress) + "**\n";
     if (!done) {
         desc += "\n📅 完成時間：" + adv_fmt_clock(g.end_time) + "\n";
         desc += "⏳ 剩餘時間：" + adv_fmt_remain(g.end_time) + "\n\n";
@@ -548,12 +548,8 @@ static dpp::message make_adv_region_select_msg(dpp::snowflake uid, const std::st
         if (!av.empty()) f.icon_url = av; e.set_footer(f);
     }
     std::string desc;
-    for (auto& r : ADV_REGIONS) {
+    for (auto& r : ADV_REGIONS)
         desc += r.emoji + " **" + r.name + "**\n";
-        for (auto& cp : r.checkpoints)
-            desc += "　進度 " + std::to_string(cp.progress) + "（池重 " + std::to_string(cp.pool_pct) + "%）\n";
-        desc += "\n";
-    }
     e.set_description(desc);
     dpp::message msg; msg.add_embed(e);
     dpp::component row; row.set_type(dpp::cot_action_row);
@@ -573,7 +569,7 @@ static dpp::message make_adv_region_select_msg(dpp::snowflake uid, const std::st
 static dpp::message make_adv_duration_select_msg(dpp::snowflake uid, const std::string& dn = "", const std::string& av = "") {
     std::string uid_s = std::to_string((uint64_t)uid);
     dpp::embed e; e.set_title("⏰  選擇探險時長").set_color(0x2ECC71);
-    e.set_description("最少 **2 小時**，最多 **12 小時**。\n每小時 **+4** 探索度。");
+    e.set_description("最少 **2 小時**，最多 **12 小時**。");
     {
         dpp::embed_footer f; f.text = "👤 " + (dn.empty() ? uid_s : dn);
         if (!av.empty()) f.icon_url = av; e.set_footer(f);
@@ -608,7 +604,7 @@ static dpp::message make_adv_funds_select_msg(dpp::snowflake uid, const std::str
     std::string uid_s = std::to_string((uint64_t)uid);
     int64_t cur = get_chips(uid);
     dpp::embed e; e.set_title("💰  選擇探險資金").set_color(0x2ECC71);
-    e.set_description("投入的資金在探索期間不可取回。\n每 **250 碼** +1 探索度（上限 10000 碼 = +40）。\n\n目前錢包：**" + std::to_string(cur) + "** 碼");
+    e.set_description("投入的資金在探索期間不可取回。\n上限 10000 碼。\n\n目前錢包：**" + std::to_string(cur) + "** 碼");
     {
         dpp::embed_footer f; f.text = "👤 " + (dn.empty() ? uid_s : dn);
         if (!av.empty()) f.icon_url = av; e.set_footer(f);
@@ -650,7 +646,7 @@ static dpp::message make_adv_partner_select_msg(dpp::snowflake uid, const std::s
         if (ai != adv_games.end() && ai->second.pet_along) pet_busy = true;
     }
     dpp::embed e; e.set_title("🐾  選擇探險夥伴").set_color(0x2ECC71);
-    std::string desc = "帶寵物探險 **+20** 探索度。\n探險期間寵物無法打工。\n\n";
+    std::string desc = "探險期間寵物無法打工。\n\n";
     if (!has_pet) desc += "⚠️ 你沒有可以出行的寵物。\n";
     else if (pet_busy) desc += "⚠️ 寵物打工中或已在探險，無法攜帶！\n";
     e.set_description(desc);
@@ -662,7 +658,7 @@ static dpp::message make_adv_partner_select_msg(dpp::snowflake uid, const std::s
     dpp::component row; row.set_type(dpp::cot_action_row);
     bool can_bring = has_pet && !pet_busy;
     row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🐾 帶寵物（+20探索度）").set_id("adv_partner_" + uid_s + "_1")
+        .set_label("🐾 帶寵物").set_id("adv_partner_" + uid_s + "_1")
         .set_style(dpp::cos_primary).set_disabled(!can_bring));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🚫 不帶寵物").set_id("adv_partner_" + uid_s + "_0")
@@ -863,7 +859,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         desc += "▸ 時長：" + std::to_string(g.duration_hours) + " 小時\n";
         desc += "▸ 資金：" + std::to_string(g.funds) + " 碼\n";
         desc += "▸ 夥伴：" + (g.pet_along ? std::string("🐾 寵物同行") : std::string("無")) + "\n";
-        desc += "▸ 探索度：**" + std::to_string(progress) + "**\n\n";
+        desc += "\n";
         if (item_key.empty())
             desc += "📦 這次探險沒有找到蒐藏品...";
         else {
