@@ -73,6 +73,9 @@ static std::mt19937& hunt_rng() {
 static const std::vector<std::string> DROP_EXP_ITEMS = {
     "grow_1","grow_2","grow_3","grow_4","grow_5","grow_6"
 };
+static const std::vector<std::string> DROP_RECOVERY_ITEMS = {
+    "recover_depress","recover_injury","recover_muscle","recover_fatigue"
+};
 
 // ─── HP bar helper ────────────────────────────────────────────────────────────
 
@@ -372,9 +375,14 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
         const MonsterDef* md = find_monster(g.monster_key);
         if (md) reward_out = randint((int)md->daily_min, (int)md->daily_max);
         // 各掉落獨立判定
-        // Exp item
-        if (md && randint(1, 100) <= md->drop_chance)
-            drops_out.push_back({DROP_EXP_ITEMS[randint(0,(int)DROP_EXP_ITEMS.size()-1)], 1});
+        // 成長道具 / 回復道具共用機率，各半機率
+        if (md && randint(1, 100) <= md->drop_chance) {
+            static const std::vector<std::string> ALL_HUNT_DROPS = {
+                "grow_1","grow_2","grow_3","grow_4","grow_5","grow_6",
+                "recover_depress","recover_injury","recover_muscle","recover_fatigue"
+            };
+            drops_out.push_back({ALL_HUNT_DROPS[randint(0,(int)ALL_HUNT_DROPS.size()-1)], 1});
+        }
         // 寶珠碎片 — 王級 30% 掉 1-3 片，一般怪 10% 掉 1 片
         {
             bool is_king = md && md->difficulty == "king";
@@ -677,8 +685,14 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
         const VillageGroupDef* gd = find_village_group(g.group_key);
         if (gd) reward_out = randint((int)gd->daily_min, (int)gd->daily_max);
         // 各掉落獨立判定
-        if (gd && randint(1, 100) <= gd->drop_chance)
-            drops_out.push_back({DROP_EXP_ITEMS[randint(0,(int)DROP_EXP_ITEMS.size()-1)], 1});
+        // 成長道具 / 回復道具共用機率，各半機率
+        if (gd && randint(1, 100) <= gd->drop_chance) {
+            static const std::vector<std::string> ALL_HUNT_DROPS = {
+                "grow_1","grow_2","grow_3","grow_4","grow_5","grow_6",
+                "recover_depress","recover_injury","recover_muscle","recover_fatigue"
+            };
+            drops_out.push_back({ALL_HUNT_DROPS[randint(0,(int)ALL_HUNT_DROPS.size()-1)], 1});
+        }
         if (randint(1, 100) <= 20)
             drops_out.push_back({SHARD_TYPES[randint(0,(int)SHARD_TYPES.size()-1)], randint(1, 2)});
         if (randint(1, 100) <= 5)
