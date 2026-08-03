@@ -95,6 +95,8 @@ static dpp::message make_rps_lobby_msg(const RpsGame& g) {
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("開始遊戲").set_id("rps_start_" + ch_s).set_style(dpp::cos_primary)
         .set_disabled((int)g.players.size() < 2));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🔄 重整").set_id("rps_refresh_" + ch_s).set_style(dpp::cos_secondary));
     dpp::message msg; msg.add_embed(e); msg.add_component(row); return msg;
 }
 
@@ -114,6 +116,8 @@ static dpp::message make_rps_choosing_msg(const RpsGame& g) {
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("✊ 出拳").set_id("rps_pick_" + ch_s).set_style(dpp::cos_primary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🔄 重整").set_id("rps_refresh_" + ch_s).set_style(dpp::cos_secondary));
     dpp::message msg; msg.add_embed(e); msg.add_component(row); return msg;
 }
 
@@ -139,6 +143,8 @@ static dpp::message make_rps_draw_msg(const RpsGame& g) {
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("投票").set_id("rps_vote_" + ch_s).set_style(dpp::cos_primary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🔄 重整").set_id("rps_refresh_" + ch_s).set_style(dpp::cos_secondary));
     dpp::message msg; msg.add_embed(e); msg.add_component(row); return msg;
 }
 
@@ -188,6 +194,14 @@ static void rps_do_reveal(dpp::snowflake ch_id) {
     RpsGame g;
     { std::lock_guard<std::mutex> lk(data_mutex); g = rps_games[ch_id]; }
 
+    // 舊的「出拳中」訊息標記過期，結果另開新訊息
+    dpp::embed stale_e;
+    stale_e.set_title("✊✌️🖐️  結果已公布").set_color(0x808080);
+    stale_e.set_description("請往下滑查看結果！");
+    dpp::message stale; stale.id = g.message_id; stale.channel_id = g.channel_id;
+    stale.add_embed(stale_e);
+    g_bot->message_edit(stale);
+
     auto winners = rps_winners(g.choices);
     bool is_draw = winners.empty();
 
@@ -215,8 +229,8 @@ static void rps_do_reveal(dpp::snowflake ch_id) {
         save_rps_stats();
 
         auto pub = make_rps_settled_msg(g, winners, per_winner);
-        pub.id = g.message_id; pub.channel_id = g.channel_id;
-        g_bot->message_edit(pub);
+        pub.channel_id = g.channel_id;
+        g_bot->message_create(pub);
     } else {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
@@ -225,8 +239,15 @@ static void rps_do_reveal(dpp::snowflake ch_id) {
         RpsGame gu;
         { std::lock_guard<std::mutex> lk(data_mutex); gu = rps_games[ch_id]; }
         auto pub = make_rps_draw_msg(gu);
-        pub.id = g.message_id; pub.channel_id = g.channel_id;
-        g_bot->message_edit(pub);
+        pub.channel_id = g.channel_id;
+        g_bot->message_create(pub, [ch_id](const dpp::confirmation_callback_t& cb) {
+            if (!cb.is_error()) {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto it = rps_games.find(ch_id);
+                if (it != rps_games.end())
+                    it->second.message_id = std::get<dpp::message>(cb.value).id;
+            }
+        });
     }
 }
 
@@ -235,8 +256,16 @@ static void rps_process_draw_result(dpp::snowflake ch_id) {
     RpsGame g;
     { std::lock_guard<std::mutex> lk(data_mutex); g = rps_games[ch_id]; }
 
-    dpp::message pub;
-    pub.id = g.message_id; pub.channel_id = g.channel_id;
+    // 舊的投票訊息標記過期，結果另開新訊息
+    dpp::embed stale_e;
+    stale_e.set_title("✊✌️🖐️  投票結束").set_color(0x808080);
+    stale_e.set_description("請往下滑查看最新狀態！");
+    dpp::message stale; stale.id = g.message_id; stale.channel_id = g.channel_id;
+    stale.add_embed(stale_e);
+    g_bot->message_edit(stale);
+
+    dpp::message pub; pub.channel_id = g.channel_id;
+    bool continues = false;
 
     {
         std::lock_guard<std::mutex> lk(data_mutex);
@@ -258,6 +287,7 @@ static void rps_process_draw_result(dpp::snowflake ch_id) {
             auto cm = make_rps_choosing_msg(game);
             for (auto& em : cm.embeds)     pub.add_embed(em);
             for (auto& co : cm.components) pub.add_component(co);
+            continues = true;
         } else {
             // Not enough players — end game
             rps_games.erase(ch_id);
@@ -268,7 +298,18 @@ static void rps_process_draw_result(dpp::snowflake ch_id) {
         }
     }
     save_chips();
-    g_bot->message_edit(pub);
+    if (continues) {
+        g_bot->message_create(pub, [ch_id](const dpp::confirmation_callback_t& cb) {
+            if (!cb.is_error()) {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto it = rps_games.find(ch_id);
+                if (it != rps_games.end())
+                    it->second.message_id = std::get<dpp::message>(cb.value).id;
+            }
+        });
+    } else {
+        g_bot->message_create(pub);
+    }
 }
 
 // ── 按鈕主路由 ────────────────────────────────────────────────────────────────
@@ -595,6 +636,34 @@ static void handle_rps_button(const dpp::button_click_t& ev) {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 if (rps_games.count(ch_id))
                     rps_games[ch_id].message_id = std::get<dpp::message>(cb.value).id;
+            }
+        });
+        return;
+    }
+
+    // ── rps_refresh ───────────────────────────────────────────────────────────
+    if (cid.rfind("rps_refresh_", 0) == 0) {
+        dpp::snowflake ch_id(std::stoull(cid.substr(12)));
+        dpp::message fresh;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto gi = rps_games.find(ch_id);
+            if (gi == rps_games.end()) { ephem("❌ 遊戲不存在或已結束。"); return; }
+            auto& g = gi->second;
+            if (!g.started)        fresh = make_rps_lobby_msg(g);
+            else if (g.draw_state) fresh = make_rps_draw_msg(g);
+            else                   fresh = make_rps_choosing_msg(g);
+        }
+        dpp::embed se; se.set_title("🔄 訊息已刷新").set_color(0x95A5A6)
+                          .set_description("請往下滑查看最新狀態！");
+        ev.reply(dpp::ir_update_message, dpp::message().add_embed(se));
+        fresh.channel_id = ch_id;
+        g_bot->message_create(fresh, [ch_id](const dpp::confirmation_callback_t& cb) {
+            if (!cb.is_error()) {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto it = rps_games.find(ch_id);
+                if (it != rps_games.end())
+                    it->second.message_id = std::get<dpp::message>(cb.value).id;
             }
         });
         return;

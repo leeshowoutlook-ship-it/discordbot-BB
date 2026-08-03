@@ -7,6 +7,7 @@
 #include <mutex>
 #include <atomic>
 #include <tuple>
+#include <cmath>
 
 // ─── Structs ──────────────────────────────────────────────────────────────────
 
@@ -146,6 +147,9 @@ struct Pet {
     bool        notify_after_work  = false; // 打工/溫泉完成後私訊通知
     bool        work_notified      = false; // 打工：已發送通知（防重複）
     bool        onsen_notified     = false; // 溫泉：已發送通知（防重複）
+    int         enh_atk = 0; // 強化等級 0~10：攻擊力每層 +1%
+    int         enh_def = 0; // 強化等級 0~10：防禦力每兩層 +1
+    int         enh_hp  = 0; // 強化等級 0~10：生命值每層 +1%
 };
 
 // ─── Equipment ────────────────────────────────────────────────────────────────
@@ -203,8 +207,11 @@ struct AdventureGame {
     int     duration_hours = 0;
     int64_t funds          = 0;
     bool    pet_along      = false;
+    int     pet_stage      = 0; // 出發時同行寵物的階段（0=未帶寵物，鎖定出發當下的階段避免中途進化影響已算好的探索度）
     time_t  start_time     = 0;
     time_t  end_time       = 0;
+    bool    notify_on_finish = false; // 探險完成時私訊通知
+    bool    finish_notified  = false; // 是否已發送過完成通知（防重複）
 };
 
 // ─── Monster hunt active game ─────────────────────────────────────────────────
@@ -570,6 +577,41 @@ inline int col_adv_reduction_count(dpp::snowflake uid) {
 inline bool col_set_mushroom_adv(dpp::snowflake uid)   { return col_all_owned(uid, {"col_mushroom_head","col_mb_crown","col_mb_staff"}); }
 inline bool col_set_water_adv(dpp::snowflake uid)      { return col_all_owned(uid, {"col_awl_avocado","col_sqwl_brownie","col_ywl_caramel"}); }
 inline bool col_set_ghost_adv(dpp::snowflake uid)      { return col_all_owned(uid, {"col_demon_tear","col_demon_heart","col_demon_horn","col_demon_costume"}); }
+
+// 初級套組 + 強化等級的攻/血/防加成，共用同一個「乘區」相加，最後一次套用乘法
+// （而非逐一連乘取整）。以後同類加成變多時直接在這裡加一行 += 即可，不會因多次
+// 連乘造成誤差或超出預期倍率。防禦力的強化是固定值（非百分比），獨立疊加。
+inline void apply_pet_basic_set_bonus(dpp::snowflake uid, const Pet& pet, int& atk, int& hp, int& max_hp, int& def) {
+    double atk_mult = 0.0, hp_mult = 0.0, def_mult = 0.0;
+    if (col_set_mushroom_basic(uid)) atk_mult += 0.01;
+    if (col_set_water_basic(uid))    hp_mult  += 0.01;
+    if (col_set_ghost_basic(uid))    def_mult += 0.02;
+    atk_mult += pet.enh_atk * 0.01;
+    hp_mult  += pet.enh_hp  * 0.01;
+    if (atk_mult > 0) atk = (int)std::ceil(atk * (1.0 + atk_mult));
+    if (hp_mult  > 0) { hp = (int)std::ceil(hp * (1.0 + hp_mult)); max_hp = (int)std::ceil(max_hp * (1.0 + hp_mult)); }
+    if (def_mult > 0) def = (int)std::ceil(def * (1.0 + def_mult));
+    def += pet.enh_def / 2;
+}
+
+// 背包分頁列（裝備／消耗／其他／收藏），固定放在訊息的第一列，目前所在分頁會反白且不可點擊
+inline void add_bag_tab_row(dpp::message& msg, dpp::snowflake uid, const std::string& active) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    auto mk = [&](const std::string& label, const std::string& id, const std::string& key) {
+        bool is_active = (key == active);
+        dpp::component b;
+        b.set_type(dpp::cot_button).set_label(label).set_id(id)
+         .set_style(is_active ? dpp::cos_primary : dpp::cos_secondary)
+         .set_disabled(is_active);
+        row.add_component(b);
+    };
+    mk("⚔️ 裝備", "bag_tab_equip_" + uid_s, "equip");
+    mk("🎒 消耗", "bag_tab_items_" + uid_s, "items");
+    mk("📦 其他", "bag_tab_other_" + uid_s, "other");
+    mk("📚 收藏", "adv_collection_" + uid_s, "col");
+    msg.add_component(row);
+}
 
 // channel_id -> room
 inline std::map<dpp::snowflake, RaidGame>           raid_games;       // channel_id -> game

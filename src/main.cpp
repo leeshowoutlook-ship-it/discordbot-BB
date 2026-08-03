@@ -17,13 +17,13 @@
 #include "scratch.h"
 #include "wallet.h"
 #include "bank.h"
-#include "worldcup.h"
 // raid.h, darkdragon.h, undercover.h → moved to handlers_raid.cpp / handlers_uc.cpp
 #include "ucstats.h"
 #include "guess.h"
 #include "rl_stats.h"
 #include "adventure.h"
 #include "rps.h"
+#include "enhance.h"
 #include "handler_decls.h"
 
 // ─── Helpers shared by slash + message command handlers ───────────────────────
@@ -75,13 +75,23 @@ static dpp::message make_trade_msg(const TradeOffer& t,
 
     desc += "**" + from_name + " 提供：**\n";
     bool from_empty = (!t.from_item_id && t.from_chips <= 0);
-    if (t.from_item_id) desc += "• " + item_desc(t.from_item_id) + "\n";
+    if (t.from_item_id) {
+        desc += "• " + item_desc(t.from_item_id) + "\n";
+        auto [from_key, from_iname2] = trade_item_info(t.from_item_id);
+        if (col_would_break_set(t.from_uid, from_key))
+            desc += "　⚠️ 交易後 " + from_name + " 的收藏套組加成將會失效！\n";
+    }
     if (t.from_chips > 0) desc += chips_with_fee(t.from_chips);
     if (from_empty) desc += "• （無）\n";
 
     desc += "\n**" + to_name + " 提供：**\n";
     bool to_empty = (!t.to_item_id && t.to_chips <= 0);
-    if (t.to_item_id) desc += "• " + item_desc(t.to_item_id) + "\n";
+    if (t.to_item_id) {
+        desc += "• " + item_desc(t.to_item_id) + "\n";
+        auto [to_key, to_iname2] = trade_item_info(t.to_item_id);
+        if (col_would_break_set(t.to_uid, to_key))
+            desc += "　⚠️ 交易後 " + to_name + " 的收藏套組加成將會失效！\n";
+    }
     if (t.to_chips > 0) desc += chips_with_fee(t.to_chips);
     if (to_empty) desc += "• （無）\n";
 
@@ -145,6 +155,7 @@ int main(int argc, char* argv[]) {
     load_guess_stats();
     load_roulettestats();
     load_rps_stats();
+    load_scratch_games();
 
     dpp::cluster bot(cfg.token, dpp::i_default_intents | dpp::i_message_content);
     g_bot = &bot;
@@ -170,8 +181,8 @@ int main(int argc, char* argv[]) {
                 "!一夜狼人","!一夜狼人規則","!狼人殺規則",
                 "!臥底","!誰是臥底",
                 "!臥底 遊玩成人內容","!誰是臥底 遊玩成人內容",
-                "!世足","!貓","!笑話","!轉蛋","!裝備","!怪物狩獵","!狩獵規則",
-                "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤","!探險","!猜拳","！猜拳"
+                "!貓","!笑話","!轉蛋","!裝備","!怪物狩獵","!狩獵規則",
+                "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤","!探險","!猜拳","！猜拳","!強化"
             };
             for (auto& s : EXACT) if (content == s) return true;
             // Secret owner-only command
@@ -345,7 +356,7 @@ int main(int argc, char* argv[]) {
             });
         }
         else if (content == "!商店") {
-            dpp::message m = make_shop_main_msg();
+            dpp::message m = make_shop_main_msg(std::to_string((uint64_t)uid));
             m.channel_id = ch;
             bot.message_create(m, [uid](const dpp::confirmation_callback_t& cb) {
                 if (!cb.is_error()) {
@@ -404,6 +415,15 @@ int main(int argc, char* argv[]) {
             dpp::message am = make_adv_main_msg(uid, dn_, av_);
             am.channel_id = ch;
             bot.message_create(am, [uid](const dpp::confirmation_callback_t& cb) {
+                if (!cb.is_error()) { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[std::get<dpp::message>(cb.value).id] = uid; }
+            });
+        }
+        else if (content == "!強化") {
+            std::string dn_ = ev.msg.member.get_nickname().empty() ? ev.msg.author.global_name : ev.msg.member.get_nickname();
+            std::string av_ = ev.msg.author.get_avatar_url();
+            dpp::message em = make_enhance_main_msg(uid, dn_, av_);
+            em.channel_id = ch;
+            bot.message_create(em, [uid](const dpp::confirmation_callback_t& cb) {
                 if (!cb.is_error()) { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[std::get<dpp::message>(cb.value).id] = uid; }
             });
         }
@@ -756,8 +776,9 @@ int main(int argc, char* argv[]) {
             std::string dn = ev.msg.member.get_nickname();
             start_cmd(bot, uid, ch, handle_scratch_start(uid, ch, bet, av, dn), ev.msg.id);
         }
-        // !猜
-        else if (content.rfind("!猜", 0) == 0 || content.rfind("！猜", 0) == 0) {
+        // !猜（排除 !猜拳，避免被更長的指令名搶先攔截）
+        else if ((content.rfind("!猜", 0) == 0 || content.rfind("！猜", 0) == 0)
+                 && content.rfind("!猜拳", 0) != 0 && content.rfind("！猜拳", 0) != 0) {
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 if (guess_games.count(uid)) {
@@ -1126,7 +1147,6 @@ int main(int argc, char* argv[]) {
             });
         }
 #endif // ── end UC message blocks ──────────────────────────────────────────────
-        // ── 世足 ─────────────────────────────────────────────────────────────────
         else if (content == "!轉蛋") {
             std::string dn = ev.msg.member.get_nickname().empty()
                            ? ev.msg.author.username : ev.msg.member.get_nickname();
@@ -1309,70 +1329,11 @@ int main(int argc, char* argv[]) {
         }
 #endif // ── end roulette message block ─────────────────────────────────────────
         else if (content == "!合成") {
-            std::map<std::string,int> inv;
-            { std::lock_guard<std::mutex> lk(data_mutex);
-              auto it = inventory_data.find(uid); if (it != inventory_data.end()) inv = it->second; }
-            auto sc = [&](const std::string& k){ return inv.count(k) ? inv[k] : 0; };
-            std::string uid_s = std::to_string((uint64_t)uid);
-            // orb shard data: {type, name, effect, shard_key}
-            struct OrbInfo { std::string type,name,effect,shard; };
-            static const std::vector<OrbInfo> ORBS = {
-                {"speed",      "迅捷狼王的寶珠", "單人必定先手；組隊：20%機率多行動一回合",           "orb_shard_speed"},
-                {"athena",     "雅典娜的寶珠",   "單人：30%機率恢復8 HP；組隊：20%機率全體恢復5 HP", "orb_shard_athena"},
-                {"bear",       "巨山狂熊的寶珠", "單人：防禦降低怪物下兩次攻擊60%；組隊：防禦降低傷害20%", "orb_shard_bear"},
-                {"viking",     "維京的寶珠",     "HP≤50% 傷害×1.4，HP≤25% 傷害×1.7（被動狂暴）",   "orb_shard_viking"},
-                {"wargod",     "狂怒戰神的寶珠", "攻擊力+10",                                       "orb_shard_wargod"},
-                {"latus",      "拉圖斯的寶珠",   "HP≤20%時回復至50%（每場一次）",                   "orb_shard_latus"},
-                {"darkdragon", "暗黑龍王的寶珠", "攻擊後回復傷害的1/10（最多10HP）",                 "orb_shard_darkdragon"},
-            };
-            dpp::embed e;
-            e.set_title("🔨  寶珠合成").set_color(0x9B59B6);
-            e.set_description("收集 **10 個碎片** 可合成對應的寶珠。\n"
-                              "碎片只有**怪物之王**會掉落（5%×2片 / 10%×1片）。\n"
-                              "🔶 **拉圖斯碎片** 從組隊遠征拉圖斯掉落（20%，1~4片）\n"
-                              "🌑 **暗黑龍王碎片** 從組隊遠征暗黑龍王掉落（20%，1~4片）");
-            for (auto& o : ORBS) {
-                int cnt = sc(o.shard);
-                e.add_field(o.name, "碎片：**" + std::to_string(cnt) + " / 10**　效果：" + o.effect, false);
-            }
-            dpp::message msg; msg.channel_id = ch; msg.add_embed(e);
-            // Row 1: speed / athena / bear
-            dpp::component row1; row1.set_type(dpp::cot_action_row);
-            for (int i = 0; i < 3; i++) {
-                int cnt = sc(ORBS[i].shard);
-                dpp::component btn;
-                btn.set_type(dpp::cot_button).set_label("合成 " + ORBS[i].name)
-                   .set_id("craft_orb_" + ORBS[i].type + "_" + uid_s)
-                   .set_style(cnt >= 10 ? dpp::cos_primary : dpp::cos_secondary)
-                   .set_disabled(cnt < 10);
-                row1.add_component(btn);
-            }
-            msg.add_component(row1);
-            // Row 2: viking / wargod
-            dpp::component row2; row2.set_type(dpp::cot_action_row);
-            for (int i = 3; i < 5; i++) {
-                int cnt = sc(ORBS[i].shard);
-                dpp::component btn;
-                btn.set_type(dpp::cot_button).set_label("合成 " + ORBS[i].name)
-                   .set_id("craft_orb_" + ORBS[i].type + "_" + uid_s)
-                   .set_style(cnt >= 10 ? dpp::cos_primary : dpp::cos_secondary)
-                   .set_disabled(cnt < 10);
-                row2.add_component(btn);
-            }
-            msg.add_component(row2);
-            // Row 3: latus / darkdragon
-            dpp::component row3c; row3c.set_type(dpp::cot_action_row);
-            for (int i = 5; i < 7; i++) {
-                int cnt = sc(ORBS[i].shard);
-                dpp::component btn;
-                btn.set_type(dpp::cot_button).set_label("合成 " + ORBS[i].name)
-                   .set_id("craft_orb_" + ORBS[i].type + "_" + uid_s)
-                   .set_style(cnt >= 10 ? dpp::cos_primary : dpp::cos_secondary)
-                   .set_disabled(cnt < 10);
-                row3c.add_component(btn);
-            }
-            msg.add_component(row3c);
-            bot.message_create(msg);
+            dpp::message msg = make_craft_msg(uid);
+            msg.channel_id = ch;
+            bot.message_create(msg, [uid](const dpp::confirmation_callback_t& cb) {
+                if (!cb.is_error()) { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[std::get<dpp::message>(cb.value).id] = uid; }
+            });
         }
         else if (content == "!貓") {
             bot.request("https://api.thecatapi.com/v1/images/search", dpp::m_get,
@@ -1421,9 +1382,6 @@ int main(int argc, char* argv[]) {
                         bot.message_create(m);
                     } catch (...) { fail(); }
                 });
-        }
-        else if (content == "!世足") {
-            wc_show_today(bot, ch);
         }
         // !抽獎 時間 人數 獎品
         else {
@@ -1570,57 +1528,55 @@ int main(int argc, char* argv[]) {
                 ev.reply(dpp::ir_update_message, make_trade_msg(t, from_name, to_name, "rej")); return;
             }
 
-            // Accept: validate + execute under lock
+            // Accept: validate + execute under lock（fail_reason 決定後才在鎖外呼叫 make_trade_msg，
+            // 避免 make_trade_msg 內部的 col_would_break_set 再次鎖 data_mutex 造成死鎖）
+            std::string fail_reason;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 auto [fkey, fname2] = trade_item_info(t.from_item_id);
                 auto [tkey, tname2] = trade_item_info(t.to_item_id);
                 if (!fkey.empty()) {
                     auto it2 = inventory_data[t.from_uid].find(fkey);
-                    if (it2 == inventory_data[t.from_uid].end() || it2->second <= 0) {
-                        trade_offers.erase(tid);
-                        ev.reply(dpp::ir_update_message,
-                            make_trade_msg(t, from_name, to_name, "提案方已沒有該道具！交易取消。")); return;
-                    }
+                    if (it2 == inventory_data[t.from_uid].end() || it2->second <= 0)
+                        fail_reason = "提案方已沒有該道具！交易取消。";
                 }
                 int64_t from_fee = (t.from_chips > 0) ? (t.from_chips + 99) / 100 : 0;
                 int64_t to_fee   = (t.to_chips   > 0) ? (t.to_chips   + 99) / 100 : 0;
-                if (t.from_chips > 0 && chip_data[t.from_uid].chips < t.from_chips + from_fee) {
-                    trade_offers.erase(tid);
-                    ev.reply(dpp::ir_update_message,
-                        make_trade_msg(t, from_name, to_name, "提案方籌碼不足（含手續費）！交易取消。")); return;
-                }
-                if (!tkey.empty()) {
+                if (fail_reason.empty() && t.from_chips > 0 && chip_data[t.from_uid].chips < t.from_chips + from_fee)
+                    fail_reason = "提案方籌碼不足（含手續費）！交易取消。";
+                if (fail_reason.empty() && !tkey.empty()) {
                     auto it2 = inventory_data[t.to_uid].find(tkey);
-                    if (it2 == inventory_data[t.to_uid].end() || it2->second <= 0) {
-                        trade_offers.erase(tid);
-                        ev.reply(dpp::ir_update_message,
-                            make_trade_msg(t, from_name, to_name, "你沒有對方要求的道具！交易取消。")); return;
-                    }
+                    if (it2 == inventory_data[t.to_uid].end() || it2->second <= 0)
+                        fail_reason = "你沒有對方要求的道具！交易取消。";
                 }
-                if (t.to_chips > 0 && chip_data[t.to_uid].chips < t.to_chips + to_fee) {
+                if (fail_reason.empty() && t.to_chips > 0 && chip_data[t.to_uid].chips < t.to_chips + to_fee)
+                    fail_reason = "你的籌碼不足（含手續費）！交易取消。";
+
+                if (!fail_reason.empty()) {
                     trade_offers.erase(tid);
-                    ev.reply(dpp::ir_update_message,
-                        make_trade_msg(t, from_name, to_name, "你的籌碼不足（含手續費）！交易取消。")); return;
+                } else {
+                    // Execute
+                    if (!fkey.empty()) {
+                        inventory_data[t.from_uid][fkey]--;
+                        inventory_data[t.to_uid][fkey]++;
+                    }
+                    if (!tkey.empty()) {
+                        inventory_data[t.to_uid][tkey]--;
+                        inventory_data[t.from_uid][tkey]++;
+                    }
+                    if (t.from_chips > 0) {
+                        chip_data[t.from_uid].chips -= t.from_chips + from_fee;  // 手續費燒掉
+                        chip_data[t.to_uid].chips   += t.from_chips;
+                    }
+                    if (t.to_chips > 0) {
+                        chip_data[t.to_uid].chips   -= t.to_chips + to_fee;      // 手續費燒掉
+                        chip_data[t.from_uid].chips += t.to_chips;
+                    }
+                    trade_offers.erase(tid);
                 }
-                // Execute
-                if (!fkey.empty()) {
-                    inventory_data[t.from_uid][fkey]--;
-                    inventory_data[t.to_uid][fkey]++;
-                }
-                if (!tkey.empty()) {
-                    inventory_data[t.to_uid][tkey]--;
-                    inventory_data[t.from_uid][tkey]++;
-                }
-                if (t.from_chips > 0) {
-                    chip_data[t.from_uid].chips -= t.from_chips + from_fee;  // 手續費燒掉
-                    chip_data[t.to_uid].chips   += t.from_chips;
-                }
-                if (t.to_chips > 0) {
-                    chip_data[t.to_uid].chips   -= t.to_chips + to_fee;      // 手續費燒掉
-                    chip_data[t.from_uid].chips += t.to_chips;
-                }
-                trade_offers.erase(tid);
+            }
+            if (!fail_reason.empty()) {
+                ev.reply(dpp::ir_update_message, make_trade_msg(t, from_name, to_name, fail_reason)); return;
             }
             save_chips();
             save_inventory();
@@ -1633,7 +1589,7 @@ int main(int argc, char* argv[]) {
                     dpp::message("❌ 這不是你的頁面！").set_flags(dpp::m_ephemeral)); return;
             }
             if (cid == "shop_main") {
-                ev.reply(dpp::ir_update_message, make_shop_main_msg());
+                ev.reply(dpp::ir_update_message, make_shop_main_msg(std::to_string((uint64_t)uid)));
             } else if (cid == "shop_virtual" || cid == "shop_vback") {
                 ev.reply(dpp::ir_update_message, make_virtual_shop_msg());
             } else if (cid.rfind("shop_vcat_", 0) == 0) {
@@ -1833,6 +1789,10 @@ int main(int argc, char* argv[]) {
         // ── 探險系統 ──────────────────────────────────────────────────────────
         else if (cid.rfind("adv_", 0) == 0) {
             handle_adv_button(ev); return;
+        }
+        // ── 寵物強化 ──────────────────────────────────────────────────────────
+        else if (cid.rfind("enh_", 0) == 0) {
+            handle_enhance_button(ev); return;
         }
         // ── 單人怪物狩獵 / 村落按鈕 → handlers_hunt.cpp ──────────────────────
         else if (cid.rfind("hunt_", 0) == 0 || cid.rfind("village_", 0) == 0) {
@@ -3450,6 +3410,14 @@ int main(int argc, char* argv[]) {
                 dpp::message("✅ 合成成功！獲得 **" + ci.name + "** ×1！\n"
                              "前往 `!裝備` → 靈魂寶珠欄位裝備它。").set_flags(dpp::m_ephemeral));
         }
+        else if (cid.rfind("craft_main_", 0) == 0) {
+            dpp::snowflake bu(std::stoull(cid.substr(11)));
+            if (uid != bu) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 這不是你的視窗！").set_flags(dpp::m_ephemeral)); return;
+            }
+            ev.reply(dpp::ir_update_message, make_craft_msg(uid));
+        }
         // ── 背包按鈕 ──────────────────────────────────────────────────────────
         else if (cid.rfind("bag_", 0) == 0) {
             // bag_tab_equip_{uid}, bag_tab_items_{uid}
@@ -3477,6 +3445,11 @@ int main(int argc, char* argv[]) {
                 dpp::snowflake bu(std::stoull(cid.substr(14)));
                 if (!chk(bu)) return;
                 ev.reply(dpp::ir_update_message, make_pet_use_msg(uid));
+
+            } else if (cid.rfind("bag_tab_other_", 0) == 0) {
+                dpp::snowflake bu(std::stoull(cid.substr(14)));
+                if (!chk(bu)) return;
+                ev.reply(dpp::ir_update_message, make_pet_other_msg(uid));
 
             } else if (cid.rfind("bag_sell_page_equip_", 0) == 0) {
                 dpp::snowflake bu(std::stoull(cid.substr(20)));
@@ -6751,6 +6724,7 @@ int main(int argc, char* argv[]) {
                         std::lock_guard<std::mutex> lk(data_mutex);
                         scratch_games.erase(uid);
                     }
+                    save_scratch_games();
                     ev.reply(dpp::ir_update_message, make_scratch_cash_msg(g));
 
                 } else if (cid.rfind("sc9_early_", 0) == 0) {
@@ -6767,6 +6741,7 @@ int main(int argc, char* argv[]) {
                         std::lock_guard<std::mutex> lk(data_mutex);
                         scratch_games.erase(uid);
                     }
+                    save_scratch_games();
                     ev.reply(dpp::ir_update_message, make_scratch_cash_msg(g));
 
                 } else if (cid.rfind("sc9_extra_", 0) == 0) {
@@ -6788,6 +6763,7 @@ int main(int argc, char* argv[]) {
                         std::lock_guard<std::mutex> lk(data_mutex);
                         scratch_games[uid] = g;
                     }
+                    save_scratch_games();
                     ev.reply(dpp::ir_update_message, make_scratch_play_msg(g));
 
                 } else if (cid.rfind("sc9_rev_", 0) == 0) {
@@ -6814,6 +6790,7 @@ int main(int argc, char* argv[]) {
                             std::lock_guard<std::mutex> lk(data_mutex);
                             scratch_games.erase(uid);
                         }
+                        save_scratch_games();
                         ev.reply(dpp::ir_update_message, make_scratch_bomb_msg(g, idx));
                     } else {
                         g.safe_scratches++;
@@ -6821,6 +6798,7 @@ int main(int argc, char* argv[]) {
                             std::lock_guard<std::mutex> lk(data_mutex);
                             scratch_games[uid] = g;
                         }
+                        save_scratch_games();
                         ev.reply(dpp::ir_update_message, make_scratch_play_msg(g));
                     }
                 }
@@ -7289,6 +7267,8 @@ int main(int argc, char* argv[]) {
             }
             int64_t amount = 0;
             try { amount = std::stoll(input); } catch (...) {}
+            int64_t mloan = effective_max_loan(modal_uid);
+            double  mrate = effective_loan_rate(modal_uid);
             std::string notice; bool saved = false;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
@@ -7298,8 +7278,6 @@ int main(int argc, char* argv[]) {
                 } else if (bd.deposited > 0) {
                     notice = "❌ 有存款時不可借款！請先提款。";
                 } else {
-                    int64_t mloan = effective_max_loan(modal_uid);
-                    double  mrate = effective_loan_rate(modal_uid);
                     if (amount <= 0 || amount > mloan) {
                         notice = "❌ 借款金額需在 1 ~ " + std::to_string(mloan) + " 碼之間！";
                     } else {
@@ -7698,16 +7676,21 @@ int main(int argc, char* argv[]) {
             }
             int64_t amount = 0;
             try { amount = std::stoll(input); } catch (...) {}
+            int64_t requested = amount;
             amount = std::max((int64_t)0, std::min((int64_t)10000, amount));
             int64_t chips = get_chips(modal_uid);
-            if (amount > chips) amount = chips;
+            std::string notice;
+            if (amount > chips) {
+                amount = chips;
+                notice = "⚠️ 你輸入的 " + std::to_string(requested) + " 碼超過錢包餘額，已自動調整為 **" + std::to_string(amount) + "** 碼。";
+            }
             { std::lock_guard<std::mutex> lk(data_mutex); adv_setups[modal_uid].funds = amount; }
             std::string mdn = ev.command.member.get_nickname();
             if (mdn.empty()) mdn = ev.command.get_issuing_user().global_name.empty()
                                  ? ev.command.get_issuing_user().username
                                  : ev.command.get_issuing_user().global_name;
             std::string mav = ev.command.get_issuing_user().get_avatar_url();
-            ev.reply(dpp::ir_update_message, make_adv_setup_msg(modal_uid, mdn, mav));
+            ev.reply(dpp::ir_update_message, make_adv_setup_msg(modal_uid, mdn, mav, notice));
             return;
         }
 
@@ -8103,7 +8086,7 @@ int main(int argc, char* argv[]) {
             });
         }
         else if (cmd_name == "商店" || cmd_name == "shop") {
-            ev.reply(dpp::ir_channel_message_with_source, make_shop_main_msg());
+            ev.reply(dpp::ir_channel_message_with_source, make_shop_main_msg(std::to_string((uint64_t)uid)));
             ev.get_original_response([uid](const dpp::confirmation_callback_t& cb) {
                 if (!cb.is_error()) {
                     std::lock_guard<std::mutex> lk(data_mutex);
@@ -8152,6 +8135,12 @@ int main(int argc, char* argv[]) {
         }
         else if (cmd_name == "探險" || cmd_name == "adventure") {
             ev.reply(dpp::ir_channel_message_with_source, make_adv_main_msg(uid, ev.command.member.get_nickname(), user.get_avatar_url()));
+            ev.get_original_response([uid](const dpp::confirmation_callback_t& cb) {
+                if (!cb.is_error()) { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[std::get<dpp::message>(cb.value).id] = uid; }
+            });
+        }
+        else if (cmd_name == "強化" || cmd_name == "enhance") {
+            ev.reply(dpp::ir_channel_message_with_source, make_enhance_main_msg(uid, ev.command.member.get_nickname(), user.get_avatar_url()));
             ev.get_original_response([uid](const dpp::confirmation_callback_t& cb) {
                 if (!cb.is_error()) { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[std::get<dpp::message>(cb.value).id] = uid; }
             });
@@ -8678,50 +8667,7 @@ int main(int argc, char* argv[]) {
                 });
         }
         else if (cmd_name == "合成" || cmd_name == "craft") {
-            std::map<std::string,int> inv;
-            { std::lock_guard<std::mutex> lk(data_mutex);
-              auto it = inventory_data.find(uid); if (it != inventory_data.end()) inv = it->second; }
-            auto sc = [&](const std::string& k){ return inv.count(k) ? inv[k] : 0; };
-            std::string uid_s = std::to_string((uint64_t)uid);
-            struct OrbInfo { std::string type,name,effect,shard; };
-            static const std::vector<OrbInfo> ORBS = {
-                {"speed",  "迅捷狼王的寶珠", "單人必定先手；組隊：20%機率多行動一回合",  "orb_shard_speed"},
-                {"athena", "雅典娜的寶珠",   "單人：30%機率恢復8 HP；組隊：20%機率全體恢復5 HP", "orb_shard_athena"},
-                {"bear",   "巨山狂熊的寶珠", "單人：防禦降低怪物下兩次攻擊60%；組隊：防禦降低傷害20%", "orb_shard_bear"},
-                {"viking", "維京的寶珠",     "HP≤50% 傷害×1.4，HP≤25% 傷害×1.7（被動狂暴）", "orb_shard_viking"},
-                {"wargod", "狂怒戰神的寶珠", "攻擊力+10",              "orb_shard_wargod"},
-            };
-            dpp::embed e;
-            e.set_title("🔨  寶珠合成").set_color(0x9B59B6);
-            e.set_description("收集 **10 個碎片** 可合成對應的寶珠。\n碎片只有**怪物之王**會掉落（5%×2片 / 10%×1片）。");
-            for (auto& o : ORBS) {
-                int cnt = sc(o.shard);
-                e.add_field(o.name, "碎片：**" + std::to_string(cnt) + " / 10**　效果：" + o.effect, false);
-            }
-            dpp::message msg; msg.add_embed(e);
-            dpp::component row1; row1.set_type(dpp::cot_action_row);
-            for (int i = 0; i < 3; i++) {
-                int cnt = sc(ORBS[i].shard);
-                dpp::component btn;
-                btn.set_type(dpp::cot_button).set_label("合成 " + ORBS[i].name)
-                   .set_id("craft_orb_" + ORBS[i].type + "_" + uid_s)
-                   .set_style(cnt >= 10 ? dpp::cos_primary : dpp::cos_secondary)
-                   .set_disabled(cnt < 10);
-                row1.add_component(btn);
-            }
-            msg.add_component(row1);
-            dpp::component row2; row2.set_type(dpp::cot_action_row);
-            for (int i = 3; i < 5; i++) {
-                int cnt = sc(ORBS[i].shard);
-                dpp::component btn;
-                btn.set_type(dpp::cot_button).set_label("合成 " + ORBS[i].name)
-                   .set_id("craft_orb_" + ORBS[i].type + "_" + uid_s)
-                   .set_style(cnt >= 10 ? dpp::cos_primary : dpp::cos_secondary)
-                   .set_disabled(cnt < 10);
-                row2.add_component(btn);
-            }
-            msg.add_component(row2);
-            ev.reply(dpp::ir_channel_message_with_source, msg);
+            ev.reply(dpp::ir_channel_message_with_source, make_craft_msg(uid));
         }
         // ── 怪物狩獵 slash → handlers_hunt.cpp ───────────────────────────────
         else if (cmd_name == "怪物狩獵" || cmd_name == "hunt" ||
@@ -8823,11 +8769,6 @@ int main(int argc, char* argv[]) {
                         guess_games[uid].msg_id = std::get<dpp::message>(cb.value).id;
                 }
             });
-        }
-        else if (cmd_name == "世足" || cmd_name == "worldcup") {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("⚽").set_flags(dpp::m_ephemeral));
-            wc_show_today(bot, ev.command.channel_id);
         }
     });
 
@@ -9028,12 +8969,12 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("collect",   "View collection",                bot.me.id),
                 dpp::slashcommand("探險",      "前往探險頁面",                    bot.me.id),
                 dpp::slashcommand("adventure", "Go to adventure page",           bot.me.id),
+                dpp::slashcommand("強化",      "強化寵物攻擊力／防禦力／生命值", bot.me.id),
+                dpp::slashcommand("enhance",   "Enhance pet ATK/DEF/HP",         bot.me.id),
                 dpp::slashcommand("onenight",  "Start One Night Werewolf game",  bot.me.id),
                 dpp::slashcommand("undercover","Start Undercover (Who is spy?)", bot.me.id),
                 dpp::slashcommand("猜數字",    "猜四位不重複數字（1A2B）",       bot.me.id),
                 dpp::slashcommand("guess",     "Guess the 4-digit number (1A2B)",bot.me.id),
-                dpp::slashcommand("世足",      "今日世足賽程",                   bot.me.id),
-                dpp::slashcommand("worldcup",  "Today's World Cup schedule",     bot.me.id),
                 bj, draw, warn_cmd, lucky, transfer, dice_cmd, shoot_cmd, shoot_en,
                 rocket_cmd, rocket_en, scratch_cmd, scratch_en,
                 warn_en, lucky_en, transfer_en, trade_cmd, trade_en,
@@ -9224,6 +9165,29 @@ int main(int argc, char* argv[]) {
                         dpp::channel ch = std::get<dpp::channel>(cb.value);
                         g_bot->message_create(dpp::message(ch.id,
                             "🛀 你的寵物溫泉回來了！負面狀態已全部清除，快輸入 `!寵物` 去看看牠吧！"));
+                    });
+                }
+            }
+
+            // ── 探險完成通知（私訊）──────────────────────────────────────────
+            std::vector<dpp::snowflake> to_notify_adv;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                for (auto& [auid, g] : adv_games) {
+                    if (!g.notify_on_finish || g.finish_notified) continue;
+                    if (g.end_time > now) continue;
+                    g.finish_notified = true;
+                    to_notify_adv.push_back(auid);
+                }
+            }
+            if (!to_notify_adv.empty()) {
+                save_adv_games();
+                for (auto nuid : to_notify_adv) {
+                    g_bot->create_dm_channel(nuid, [nuid](const dpp::confirmation_callback_t& cb) {
+                        if (cb.is_error()) return;
+                        dpp::channel ch = std::get<dpp::channel>(cb.value);
+                        g_bot->message_create(dpp::message(ch.id,
+                            "🗺️ 你的探險完成了！快輸入 `!探險` 去收取結果吧！"));
                     });
                 }
             }

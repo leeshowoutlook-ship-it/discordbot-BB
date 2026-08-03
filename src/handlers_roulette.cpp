@@ -388,18 +388,30 @@ void handle_roulette_button(const dpp::button_click_t& ev)
     }
     else if (cid.rfind("rl_refresh_", 0) == 0) {
         dpp::snowflake ch(std::stoull(cid.substr(11)));
-        std::lock_guard<std::mutex> lk(data_mutex);
-        auto it = roulette_rooms.find(ch);
-        if (it == roulette_rooms.end()) {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 遊戲不存在或已結束！").set_flags(dpp::m_ephemeral)); return;
+        dpp::message fresh;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = roulette_rooms.find(ch);
+            if (it == roulette_rooms.end()) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 遊戲不存在或已結束！").set_flags(dpp::m_ephemeral)); return;
+            }
+            auto& r = it->second;
+            fresh = r.started ? make_roulette_game_msg(r) : make_roulette_room_msg(r);
         }
-        auto& r = it->second;
-        if (!r.started) {
-            ev.reply(dpp::ir_update_message, make_roulette_room_msg(r));
-        } else {
-            ev.reply(dpp::ir_update_message, make_roulette_game_msg(r));
-        }
+        // 把舊訊息標記為過期，另外發一則新訊息（跳到頻道最新位置）
+        dpp::embed se; se.set_title("🔄 訊息已刷新").set_color(0x95A5A6)
+                          .set_description("請往下滑查看最新狀態！");
+        ev.reply(dpp::ir_update_message, dpp::message().add_embed(se));
+        fresh.channel_id = ch;
+        g_bot->message_create(fresh, [ch](const dpp::confirmation_callback_t& cb) {
+            if (!cb.is_error()) {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto it = roulette_rooms.find(ch);
+                if (it != roulette_rooms.end())
+                    it->second.msg_id = std::get<dpp::message>(cb.value).id;
+            }
+        });
     }
     else {
         ev.reply(dpp::ir_channel_message_with_source,

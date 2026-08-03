@@ -592,6 +592,11 @@ static dpp::message make_equip_msg(dpp::snowflake uid, const Pet& pet,
         if (it != equipped_data.end()) eq = it->second;
     }
     PetStats stats = calc_pet_stats(uid, pet);
+    {
+        int max_hp = stats.hp;
+        std::lock_guard<std::mutex> lk(data_mutex);
+        apply_pet_basic_set_bonus(uid, pet, stats.atk, stats.hp, max_hp, stats.def);
+    }
 
     dpp::embed e;
     e.set_title("🗡️  裝備總覽").set_color(0xE67E22);
@@ -887,5 +892,57 @@ static dpp::message make_equipdex_set_msg(dpp::snowflake uid, const std::string&
     menu.add_select_option(dpp::select_option("💥 衝鋒套裝","C","2件+2攻擊力 / 4件+5攻擊力"));
     menu.add_select_option(dpp::select_option("💎 靈魂寶珠","K","獨立UR單品"));
     row.add_component(menu); msg.add_component(row);
+    return msg;
+}
+
+// ─── 寶珠合成 ─────────────────────────────────────────────────────────────────
+
+struct OrbCraftInfo { std::string type, name, effect, shard; };
+static const std::vector<OrbCraftInfo> ORB_CRAFT_LIST = {
+    {"speed",      "迅捷狼王的寶珠", "單人必定先手；組隊：20%機率多行動一回合",              "orb_shard_speed"},
+    {"athena",     "雅典娜的寶珠",   "單人：30%機率恢復8 HP；組隊：20%機率全體恢復5 HP",     "orb_shard_athena"},
+    {"bear",       "巨山狂熊的寶珠", "單人：防禦降低怪物下兩次攻擊60%；組隊：防禦降低傷害20%", "orb_shard_bear"},
+    {"viking",     "維京的寶珠",     "HP≤50% 傷害×1.4，HP≤25% 傷害×1.7（被動狂暴）",        "orb_shard_viking"},
+    {"wargod",     "狂怒戰神的寶珠", "攻擊力+10",                                            "orb_shard_wargod"},
+    {"latus",      "拉圖斯的寶珠",   "HP≤20%時回復至50%（每場一次）",                        "orb_shard_latus"},
+    {"darkdragon", "暗黑龍王的寶珠", "攻擊後回復造成傷害的 1/10（最多回10HP）",              "orb_shard_darkdragon"},
+};
+
+static dpp::message make_craft_msg(dpp::snowflake uid) {
+    std::map<std::string,int> inv;
+    { std::lock_guard<std::mutex> lk(data_mutex); auto it = inventory_data.find(uid); if (it != inventory_data.end()) inv = it->second; }
+    auto sc = [&](const std::string& k){ return inv.count(k) ? inv[k] : 0; };
+    std::string uid_s = std::to_string((uint64_t)uid);
+
+    dpp::embed e;
+    e.set_title("🔨  寶珠合成").set_color(0x9B59B6);
+    e.set_description("收集 **10 個碎片** 可合成對應的寶珠。\n"
+                      "碎片只有**怪物之王**會掉落（5%×2片 / 10%×1片）。\n"
+                      "🔶 **拉圖斯碎片** 從組隊遠征拉圖斯掉落（20%，1~4片）\n"
+                      "🌑 **暗黑龍王碎片** 從組隊遠征暗黑龍王掉落（20%，1~4片）");
+    for (auto& o : ORB_CRAFT_LIST) {
+        int cnt = sc(o.shard);
+        e.add_field(o.name, "碎片：**" + std::to_string(cnt) + " / 10**　效果：" + o.effect, false);
+    }
+    dpp::message msg; msg.add_embed(e);
+
+    for (int base = 0; base < (int)ORB_CRAFT_LIST.size(); base += 3) {
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        for (int i = base; i < std::min(base + 3, (int)ORB_CRAFT_LIST.size()); i++) {
+            int cnt = sc(ORB_CRAFT_LIST[i].shard);
+            dpp::component btn;
+            btn.set_type(dpp::cot_button).set_label("合成 " + ORB_CRAFT_LIST[i].name)
+               .set_id("craft_orb_" + ORB_CRAFT_LIST[i].type + "_" + uid_s)
+               .set_style(cnt >= 10 ? dpp::cos_primary : dpp::cos_secondary)
+               .set_disabled(cnt < 10);
+            row.add_component(btn);
+        }
+        msg.add_component(row);
+    }
+
+    dpp::component nav; nav.set_type(dpp::cot_action_row);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component(nav);
     return msg;
 }

@@ -218,6 +218,8 @@ static dpp::message make_bank_msg(dpp::snowflake uid, const std::string& notice 
     dpp::component row2; row2.set_type(dpp::cot_action_row);
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("← 返回錢包").set_id("wallet_home_" + sid).set_style(dpp::cos_secondary));
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏠 大廳").set_id("lobby_main_" + sid).set_style(dpp::cos_secondary));
 
     dpp::message msg; msg.add_embed(e); msg.add_component(row); msg.add_component(row2);
     return msg;

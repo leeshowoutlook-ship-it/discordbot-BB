@@ -129,6 +129,11 @@ static dpp::message make_hunt_main_msg(dpp::snowflake uid, const Pet& pet,
         }
     }
     PetStats stats = calc_pet_stats(uid, pet);
+    {
+        int max_hp = stats.hp;
+        std::lock_guard<std::mutex> lk(data_mutex);
+        apply_pet_basic_set_bonus(uid, pet, stats.atk, stats.hp, max_hp, stats.def);
+    }
 
     dpp::embed e;
     e.set_title("⚔️  怪物狩獵").set_color(0xC0392B);

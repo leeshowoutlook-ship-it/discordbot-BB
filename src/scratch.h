@@ -66,6 +66,63 @@ static void save_scratchstats() {
     atomic_write(SCRATCH_STATS_FILE, j.dump(2));
 }
 
+// ─── In-progress game persistence ──────────────────────────────────────────────
+
+static const std::string SCRATCH_GAMES_FILE = "scratch_games.json";
+
+static void save_scratch_games() {
+    nlohmann::json j;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [uid, g] : scratch_games) {
+            nlohmann::json sq = nlohmann::json::array();
+            for (int v : g.sq) sq.push_back(v);
+            j[std::to_string((uint64_t)uid)] = {
+                {"channel_id",     (uint64_t)g.channel_id},
+                {"bet",            g.bet},
+                {"total_paid",     g.total_paid},
+                {"sq",             sq},
+                {"revealed",       (int)g.revealed},
+                {"safe_scratches", g.safe_scratches},
+                {"extra_mode",     g.extra_mode},
+                {"extra_count",    g.extra_count},
+                {"avatar_url",     g.avatar_url},
+                {"display_name",   g.display_name},
+            };
+        }
+    }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
+    atomic_write(SCRATCH_GAMES_FILE, j.dump(2));
+}
+
+static void load_scratch_games() {
+    std::ifstream f(SCRATCH_GAMES_FILE);
+    if (!f.is_open()) return;
+    try {
+        nlohmann::json j; f >> j;
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [k, v] : j.items()) {
+            dpp::snowflake uid(std::stoull(k));
+            ScratchGame g;
+            g.uid            = uid;
+            g.channel_id     = dpp::snowflake(v.value("channel_id", (uint64_t)0));
+            g.bet            = v.value("bet",            (int64_t)0);
+            g.total_paid     = v.value("total_paid",     (int64_t)0);
+            g.revealed       = (uint16_t)v.value("revealed", 0);
+            g.safe_scratches = v.value("safe_scratches", 0);
+            g.extra_mode     = v.value("extra_mode",     false);
+            g.extra_count    = v.value("extra_count",    0);
+            g.avatar_url     = v.value("avatar_url",     std::string{});
+            g.display_name   = v.value("display_name",   std::string{});
+            if (v.contains("sq")) {
+                int i = 0;
+                for (auto& sv : v["sq"]) { if (i < 9) g.sq[i++] = sv.get<int>(); }
+            }
+            scratch_games[uid] = g;
+        }
+    } catch (...) {}
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 static int64_t sk_payout(const ScratchGame& g) {
@@ -423,5 +480,6 @@ static dpp::message handle_scratch_start(dpp::snowflake uid, dpp::snowflake ch, 
         std::lock_guard<std::mutex> lk(data_mutex);
         scratch_games[uid] = g;
     }
+    save_scratch_games();
     return make_scratch_play_msg(g);
 }

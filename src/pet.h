@@ -311,6 +311,9 @@ static void load_pet_data() {
             p.variant     = v.value("variant",      std::string{});
             p.custom_name = v.value("custom_name",  std::string{});
             p.talent      = v.value("talent",       std::string{});
+            p.enh_atk     = v.value("enh_atk",       0);
+            p.enh_def     = v.value("enh_def",       0);
+            p.enh_hp      = v.value("enh_hp",        0);
             p.statuses.clear();
             if (v.contains("statuses"))
                 for (auto& s : v["statuses"]) p.statuses.push_back(s.get<std::string>());
@@ -331,6 +334,7 @@ static void save_pet_data() {
                 {"onsen_notified", p.onsen_notified},
                 {"variant", p.variant}, {"custom_name", p.custom_name},
                 {"talent", p.talent},
+                {"enh_atk", p.enh_atk}, {"enh_def", p.enh_def}, {"enh_hp", p.enh_hp},
                 {"statuses", [&]{ nlohmann::json a=nlohmann::json::array();
                     for (auto& s:p.statuses) a.push_back(s); return a; }()}
             };
@@ -371,18 +375,38 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
         e.set_footer(footer);
     }
     dpp::message msg; msg.add_embed(e);
-    dpp::component row; row.set_type(dpp::cot_action_row);
-    row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🐾 寵物").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_primary));
-    row.add_component(dpp::component().set_type(dpp::cot_button)
+
+    dpp::component row1; row1.set_type(dpp::cot_action_row);
+    row1.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🎒 背包").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
-    row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("⚔️ 裝備").set_id("equip_main_" + uid_s).set_style(dpp::cos_secondary));
-    row.add_component(dpp::component().set_type(dpp::cot_button)
+    row1.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("💼 錢包").set_id("wallet_home_" + uid_s).set_style(dpp::cos_secondary));
+    row1.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏪 商店").set_id("lobby_shop_" + uid_s).set_style(dpp::cos_secondary));
-    row.add_component(dpp::component().set_type(dpp::cot_button)
+    row1.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🐾 寵物").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_primary));
+    row1.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🔨 合成").set_id("craft_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component(row1);
+
+    dpp::component row2; row2.set_type(dpp::cot_action_row);
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("⚔️ 裝備").set_id("equip_main_" + uid_s).set_style(dpp::cos_secondary));
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("💪 強化").set_id("enh_main_" + uid_s).set_style(dpp::cos_secondary));
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🗡️ 怪物狩獵").set_id("hunt_main_" + uid_s).set_style(dpp::cos_secondary));
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🗺️ 探險").set_id("adv_main_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component(row);
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("📚 收藏").set_id("adv_collection_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component(row2);
+
+    dpp::component row3; row3.set_type(dpp::cot_action_row);
+    row3.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏦 銀行").set_id("wallet_bank_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component(row3);
+
     return msg;
 }
 
@@ -494,9 +518,12 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
         talent_display = TALENT_DESC.at(pet.talent);
     e.add_field("✦  天賦", talent_display, true);
 
-    // ATK/HP/DEF
+    // ATK/HP/DEF（含收藏套組與強化加成）
     {
         PetStats stats = calc_pet_stats(uid, pet);
+        int max_hp = stats.hp;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          apply_pet_basic_set_bonus(uid, pet, stats.atk, stats.hp, max_hp, stats.def); }
         e.add_field("⚔️  攻擊力", std::to_string(stats.atk), true);
         e.add_field("❤️  生命值",  std::to_string(stats.hp),  true);
         e.add_field("🛡️  防禦力", std::to_string(stats.def), true);
@@ -793,13 +820,12 @@ static dpp::message make_bag_equip_msg(dpp::snowflake uid) {
     if (eq_entries.empty()) {
         e.set_description("還沒有任何裝備！\n使用 `!轉蛋` 來抽取裝備。");
         msg.add_embed(e);
+        add_bag_tab_row(msg, uid, "equip");
         dpp::component nav; nav.set_type(dpp::cot_action_row);
-        dpp::component to_items, back;
-        to_items.set_type(dpp::cot_button).set_label("🎒 道具")
-                .set_id("bag_tab_items_" + uid_s).set_style(dpp::cos_secondary);
+        dpp::component back;
         back.set_type(dpp::cot_button).set_label("🏠 大廳")
             .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
-        nav.add_component(to_items); nav.add_component(back);
+        nav.add_component(back);
         msg.add_component(nav);
         return msg;
     }
@@ -835,16 +861,16 @@ static dpp::message make_bag_equip_msg(dpp::snowflake uid) {
     e.set_footer(dpp::embed_footer().set_text("✅ = 已裝備（批量售出會跳過已裝備的）"));
     msg.add_embed(e);
 
+    add_bag_tab_row(msg, uid, "equip");
+
     // Nav row only — sell page is separate
     dpp::component nav_row; nav_row.set_type(dpp::cot_action_row);
-    dpp::component to_items, sell_btn, back;
-    to_items.set_type(dpp::cot_button).set_label("🎒 道具")
-            .set_id("bag_tab_items_" + uid_s).set_style(dpp::cos_secondary);
+    dpp::component sell_btn, back;
     sell_btn.set_type(dpp::cot_button).set_label("💰 售出")
             .set_id("bag_sell_page_equip_" + uid_s).set_style(dpp::cos_danger);
     back.set_type(dpp::cot_button).set_label("🏠 大廳")
         .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
-    nav_row.add_component(to_items); nav_row.add_component(sell_btn); nav_row.add_component(back);
+    nav_row.add_component(sell_btn); nav_row.add_component(back);
     msg.add_component(nav_row);
     return msg;
 }
@@ -956,7 +982,17 @@ static dpp::message make_bag_sell_equip_msg(dpp::snowflake uid) {
     return msg;
 }
 
-// ─── Backpack — Items tab ─────────────────────────────────────────────────────
+// ─── Backpack — tab classification ────────────────────────────────────────────
+// 「其他」分頁：不透過此畫面直接使用的道具（狩獵卷、寶珠碎片、票券類等）。
+// 蒐藏品（collectible）另外顯示在「收藏」分頁，這裡跟「消耗」都不列。
+static bool bag_item_is_other(const VirtualShopItem& vi) {
+    if (vi.category == "hunt")  return true;
+    if (vi.category == "shard") return true;
+    if (vi.category == "special" && vi.key != "orb_ticket") return true;
+    return false;
+}
+
+// ─── Backpack — Consumables tab ───────────────────────────────────────────────
 
 static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
     Pet pet; bool has_pet = false;
@@ -970,29 +1006,29 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
     }
 
     std::string uid_s = std::to_string((uint64_t)uid);
-    dpp::embed e; e.set_title("🎒  背包 — 道具").set_color(0x3498DB);
+    dpp::embed e; e.set_title("🎒  背包 — 消耗").set_color(0x3498DB);
     dpp::message msg;
 
-    // Gather virtual items (excluding eggs)
+    // Gather virtual items (excluding eggs / collectibles / "其他" 分頁的道具)
     struct ItemEntry { std::string key; int count; };
     std::vector<ItemEntry> entries;
     for (auto& vi : VIRTUAL_ITEMS) {
-        if (vi.category == "egg") continue;
+        if (vi.category == "egg" || vi.category == "collectible") continue;
+        if (bag_item_is_other(vi)) continue;
         auto it = inv.find(vi.key);
         if (it != inv.end() && it->second > 0)
             entries.push_back({vi.key, it->second});
     }
 
     if (entries.empty()) {
-        e.set_description("道具欄是空的！\n前往 **商店 → 虛擬商店** 購買道具。");
+        e.set_description("消耗欄是空的！\n前往 **商店 → 虛擬商店** 購買道具。");
         msg.add_embed(e);
+        add_bag_tab_row(msg, uid, "items");
         dpp::component nav; nav.set_type(dpp::cot_action_row);
-        dpp::component to_eq, back;
-        to_eq.set_type(dpp::cot_button).set_label("⚔️ 裝備")
-             .set_id("bag_tab_equip_" + uid_s).set_style(dpp::cos_secondary);
+        dpp::component back;
         back.set_type(dpp::cot_button).set_label("🏠 大廳")
             .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
-        nav.add_component(to_eq); nav.add_component(back);
+        nav.add_component(back);
         msg.add_component(nav);
         return msg;
     }
@@ -1006,6 +1042,7 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
     }
     e.set_description(desc);
     msg.add_embed(e);
+    add_bag_tab_row(msg, uid, "items");
 
     auto is_disabled = [&](const std::string& key) -> bool {
         if (key == "orb_ticket") return false;
@@ -1087,20 +1124,66 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
         msg.add_component(pg_row);
     }
 
-    // Nav row (rows 3) — sell page is separate
+    // Nav row — sell page is separate
     dpp::component nav_row; nav_row.set_type(dpp::cot_action_row);
-    dpp::component to_eq, sell_btn2, back_btn, discard_btn;
-    to_eq.set_type(dpp::cot_button).set_label("⚔️ 裝備")
-         .set_id("bag_tab_equip_" + uid_s).set_style(dpp::cos_secondary);
+    dpp::component sell_btn2, back_btn, discard_btn;
     sell_btn2.set_type(dpp::cot_button).set_label("💰 售出")
              .set_id("bag_sell_page_items_" + uid_s).set_style(dpp::cos_danger);
     back_btn.set_type(dpp::cot_button).set_label("🏠 大廳")
             .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
     discard_btn.set_type(dpp::cot_button).set_label("🗑️ 丟棄道具")
                .set_id("pet_discard_mode_" + uid_s).set_style(dpp::cos_danger);
-    nav_row.add_component(to_eq); nav_row.add_component(sell_btn2);
+    nav_row.add_component(sell_btn2);
     nav_row.add_component(back_btn); nav_row.add_component(discard_btn);
     msg.add_component(nav_row);
+    return msg;
+}
+
+// ─── Backpack — Other tab (材料／票券，不從此畫面直接使用) ─────────────────────
+
+static dpp::message make_pet_other_msg(dpp::snowflake uid) {
+    std::map<std::string,int> inv;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto ii = inventory_data.find(uid);
+        if (ii != inventory_data.end()) inv = ii->second;
+    }
+
+    std::string uid_s = std::to_string((uint64_t)uid);
+    dpp::embed e; e.set_title("📦  背包 — 其他").set_color(0x7F8C8D);
+
+    struct ItemEntry { std::string key; int count; };
+    std::vector<ItemEntry> entries;
+    for (auto& vi : VIRTUAL_ITEMS) {
+        if (!bag_item_is_other(vi)) continue;
+        auto it = inv.find(vi.key);
+        if (it != inv.end() && it->second > 0)
+            entries.push_back({vi.key, it->second});
+    }
+
+    dpp::message msg;
+    if (entries.empty()) {
+        e.set_description("這裡是空的！\n狩獵卷、寶珠碎片等道具會顯示在這裡。");
+    } else {
+        std::string desc;
+        for (auto& en : entries) {
+            auto* vi = find_virtual_item(en.key);
+            if (!vi) continue;
+            std::string id_str = vi->item_id ? ("`" + std::to_string(vi->item_id) + "`  ") : "";
+            desc += id_str + "**" + vi->name + "** ×" + std::to_string(en.count) + "　" + vi->desc + "\n";
+        }
+        e.set_description(desc);
+        e.set_footer(dpp::embed_footer().set_text("寶珠碎片請用 !合成 兌換寶珠"));
+    }
+    msg.add_embed(e);
+    add_bag_tab_row(msg, uid, "other");
+
+    dpp::component nav; nav.set_type(dpp::cot_action_row);
+    dpp::component back;
+    back.set_type(dpp::cot_button).set_label("🏠 大廳")
+        .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
+    nav.add_component(back);
+    msg.add_component(nav);
     return msg;
 }
 

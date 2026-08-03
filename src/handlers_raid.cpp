@@ -228,6 +228,13 @@ void handle_raid_button(const dpp::button_click_t& ev)
               auto eit = equipped_data.find(muid); if (eit != equipped_data.end()) orb_key = eit->second.orb;
             }
             ps = calc_pet_stats(muid, pet2);
+            { std::lock_guard<std::mutex> lk(data_mutex);
+              int max_hp = ps.hp;
+              apply_pet_basic_set_bonus(muid, pet2, ps.atk, ps.hp, max_hp, ps.def);
+              ps.atk += col_pet_atk_bonus(muid);
+              ps.def += col_pet_def_bonus(muid);
+              ps.hp  += col_pet_hp_bonus(muid);
+            }
             RaidPlayer p;
             p.uid = muid; p.display_name = room.member_names.count(muid) ? room.member_names.at(muid) : "?";
             p.avatar_url = room.member_avatars.count(muid) ? room.member_avatars.at(muid) : "";
