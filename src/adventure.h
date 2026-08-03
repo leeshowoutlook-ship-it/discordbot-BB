@@ -919,6 +919,11 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         ev.reply(dpp::ir_update_message, make_adv_duration_select_msg(uid, dn, av)); return;
     }
     if (cid == "adv_set_funds_" + uid_s) {
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            adv_setups[uid].setup_msg_id = ev.command.msg.id;
+            adv_setups[uid].setup_ch_id  = ev.command.channel_id;
+        }
         dpp::interaction_modal_response modal("adv_funds_modal_" + uid_s, "設定探險資金");
         modal.add_component(dpp::component()
             .set_type(dpp::cot_text)
@@ -956,6 +961,8 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         int64_t amt = 0;
         try { amt = std::stoll(cid.substr(11 + uid_s.size())); } catch (...) {}
         if (amt < 0 || amt > 10000) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 資金須為 0~10000 碼！").set_flags(dpp::m_ephemeral)); return; }
+        int64_t bal = get_chips(uid);
+        if (amt > bal) amt = std::max((int64_t)0, bal);
         { std::lock_guard<std::mutex> lk(data_mutex); adv_setups[uid].funds = amt; }
         ev.reply(dpp::ir_update_message, make_adv_setup_msg(uid, dn, av)); return;
     }

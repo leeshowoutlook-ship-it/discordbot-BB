@@ -195,10 +195,12 @@ struct VillageGame {
 // ─── Adventure ────────────────────────────────────────────────────────────────
 
 struct AdventureSetup {
-    std::string region_key;
-    int     duration_hours = 0;
-    int64_t funds          = -1; // -1 = not set
-    int     partner        = -1; // -1 = unset, 0 = no pet, 1 = with pet
+    std::string    region_key;
+    int            duration_hours = 0;
+    int64_t        funds          = -1; // -1 = not set
+    int            partner        = -1; // -1 = unset, 0 = no pet, 1 = with pet
+    dpp::snowflake setup_msg_id   = 0;  // for modal response to edit original setup page
+    dpp::snowflake setup_ch_id    = 0;
 };
 
 struct AdventureGame {

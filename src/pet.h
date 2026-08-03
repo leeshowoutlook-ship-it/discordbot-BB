@@ -1492,53 +1492,68 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
             {"EQ_K_DARKDRAGON", "暗黑龍王的寶珠"},
         };
         static std::mt19937 orb_rng2(std::random_device{}());
-        int idx = std::uniform_int_distribution<int>(0, (int)ALL_ORBS2.size()-1)(orb_rng2);
-        auto& [orb_key, orb_name] = ALL_ORBS2[idx];
+        int actual_qty = std::min(qty, item_count);
+        std::vector<std::string> got_names;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
-            inventory_data[uid]["orb_ticket"]--;
-            inventory_data[uid][orb_key]++;
+            for (int i = 0; i < actual_qty; i++) {
+                int idx = std::uniform_int_distribution<int>(0, (int)ALL_ORBS2.size()-1)(orb_rng2);
+                inventory_data[uid]["orb_ticket"]--;
+                inventory_data[uid][ALL_ORBS2[idx].first]++;
+                got_names.push_back(ALL_ORBS2[idx].second);
+            }
         }
         save_inventory();
         e.set_title("💎  寶珠兌換成功").set_color(0xFFD700);
-        e.set_description("💎 獲得了 **✨UR " + orb_name + "**！");
+        std::string desc;
+        for (auto& n : got_names) desc += "💎 獲得了 **✨UR " + n + "**！\n";
+        e.set_description(desc);
         m.add_embed(e); return m;
     }
 
     // 特權道具：不需要寵物，提前處理
     if (vi && vi->category == "privilege") {
         if (item_count <= 0) return err("道具數量不足！");
+        int actual_qty = std::min(qty, item_count);
         time_t now_p = time(nullptr);
-        std::string result;
         if (key == "vip_daily") {
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
-                inventory_data[uid][key]--;
+                inventory_data[uid][key] -= actual_qty;
                 auto& cd = chip_data[uid];
-                cd.vip_until = std::max(cd.vip_until, now_p) + 86400; // stack if used again
+                cd.vip_until = std::max(cd.vip_until, now_p) + 86400LL * actual_qty;
             }
             save_inventory(); save_chips();
             e.set_title("👑  尊爵VIP 啟動！").set_color(0xF1C40F);
-            e.set_description("✅ 尊爵VIP 已啟動！\n接下來 **24 小時**內，每小時自動為你領取籌碼。");
+            std::string vdesc = "✅ 尊爵VIP 已啟動";
+            if (actual_qty > 1) vdesc += "（×" + std::to_string(actual_qty) + "）";
+            vdesc += "！\n接下來 **" + std::to_string(actual_qty * 24) + " 小時**內，每小時自動為你領取籌碼。";
+            e.set_description(vdesc);
         } else if (key == "pet_supervisor_daily") {
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
-                inventory_data[uid][key]--;
+                inventory_data[uid][key] -= actual_qty;
                 auto& cd = chip_data[uid];
-                cd.supervisor_until = std::max(cd.supervisor_until, now_p) + 86400;
+                cd.supervisor_until = std::max(cd.supervisor_until, now_p) + 86400LL * actual_qty;
             }
             save_inventory(); save_chips();
             e.set_title("🤖  寵物監工 啟動！").set_color(0x3498DB);
-            e.set_description("✅ 寵物監工 已啟動！\n接下來 **24 小時**內，寵物打工結束 **10 分鐘**後若未領取，自動以 **0.6 倍**收益再次出勤。");
+            std::string sdesc = "✅ 寵物監工 已啟動";
+            if (actual_qty > 1) sdesc += "（×" + std::to_string(actual_qty) + "）";
+            sdesc += "！\n接下來 **" + std::to_string(actual_qty * 24) + " 小時**內，寵物打工結束 **10 分鐘**後若未領取，自動以 **0.6 倍**收益再次出勤。";
+            e.set_description(sdesc);
         } else if (key == "pet_insurance") {
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
-                inventory_data[uid][key]--;
-                chip_data[uid].insurance_until = now_p + 3 * 86400;
+                inventory_data[uid][key] -= actual_qty;
+                chip_data[uid].insurance_until = std::max(chip_data[uid].insurance_until, now_p) + 3LL * 86400 * actual_qty;
             }
             save_inventory(); save_chips();
             e.set_title("🏥  醫療保險 啟動！").set_color(0x2ECC71);
-            e.set_description("✅ 醫療保險已生效！\n接下來 **三天內**，寵物打工回來若生病（受傷除外），立即給付 **4000** 保險金並結束效果。");
+            std::string idesc = "✅ 醫療保險已生效";
+            if (actual_qty > 1) idesc += "（×" + std::to_string(actual_qty) + "）";
+            idesc += "！\n接下來 **" + std::to_string(actual_qty * 3) + " 天內**，寵物打工回來若生病（受傷除外），立即給付 **4000** 保險金並結束效果。";
+            e.set_description(idesc);
         } else {
             return err("未知的特權道具！");
         }

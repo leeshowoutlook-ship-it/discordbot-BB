@@ -7766,16 +7766,30 @@ int main(int argc, char* argv[]) {
             int64_t chips = get_chips(modal_uid);
             std::string notice;
             if (amount > chips) {
-                amount = chips;
+                amount = std::max((int64_t)0, chips);
                 notice = "⚠️ 你輸入的 " + std::to_string(requested) + " 碼超過錢包餘額，已自動調整為 **" + std::to_string(amount) + "** 碼。";
             }
-            { std::lock_guard<std::mutex> lk(data_mutex); adv_setups[modal_uid].funds = amount; }
+            dpp::snowflake setup_msg_id = 0, setup_ch_id = 0;
+            { std::lock_guard<std::mutex> lk(data_mutex);
+              adv_setups[modal_uid].funds = amount;
+              setup_msg_id = adv_setups[modal_uid].setup_msg_id;
+              setup_ch_id  = adv_setups[modal_uid].setup_ch_id; }
             std::string mdn = ev.command.member.get_nickname();
             if (mdn.empty()) mdn = ev.command.get_issuing_user().global_name.empty()
                                  ? ev.command.get_issuing_user().username
                                  : ev.command.get_issuing_user().global_name;
             std::string mav = ev.command.get_issuing_user().get_avatar_url();
-            ev.reply(dpp::ir_update_message, make_adv_setup_msg(modal_uid, mdn, mav, notice));
+            // modal submissions cannot use ir_update_message — edit original msg via bot API
+            if (setup_msg_id && setup_ch_id) {
+                auto upd = make_adv_setup_msg(modal_uid, mdn, mav, notice);
+                upd.id = setup_msg_id; upd.channel_id = setup_ch_id;
+                g_bot->message_edit(upd);
+            }
+            std::string ack = notice.empty()
+                ? "✅ 探險資金已設定為 **" + std::to_string(amount) + "** 碼。"
+                : notice;
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message(ack).set_flags(dpp::m_ephemeral));
             return;
         }
 
