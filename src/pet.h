@@ -41,6 +41,8 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"evo_4",       "二階段進化祕笈碎片", 11000, "evolution", "70% 進化，失敗無懲罰（二階段）",                 40004},
     {"evo_5",       "萬用進化機緣",        5000, "evolution", "50% 進化，50% -50 經驗",                        40005},
     {"evo_degrade", "退化卡",              5000, "evolution", "將寵物退化至前一階（保留最大經驗值，一階段無法退化）", 40006},
+    {"path_reincarnate", "轉生卡",       10000, "evolution", "使用後可轉生成其他品種的預設形態（保留階段與經驗值，需已進化）", 40007},
+    {"path_rebirth",     "重生卡",        7000, "evolution", "使用後可重新選擇目前品種的分支路線（保留階段與經驗值，需二階以上）", 40008},
     // ── Talent items ─────────────────────────────────────────────────────────
     {"talent_scroll",  "天賦賦予卷軸",       15000, "talent", "100% 為寵物賦予一個天賦（可自選）",  50001},
     {"talent_class",   "送去上才藝班",        2000, "talent", "25% 為寵物發現一個隨機天賦",                            50002},
@@ -266,6 +268,156 @@ static std::string chain_from_egg_key(const std::string& key) {
     if (key == "egg_feifei")  return "肥肥";
     if (key == "egg_penguin") return "小企鵝";
     return "";
+}
+
+// ─── 轉生卡／重生卡：品種／分支切換 ─────────────────────────────────────────────
+
+static const std::vector<std::string> ALL_PET_CHAINS = {"嫩寶", "菇菇仔", "肥肥", "小企鵝"};
+
+static std::string chain_to_slug(const std::string& chain) {
+    if (chain == "嫩寶")   return "nunbao";
+    if (chain == "菇菇仔") return "gugu";
+    if (chain == "肥肥")   return "feifei";
+    if (chain == "小企鵝") return "penguin";
+    return "";
+}
+static std::string slug_to_chain(const std::string& slug) {
+    if (slug == "nunbao")  return "嫩寶";
+    if (slug == "gugu")    return "菇菇仔";
+    if (slug == "feifei")  return "肥肥";
+    if (slug == "penguin") return "小企鵝";
+    return "";
+}
+
+// 重生卡：同品種內可選的分支（variant slug、variant 值、顯示名稱）
+struct RebirthOption { std::string slug, variant, label; };
+static std::vector<RebirthOption> rebirth_options(const std::string& chain) {
+    if (chain == "嫩寶") return {
+        {"default", "",   "紅寶（預設路線）"},
+        {"moss",    "苔蘚", "苔蘚（分支路線）"},
+    };
+    if (chain == "菇菇仔") return {
+        {"default", "",   "菇菇寶貝（預設路線）"},
+        {"zombie",  "殭屍", "殭屍菇菇（分支路線）"},
+        {"bluemush","藍菇", "藍菇菇（分支路線）"},
+    };
+    if (chain == "肥肥") return {
+        {"default", "",   "緞帶肥肥（預設路線）"},
+        {"desert",  "沙漠", "黑肥肥（分支路線）"},
+    };
+    if (chain == "小企鵝") return {
+        {"default",     "",     "槍企鵝（預設路線）"},
+        {"penguinking", "企鵝王", "企鵝王（分支路線）"},
+    };
+    return {};
+}
+
+static dpp::message make_reincarnate_pick_msg(dpp::snowflake uid, const std::string& notice = "") {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    Pet pet; bool has_pet = false; int card_count = 0;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = pet_data.find(uid);
+        if (it != pet_data.end()) { pet = it->second; has_pet = true; }
+        auto ii = inventory_data.find(uid);
+        if (ii != inventory_data.end()) {
+            auto ci = ii->second.find("path_reincarnate");
+            if (ci != ii->second.end()) card_count = ci->second;
+        }
+    }
+    dpp::embed e; e.set_title("🔄  轉生卡 — 選擇品種").set_color(0x9B59B6);
+    dpp::message msg;
+    if (!has_pet || pet.stage == 0) {
+        e.set_description("❌ 需要已進化的寵物才能使用轉生卡！");
+        msg.add_embed(e);
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("↩ 返回").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component(row);
+        return msg;
+    }
+    std::string desc;
+    if (!notice.empty()) desc += notice + "\n\n";
+    desc += "目前品種：**" + pet_name(pet.chain, pet.stage, pet.variant) + "**\n";
+    desc += "持有轉生卡：**" + std::to_string(card_count) + "** 張\n\n";
+    desc += (card_count > 0)
+        ? "選擇要轉生成的品種（保留階段與經驗值，消耗 1 張轉生卡）："
+        : "❌ 沒有轉生卡了！";
+    e.set_description(desc);
+    msg.add_embed(e);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    for (auto& chain : ALL_PET_CHAINS) {
+        if (chain == pet.chain) continue;
+        dpp::component btn;
+        btn.set_type(dpp::cot_button)
+           .set_label(pet_name(chain, pet.stage, ""))
+           .set_id("pet_reincarnate_" + uid_s + "_" + chain_to_slug(chain))
+           .set_style(dpp::cos_primary)
+           .set_disabled(card_count <= 0);
+        row.add_component(btn);
+    }
+    msg.add_component(row);
+
+    dpp::component nav; nav.set_type(dpp::cot_action_row);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component(nav);
+    return msg;
+}
+
+static dpp::message make_rebirth_pick_msg(dpp::snowflake uid, const std::string& notice = "") {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    Pet pet; bool has_pet = false; int card_count = 0;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = pet_data.find(uid);
+        if (it != pet_data.end()) { pet = it->second; has_pet = true; }
+        auto ii = inventory_data.find(uid);
+        if (ii != inventory_data.end()) {
+            auto ci = ii->second.find("path_rebirth");
+            if (ci != ii->second.end()) card_count = ci->second;
+        }
+    }
+    dpp::embed e; e.set_title("🌀  重生卡 — 選擇分支路線").set_color(0x9B59B6);
+    dpp::message msg;
+    if (!has_pet || pet.stage < 2) {
+        e.set_description("❌ 需要二階以上的寵物才能使用重生卡！（一階分支尚未分歧）");
+        msg.add_embed(e);
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("↩ 返回").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component(row);
+        return msg;
+    }
+    std::string desc;
+    if (!notice.empty()) desc += notice + "\n\n";
+    desc += "目前路線：**" + pet_name(pet.chain, pet.stage, pet.variant) + "**\n";
+    desc += "持有重生卡：**" + std::to_string(card_count) + "** 張\n\n";
+    desc += (card_count > 0)
+        ? "選擇要重生成的分支路線（保留階段與經驗值，消耗 1 張重生卡）："
+        : "❌ 沒有重生卡了！";
+    e.set_description(desc);
+    msg.add_embed(e);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    for (auto& o : rebirth_options(pet.chain)) {
+        bool is_current = (o.variant == pet.variant);
+        dpp::component btn;
+        btn.set_type(dpp::cot_button)
+           .set_label((is_current ? "✅ " : "") + o.label)
+           .set_id("pet_rebirth_" + uid_s + "_" + o.slug)
+           .set_style(is_current ? dpp::cos_secondary : dpp::cos_primary)
+           .set_disabled(is_current || card_count <= 0);
+        row.add_component(btn);
+    }
+    msg.add_component(row);
+
+    dpp::component nav; nav.set_type(dpp::cot_action_row);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component(nav);
+    return msg;
 }
 
 static int exp_needed(int stage) {
@@ -1061,6 +1213,8 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
             return (pet.stage == 0 || !pet.talent.empty());
         }
         if (vi->category == "collectible") return true; // 蒐藏品不可使用，僅展示
+        if (key == "path_reincarnate") return pet.stage == 0;
+        if (key == "path_rebirth")     return pet.stage < 2; // 一階分支尚未分歧，無得選
         if (vi->category == "path")      return false;
         if (vi->category == "special")   return key != "orb_ticket";
         if (vi->category == "recovery")  return !has_pet || pet.stage == 0;

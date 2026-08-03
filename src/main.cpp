@@ -3709,6 +3709,12 @@ int main(int argc, char* argv[]) {
                     ev.reply(dpp::ir_channel_message_with_source,
                         dpp::message("❌ 這不是你的寵物！").set_flags(dpp::m_ephemeral)); return;
                 }
+                if (item_key == "path_reincarnate") {
+                    ev.reply(dpp::ir_update_message, make_reincarnate_pick_msg(uid)); return;
+                }
+                if (item_key == "path_rebirth") {
+                    ev.reply(dpp::ir_update_message, make_rebirth_pick_msg(uid)); return;
+                }
                 int cnt = 0;
                 {
                     std::lock_guard<std::mutex> lk(data_mutex);
@@ -3733,6 +3739,85 @@ int main(int argc, char* argv[]) {
                         dpp::message("❌ 這不是你的寵物！").set_flags(dpp::m_ephemeral)); return;
                 }
                 ev.reply(dpp::ir_update_message, handle_pet_use_item(uid, item_key, qty));
+            } else if (cid.rfind("pet_reincarnate_", 0) == 0) {
+                // pet_reincarnate_{uid}_{chain_slug}
+                std::string rest = cid.substr(16);
+                size_t sep = rest.find('_');
+                if (sep == std::string::npos) return;
+                dpp::snowflake btn_uid(std::stoull(rest.substr(0, sep)));
+                std::string slug = rest.substr(sep + 1);
+                if (uid != btn_uid) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("❌ 這不是你的寵物！").set_flags(dpp::m_ephemeral)); return;
+                }
+                std::string notice; bool ok = false;
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    auto pit = pet_data.find(uid);
+                    std::string new_chain = slug_to_chain(slug);
+                    if (pit == pet_data.end() || pit->second.stage == 0) {
+                        notice = "❌ 需要已進化的寵物才能使用轉生卡！";
+                    } else if (new_chain.empty() || new_chain == pit->second.chain) {
+                        notice = "❌ 無效的品種！";
+                    } else {
+                        auto& inv = inventory_data[uid];
+                        auto ci = inv.find("path_reincarnate");
+                        if (ci == inv.end() || ci->second <= 0) {
+                            notice = "❌ 沒有轉生卡了！";
+                        } else {
+                            ci->second--;
+                            auto& p = pit->second;
+                            p.chain = new_chain;
+                            p.variant = "";
+                            notice = "✅ 轉生成功！新品種：**" + pet_name(p.chain, p.stage, p.variant) + "**";
+                            ok = true;
+                        }
+                    }
+                }
+                if (ok) { save_pet_data(); save_inventory(); }
+                ev.reply(dpp::ir_update_message, make_reincarnate_pick_msg(uid, notice));
+            } else if (cid.rfind("pet_rebirth_", 0) == 0) {
+                // pet_rebirth_{uid}_{variant_slug}
+                std::string rest = cid.substr(12);
+                size_t sep = rest.find('_');
+                if (sep == std::string::npos) return;
+                dpp::snowflake btn_uid(std::stoull(rest.substr(0, sep)));
+                std::string slug = rest.substr(sep + 1);
+                if (uid != btn_uid) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("❌ 這不是你的寵物！").set_flags(dpp::m_ephemeral)); return;
+                }
+                std::string notice; bool ok = false;
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    auto pit = pet_data.find(uid);
+                    if (pit == pet_data.end() || pit->second.stage < 2) {
+                        notice = "❌ 需要二階以上的寵物才能使用重生卡！（一階分支尚未分歧）";
+                    } else {
+                        auto& p = pit->second;
+                        auto opts = rebirth_options(p.chain);
+                        const RebirthOption* picked = nullptr;
+                        for (auto& o : opts) if (o.slug == slug) { picked = &o; break; }
+                        if (!picked) {
+                            notice = "❌ 無效的路線！";
+                        } else if (picked->variant == p.variant) {
+                            notice = "❌ 這跟目前的路線一樣，請選擇不同的路線！";
+                        } else {
+                            auto& inv = inventory_data[uid];
+                            auto ci = inv.find("path_rebirth");
+                            if (ci == inv.end() || ci->second <= 0) {
+                                notice = "❌ 沒有重生卡了！";
+                            } else {
+                                ci->second--;
+                                p.variant = picked->variant;
+                                notice = "✅ 重生成功！新路線：**" + pet_name(p.chain, p.stage, p.variant) + "**";
+                                ok = true;
+                            }
+                        }
+                    }
+                }
+                if (ok) { save_pet_data(); save_inventory(); }
+                ev.reply(dpp::ir_update_message, make_rebirth_pick_msg(uid, notice));
             } else if (cid.rfind("pet_discard_mode_", 0) == 0) {
                 dpp::snowflake btn_uid(std::stoull(cid.substr(17)));
                 if (uid != btn_uid) {
