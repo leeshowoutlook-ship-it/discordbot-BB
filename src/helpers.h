@@ -222,6 +222,23 @@ static void invalidate_old_msg(dpp::cluster& bot, dpp::snowflake uid) {
     }
 }
 
+// Helper used by game message commands: create msg, track active message.
+static void start_cmd(dpp::cluster& bot, dpp::snowflake uid,
+                      dpp::snowflake channel_id, dpp::message msg,
+                      dpp::snowflake reply_to = 0) {
+    invalidate_old_msg(bot, uid);
+    if (reply_to) msg.set_reference(reply_to);
+    msg.channel_id = channel_id;
+    bot.message_create(msg, [uid, channel_id](const dpp::confirmation_callback_t& cb) {
+        if (!cb.is_error()) {
+            auto& m = std::get<dpp::message>(cb.value);
+            std::lock_guard<std::mutex> lk(data_mutex);
+            msg_owner[m.id] = uid;
+            user_active_msg[uid] = {m.id, channel_id};
+        }
+    });
+}
+
 // ─── Slot formatting ──────────────────────────────────────────────────────────
 
 // e.g. "**6/12(五)** · 18:00 · 20:00\n**6/13(六)** · 12:00"

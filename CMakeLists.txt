@@ -15,6 +15,10 @@ add_executable(dcbot
     src/handlers_hunt.cpp
     src/handlers_raid.cpp
     src/handlers_dd.cpp
+    src/handlers_pet.cpp
+    src/handlers_shop.cpp
+    src/handlers_games.cpp
+    src/handlers_adv.cpp
 )
 target_link_libraries(dcbot PRIVATE dpp::dpp nlohmann_json::nlohmann_json)
 
