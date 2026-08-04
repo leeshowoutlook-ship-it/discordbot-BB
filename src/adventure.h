@@ -1021,6 +1021,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         g.duration_hours = setup.duration_hours; g.funds = setup.funds;
         g.pet_along = (setup.partner == 1);
         g.pet_stage = pet_stage;
+        g.notify_on_finish = setup.notify_on_finish;
         g.start_time = time(nullptr);
         int64_t adv_secs = (int64_t)g.duration_hours * 3600LL;
         { std::lock_guard<std::mutex> lk(data_mutex);
@@ -1043,7 +1044,10 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto it = adv_games.find(uid);
-            if (it != adv_games.end()) it->second.notify_on_finish = !it->second.notify_on_finish;
+            if (it != adv_games.end()) {
+                it->second.notify_on_finish = !it->second.notify_on_finish;
+                adv_setups[uid].notify_on_finish = it->second.notify_on_finish;
+            }
         }
         save_adv_games();
         ev.reply(dpp::ir_update_message, make_adv_active_msg(uid, dn, av)); return;
@@ -1090,6 +1094,13 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
             if (!item_key.empty()) { inventory_data[uid][item_key]++; item_added = true; }
             adv_games.erase(uid);
+            // 恢復上次設定，讓玩家可以馬上再出發（資金不足時出發時才會拒絕）
+            AdventureSetup& ns  = adv_setups[uid];
+            ns.region_key       = g.region_key;
+            ns.duration_hours   = g.duration_hours;
+            ns.funds            = g.funds;
+            ns.partner          = g.pet_along ? 1 : 0;
+            ns.notify_on_finish = g.notify_on_finish;
         }
         if (item_added) save_inventory();
         save_adv_games();
