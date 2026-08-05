@@ -529,6 +529,10 @@ int main(int argc, char* argv[]) {
                 m.set_reference(ev.msg.id); m.channel_id = ch; bot.message_create(m);
             }
         }
+        // ── 21點 → handlers_bj.cpp ──────────────────────────────────────────
+        else if (content.rfind("!21", 0) == 0 && (content.size() == 3 || content[3] == ' ')) {
+            handle_bj_message(ev, content, uid, ch); return;
+        }
         // ── 狼人殺 / 一夜狼人 → handlers_wolf.cpp
         else if (content == "!狼人殺" || content == "!偷看" || content == "!狼人殺榜單" ||
                  content == "!一夜狼人" || content == "!一夜狼人規則" || content == "!狼人殺規則") {
