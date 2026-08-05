@@ -462,6 +462,73 @@ int main(int argc, char* argv[]) {
                   && content.rfind("!猜拳", 0) != 0 && content.rfind("！猜拳", 0) != 0)) {
             handle_games_message(ev, content, uid, ch); return;
         }
+        // !轉帳 @mention <碼>
+        else if (content.rfind("!轉帳", 0) == 0 && content.size() > 7) {
+            std::string rest = content.substr(content.find(' ') + 1);
+            dpp::snowflake to_uid = parse_mention(rest);
+            size_t gt = rest.find('>');
+            int64_t amount = 0;
+            if (gt != std::string::npos) {
+                try { amount = std::stoll(rest.substr(gt + 1)); } catch (...) {}
+            }
+            if (!to_uid || amount <= 0) {
+                dpp::message m; m.set_content("用法：`!轉帳 @對象 籌碼量`  例：`!轉帳 @王小明 200`");
+                m.channel_id = ch; bot.message_create(m);
+            } else {
+                bool has_loan_block = false;
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    auto it = bank_data.find(uid);
+                    has_loan_block = (it != bank_data.end() && it->second.loan > 0);
+                }
+                if (has_loan_block) {
+                    dpp::message m; m.set_content("❌ 你有未還清的借款，無法轉帳！請先至 `!銀行` 還清借款。");
+                    m.channel_id = ch; bot.message_create(m);
+                } else {
+                    std::string from_name = "<@" + std::to_string((uint64_t)uid)    + ">";
+                    std::string to_name   = "<@" + std::to_string((uint64_t)to_uid) + ">";
+                    dpp::message m = handle_transfer_request(uid, from_name, to_uid, to_name, amount);
+                    m.channel_id = ch; bot.message_create(m);
+                }
+            }
+        }
+        // !警告 @mention [原因]
+        else if (content.rfind("!警告", 0) == 0 && content.find('@') != std::string::npos) {
+            dpp::snowflake target = parse_mention(content);
+            if (!target) {
+                dpp::message m; m.set_content("用法：`!警告 @對象`  或  `!警告 @對象 原因`");
+                m.set_reference(ev.msg.id); m.channel_id = ch; bot.message_create(m);
+            } else {
+                size_t gt = content.find('>');
+                std::string reason;
+                if (gt != std::string::npos && gt + 2 < content.size())
+                    reason = content.substr(gt + 2);
+                std::string target_name = "<@" + std::to_string((uint64_t)target) + ">";
+                dpp::message m = handle_warn(target, target_name, reason);
+                m.set_reference(ev.msg.id); m.channel_id = ch; bot.message_create(m);
+            }
+        }
+        else if (content == "!警告榜單") {
+            dpp::message m = handle_warn_board();
+            m.set_reference(ev.msg.id); m.channel_id = ch; bot.message_create(m);
+        }
+        // !幸運頻道 <最大頻道數>
+        else if (content.rfind("!幸運頻道", 0) == 0) {
+            std::string rest = content.size() > 9 ? content.substr(content.find(' ') + 1) : "";
+            int max_ch = rest.empty() ? 0 : std::atoi(rest.c_str());
+            if (max_ch < 1) {
+                dpp::message m; m.set_content("用法：`!幸運頻道 最大頻道數`  例：`!幸運頻道 8`");
+                m.set_reference(ev.msg.id); m.channel_id = ch; bot.message_create(m);
+            } else {
+                std::mt19937 rng(std::random_device{}());
+                int lucky = std::uniform_int_distribution<int>(1, max_ch)(rng);
+                dpp::embed e;
+                e.set_title("🎰  幸運頻道").set_color(0xF39C12);
+                e.set_description("🍀  本次幸運頻道是 **頻道 " + std::to_string(lucky) + "**！");
+                dpp::message m; m.add_embed(e);
+                m.set_reference(ev.msg.id); m.channel_id = ch; bot.message_create(m);
+            }
+        }
         // ── 狼人殺 / 一夜狼人 → handlers_wolf.cpp
         else if (content == "!狼人殺" || content == "!偷看" || content == "!狼人殺榜單" ||
                  content == "!一夜狼人" || content == "!一夜狼人規則" || content == "!狼人殺規則") {

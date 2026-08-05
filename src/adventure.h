@@ -155,7 +155,11 @@ static const std::vector<ColDisplayRegion> COL_DISPLAY_REGIONS = {
 static const std::set<std::string> LIMITED_COL_ITEMS = {
     "col_yaya_bounty", "col_slim_wallet", "col_fat_wallet",
     "col_phone_tianxin", "col_bath_huaxuan", "col_rod_zoey",
-    "col_penguin_relic", "col_shark_relic", "col_koala_relic", "col_koala_autograph"
+    "col_penguin_relic", "col_shark_relic", "col_koala_relic", "col_koala_autograph",
+    // BB博物館限定（全球唯一）
+    "col_bb_sian_cloak", "col_bb_lost_underwear", "col_bb_magnifier",
+    // BB博物館限定（全球限量，上限見 LIMITED_MAX_COUNT）
+    "col_bb_wig_broken", "col_bb_undies_broken", "col_bb_wig_full", "col_bb_undies_full",
 };
 
 // 全球限量道具：跟 LIMITED_COL_ITEMS（全球僅 1 份）不同，這些是全球固定份數上限。
@@ -167,10 +171,9 @@ static const std::map<std::string, LimitedMaxRule> LIMITED_MAX_COUNT = {
     {"col_bb_undies_broken", {5, "col_bb_undies_full", 5}},
 };
 
-// 「特殊」分頁：機率低於 2% 的限定道具（不含全球唯一的 LIMITED_COL_ITEMS，那些走「收藏」分頁）
+// 「特殊」分頁：可使用的消耗型道具（風險骰子）
 static const std::set<std::string> SPECIAL_COL_ITEMS = {
-    "col_bb_risk_dice", "col_bb_sian_cloak", "col_bb_lost_underwear", "col_bb_magnifier",
-    "col_bb_wig_broken", "col_bb_undies_broken", "col_bb_wig_full", "col_bb_undies_full",
+    "col_bb_risk_dice",
 };
 
 // ─── Collectible selling（限定收藏品全球唯一，不可售出，只能 !交易）──────────────
@@ -521,6 +524,7 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
     std::string uid_s = std::to_string((uint64_t)uid);
     std::map<std::string,int> inv;
     std::map<std::string,dpp::snowflake> holder;
+    std::map<std::string,int> capped_remaining; // 限量N份道具：剩餘可探索份數
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = inventory_data.find(uid); if (it != inventory_data.end()) inv = it->second;
@@ -531,6 +535,18 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
                 if (jt != oinv.end() && jt->second > 0) { holder[lk2] = oid; break; }
             }
         }
+        for (auto& [cap_key, rule] : LIMITED_MAX_COUNT) {
+            int64_t total = 0;
+            for (auto& [oid, oinv] : inventory_data) {
+                auto jt = oinv.find(cap_key);
+                if (jt != oinv.end()) total += jt->second;
+                if (!rule.crafted_key.empty()) {
+                    auto jt2 = oinv.find(rule.crafted_key);
+                    if (jt2 != oinv.end()) total += (int64_t)jt2->second * rule.craft_ratio;
+                }
+            }
+            capped_remaining[cap_key] = (int)std::max((int64_t)0, (int64_t)rule.cap - total);
+        }
     }
 
     dpp::embed e; e.set_title("⭐  限定收藏").set_color(0xF39C12);
@@ -539,8 +555,9 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
         if (!av.empty()) f.icon_url = av; e.set_footer(f);
     }
 
-    std::string desc = "限定收藏品為**全球唯一**，每種只有一件存在。\n可透過探險獲得，也可透過 `!交易` 轉讓。\n\n";
+    std::string desc = "限定收藏品全球稀有，可透過探險獲得，也可透過 `!交易` 轉讓。\n\n";
     static const std::vector<std::pair<std::string,std::string>> LIMITED_ORDER = {
+        // 全球唯一（1份）
         {"col_yaya_bounty",     "每日狩獵卷上限 +1"},
         {"col_slim_wallet",     "打工收益 +3%"},
         {"col_fat_wallet",      "打工收益 +7%"},
@@ -551,19 +568,43 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
         {"col_shark_relic",     "寵物戰鬥攻擊力 +1"},
         {"col_koala_relic",     "寵物戰鬥血量 +10"},
         {"col_koala_autograph", "打工時間縮短 3%"},
+        // BB博物館 — 全球唯一（1份）
+        {"col_bb_sian_cloak",     "戰鬥中機率閃避怪物攻擊（1%）── 效果開發中"},
+        {"col_bb_lost_underwear", "每場戰鬥第一次攻擊，攻擊力 +5 ── 效果開發中"},
+        {"col_bb_magnifier",      "探索時長 -5%"},
+        // BB博物館 — 全球限量（5份，可疊加）
+        {"col_bb_wig_broken",     "探險收取時有 1% 機率額外骰一次戰利品（可疊加）── 全球限量 5 份"},
+        {"col_bb_undies_broken",  "探險完成有 2% 機率返還探索資金（可疊加）── 全球限量 5 份"},
+        {"col_bb_wig_full",       "探險收取時有 10% 機率額外骰一次戰利品（可疊加）── 由 5 個戰損版合成"},
+        {"col_bb_undies_full",    "探險完成有 20% 機率返還探索資金（可疊加）── 由 5 個戰損版合成"},
     };
     for (auto& [key, effect] : LIMITED_ORDER) {
         auto* vi = find_virtual_item(key);
         int owned = 0; auto oit = inv.find(key); if (oit != inv.end()) owned = oit->second;
         std::string id_s = vi ? "**ID: " + std::to_string(vi->item_id) + "**" : key;
         std::string name = vi ? vi->name : key;
-        dpp::snowflake h = holder[key];
         if (owned > 0) {
-            desc += "✅ " + id_s + "　" + name + "\n　效果：" + effect + "\n\n";
-        } else if (h != 0) {
-            desc += "🔒 " + id_s + "　" + name + "\n　效果：" + effect + "　（持有者：<@" + std::to_string((uint64_t)h) + ">）\n\n";
+            std::string cnt_s = (owned > 1) ? " ×" + std::to_string(owned) : "";
+            desc += "✅ " + id_s + "　" + name + cnt_s + "\n　效果：" + effect + "\n\n";
+        } else if (LIMITED_MAX_COUNT.count(key)) {
+            // 限量N份：顯示剩餘可探索數
+            int rem = capped_remaining.count(key) ? capped_remaining.at(key) : 0;
+            int cap = LIMITED_MAX_COUNT.at(key).cap;
+            if (rem > 0) {
+                desc += "🔓 " + id_s + "　" + name + "\n　效果：" + effect
+                      + "　（全球還剩 **" + std::to_string(rem) + "/" + std::to_string(cap) + "** 份可探索）\n\n";
+            } else {
+                desc += "🔒 " + id_s + "　" + name + "\n　效果：" + effect
+                      + "　（全球 " + std::to_string(cap) + " 份已全數出現）\n\n";
+            }
         } else {
-            desc += "❓ " + id_s + "　" + name + "\n　效果：?????　（尚未被任何人發現）\n\n";
+            dpp::snowflake h = holder[key];
+            if (h != 0) {
+                desc += "🔒 " + id_s + "　" + name + "\n　效果：" + effect
+                      + "　（持有者：<@" + std::to_string((uint64_t)h) + ">）\n\n";
+            } else {
+                desc += "❓ " + id_s + "　" + name + "\n　效果：?????　（尚未被任何人發現）\n\n";
+            }
         }
     }
     e.set_description(desc);
