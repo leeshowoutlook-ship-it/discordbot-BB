@@ -1031,6 +1031,35 @@ int main(int argc, char* argv[]) {
                 dpp::message("✅ 合成成功！獲得 **" + ci.name + "** ×1！\n"
                              "前往 `!裝備` → 靈魂寶珠欄位裝備它。").set_flags(dpp::m_ephemeral));
         }
+        else if (cid.rfind("craft_bb_wig_", 0) == 0 || cid.rfind("craft_bb_undies_", 0) == 0) {
+            bool is_wig = cid.rfind("craft_bb_wig_", 0) == 0;
+            dpp::snowflake bu(std::stoull(cid.substr(is_wig ? 13 : 16)));
+            if (uid != bu) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 這不是你的視窗！").set_flags(dpp::m_ephemeral)); return;
+            }
+            std::string broken_key = is_wig ? "col_bb_wig_broken" : "col_bb_undies_broken";
+            std::string full_key   = is_wig ? "col_bb_wig_full"   : "col_bb_undies_full";
+            std::string full_name  = is_wig ? "Zoey散發氣味的秀髮" : "皮包遺失的粉紅內衣";
+            bool ok = false;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto& inv = inventory_data[uid];
+                if (inv.count(broken_key) && inv[broken_key] >= 5) {
+                    inv[broken_key] -= 5;
+                    if (inv[broken_key] == 0) inv.erase(broken_key);
+                    inv[full_key]++;
+                    ok = true;
+                }
+            }
+            if (!ok) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 戰損版數量不足！需要 5 個才能合成。").set_flags(dpp::m_ephemeral)); return;
+            }
+            save_inventory();
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("✅ 合成成功！獲得 **" + full_name + "** ×1！").set_flags(dpp::m_ephemeral));
+        }
         else if (cid.rfind("craft_main_", 0) == 0) {
             dpp::snowflake bu(std::stoull(cid.substr(11)));
             if (uid != bu) {

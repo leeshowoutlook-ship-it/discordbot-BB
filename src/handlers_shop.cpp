@@ -3,6 +3,7 @@
 #include "helpers.h"
 #include "pet.h"
 #include "shop.h"
+#include "adventure.h"
 #include "handler_decls.h"
 
 // ─── Shop / Gacha / Equip / Bag button handler ────────────────────────────────
@@ -212,6 +213,10 @@ void handle_shop_button(const dpp::button_click_t& ev)
         } else if (cid.rfind("bag_tab_other_", 0) == 0) {
             if (!chk(dpp::snowflake(std::stoull(cid.substr(14))))) return;
             ev.reply(dpp::ir_update_message, make_pet_other_msg(uid));
+
+        } else if (cid.rfind("bag_tab_special_", 0) == 0) {
+            if (!chk(dpp::snowflake(std::stoull(cid.substr(16))))) return;
+            ev.reply(dpp::ir_update_message, make_bag_special_msg(uid));
 
         } else if (cid.rfind("bag_sell_page_equip_", 0) == 0) {
             if (!chk(dpp::snowflake(std::stoull(cid.substr(20))))) return;

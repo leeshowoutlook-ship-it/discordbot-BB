@@ -924,6 +924,12 @@ static dpp::message make_craft_msg(dpp::snowflake uid) {
         int cnt = sc(o.shard);
         e.add_field(o.name, "碎片：**" + std::to_string(cnt) + " / 10**　效果：" + o.effect, false);
     }
+    int wig_cnt    = sc("col_bb_wig_broken");
+    int undies_cnt = sc("col_bb_undies_broken");
+    e.add_field("Zoey散發氣味的秀髮",
+        "戰損版：**" + std::to_string(wig_cnt) + " / 5**　效果：探索額外骰一次戰利品 10%（可疊加）", false);
+    e.add_field("皮包遺失的粉紅內衣",
+        "戰損版：**" + std::to_string(undies_cnt) + " / 5**　效果：探索完成返還資金 20%（可疊加）", false);
     dpp::message msg; msg.add_embed(e);
 
     for (int base = 0; base < (int)ORB_CRAFT_LIST.size(); base += 3) {
@@ -939,6 +945,15 @@ static dpp::message make_craft_msg(dpp::snowflake uid) {
         }
         msg.add_component(row);
     }
+
+    dpp::component bb_row; bb_row.set_type(dpp::cot_action_row);
+    bb_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("合成 Zoey散發氣味的秀髮").set_id("craft_bb_wig_" + uid_s)
+        .set_style(wig_cnt >= 5 ? dpp::cos_primary : dpp::cos_secondary).set_disabled(wig_cnt < 5));
+    bb_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("合成 皮包遺失的粉紅內衣").set_id("craft_bb_undies_" + uid_s)
+        .set_style(undies_cnt >= 5 ? dpp::cos_primary : dpp::cos_secondary).set_disabled(undies_cnt < 5));
+    msg.add_component(bb_row);
 
     dpp::component nav; nav.set_type(dpp::cot_action_row);
     nav.add_component(dpp::component().set_type(dpp::cot_button)

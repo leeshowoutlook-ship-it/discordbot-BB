@@ -105,6 +105,37 @@ static const std::vector<AdvRegion> ADV_REGIONS = {
             }},
         }
     },
+    {
+        "bb_museum", "BB自然博物館", "🦴",
+        {
+            { 25, 55, {
+                {"",                      40},
+                {"col_bb_pink_cup",       17},
+                {"col_bb_desk_terror",    17},
+                {"col_bb_signus_chalice", 17},
+                {"col_bb_mercury_staff",   8},
+                {"col_bb_risk_dice",       1},
+            }},
+            // 這格機率含小數，內部改用千分位（總和 1000），跟其他格互不影響
+            { 75, 35, {
+                {"",                     400},
+                {"col_bb_horn",          190},
+                {"col_bb_death_ring",    190},
+                {"col_bb_ski",           190},
+                {"col_bb_sian_cloak",     15},
+                {"col_bb_lost_underwear",  5},
+                {"col_bb_magnifier",      10},
+            }},
+            {100, 10, {
+                {"",                      40},
+                {"col_bb_blood_gem",      24},
+                {"col_bb_bracelet",       24},
+                {"col_bb_mirror",         10},
+                {"col_bb_wig_broken",      1},
+                {"col_bb_undies_broken",   1},
+            }},
+        }
+    },
 };
 
 static const AdvRegion* find_adv_region(const std::string& key) {
@@ -118,12 +149,28 @@ static const std::vector<ColDisplayRegion> COL_DISPLAY_REGIONS = {
     {"mushroom_kingdom",   "菇菇王國",   "🍄"},
     {"water_spirit_cave",  "綠水靈洞窟", "💧"},
     {"ghost_graveyard",    "亡魂墓地",   "💀"},
+    {"bb_museum",          "BB自然博物館", "🦴"},
 };
 
 static const std::set<std::string> LIMITED_COL_ITEMS = {
     "col_yaya_bounty", "col_slim_wallet", "col_fat_wallet",
     "col_phone_tianxin", "col_bath_huaxuan", "col_rod_zoey",
     "col_penguin_relic", "col_shark_relic", "col_koala_relic", "col_koala_autograph"
+};
+
+// 全球限量道具：跟 LIMITED_COL_ITEMS（全球僅 1 份）不同，這些是全球固定份數上限。
+// 合成消耗掉的不會釋放新名額——用「戰損版持有數 + 合成版持有數 × craft_ratio」估計歷史上總共出現過幾份，
+// 這個數字只會增加不會減少（合成不會讓總數變少，只是把 5 份戰損版換成 1 份合成版）。
+struct LimitedMaxRule { int cap; std::string crafted_key; int craft_ratio; };
+static const std::map<std::string, LimitedMaxRule> LIMITED_MAX_COUNT = {
+    {"col_bb_wig_broken",    {5, "col_bb_wig_full",    5}},
+    {"col_bb_undies_broken", {5, "col_bb_undies_full", 5}},
+};
+
+// 「特殊」分頁：機率低於 2% 的限定道具（不含全球唯一的 LIMITED_COL_ITEMS，那些走「收藏」分頁）
+static const std::set<std::string> SPECIAL_COL_ITEMS = {
+    "col_bb_risk_dice", "col_bb_sian_cloak", "col_bb_lost_underwear", "col_bb_magnifier",
+    "col_bb_wig_broken", "col_bb_undies_broken", "col_bb_wig_full", "col_bb_undies_full",
 };
 
 // ─── Collectible selling（限定收藏品全球唯一，不可售出，只能 !交易）──────────────
@@ -230,6 +277,42 @@ static std::string roll_adv_loot(const std::string& region_key, int progress,
         if (roll <= cum) return item.key;
     }
     return "";
+}
+
+// 出發前預覽：目前探索度最可能落在哪個 checkpoint，以及整體「空手」機率是多少。
+// 只用預設機率表估算（不考慮限定道具當下是否已被排除），僅供玩家出發前參考。
+struct AdvPreview { std::string likely_tier; double miss_pct; };
+static AdvPreview calc_adv_preview(const std::string& region_key, int progress) {
+    AdvPreview result{"未知", 100.0};
+    const AdvRegion* region = find_adv_region(region_key);
+    if (!region || region->checkpoints.empty()) return result;
+
+    std::vector<double> weights;
+    for (auto& cp : region->checkpoints) {
+        int dist = std::abs(progress - cp.progress);
+        double w = (dist == 0) ? 1.0 : (1.0 / (double)dist);
+        weights.push_back(w * cp.pool_pct / 100.0);
+    }
+    double total = 0; for (double w : weights) total += w;
+    if (total <= 0) return result;
+
+    static const char* TIER_NAMES[] = {"初級區", "中級區", "高級區"};
+    int best_idx = 0;
+    for (int i = 1; i < (int)weights.size(); i++) if (weights[i] > weights[best_idx]) best_idx = i;
+    result.likely_tier = (best_idx < 3) ? TIER_NAMES[best_idx] : ("第" + std::to_string(best_idx + 1) + "區");
+
+    double miss_prob = 0.0;
+    for (int i = 0; i < (int)region->checkpoints.size(); i++) {
+        auto& cp = region->checkpoints[i];
+        int cp_total = 0, cp_empty = 0;
+        for (auto& item : cp.items) {
+            cp_total += item.pct;
+            if (item.key.empty()) cp_empty += item.pct;
+        }
+        if (cp_total > 0) miss_prob += (weights[i] / total) * ((double)cp_empty / cp_total);
+    }
+    result.miss_pct = miss_prob * 100.0;
+    return result;
 }
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
@@ -390,6 +473,11 @@ static dpp::message make_normal_col_msg(dpp::snowflake uid,
                 {"🌿 中級區", "探險時長 -1%",      {"col_witch_broom"}},
                 {"🌳 高級區", "打工報酬 +1%",      {"col_demon_tear","col_demon_heart","col_demon_horn","col_demon_costume"}},
             },
+            { // BB自然博物館（低於2%機率的特殊道具另外顯示在背包「特殊」分頁）
+                {"🌱 初級區", "純收藏（無套組加成）", {"col_bb_pink_cup","col_bb_desk_terror","col_bb_signus_chalice","col_bb_mercury_staff"}},
+                {"🌿 中級區", "純收藏（無套組加成）", {"col_bb_horn","col_bb_death_ring","col_bb_ski"}},
+                {"🌳 高級區", "純收藏（無套組加成）", {"col_bb_blood_gem","col_bb_bracelet","col_bb_mirror"}},
+            },
         };
         auto has_all = [&](const std::vector<std::string>& ks) {
             for (auto& k : ks) { auto it = inv.find(k); if (it == inv.end() || it->second <= 0) return false; }
@@ -432,15 +520,15 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
                                           const std::string& dn, const std::string& av) {
     std::string uid_s = std::to_string((uint64_t)uid);
     std::map<std::string,int> inv;
-    std::map<std::string,bool> globally_held;
+    std::map<std::string,dpp::snowflake> holder;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = inventory_data.find(uid); if (it != inventory_data.end()) inv = it->second;
         for (auto& lk2 : LIMITED_COL_ITEMS) {
-            globally_held[lk2] = false;
+            holder[lk2] = 0;
             for (auto& [oid, oinv] : inventory_data) {
                 auto jt = oinv.find(lk2);
-                if (jt != oinv.end() && jt->second > 0) { globally_held[lk2] = true; break; }
+                if (jt != oinv.end() && jt->second > 0) { holder[lk2] = oid; break; }
             }
         }
     }
@@ -469,11 +557,11 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
         int owned = 0; auto oit = inv.find(key); if (oit != inv.end()) owned = oit->second;
         std::string id_s = vi ? "**ID: " + std::to_string(vi->item_id) + "**" : key;
         std::string name = vi ? vi->name : key;
-        bool discovered = globally_held[key];
+        dpp::snowflake h = holder[key];
         if (owned > 0) {
             desc += "✅ " + id_s + "　" + name + "\n　效果：" + effect + "\n\n";
-        } else if (discovered) {
-            desc += "🔒 " + id_s + "　" + name + "\n　效果：" + effect + "　（已被其他探險者持有）\n\n";
+        } else if (h != 0) {
+            desc += "🔒 " + id_s + "　" + name + "\n　效果：" + effect + "　（持有者：<@" + std::to_string((uint64_t)h) + ">）\n\n";
         } else {
             desc += "❓ " + id_s + "　" + name + "\n　效果：?????　（尚未被任何人發現）\n\n";
         }
@@ -570,6 +658,77 @@ static dpp::message make_col_sell_msg(dpp::snowflake uid,
     return msg;
 }
 
+// ─── Backpack — Special tab（機率 < 2% 的限定道具，目前主要是园园的風險骰子）──────
+
+static bool risk_dice_same_day(time_t a, time_t b) {
+    struct tm ta{}, tb{};
+    localtime_s(&ta, &a); localtime_s(&tb, &b);
+    return ta.tm_year == tb.tm_year && ta.tm_yday == tb.tm_yday;
+}
+
+static dpp::message make_bag_special_msg(dpp::snowflake uid,
+                                          const std::string& dn = "", const std::string& av = "",
+                                          const std::string& notice = "") {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    std::map<std::string,int> inv;
+    int risk_uses_today = 0;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = inventory_data.find(uid);
+        if (it != inventory_data.end()) inv = it->second;
+        auto cit = chip_data.find(uid);
+        if (cit != chip_data.end()) {
+            time_t now = time(nullptr);
+            risk_uses_today = risk_dice_same_day(now, cit->second.risk_dice_day) ? cit->second.risk_dice_uses : 0;
+        }
+    }
+
+    dpp::embed e; e.set_title("🌟  背包 — 特殊").set_color(0xE67E22);
+    {
+        dpp::embed_footer f; f.text = "👤 " + (dn.empty() ? uid_s : dn);
+        if (!av.empty()) f.icon_url = av; e.set_footer(f);
+    }
+
+    dpp::message msg;
+    std::string desc;
+    if (!notice.empty()) desc += notice + "\n\n";
+
+    bool has_any = false;
+    for (auto& key : SPECIAL_COL_ITEMS) {
+        auto it = inv.find(key);
+        int cnt = (it != inv.end()) ? it->second : 0;
+        if (cnt <= 0) continue;
+        has_any = true;
+        auto* vi = find_virtual_item(key);
+        if (!vi) continue;
+        std::string id_str = vi->item_id ? ("`" + std::to_string(vi->item_id) + "`  ") : "";
+        desc += id_str + "**" + vi->name + "** ×" + std::to_string(cnt) + "\n　" + vi->desc + "\n\n";
+    }
+    if (!has_any) desc += "目前沒有特殊道具。機率低於 2% 掉落的限定道具會顯示在這裡。";
+    e.set_description(desc);
+    msg.add_embed(e);
+
+    add_bag_tab_row(msg, uid, "special");
+
+    bool has_dice = inv.count("col_bb_risk_dice") && inv.at("col_bb_risk_dice") > 0;
+    if (has_dice) {
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        bool can_use = risk_uses_today < 2;
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🎲 使用風險骰子（今日已用 " + std::to_string(risk_uses_today) + "/2）")
+            .set_id("adv_risk_dice_" + uid_s)
+            .set_style(dpp::cos_danger)
+            .set_disabled(!can_use));
+        msg.add_component(row);
+    }
+
+    dpp::component nav; nav.set_type(dpp::cot_action_row);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component(nav);
+    return msg;
+}
+
 // ─── Setup page ───────────────────────────────────────────────────────────────
 
 static dpp::message make_adv_setup_msg(dpp::snowflake uid,
@@ -611,6 +770,11 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
         }
         int prog = calc_adv_progress(setup.duration_hours, setup.funds, pet_stage);
         desc += "\n\n✨ **預計探索度：" + std::to_string(prog) + "**";
+        if (reg) {
+            AdvPreview prev = calc_adv_preview(reg->key, prog);
+            desc += "\n📊 有 **" + std::to_string((int)std::lround(prev.miss_pct))
+                  + "%** 機率無法獲得戰利品，目前最有可能前往 **" + prev.likely_tier + "**";
+        }
     }
     desc += "\n\n⚠️ **注意：探索度並不是越高越好。**";
     e.set_description(desc);
@@ -912,6 +1076,39 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         save_inventory(); save_chips();
         ev.reply(dpp::ir_update_message, make_col_sell_msg(uid, dn, av)); return;
     }
+    // 园园的風險骰子：一天限用 2 次
+    if (cid == "adv_risk_dice_" + uid_s) {
+        std::string notice;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto iit = inventory_data.find(uid);
+            if (iit == inventory_data.end() || iit->second.count("col_bb_risk_dice") == 0
+                || iit->second.at("col_bb_risk_dice") <= 0) {
+                notice = "❌ 你沒有园园的風險骰子！";
+            } else {
+                auto& cd = chip_data[uid];
+                time_t now = time(nullptr);
+                if (!risk_dice_same_day(now, cd.risk_dice_day)) cd.risk_dice_uses = 0;
+                if (cd.risk_dice_uses >= 2) {
+                    notice = "❌ 今天的風險骰子已經用完了（上限 2 次）！";
+                } else {
+                    cd.risk_dice_uses++;
+                    cd.risk_dice_day = now;
+                    static std::mt19937 risk_dice_rng(std::random_device{}());
+                    int roll = std::uniform_int_distribution<int>(1, 100)(risk_dice_rng);
+                    int64_t delta; std::string outcome;
+                    if      (roll <= 1)  { delta = -5000; outcome = "😱 大凶！"; }
+                    else if (roll <= 11) { delta =  5000; outcome = "🎉 大吉！"; }
+                    else                 { delta =  -500; outcome = "😐 小虧。"; }
+                    cd.chips += delta;
+                    notice = outcome + "（" + (delta >= 0 ? "+" : "") + std::to_string(delta) + " 碼，今日已用 "
+                           + std::to_string(cd.risk_dice_uses) + "/2）";
+                }
+            }
+        }
+        save_chips();
+        ev.reply(dpp::ir_update_message, make_bag_special_msg(uid, dn, av, notice)); return;
+    }
     if (cid == "adv_set_region_" + uid_s) {
         ev.reply(dpp::ir_update_message, make_adv_region_select_msg(uid, dn, av)); return;
     }
@@ -1027,6 +1224,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         { std::lock_guard<std::mutex> lk(data_mutex);
           int reductions = col_adv_reduction_count(uid);
           if (reductions > 0) adv_secs = (int64_t)std::ceil(adv_secs * std::pow(0.99, reductions));
+          if (col_has_bb_magnifier(uid)) adv_secs = (int64_t)std::ceil(adv_secs * 0.95);
           g.end_time = g.start_time + adv_secs;
           adv_games[uid] = g; adv_setups.erase(uid);
         }
@@ -1079,10 +1277,12 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 探險尚未結束！").set_flags(dpp::m_ephemeral)); return;
         }
         int progress = calc_adv_progress(g.duration_hours, g.funds, g.pet_stage);
-        std::string item_key;
+        std::string item_key, item_key2;
         bool item_added = false;
+        bool refund_triggered = false;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
+            auto& inv = inventory_data[uid];
             // 限定收藏品全球唯一：先找出已被拿走的，骰的時候直接排除、在剩下道具間重骰
             std::set<std::string> claimed_limited;
             for (auto& lk2 : LIMITED_COL_ITEMS) {
@@ -1091,8 +1291,42 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
                     if (jt != oinv.end() && jt->second > 0) { claimed_limited.insert(lk2); break; }
                 }
             }
+            // 全球限量道具（例如全球僅 5 份）：算進已合成消耗掉的份數，達上限就排除，合成不會釋放新名額
+            for (auto& [lk2, rule] : LIMITED_MAX_COUNT) {
+                int64_t total = 0;
+                for (auto& [oid, oinv] : inventory_data) {
+                    auto jt = oinv.find(lk2);
+                    if (jt != oinv.end()) total += jt->second;
+                    if (!rule.crafted_key.empty()) {
+                        auto jt2 = oinv.find(rule.crafted_key);
+                        if (jt2 != oinv.end()) total += (int64_t)jt2->second * rule.craft_ratio;
+                    }
+                }
+                if (total >= rule.cap) claimed_limited.insert(lk2);
+            }
+
+            // 骰之前先記錄目前持有的假髮／內衣（新骰到的這次不算數）
+            auto owned = [&](const std::string& k) { auto it = inv.find(k); return it != inv.end() ? it->second : 0; };
+            int wig_broken   = owned("col_bb_wig_broken");
+            int wig_full     = owned("col_bb_wig_full");
+            int undies_broken = owned("col_bb_undies_broken");
+            int undies_full   = owned("col_bb_undies_full");
+
             item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
-            if (!item_key.empty()) { inventory_data[uid][item_key]++; item_added = true; }
+            if (!item_key.empty()) { inv[item_key]++; item_added = true; }
+
+            static std::mt19937 bb_effect_rng(std::random_device{}());
+            // Zoey的假髮：機率額外骰一次戰利品（戰損版每個+1%，完整版每個+10%，可疊加）
+            int double_pct = wig_broken * 1 + wig_full * 10;
+            if (double_pct > 0 && std::uniform_int_distribution<int>(1, 100)(bb_effect_rng) <= double_pct) {
+                item_key2 = roll_adv_loot(g.region_key, progress, claimed_limited);
+                if (!item_key2.empty()) { inv[item_key2]++; item_added = true; }
+            }
+            // 皮包的內衣：機率返還這次探索花費的資金（戰損版每個+2%，完整版每個+20%，可疊加）
+            int refund_pct = undies_broken * 2 + undies_full * 20;
+            if (g.funds > 0 && refund_pct > 0 && std::uniform_int_distribution<int>(1, 100)(bb_effect_rng) <= refund_pct)
+                refund_triggered = true;
+
             adv_games.erase(uid);
             // 恢復上次設定，讓玩家可以馬上再出發（資金不足時出發時才會拒絕）
             AdventureSetup& ns  = adv_setups[uid];
@@ -1104,6 +1338,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         }
         if (item_added) save_inventory();
         save_adv_games();
+        if (refund_triggered) add_chips(uid, g.funds);
 
         const AdvRegion* reg = find_adv_region(g.region_key);
         auto* vi = find_virtual_item(item_key);
@@ -1127,6 +1362,12 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             desc += "🎁 獲得蒐藏品：**" + item_name + "** ×1！";
             if (vi && !vi->desc.empty()) desc += "\n　*" + vi->desc + "*";
         }
+        if (!item_key2.empty()) {
+            auto* vi2 = find_virtual_item(item_key2);
+            desc += "\n✨ 假髮加成觸發，額外骰到：**" + (vi2 ? vi2->name : item_key2) + "** ×1！";
+        }
+        if (refund_triggered)
+            desc += "\n💰 內衣加成觸發，返還本次探索資金 **" + std::to_string(g.funds) + "** 碼！";
         e.set_description(desc);
 
         dpp::message msg; msg.add_embed(e);

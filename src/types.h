@@ -83,6 +83,8 @@ struct ChipData {
     time_t  supervisor_until   = 0; // 寵物監工 到期時間
     time_t  insurance_until    = 0; // 醫療保險 到期時間
     int     free_xfer          = 0; // 免手續費轉帳次數
+    time_t  risk_dice_day      = 0; // 园园的風險骰子：上次使用的時間（用來判斷是否跨天）
+    int     risk_dice_uses     = 0; // 當天已使用次數（上限 2，跨天重置）
 };
 
 struct BankData {
@@ -576,6 +578,11 @@ inline bool col_set_ghost_mid(dpp::snowflake uid)      { return col_all_owned(ui
 inline int col_adv_reduction_count(dpp::snowflake uid) {
     return (col_set_mushroom_mid(uid)?1:0)+(col_set_water_mid(uid)?1:0)+(col_set_ghost_mid(uid)?1:0);
 }
+// BB自然博物館：Xu的探險放大鏡，持有時探索時長額外 -5%（跟上面的 -1% 疊乘各自獨立相乘）
+inline bool col_has_bb_magnifier(dpp::snowflake uid) {
+    auto it = inventory_data.find(uid);
+    return it != inventory_data.end() && it->second.count("col_bb_magnifier") && it->second.at("col_bb_magnifier") > 0;
+}
 // 高級
 inline bool col_set_mushroom_adv(dpp::snowflake uid)   { return col_all_owned(uid, {"col_mushroom_head","col_mb_crown","col_mb_staff"}); }
 inline bool col_set_water_adv(dpp::snowflake uid)      { return col_all_owned(uid, {"col_awl_avocado","col_sqwl_brownie","col_ywl_caramel"}); }
@@ -597,7 +604,7 @@ inline void apply_pet_basic_set_bonus(dpp::snowflake uid, const Pet& pet, int& a
     def += pet.enh_def / 2;
 }
 
-// 背包分頁列（裝備／消耗／其他／收藏），固定放在訊息的第一列，目前所在分頁會反白且不可點擊
+// 背包分頁列（裝備／消耗／其他／收藏／特殊），固定放在訊息的第一列，目前所在分頁會反白且不可點擊
 inline void add_bag_tab_row(dpp::message& msg, dpp::snowflake uid, const std::string& active) {
     std::string uid_s = std::to_string((uint64_t)uid);
     dpp::component row; row.set_type(dpp::cot_action_row);
@@ -613,6 +620,7 @@ inline void add_bag_tab_row(dpp::message& msg, dpp::snowflake uid, const std::st
     mk("🎒 消耗", "bag_tab_items_" + uid_s, "items");
     mk("📦 其他", "bag_tab_other_" + uid_s, "other");
     mk("📚 收藏", "adv_collection_" + uid_s, "col");
+    mk("🌟 特殊", "bag_tab_special_" + uid_s, "special");
     msg.add_component(row);
 }
 

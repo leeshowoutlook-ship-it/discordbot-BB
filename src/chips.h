@@ -45,6 +45,8 @@ static void load_chips() {
             cd.supervisor_until   = (time_t)v.value("supervisor_until",   (int64_t)0);
             cd.insurance_until    = (time_t)v.value("insurance_until",    (int64_t)0);
             cd.free_xfer          = v.value("free_xfer",                  0);
+            cd.risk_dice_day      = (time_t)v.value("risk_dice_day",  (int64_t)0);
+            cd.risk_dice_uses     = v.value("risk_dice_uses",            0);
         }
     } catch (...) {}
 }
@@ -64,7 +66,9 @@ static void save_chips() {
                 {"vip_last_claim",     (int64_t)cd.vip_last_claim},
                 {"supervisor_until",   (int64_t)cd.supervisor_until},
                 {"insurance_until",    (int64_t)cd.insurance_until},
-                {"free_xfer",          cd.free_xfer}
+                {"free_xfer",          cd.free_xfer},
+                {"risk_dice_day",      (int64_t)cd.risk_dice_day},
+                {"risk_dice_uses",     cd.risk_dice_uses}
             };
     }
     std::lock_guard<std::mutex> io_lk(io_mutex);

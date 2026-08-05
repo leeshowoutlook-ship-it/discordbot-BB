@@ -115,6 +115,25 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"col_shark_relic",     "鬼鯊隊的聖物",        0, "collectible", "持有後寵物攻擊力 +1（限定）", 90032},
     {"col_koala_relic",     "考拉幫的聖物",        0, "collectible", "持有後寵物生命值 +10（限定）", 90033},
     {"col_koala_autograph", "考拉的親筆簽名",      0, "collectible", "持有後打工時長減少 3%（限定）", 90034},
+    // ── BB自然博物館 蒐藏品 ─────────────────────────────────────────────────────
+    {"col_bb_pink_cup",       "皮卡啾的粉紅酒杯",       0, "collectible", "從BB自然博物館探險取得的蒐藏品", 90035},
+    {"col_bb_desk_terror",    "戴斯克巨大的恐怖",       0, "collectible", "從BB自然博物館探險取得的蒐藏品", 90036},
+    {"col_bb_signus_chalice", "西格諾斯惡魔的聖杯",     0, "collectible", "從BB自然博物館探險取得的蒐藏品", 90037},
+    {"col_bb_mercury_staff",  "厄運死神的汞心石杖",     0, "collectible", "從BB自然博物館探險取得的蒐藏品", 90038},
+    {"col_bb_risk_dice",      "园园的風險骰子",         0, "collectible", "特殊道具，背包「特殊」分頁可使用。一天可擲 2 次：1% -5000碼／10% +5000碼／89% -500碼（限定）", 90039},
+    {"col_bb_horn",           "利里諾斯的角",           0, "collectible", "從BB自然博物館探險取得的蒐藏品", 90040},
+    {"col_bb_death_ring",     "達納托斯的魔戒",         0, "collectible", "從BB自然博物館探險取得的蒐藏品", 90041},
+    {"col_bb_ski",            "雪毛怪人的滑雪板",       0, "collectible", "從BB自然博物館探險取得的蒐藏品", 90042},
+    {"col_bb_sian_cloak",     "Sian的隱形斗篷",         0, "collectible", "特殊道具（限定）。效果：戰鬥中機率性閃避怪物攻擊（1%）── 效果開發中，尚未生效", 90043},
+    {"col_bb_lost_underwear", "觀觀遺失的胖次",         0, "collectible", "特殊道具（限定）。效果：每場戰鬥第一次攻擊，攻擊力 +5 ── 效果開發中，尚未生效", 90044},
+    {"col_bb_magnifier",      "Xu的探險放大鏡",         0, "collectible", "特殊道具（限定）。持有後探索時長 -5%", 90045},
+    {"col_bb_blood_gem",      "殘暴炎魔血色秘石",       0, "collectible", "從BB自然博物館探險取得的蒐藏品（稀有）", 90046},
+    {"col_bb_bracelet",       "深山鬼怪青光手鐲",       0, "collectible", "從BB自然博物館探險取得的蒐藏品（稀有）", 90047},
+    {"col_bb_mirror",         "雪女的八咫鏡",           0, "collectible", "從BB自然博物館探險取得的蒐藏品（稀有）", 90048},
+    {"col_bb_wig_broken",     "Zoey不正常的假髮（戰損版）",   0, "collectible", "特殊道具，全球限量 5 份。持有時探險收取結果有 1% 機率額外骰一次戰利品，可疊加機率；5 個可用 !合成 換成「Zoey散發氣味的秀髮」", 90049},
+    {"col_bb_undies_broken",  "皮包的粉紅內衣碎片（戰損版）", 0, "collectible", "特殊道具，全球限量 5 份。持有時探險完成有 2% 機率返還該次探索花費的資金，可疊加機率；5 個可用 !合成 換成「皮包遺失的粉紅內衣」", 90050},
+    {"col_bb_wig_full",       "Zoey散發氣味的秀髮",     0, "collectible", "由 5 個「Zoey不正常的假髮（戰損版）」合成。探險收取結果有 10% 機率額外骰一次戰利品，可疊加機率", 90051},
+    {"col_bb_undies_full",    "皮包遺失的粉紅內衣",     0, "collectible", "由 5 個「皮包的粉紅內衣碎片（戰損版）」合成。探險完成有 20% 機率返還該次探索花費的資金，可疊加機率", 90052},
 };
 
 static const VirtualShopItem* find_virtual_item(const std::string& key) {
