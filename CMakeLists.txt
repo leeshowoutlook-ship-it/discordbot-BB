@@ -22,6 +22,15 @@ add_executable(dcbot
 )
 target_link_libraries(dcbot PRIVATE dpp::dpp nlohmann_json::nlohmann_json)
 
+# 每個 .cpp 都會直接或間接 #include <dpp/dpp.h>、<nlohmann/json.hpp>、types.h，
+# 13 個檔案各自重新解析一次這些大型標頭是編譯慢、吃記憶體的主因。
+# 預編譯標頭讓這些內容只解析一次、其餘檔案共用結果。
+target_precompile_headers(dcbot PRIVATE
+    <dpp/dpp.h>
+    <nlohmann/json.hpp>
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/types.h"
+)
+
 if(MSVC)
     target_compile_options(dcbot PRIVATE /utf-8 /Zm2000)
     target_link_options(dcbot PRIVATE /STACK:8388608)
