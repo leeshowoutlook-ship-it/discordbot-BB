@@ -400,7 +400,13 @@ void handle_raid_button(const dpp::button_click_t& ev)
             if (g.cry_pending_uid != 0) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("⚠️ 請先選擇戰吼目標！").set_flags(dpp::m_ephemeral)); return; }
             if (is_cry) { g.log_line = ""; g.cry_pending_uid = uid; ev.reply(dpp::ir_update_message, make_raid_combat_msg(g)); return; }
             std::string heal_log = raid_athena_heal(g);
-            std::string log = raid_do_player_attack(g, attack_type);
+            std::string log;
+            if (is_block) {
+                g.block_active = true;
+                log = "🛡️ **" + g.players[g.current_player].display_name + "** 進入防禦姿態！";
+            } else {
+                log = raid_do_player_attack(g, attack_type);
+            }
             if (!heal_log.empty()) log = heal_log + "\n" + log;
             g.log_line = log; raid_finish_turn(g);
             game_over = g.game_over; victory = g.victory;

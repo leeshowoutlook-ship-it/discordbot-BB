@@ -157,7 +157,7 @@ static const std::set<std::string> LIMITED_COL_ITEMS = {
     "col_phone_tianxin", "col_bath_huaxuan", "col_rod_zoey",
     "col_penguin_relic", "col_shark_relic", "col_koala_relic", "col_koala_autograph",
     // BB博物館限定（全球唯一）
-    "col_bb_sian_cloak", "col_bb_lost_underwear", "col_bb_magnifier",
+    "col_bb_sian_cloak", "col_bb_lost_underwear", "col_bb_magnifier", "col_bb_risk_dice",
     // BB博物館限定（全球限量，上限見 LIMITED_MAX_COUNT）
     "col_bb_wig_broken", "col_bb_undies_broken", "col_bb_wig_full", "col_bb_undies_full",
 };
@@ -420,7 +420,7 @@ static dpp::message make_collection_msg(dpp::snowflake uid,
         "目前持有　📗 一般：**" + std::to_string(normal_cnt) + "**　⭐ 限定：**" + std::to_string(limited_cnt) + "**"
     );
     dpp::message msg; msg.add_embed(e);
-    add_bag_tab_row(msg, uid, "col");
+    add_bag_home_button(msg, uid);
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📗 一般收藏").set_id("adv_col_normal_" + uid_s + "_1").set_style(dpp::cos_primary));
@@ -572,6 +572,7 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
         {"col_bb_sian_cloak",     "戰鬥中機率閃避怪物攻擊（1%）── 效果開發中"},
         {"col_bb_lost_underwear", "每場戰鬥第一次攻擊，攻擊力 +5 ── 效果開發中"},
         {"col_bb_magnifier",      "探索時長 -5%"},
+        {"col_bb_risk_dice",      "背包「特殊」分頁可用，一天可擲 2 次：1% -5000碼／10% +5000碼／89% -500碼"},
         // BB博物館 — 全球限量（5份，可疊加）
         {"col_bb_wig_broken",     "探險收取時有 1% 機率額外骰一次戰利品（可疊加）── 全球限量 5 份"},
         {"col_bb_undies_broken",  "探險完成有 2% 機率返還探索資金（可疊加）── 全球限量 5 份"},
@@ -713,6 +714,7 @@ static dpp::message make_bag_special_msg(dpp::snowflake uid,
     std::string uid_s = std::to_string((uint64_t)uid);
     std::map<std::string,int> inv;
     int risk_uses_today = 0;
+    std::map<std::string, StockHolding> holdings;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = inventory_data.find(uid);
@@ -722,6 +724,8 @@ static dpp::message make_bag_special_msg(dpp::snowflake uid,
             time_t now = time(nullptr);
             risk_uses_today = risk_dice_same_day(now, cit->second.risk_dice_day) ? cit->second.risk_dice_uses : 0;
         }
+        auto sit = player_stocks.find(uid);
+        if (sit != player_stocks.end()) holdings = sit->second;
     }
 
     dpp::embed e; e.set_title("🌟  背包 — 特殊").set_color(0xE67E22);
@@ -745,11 +749,31 @@ static dpp::message make_bag_special_msg(dpp::snowflake uid,
         std::string id_str = vi->item_id ? ("`" + std::to_string(vi->item_id) + "`  ") : "";
         desc += id_str + "**" + vi->name + "** ×" + std::to_string(cnt) + "\n　" + vi->desc + "\n\n";
     }
-    if (!has_any) desc += "目前沒有特殊道具。機率低於 2% 掉落的限定道具會顯示在這裡。";
+    bool has_stocks = false;
+    for (auto& [key, h] : holdings) {
+        if (h.shares <= 0) continue;
+        has_stocks = true;
+        auto* def = find_stock_def(key);
+        int64_t price = 0;
+        { std::lock_guard<std::mutex> lk(stock_mutex); auto sit = stock_market.find(key); if (sit != stock_market.end()) price = sit->second.price; }
+        int64_t pnl = (price - h.avg_cost) * h.shares;
+        desc += (def ? def->emoji + " " + def->name : key) + "　持有 **" + std::to_string(h.shares)
+              + "** 股　均價 " + std::to_string(h.avg_cost) + " 碼　損益 " + (pnl >= 0 ? "+" : "") + std::to_string(pnl) + " 碼\n";
+    }
+    if (has_stocks) desc += "\n";
+
+    if (!has_any && !has_stocks) desc += "目前沒有特殊道具。機率低於 2% 掉落的限定道具與股票持有會顯示在這裡。";
     e.set_description(desc);
     msg.add_embed(e);
 
-    add_bag_tab_row(msg, uid, "special");
+    add_bag_home_button(msg, uid);
+
+    {
+        dpp::component srow; srow.set_type(dpp::cot_action_row);
+        srow.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("📊 前往股市").set_id("stock_home_" + uid_s).set_style(dpp::cos_primary));
+        msg.add_component(srow);
+    }
 
     bool has_dice = inv.count("col_bb_risk_dice") && inv.at("col_bb_risk_dice") > 0;
     if (has_dice) {

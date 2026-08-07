@@ -101,6 +101,19 @@ static dpp::message make_dd_combat_msg(const DDGame& g) {
             if (p.def_down_turns > 0) pline += " ⬇DEF";
             if (p.power_skip)         pline += " 💤";
             if (is_cur)               pline += " ◀️";
+            // 寶珠圖示：固定顯示自己帶的寶珠；維京/拉圖斯觸發時圖示會變化
+            if (!p.orb_key.empty()) {
+                if (p.orb_key == "EQ_K_VIKING" && p.max_hp > 0) {
+                    double r = (double)p.hp / p.max_hp;
+                    if (r < 0.25)      pline += " 💥狂暴×1.7";
+                    else if (r < 0.50) pline += " 🌀憤怒×1.4";
+                    else               pline += " " + orb_baseline_icon(p.orb_key);
+                } else if (p.orb_key == "EQ_K_LATUS") {
+                    pline += p.latus_orb_triggered ? " ✨拉圖斯(已觸發)" : " " + orb_baseline_icon(p.orb_key);
+                } else {
+                    pline += " " + orb_baseline_icon(p.orb_key);
+                }
+            }
         }
         players_str += pline + "\n";
         if (p.alive)
@@ -166,7 +179,7 @@ static dpp::message make_dd_combat_msg(const DDGame& g) {
                 .set_id("dd_atk_" + uid_s)
                 .set_style(dpp::cos_danger));
             row.add_component(dpp::component().set_type(dpp::cot_button)
-                .set_label("🎲 耗費氣力（×0.5~2.0）")
+                .set_label("🎲 耗費氣力（×0.1~2.0）")
                 .set_id("dd_gamble_" + uid_s)
                 .set_style(dpp::cos_primary));
             row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -321,7 +334,7 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         cp.power_skip = true;
     } else if (attack_type == 1) {
         // 耗費氣力
-        double mult = 0.5 + dd_rand(0, 150) / 100.0;
+        double mult = 0.1 + dd_rand(0, 190) / 100.0;
         char buf[8]; snprintf(buf, sizeof(buf), "%.1f", mult);
         raw = (int)(eff_atk * mult);
         int dmg = std::max(1, raw - h.def);

@@ -1,6 +1,7 @@
 #pragma once
 #include "chips.h"
 #include "gacha.h"
+#include "announcement.h"
 #include <random>
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -67,9 +68,9 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"recover_muscle",  "肌肉舒緩劑",  2000, "recovery", "解除負面狀態「肌肉緊繃」",                  81003},
     {"recover_fatigue", "高級強效咖啡",2000, "recovery", "解除負面狀態「疲勞」",                      81004},
     // ── Orb shards（怪物掉落，10 個可合成寶珠）──────────────────────────────
-    {"orb_shard_speed",  "迅捷狼王的寶珠碎片", 0, "shard", "10 個可合成「迅捷狼王的寶珠」，單人必定先手；組隊：20%機率多行動一回合",  95001},
+    {"orb_shard_speed",  "迅捷狼王的寶珠碎片", 0, "shard", "10 個可合成「迅捷狼王的寶珠」，單人必定先手；組隊：40%機率多行動一回合",  95001},
     {"orb_shard_athena", "雅典娜的寶珠碎片",   0, "shard", "10 個可合成「雅典娜的寶珠」，單人30%恢復8滴血；組隊20%全體恢復5滴血", 95002},
-    {"orb_shard_bear",   "巨山狂熊的寶珠碎片", 0, "shard", "10 個可合成「巨山狂熊的寶珠」，單人：防禦降低怪物下兩次攻擊60%；組隊：防禦降低王的傷害20%", 95003},
+    {"orb_shard_bear",   "巨山狂熊的寶珠碎片", 0, "shard", "10 個可合成「巨山狂熊的寶珠」，單人：防禦降低怪物下兩次攻擊60%；組隊：防禦降低範圍攻擊傷害20%／集中攻擊傷害50%", 95003},
     {"orb_shard_viking", "維京的寶珠碎片",     0, "shard", "10 個可合成「維京的寶珠」，HP≤50% 傷害×1.4，HP≤25% 傷害×1.7（被動狂暴）", 95004},
     {"orb_shard_wargod",      "狂怒戰神的寶珠碎片", 0, "shard", "10 個可合成「狂怒戰神的寶珠」，裝備後攻擊力+10",                              95005},
     {"orb_shard_latus",      "拉圖斯的寶珠碎片",   0, "shard", "10 個可合成「拉圖斯的寶珠」，HP≤20%時回復至50%（每場一次）",               95006},
@@ -530,6 +531,46 @@ static void load_inventory() {
 
 // save_inventory() defined in chips.h (inline)
 
+// ─── Backpack home（Components V2：清單排版，右側貼一顆按鈕）─────────────────────
+// 注意：Components V2 訊息不能混用傳統 embed，這則訊息全部改用新元件拼出來；
+// 點進去之後的各分頁（裝備/消耗/其他/收藏/特殊）維持原本的 embed 畫面不變。
+
+static dpp::message make_bag_home_msg(dpp::snowflake uid,
+                                       const std::string& dn = "", const std::string& av = "") {
+    std::string uid_s = std::to_string((uint64_t)uid);
+
+    auto mk_section = [&](const std::string& text, const std::string& btn_id) {
+        return dpp::component()
+            .set_type(dpp::cot_section)
+            .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
+            .set_accessory(dpp::component().set_type(dpp::cot_button)
+                .set_label("查看").set_id(btn_id).set_style(dpp::cos_secondary));
+    };
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x58, 0x65, 0xF2));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 🎒 背包\n" + (dn.empty() ? uid_s : dn) + " 的背包，選擇要查看的分頁："));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
+        .set_spacing(dpp::sep_small).set_divider(true));
+    container.add_component_v2(mk_section("**⚔️ 裝備**\n武器、手套、套服、鞋子、靈魂寶珠", "bag_tab_equip_" + uid_s));
+    container.add_component_v2(mk_section("**🎒 消耗**\n可以直接使用的道具", "bag_tab_items_" + uid_s));
+    container.add_component_v2(mk_section("**📦 其他**\n狩獵卷、寶珠碎片等材料類道具", "bag_tab_other_" + uid_s));
+    container.add_component_v2(mk_section("**📚 收藏**\n探險取得的收藏品", "adv_collection_" + uid_s));
+    container.add_component_v2(mk_section("**🌟 特殊**\n限定道具與股票持有", "bag_tab_special_" + uid_s));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
+    dpp::component nav; nav.set_type(dpp::cot_action_row);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav);
+
+    return msg;
+}
+
 // ─── Pet view ─────────────────────────────────────────────────────────────────
 
 static dpp::message make_lobby_msg(dpp::snowflake uid,
@@ -538,7 +579,7 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
     std::string uid_s = std::to_string((uint64_t)uid);
     dpp::embed e;
     e.set_title("🏠  大廳").set_color(0x5865F2);
-    e.set_description("請選擇要前往的頁面：");
+    e.set_description(announcement_lobby_line() + "請選擇要前往的頁面：");
     {
         dpp::embed_footer footer;
         footer.text = "👤 " + (display_name.empty() ? uid_s : display_name);
@@ -549,7 +590,7 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
 
     dpp::component row1; row1.set_type(dpp::cot_action_row);
     row1.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🎒 背包").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+        .set_label("🎒 背包").set_id("bag_home_" + uid_s).set_style(dpp::cos_secondary));
     row1.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("💼 錢包").set_id("wallet_home_" + uid_s).set_style(dpp::cos_secondary));
     row1.add_component(dpp::component().set_type(dpp::cot_button)
@@ -576,6 +617,8 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
     dpp::component row3; row3.set_type(dpp::cot_action_row);
     row3.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏦 銀行").set_id("wallet_bank_" + uid_s).set_style(dpp::cos_secondary));
+    row3.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("📊 股票").set_id("stock_home_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component(row3);
 
     return msg;
@@ -991,7 +1034,7 @@ static dpp::message make_bag_equip_msg(dpp::snowflake uid) {
     if (eq_entries.empty()) {
         e.set_description("還沒有任何裝備！\n使用 `!轉蛋` 來抽取裝備。");
         msg.add_embed(e);
-        add_bag_tab_row(msg, uid, "equip");
+        add_bag_home_button(msg, uid);
         dpp::component nav; nav.set_type(dpp::cot_action_row);
         dpp::component back;
         back.set_type(dpp::cot_button).set_label("🏠 大廳")
@@ -1032,7 +1075,7 @@ static dpp::message make_bag_equip_msg(dpp::snowflake uid) {
     e.set_footer(dpp::embed_footer().set_text("✅ = 已裝備（批量售出會跳過已裝備的）"));
     msg.add_embed(e);
 
-    add_bag_tab_row(msg, uid, "equip");
+    add_bag_home_button(msg, uid);
 
     // Nav row only — sell page is separate
     dpp::component nav_row; nav_row.set_type(dpp::cot_action_row);
@@ -1194,7 +1237,7 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
     if (entries.empty()) {
         e.set_description("消耗欄是空的！\n前往 **商店 → 虛擬商店** 購買道具。");
         msg.add_embed(e);
-        add_bag_tab_row(msg, uid, "items");
+        add_bag_home_button(msg, uid);
         dpp::component nav; nav.set_type(dpp::cot_action_row);
         dpp::component back;
         back.set_type(dpp::cot_button).set_label("🏠 大廳")
@@ -1213,7 +1256,7 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
     }
     e.set_description(desc);
     msg.add_embed(e);
-    add_bag_tab_row(msg, uid, "items");
+    add_bag_home_button(msg, uid);
 
     auto is_disabled = [&](const std::string& key) -> bool {
         if (key == "orb_ticket") return false;
@@ -1349,7 +1392,7 @@ static dpp::message make_pet_other_msg(dpp::snowflake uid) {
         e.set_footer(dpp::embed_footer().set_text("寶珠碎片請用 !合成 兌換寶珠"));
     }
     msg.add_embed(e);
-    add_bag_tab_row(msg, uid, "other");
+    add_bag_home_button(msg, uid);
 
     dpp::component nav; nav.set_type(dpp::cot_action_row);
     dpp::component back;

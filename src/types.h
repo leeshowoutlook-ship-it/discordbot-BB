@@ -604,23 +604,13 @@ inline void apply_pet_basic_set_bonus(dpp::snowflake uid, const Pet& pet, int& a
     def += pet.enh_def / 2;
 }
 
-// 背包分頁列（裝備／消耗／其他／收藏／特殊），固定放在訊息的第一列，目前所在分頁會反白且不可點擊
-inline void add_bag_tab_row(dpp::message& msg, dpp::snowflake uid, const std::string& active) {
+// 背包分頁的返回按鈕：取代原本的分頁列，改成單顆「回背包首頁」按鈕，
+// 首頁本身（make_bag_home_msg，pet.h）用 Components V2 的清單排版切換分頁。
+inline void add_bag_home_button(dpp::message& msg, dpp::snowflake uid) {
     std::string uid_s = std::to_string((uint64_t)uid);
     dpp::component row; row.set_type(dpp::cot_action_row);
-    auto mk = [&](const std::string& label, const std::string& id, const std::string& key) {
-        bool is_active = (key == active);
-        dpp::component b;
-        b.set_type(dpp::cot_button).set_label(label).set_id(id)
-         .set_style(is_active ? dpp::cos_primary : dpp::cos_secondary)
-         .set_disabled(is_active);
-        row.add_component(b);
-    };
-    mk("⚔️ 裝備", "bag_tab_equip_" + uid_s, "equip");
-    mk("🎒 消耗", "bag_tab_items_" + uid_s, "items");
-    mk("📦 其他", "bag_tab_other_" + uid_s, "other");
-    mk("📚 收藏", "adv_collection_" + uid_s, "col");
-    mk("🌟 特殊", "bag_tab_special_" + uid_s, "special");
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("📋 背包首頁").set_id("bag_home_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component(row);
 }
 
@@ -854,3 +844,59 @@ struct RpsGame {
     std::map<dpp::snowflake, bool>        draw_votes; // uid → true=再來 false=離場
 };
 inline std::map<dpp::snowflake, RpsGame> rps_games; // key = channel_id
+
+// 組隊遠征名單顯示用：每種寶珠固定的代表圖示（不論有沒有觸發都顯示，讓隊友知道彼此帶什麼寶珠）。
+// raid.h（王團）跟 darkdragon.h（暗黑龍）共用同一份，避免兩邊各自維護出現不一致。
+static inline std::string orb_baseline_icon(const std::string& orb_key) {
+    if (orb_key == "EQ_K_UR")     return "🌟";
+    if (orb_key == "EQ_K_SPEED")  return "🐺";
+    if (orb_key == "EQ_K_ATHENA") return "💚";
+    if (orb_key == "EQ_K_BEAR")   return "🐻";
+    if (orb_key == "EQ_K_VIKING") return "⚔️";
+    if (orb_key == "EQ_K_WARGOD") return "💢";
+    if (orb_key == "EQ_K_LATUS")  return "🔶";
+    return "";
+}
+
+// ─── 大廳公告（管理員可編輯，只保留最新一則）───────────────────────────────────
+struct Announcement {
+    std::string text;
+    std::string updated_by; // 顯示名稱
+    time_t      updated_at = 0;
+};
+inline Announcement g_announcement; // 用 data_mutex 保護，跟其他玩家資料一致
+
+// ─── 股票系統 ─────────────────────────────────────────────────────────────────
+
+struct StockInfo {
+    std::string key;          // "0050" | "tsmc" | "yageo" | "btc" | "mood"
+    std::string name;         // 顯示名稱
+    std::string ticker;       // Yahoo Finance 代號，"" = 不接 API（心情股）
+    int64_t     price      = 0; // 目前價格（碼／股）
+    int64_t     prev_close = 0; // 前一次價格，用來算漲跌
+    time_t      last_update = 0;
+    bool        fetch_ok    = true; // 上次抓取是否成功（心情股恆為 true）
+    std::vector<int64_t> history; // 走勢圖用的近期收盤價（僅存於記憶體，不落地存檔，重啟後重新累積即可）
+};
+inline std::map<std::string, StockInfo> stock_market;   // key -> 目前市場資訊
+inline std::mutex                       stock_mutex;    // 保護 stock_market（跟 data_mutex 分開，避免跟遊戲邏輯互相卡）
+
+struct StockHolding {
+    int64_t shares   = 0;
+    int64_t avg_cost = 0; // 平均成本（碼／股），賣出時算損益用
+};
+inline std::map<dpp::snowflake, std::map<std::string, StockHolding>> player_stocks; // uid -> key -> holding（用 data_mutex 保護，跟其他玩家資料一致）
+
+// 5支股票的靜態定義（純資料，跟抓價/UI邏輯分開放，讓 adventure.h 的背包特殊分頁也能直接引用）
+struct StockDef { std::string key, name, ticker, emoji, desc; };
+static const std::vector<StockDef> STOCK_DEFS = {
+    {"stock_0050",  "元大台灣50 (0050)", "0050.TW", "📈", "追蹤台灣市值前50大企業的ETF，波動較穩健。"},
+    {"stock_tsmc",  "台積電 (2330)",      "2330.TW", "🏭", "台灣護國神山，全球晶圓代工龍頭。"},
+    {"stock_yageo", "國巨 (2327)",        "2327.TW", "🔧", "被動元件大廠，波動較大。"},
+    {"stock_btc",   "比特幣",             "BTC-USD", "₿",  "去中心化加密貨幣，價格波動劇烈。"},
+    {"stock_mood",  "LeeShoW的心情",      "",        "😶", "價格全憑 LeeShoW 心情決定，僅供娛樂。"}, // ticker="" 代表不接 API，價格由管理員手動調整
+};
+static const StockDef* find_stock_def(const std::string& key) {
+    for (auto& d : STOCK_DEFS) if (d.key == key) return &d;
+    return nullptr;
+}

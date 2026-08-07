@@ -194,11 +194,6 @@ static dpp::message make_raid_combat_msg(const RaidGame& g) {
     e.set_description(boss_line);
 
     // Players section
-    // 判斷女神守護數量（組隊模式下全體受益，可疊加）
-    int team_ur_count = 0;
-    if (g.players.size() > 1)
-        for (auto& pp : g.players) if (pp.alive && pp.orb_key == "EQ_K_UR") team_ur_count++;
-    bool team_ur_active = team_ur_count > 0;
     std::string players_str;
     for (int i = 0; i < (int)g.players.size(); i++) {
         auto& p = g.players[i];
@@ -208,18 +203,19 @@ static dpp::message make_raid_combat_msg(const RaidGame& g) {
         else if (p.stunned_turns > 0) status = " 🔒 封鎖中(" + std::to_string(p.stunned_turns) + ")";
         else if (p.power_skip)    status = " 💤 強攻疲勞";
         else if (is_turn)          status = " ◀️";
-        // 維京寶珠：顯示狂暴狀態
-        if (p.alive && p.orb_key == "EQ_K_VIKING" && p.max_hp > 0) {
-            double r = (double)p.hp / p.max_hp;
-            if (r < 0.25)      status += " 🔥";
-            else if (r < 0.50) status += " ⚡";
+        // 寶珠圖示：固定顯示自己帶的寶珠；維京/拉圖斯觸發時圖示會變化
+        if (p.alive && !p.orb_key.empty()) {
+            if (p.orb_key == "EQ_K_VIKING" && p.max_hp > 0) {
+                double r = (double)p.hp / p.max_hp;
+                if (r < 0.25)      status += " 🔥狂暴×1.7";
+                else if (r < 0.50) status += " ⚡憤怒×1.4";
+                else               status += " " + orb_baseline_icon(p.orb_key);
+            } else if (p.orb_key == "EQ_K_LATUS") {
+                status += p.latus_orb_triggered ? " ✨拉圖斯(已觸發)" : " " + orb_baseline_icon(p.orb_key);
+            } else {
+                status += " " + orb_baseline_icon(p.orb_key);
+            }
         }
-        // 迅捷寶珠：顯示先鋒狀態
-        if (p.alive && p.orb_key == "EQ_K_SPEED" && g.round_first_action && is_turn)
-            status += " ⚡先鋒";
-        // 無名女神寶珠：單人顯示在本人欄位；組隊模式全體顯示守護
-        if (p.alive && (p.orb_key == "EQ_K_UR" || team_ur_active))
-            status += " 🌟";
         players_str += (is_turn ? "▶ " : "  ") + p.display_name + status + "\n";
         players_str += "  " + hp_bar(p.hp, p.max_hp, 8) + " " +
                        std::to_string(p.hp) + "/" + std::to_string(p.max_hp) + " HP\n";
@@ -586,7 +582,7 @@ static void raid_finish_turn(RaidGame& g) {
 
 // ─── Player action processor ──────────────────────────────────────────────────
 
-// attack_type: 0=普通, 1=耗費氣力（隨機0.5~2.0×），2=強攻（2.0×跳回合）
+// attack_type: 0=普通, 1=耗費氣力（隨機0.1~2.0×），2=強攻（2.0×跳回合）
 static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
     auto& cp = g.players[g.current_player];
     int base_atk = cp.atk;
@@ -614,8 +610,8 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
         g.boss_hp -= dmg;
         log = "💥 **" + cp.display_name + "** 強攻 Boss，造成 **" + std::to_string(dmg) + "** 點傷害！" + extra_log;
     } else if (attack_type == 1) {
-        // 耗費氣力：隨機 0.5~2.0× 傷害，不跳回合
-        double gamble_mult = 0.5 + raid_rand(0, 150) / 100.0;
+        // 耗費氣力：隨機 0.1~2.0× 傷害，不跳回合
+        double gamble_mult = 0.1 + raid_rand(0, 190) / 100.0;
         char gm_buf[8]; snprintf(gm_buf, sizeof(gm_buf), "%.1f", gamble_mult);
         int raw = (int)(base_atk * gamble_mult * vk_mult);
         int dmg = std::max(1, raw - g.boss_def);

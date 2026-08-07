@@ -53,3 +53,7 @@ void handle_games_slash  (const dpp::slashcommand_t& ev, const std::string& cmd_
 // ─── Adventure / Collection / Enhance ────────────────────────────────────────
 void handle_adv_slash(const dpp::slashcommand_t& ev, const std::string& cmd_name, dpp::snowflake uid, dpp::snowflake ch);
 void handle_adv_modal(const dpp::form_submit_t&  ev);
+
+// ─── Stock market ─────────────────────────────────────────────────────────────
+void handle_stock_button(const dpp::button_click_t& ev);
+void handle_stock_modal (const dpp::form_submit_t&  ev);

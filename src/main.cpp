@@ -24,6 +24,8 @@
 #include "adventure.h"
 #include "rps.h"
 #include "enhance.h"
+#include "stock.h"
+#include "announcement.h"
 #include "handler_decls.h"
 
 // ─── Trade helpers ────────────────────────────────────────────────────────────
@@ -137,6 +139,9 @@ int main(int argc, char* argv[]) {
     load_roulettestats();
     load_rps_stats();
     load_scratch_games();
+    load_stock_market();
+    load_stock_holdings();
+    load_announcement();
 
     dpp::cluster bot(cfg.token, dpp::i_default_intents | dpp::i_message_content);
     g_bot = &bot;
@@ -163,7 +168,8 @@ int main(int argc, char* argv[]) {
                 "!臥底","!誰是臥底",
                 "!臥底 遊玩成人內容","!誰是臥底 遊玩成人內容",
                 "!貓","!笑話","!轉蛋","!裝備","!怪物狩獵","!狩獵規則",
-                "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤","!探險","!猜拳","！猜拳","!強化"
+                "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤","!探險","!猜拳","！猜拳","!強化","!股票",
+                "!公告","！公告"
             };
             for (auto& s : EXACT) if (content == s) return true;
             // Secret owner-only command
@@ -173,6 +179,7 @@ int main(int argc, char* argv[]) {
             static const std::vector<std::string> PREFIX = {
                 "!21 ","!骰子 ","!射 ","!火箭 ","!刮 ","!猜 ",
                 "!幸運頻道 ","!警告 ","!轉帳 ","!交易 ","!卷軸使用 ","!輪盤 ","!猜拳 ","！猜拳 ",
+                "!公告 ","！公告 ",
             };
             for (auto& s : PREFIX) if (content.rfind(s, 0) == 0) return true;
             // standalone (no args)
@@ -408,8 +415,18 @@ int main(int argc, char* argv[]) {
                 if (!cb.is_error()) { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[std::get<dpp::message>(cb.value).id] = uid; }
             });
         }
+        else if (content == "!股票") {
+            std::string dn_ = ev.msg.member.get_nickname().empty() ? ev.msg.author.global_name : ev.msg.member.get_nickname();
+            std::string av_ = ev.msg.author.get_avatar_url();
+            dpp::message sm = make_stock_home_msg(uid, dn_, av_);
+            sm.channel_id = ch;
+            bot.message_create(sm, [uid](const dpp::confirmation_callback_t& cb) {
+                if (!cb.is_error()) { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[std::get<dpp::message>(cb.value).id] = uid; }
+            });
+        }
         else if (content == "!背包") {
-            dpp::message msg = make_pet_use_msg(uid);
+            std::string dn_ = ev.msg.member.get_nickname();
+            dpp::message msg = make_bag_home_msg(uid, dn_, ev.msg.author.get_avatar_url());
             msg.channel_id = ch;
             bot.message_create(msg, [uid](const dpp::confirmation_callback_t& cb) {
                 if (!cb.is_error()) {
@@ -451,6 +468,23 @@ int main(int argc, char* argv[]) {
                     }, 30);
                 }
             });
+        }
+        // !公告／！公告：不帶參數＝查看，帶參數＝設定（限管理員/副會長）
+        else if (content == "!公告" || content == "！公告" ||
+                 content.rfind("!公告 ", 0) == 0 || content.rfind("！公告 ", 0) == 0) {
+            size_t sp = content.find(' ');
+            std::string text = (sp == std::string::npos) ? "" : content.substr(sp + 1);
+            dpp::message m;
+            if (text.empty()) {
+                m = make_announcement_view_msg();
+            } else if (!is_draw_authorized_msg(uid, ev.msg.member.get_roles())) {
+                m.set_content("❌ 只有管理員或副會長能設定公告！");
+            } else {
+                std::string dn = ev.msg.member.get_nickname().empty()
+                               ? ev.msg.author.username : ev.msg.member.get_nickname();
+                m.set_content(set_announcement(text, dn));
+            }
+            m.channel_id = ch; bot.message_create(m);
         }
         // ── 骰子/射/火箭/卷軸/刮刮樂/猜數字 → handlers_games.cpp ───────────
         else if (content.rfind("!骰子", 0) == 0 ||
@@ -975,6 +1009,10 @@ int main(int argc, char* argv[]) {
         // ── 寵物強化 ──────────────────────────────────────────────────────────
         else if (cid.rfind("enh_", 0) == 0) {
             handle_enhance_button(ev); return;
+        }
+        // ── 股票市場 ──────────────────────────────────────────────────────────
+        else if (cid.rfind("stock_", 0) == 0) {
+            handle_stock_button(ev); return;
         }
         // ── 單人怪物狩獵 / 村落按鈕 → handlers_hunt.cpp ──────────────────────
         else if (cid.rfind("hunt_", 0) == 0 || cid.rfind("village_", 0) == 0) {
@@ -1746,6 +1784,11 @@ int main(int argc, char* argv[]) {
             handle_adv_modal(ev); return;
         }
 
+        // Stock buy/sell/mood modal
+        if (cid.rfind("stock_", 0) == 0) {
+            handle_stock_modal(ev); return;
+        }
+
         if (cid != "admin_chips_modal" && cid != "admin_egg_modal" && cid != "admin_item_modal") return;
         if (cfg.notify_user_id.empty() || std::to_string(issuer) != cfg.notify_user_id) {
             ev.reply(dpp::ir_channel_message_with_source,
@@ -1995,6 +2038,21 @@ int main(int argc, char* argv[]) {
         else if (cmd_name == "ping") {
             ev.reply("Pong! 🏓");
         }
+        else if (cmd_name == "公告" || cmd_name == "announcement") {
+            std::string text;
+            auto tp = ev.get_parameter("內容");
+            if (std::holds_alternative<std::string>(tp)) text = std::get<std::string>(tp);
+            if (text.empty()) {
+                ev.reply(dpp::ir_channel_message_with_source, make_announcement_view_msg());
+            } else if (!is_admin(ev.command) &&
+                       (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 只有管理員或副會長能設定公告！").set_flags(dpp::m_ephemeral));
+            } else {
+                std::string dn = ev.command.member.get_nickname().empty() ? user.username : ev.command.member.get_nickname();
+                ev.reply(dpp::ir_channel_message_with_source, dpp::message(set_announcement(text, dn)));
+            }
+        }
         else if (cmd_name == "幫助" || cmd_name == "help") {
             ev.reply(dpp::ir_channel_message_with_source, make_help_msg(0));
         }
@@ -2103,6 +2161,11 @@ int main(int argc, char* argv[]) {
         }
         else if (cmd_name == "猜拳" || cmd_name == "janken") {
             handle_rps_slash(ev, uid, ch);
+        }
+        else if (cmd_name == "股票" || cmd_name == "stock") {
+            std::string dn = ev.command.member.get_nickname();
+            ev.reply(dpp::ir_channel_message_with_source,
+                make_stock_home_msg(uid, dn, user.get_avatar_url()));
         }
         else if (cmd_name == "背包" || cmd_name == "bag" || cmd_name == "petuse" || cmd_name == "寵物圖鑑" || cmd_name == "petdex") {
             handle_pet_slash(ev, cmd_name);
@@ -2473,6 +2536,12 @@ int main(int argc, char* argv[]) {
             warn_cmd.add_option(dpp::command_option(dpp::co_user,   "對象", "要警告的成員",       true))
                     .add_option(dpp::command_option(dpp::co_string, "原因", "警告原因（可省略）", false));
 
+            dpp::slashcommand announce_cmd("公告", "查看／設定大廳最新更新（設定限管理員/副會長）", bot.me.id);
+            announce_cmd.add_option(dpp::command_option(dpp::co_string, "內容", "留空＝查看；填寫＝設定新公告（限管理員/副會長）", false));
+
+            dpp::slashcommand announce_en("announcement", "View or set the lobby announcement (admin/officer to set)", bot.me.id);
+            announce_en.add_option(dpp::command_option(dpp::co_string, "內容", "Leave empty to view; fill in to set (admin/officer only)", false));
+
             dpp::slashcommand lucky("幸運頻道", "隨機抽出幸運頻道號碼", bot.me.id);
             lucky.add_option(dpp::command_option(dpp::co_integer, "最大頻道數", "頻道總數（抽 1 到此數）", true));
 
@@ -2634,6 +2703,8 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("adventure", "Go to adventure page",           bot.me.id),
                 dpp::slashcommand("強化",      "強化寵物攻擊力／防禦力／生命值", bot.me.id),
                 dpp::slashcommand("enhance",   "Enhance pet ATK/DEF/HP",         bot.me.id),
+                dpp::slashcommand("股票",      "查看並買賣股票",                 bot.me.id),
+                dpp::slashcommand("stock",     "View and trade stocks",          bot.me.id),
                 dpp::slashcommand("onenight",  "Start One Night Werewolf game",  bot.me.id),
                 dpp::slashcommand("undercover","Start Undercover (Who is spy?)", bot.me.id),
                 dpp::slashcommand("猜數字",    "猜四位不重複數字（1A2B）",       bot.me.id),
@@ -2645,6 +2716,7 @@ int main(int argc, char* argv[]) {
                 dice_en, bj_en, draw_en,
                 roulette_cmd, roulette_en,
                 rps_cmd, rps_en,
+                announce_cmd, announce_en,
             }, gid);
         }
     });
@@ -2698,6 +2770,7 @@ int main(int argc, char* argv[]) {
         bot.start_timer([](dpp::timer)     { cleanup_expired(); },  3600);
         bot.start_timer([&bot](dpp::timer) { check_giveaways(bot); save_giveaways(); }, 30);
         bot.start_timer([](dpp::timer)     { apply_daily_interest(); }, 300); // 每 5 分鐘檢查是否跨日
+        start_stock_price_timer(); // 開機立即抓一次股價，之後每 5 分鐘更新
 
         // ── 每小時自動備份所有 JSON 資料（覆蓋同一份，不累積） ──────────────
         bot.start_timer([](dpp::timer) {

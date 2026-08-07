@@ -510,7 +510,9 @@ void handle_pet_slash(const dpp::slashcommand_t& ev, const std::string& cmd_name
         track_owner();
     }
     else if (cmd_name == "背包" || cmd_name == "bag" || cmd_name == "petuse") {
-        ev.reply(dpp::ir_channel_message_with_source, make_pet_use_msg(uid));
+        std::string dn = ev.command.member.get_nickname();
+        ev.reply(dpp::ir_channel_message_with_source,
+            make_bag_home_msg(uid, dn, user.get_avatar_url()));
         track_owner();
     }
     else if (cmd_name == "寵物圖鑑" || cmd_name == "petdex") {

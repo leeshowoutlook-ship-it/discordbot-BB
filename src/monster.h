@@ -328,7 +328,7 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
 
     std::string log;
 
-    // ── 雅典娜寶珠：每回合 20% 機率恢復 5 HP ─────────────────────────────────
+    // ── 雅典娜寶珠：每回合 30% 機率恢復 8 HP ─────────────────────────────────
     if (g.orb_key == "EQ_K_ATHENA" && randint(1, 10) <= 3) {
         int heal = std::min(8, g.pet_max_hp - g.pet_hp);
         if (heal > 0) {
@@ -350,7 +350,7 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
                 else if (hp_r < 0.50) { base_mult = 1.4; log += "⚡ **憤怒之力**！×1.4\n"; }
             }
             if (power_attack) {
-                double mult = base_mult * (0.5 + std::uniform_real_distribution<double>(0.0, 1.0)(hunt_rng()));
+                double mult = base_mult * (0.1 + std::uniform_real_distribution<double>(0.0, 1.9)(hunt_rng()));
                 pet_dmg = std::max(0, (int)(g.pet_atk * mult) - g.monster_def);
                 log += "💥 氣力攻擊對 **" + g.monster_name + "** 造成 **" + std::to_string(pet_dmg) + "** 傷害！";
             } else {
@@ -606,7 +606,7 @@ static dpp::message make_village_combat_msg(const VillageGame& g,
             .set_id("village_exec_" + uid_s + "_n")
             .set_style(dpp::cos_primary));
         exec_row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("🎲 氣力攻擊（×0.5~2.0）")
+            .set_label("🎲 氣力攻擊（×0.1~2.0）")
             .set_id("village_exec_" + uid_s + "_p")
             .set_style(dpp::cos_danger));
         exec_row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -633,7 +633,7 @@ static dpp::message make_village_combat_msg(const VillageGame& g,
 
 // ─── Village process one attack ───────────────────────────────────────────────
 
-// attack_type: 0=一般攻擊, 1=氣力攻擊（×0.5~2.0隨機）; is_block=true 時跳過攻擊、啟動熊寶珠防禦
+// attack_type: 0=一般攻擊, 1=氣力攻擊（×0.1~2.0隨機）; is_block=true 時跳過攻擊、啟動熊寶珠防禦
 static bool process_village_combat(VillageGame& g, int target_idx, int attack_type,
                                     bool& win_out, int64_t& reward_out,
                                     int& spirits_killed_out,
@@ -656,9 +656,9 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
     auto& tgt = g.spirits[target_idx];
     int dmg = 0;
     if (attack_type == 1) {
-        // 氣力攻擊：隨機 0.5~2.0× 有效傷害
+        // 氣力攻擊：隨機 0.1~2.0× 有效傷害
         int base = std::max(0, g.pet_atk - tgt.def);
-        double mult = 0.5 + randint(0, 150) / 100.0;
+        double mult = 0.1 + randint(0, 190) / 100.0;
         dmg = std::max(1, (int)(base * mult));
         char buf[8]; snprintf(buf, sizeof(buf), "%.1f", mult);
         log += "🎲 氣力攻擊（×" + std::string(buf) + "）";

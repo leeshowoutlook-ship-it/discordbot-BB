@@ -202,7 +202,11 @@ void handle_shop_button(const dpp::button_click_t& ev)
             return true;
         };
 
-        if (cid.rfind("bag_tab_equip_", 0) == 0) {
+        if (cid.rfind("bag_home_", 0) == 0) {
+            if (!chk(dpp::snowflake(std::stoull(cid.substr(9))))) return;
+            ev.reply(dpp::ir_update_message, make_bag_home_msg(uid));
+
+        } else if (cid.rfind("bag_tab_equip_", 0) == 0) {
             if (!chk(dpp::snowflake(std::stoull(cid.substr(14))))) return;
             ev.reply(dpp::ir_update_message, make_bag_equip_msg(uid));
 
