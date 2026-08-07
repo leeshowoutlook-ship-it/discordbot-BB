@@ -202,6 +202,7 @@ struct AdventureSetup {
     int64_t        funds           = -1;  // -1 = not set
     int            partner         = -1;  // -1 = unset, 0 = no pet, 1 = with pet
     bool           notify_on_finish = false;
+    bool           star_boost       = false; // 投入星星：收取時防空包彈 + 探索度+10
     dpp::snowflake setup_msg_id    = 0;   // for modal response to edit original setup page
     dpp::snowflake setup_ch_id     = 0;
 };
@@ -217,6 +218,7 @@ struct AdventureGame {
     time_t  end_time       = 0;
     bool    notify_on_finish = false; // 探險完成時私訊通知
     bool    finish_notified  = false; // 是否已發送過完成通知（防重複）
+    bool    star_boost       = false; // 投入星星：防空包彈 + 探索度+10
 };
 
 // ─── Monster hunt active game ─────────────────────────────────────────────────

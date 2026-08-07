@@ -369,7 +369,9 @@ static std::string do_stock_sell(dpp::snowflake uid, const std::string& key, int
         if (pit != player_stocks.end()) {
             auto hit = pit->second.find(key);
             if (hit != pit->second.end() && hit->second.shares >= qty) {
-                revenue = price * qty;
+                int64_t gross = price * qty;
+                int64_t fee   = (int64_t)(gross * 0.03 + 0.5); // 3% 手續費，無條件進位
+                revenue = gross - fee;
                 hit->second.shares -= qty;
                 if (hit->second.shares == 0) hit->second.avg_cost = 0;
                 chip_data[uid].chips += revenue;
@@ -379,5 +381,6 @@ static std::string do_stock_sell(dpp::snowflake uid, const std::string& key, int
     }
     if (!ok) return "❌ 持有股數不足！";
     save_chips(); save_stock_holdings();
-    return "✅ 賣出 **" + std::to_string(qty) + "** 股，獲得 **" + std::to_string(revenue) + "** 碼！";
+    int64_t fee = price * qty - revenue;
+    return "✅ 賣出 **" + std::to_string(qty) + "** 股，獲得 **" + std::to_string(revenue) + "** 碼（扣除手續費 " + std::to_string(fee) + " 碼）！";
 }

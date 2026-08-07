@@ -340,6 +340,7 @@ static void save_adv_games() {
                 {"end_time",       (int64_t)g.end_time},
                 {"notify_on_finish", g.notify_on_finish},
                 {"finish_notified",  g.finish_notified},
+                {"star_boost",       g.star_boost},
             };
         }
     }
@@ -367,6 +368,7 @@ static void load_adv_games() {
             g.end_time       = (time_t)v.value("end_time",   (int64_t)0);
             g.notify_on_finish = v.value("notify_on_finish", false);
             g.finish_notified  = v.value("finish_notified",  false);
+            g.star_boost       = v.value("star_boost",       false);
             adv_games[g.uid] = g;
         }
     } catch (...) {}
@@ -863,10 +865,28 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
         .set_style(setup.partner >= 0 ? dpp::cos_success : dpp::cos_secondary));
     msg.add_component(row1);
 
+    int star_count = 0;
+    bool star_boosted = false;
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      auto sit = adv_setups.find(uid);
+      if (sit != adv_setups.end()) star_boosted = sit->second.star_boost;
+      auto iit = inventory_data.find(uid);
+      if (iit != inventory_data.end()) {
+          auto kit = iit->second.find("star_unknown");
+          if (kit != iit->second.end()) star_count = kit->second;
+      }
+    }
     dpp::component row2; row2.set_type(dpp::cot_action_row);
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🚀 開始探索").set_id("adv_start_" + uid_s)
         .set_style(dpp::cos_primary).set_disabled(!all_set));
+    {
+        std::string star_label = star_boosted ? "✅ 已投入星星" : ("⭐ 投入星星（" + std::to_string(star_count) + "）");
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label(star_label).set_id("adv_star_boost_" + uid_s)
+            .set_style(star_boosted ? dpp::cos_success : dpp::cos_secondary)
+            .set_disabled(star_boosted || star_count <= 0));
+    }
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📚 收藏").set_id("adv_collection_" + uid_s).set_style(dpp::cos_secondary));
     row2.add_component(dpp::component().set_type(dpp::cot_button)
@@ -1251,6 +1271,25 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
     }
 
     // 開始探索
+    if (cid == "adv_star_boost_" + uid_s) {
+        bool consumed = false;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          auto& inv = inventory_data[uid];
+          auto it = inv.find("star_unknown");
+          if (it != inv.end() && it->second > 0) {
+              it->second--;
+              adv_setups[uid].star_boost = true;
+              consumed = true;
+          }
+        }
+        if (!consumed) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 沒有未知的星星！").set_flags(dpp::m_ephemeral)); return;
+        }
+        save_inventory();
+        ev.reply(dpp::ir_update_message, make_adv_setup_msg(uid, dn, av)); return;
+    }
+
     if (cid == "adv_start_" + uid_s) {
         AdventureSetup setup;
         { std::lock_guard<std::mutex> lk(data_mutex); auto it = adv_setups.find(uid); if (it != adv_setups.end()) setup = it->second; }
@@ -1287,6 +1326,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         g.pet_along = (setup.partner == 1);
         g.pet_stage = pet_stage;
         g.notify_on_finish = setup.notify_on_finish;
+        g.star_boost = setup.star_boost;
         g.start_time = time(nullptr);
         int64_t adv_secs = (int64_t)g.duration_hours * 3600LL;
         { std::lock_guard<std::mutex> lk(data_mutex);
@@ -1345,9 +1385,11 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 探險尚未結束！").set_flags(dpp::m_ephemeral)); return;
         }
         int progress = calc_adv_progress(g.duration_hours, g.funds, g.pet_stage);
+        if (g.star_boost) progress += 10;
         std::string item_key, item_key2;
         bool item_added = false;
         bool refund_triggered = false;
+        bool star_rerolled = false;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& inv = inventory_data[uid];
@@ -1381,6 +1423,10 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             int undies_full   = owned("col_bb_undies_full");
 
             item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
+            if (item_key.empty() && g.star_boost) {
+                item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
+                star_rerolled = true;
+            }
             if (!item_key.empty()) { inv[item_key]++; item_added = true; }
 
             static std::mt19937 bb_effect_rng(std::random_device{}());
@@ -1423,6 +1469,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         desc += "▸ 時長：" + std::to_string(g.duration_hours) + " 小時\n";
         desc += "▸ 資金：" + std::to_string(g.funds) + " 碼\n";
         desc += "▸ 夥伴：" + (g.pet_along ? std::string("🐾 寵物同行") : std::string("無")) + "\n";
+        if (g.star_boost) desc += "▸ 星星加成：✅ 探索度+10" + std::string(star_rerolled ? "、空包彈重骰一次" : "") + "\n";
         desc += "\n";
         if (item_key.empty())
             desc += "📦 這次探險沒有找到蒐藏品...";
