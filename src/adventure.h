@@ -1091,7 +1091,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         ev.reply(dpp::ir_update_message, make_adv_main_msg(uid, dn, av)); return;
     }
     if (cid == "adv_collection_" + uid_s) {
-        ev.reply(dpp::ir_update_message, make_collection_msg(uid, dn, av)); return;
+        ev.reply(dpp::ir_channel_message_with_source, make_collection_msg(uid, dn, av)); return;
     }
     // 一般收藏翻頁: adv_col_normal_<uid>_<page>
     if (cid.rfind("adv_col_normal_" + uid_s + "_", 0) == 0) {
