@@ -910,7 +910,7 @@ static dpp::message handle_pet_refine_star(dpp::snowflake uid) {
     std::string uid_s = std::to_string((uint64_t)uid);
     auto v2msg = [](uint32_t r, uint32_t g, uint32_t b, const std::string& text) {
         dpp::message m; m.set_flags(dpp::m_using_components_v2);
-        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(r, g, b));
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb((int)r, (int)g, (int)b));
         ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text));
         m.add_component_v2(ct); return m;
     };
@@ -949,7 +949,7 @@ static dpp::message handle_pet_refine_star(dpp::snowflake uid) {
                   "剩餘經驗值：**" + std::to_string(new_exp) + "**";
     }
     dpp::message m; m.set_flags(dpp::m_using_components_v2);
-    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(r, g, b));
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb((int)r, (int)g, (int)b));
     ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
     m.add_component_v2(ct);
     dpp::component row; row.set_type(dpp::cot_action_row);
@@ -1641,7 +1641,8 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
             return err("未知的特權道具！");
         }
         {
-            uint8_t cr = (e.color >> 16) & 0xFF, cg = (e.color >> 8) & 0xFF, cb = e.color & 0xFF;
+            uint32_t ecol = e.color.value_or(0xFFFFFF);
+        uint8_t cr = (ecol >> 16) & 0xFF, cg = (ecol >> 8) & 0xFF, cb = ecol & 0xFF;
             dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(cr, cg, cb));
             ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
                 .set_content("## " + e.title + "\n" + e.description));
@@ -1984,7 +1985,8 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
     if (updated.stage > 0)
         result_desc += "　✨ 經驗值 " + std::to_string(updated.exp);
     {
-        uint8_t cr = (e.color >> 16) & 0xFF, cg = (e.color >> 8) & 0xFF, cb = e.color & 0xFF;
+        uint32_t ecol = e.color.value_or(0xFFFFFF);
+        uint8_t cr = (ecol >> 16) & 0xFF, cg = (ecol >> 8) & 0xFF, cb = ecol & 0xFF;
         dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(cr, cg, cb));
         ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
             .set_content("## " + e.title + "\n" + result_desc));
@@ -2357,7 +2359,7 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
 static dpp::message handle_pet_cancel_work(dpp::snowflake uid) {
     auto v2msg = [](uint32_t r, uint32_t g, uint32_t b, const std::string& text) {
         dpp::message m; m.set_flags(dpp::m_using_components_v2);
-        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(r, g, b));
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb((int)r, (int)g, (int)b));
         ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text));
         m.add_component_v2(ct); return m;
     };
@@ -2423,7 +2425,7 @@ static dpp::message handle_pet_start_onsen(dpp::snowflake uid) {
 static dpp::message handle_pet_cancel_onsen(dpp::snowflake uid) {
     auto v2msg = [](uint32_t r, uint32_t g, uint32_t b, const std::string& text) {
         dpp::message m; m.set_flags(dpp::m_using_components_v2);
-        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(r, g, b));
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb((int)r, (int)g, (int)b));
         ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text));
         m.add_component_v2(ct); return m;
     };

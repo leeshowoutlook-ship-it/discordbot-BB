@@ -21,7 +21,7 @@ void handle_pet_button(const dpp::button_click_t& ev)
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 這不是你的視窗！").set_flags(dpp::m_ephemeral)); return;
             }
-            bool src_v2 = (ev.command.message.flags & dpp::m_using_components_v2) != 0;
+            bool src_v2 = (ev.command.msg.flags & dpp::m_using_components_v2) != 0;
             ev.reply(src_v2 ? dpp::ir_update_message : dpp::ir_channel_message_with_source,
                 make_lobby_msg(uid, user.get_avatar_url(), ev.command.member.get_nickname()));
         } else if (cid.rfind("lobby_shop_", 0) == 0) {

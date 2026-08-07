@@ -33,7 +33,7 @@ void handle_stock_button(const dpp::button_click_t& ev)
     }
 
     if (cid == "stock_home_" + uid_s) {
-        bool src_v2 = (ev.command.message.flags & dpp::m_using_components_v2) != 0;
+        bool src_v2 = (ev.command.msg.flags & dpp::m_using_components_v2) != 0;
         ev.reply(src_v2 ? dpp::ir_update_message : dpp::ir_channel_message_with_source,
                  make_stock_home_msg(uid, dn, av)); return;
     }
@@ -42,7 +42,7 @@ void handle_stock_button(const dpp::button_click_t& ev)
         auto [bu, key] = split_uid_key(cid.substr(11));
         if (uid != bu) { ev.reply(dpp::ir_channel_message_with_source,
             dpp::message("❌ 這不是你的股市！").set_flags(dpp::m_ephemeral)); return; }
-        bool src_v2 = (ev.command.message.flags & dpp::m_using_components_v2) != 0;
+        bool src_v2 = (ev.command.msg.flags & dpp::m_using_components_v2) != 0;
         ev.reply(src_v2 ? dpp::ir_update_message : dpp::ir_channel_message_with_source,
                  make_stock_detail_msg(uid, key, dn, av)); return;
     }
