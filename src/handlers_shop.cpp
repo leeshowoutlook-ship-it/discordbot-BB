@@ -204,7 +204,11 @@ void handle_shop_button(const dpp::button_click_t& ev)
 
         if (cid.rfind("bag_home_", 0) == 0) {
             if (!chk(dpp::snowflake(std::stoull(cid.substr(9))))) return;
-            ev.reply(dpp::ir_update_message, make_bag_home_msg(uid));
+            std::string dn = ev.command.member.get_nickname().empty()
+                ? (user.global_name.empty() ? user.username : user.global_name)
+                : ev.command.member.get_nickname();
+            std::string av = user.get_avatar_url();
+            ev.reply(dpp::ir_channel_message_with_source, make_bag_home_msg(uid, dn, av));
 
         } else if (cid.rfind("bag_tab_equip_", 0) == 0) {
             if (!chk(dpp::snowflake(std::stoull(cid.substr(14))))) return;

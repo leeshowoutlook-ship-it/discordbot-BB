@@ -2044,8 +2044,7 @@ int main(int argc, char* argv[]) {
             if (std::holds_alternative<std::string>(tp)) text = std::get<std::string>(tp);
             if (text.empty()) {
                 ev.reply(dpp::ir_channel_message_with_source, make_announcement_view_msg());
-            } else if (!is_admin(ev.command) &&
-                       (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id)) {
+            } else if (!is_draw_authorized_msg(uid, ev.command.member.get_roles())) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 只有管理員或副會長能設定公告！").set_flags(dpp::m_ephemeral));
             } else {
