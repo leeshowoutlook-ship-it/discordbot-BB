@@ -234,7 +234,7 @@ static bool col_would_break_set(dpp::snowflake uid, const std::string& key) {
 
 // pet_stage: 0=無寵物同行, 1/2/3=同行寵物的階段（一階+10／二階+15／三階+20）
 static int calc_adv_progress(int hours, int64_t funds, int pet_stage) {
-    int p = hours * 4 + (int)(funds / 250);
+    int p = 2 + hours * 4 + (int)(funds / 250);
     if      (pet_stage == 1) p += 10;
     else if (pet_stage == 2) p += 15;
     else if (pet_stage == 3) p += 20;
@@ -839,7 +839,9 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
             if (pit != pet_data.end()) pet_stage = pit->second.stage;
         }
         int prog = calc_adv_progress(setup.duration_hours, setup.funds, pet_stage);
+        if (setup.star_boost) prog += 10;
         desc += "\n\n✨ **預計探索度：" + std::to_string(prog) + "**";
+        if (setup.star_boost) desc += "（含星星 +10）";
         if (reg) {
             AdvPreview prev = calc_adv_preview(reg->key, prog);
             desc += "\n📊 有 **" + std::to_string((int)std::lround(prev.miss_pct))
@@ -866,26 +868,24 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
     msg.add_component(row1);
 
     int star_count = 0;
-    bool star_boosted = false;
     { std::lock_guard<std::mutex> lk(data_mutex);
-      auto sit = adv_setups.find(uid);
-      if (sit != adv_setups.end()) star_boosted = sit->second.star_boost;
       auto iit = inventory_data.find(uid);
       if (iit != inventory_data.end()) {
           auto kit = iit->second.find("star_unknown");
           if (kit != iit->second.end()) star_count = kit->second;
       }
     }
+    bool star_boosted = setup.star_boost;
     dpp::component row2; row2.set_type(dpp::cot_action_row);
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🚀 開始探索").set_id("adv_start_" + uid_s)
         .set_style(dpp::cos_primary).set_disabled(!all_set));
     {
-        std::string star_label = star_boosted ? "✅ 已投入星星" : ("⭐ 投入星星（" + std::to_string(star_count) + "）");
+        std::string star_label = star_boosted ? "✅ 已投入星星（點擊取消）" : ("⭐ 投入星星（" + std::to_string(star_count) + "）");
         row2.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label(star_label).set_id("adv_star_boost_" + uid_s)
             .set_style(star_boosted ? dpp::cos_success : dpp::cos_secondary)
-            .set_disabled(star_boosted || star_count <= 0));
+            .set_disabled(!star_boosted && star_count <= 0));
     }
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📚 收藏").set_id("adv_collection_" + uid_s).set_style(dpp::cos_secondary));
@@ -1272,17 +1272,26 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
 
     // 開始探索
     if (cid == "adv_star_boost_" + uid_s) {
-        bool consumed = false;
+        bool changed = false;
         { std::lock_guard<std::mutex> lk(data_mutex);
-          auto& inv = inventory_data[uid];
-          auto it = inv.find("star_unknown");
-          if (it != inv.end() && it->second > 0) {
-              it->second--;
-              adv_setups[uid].star_boost = true;
-              consumed = true;
+          auto& setup = adv_setups[uid];
+          if (setup.star_boost) {
+              // 取消：退還星星
+              inventory_data[uid]["star_unknown"]++;
+              setup.star_boost = false;
+              changed = true;
+          } else {
+              // 投入：消耗星星
+              auto& inv = inventory_data[uid];
+              auto it = inv.find("star_unknown");
+              if (it != inv.end() && it->second > 0) {
+                  it->second--;
+                  setup.star_boost = true;
+                  changed = true;
+              }
           }
         }
-        if (!consumed) {
+        if (!changed) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 沒有未知的星星！").set_flags(dpp::m_ephemeral)); return;
         }
