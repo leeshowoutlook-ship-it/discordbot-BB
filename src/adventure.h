@@ -212,6 +212,9 @@ static const std::map<std::string, ColSetCheckFn> COL_KEY_TO_SET_CHECK = {
     {"col_ghost_heels", col_set_ghost_basic}, {"col_kappa_cucumber", col_set_ghost_basic}, {"col_zombie_eyepatch", col_set_ghost_basic}, {"col_ghost_cloak", col_set_ghost_basic},
     {"col_witch_broom", col_set_ghost_mid},
     {"col_demon_tear", col_set_ghost_adv}, {"col_demon_heart", col_set_ghost_adv}, {"col_demon_horn", col_set_ghost_adv}, {"col_demon_costume", col_set_ghost_adv},
+    {"col_bb_pink_cup", col_set_bb_basic}, {"col_bb_desk_terror", col_set_bb_basic}, {"col_bb_signus_chalice", col_set_bb_basic}, {"col_bb_mercury_staff", col_set_bb_basic},
+    {"col_bb_horn", col_set_bb_mid}, {"col_bb_death_ring", col_set_bb_mid}, {"col_bb_ski", col_set_bb_mid},
+    {"col_bb_blood_gem", col_set_bb_adv}, {"col_bb_bracelet", col_set_bb_adv}, {"col_bb_mirror", col_set_bb_adv},
 };
 
 // 若移交（售出／交易）1 個 key 會讓該玩家目前完整的套組加成失效，回傳 true。
@@ -477,9 +480,9 @@ static dpp::message make_normal_col_msg(dpp::snowflake uid,
                 {"🌳 高級區", "打工報酬 +1%",      {"col_demon_tear","col_demon_heart","col_demon_horn","col_demon_costume"}},
             },
             { // BB自然博物館（低於2%機率的特殊道具另外顯示在背包「特殊」分頁）
-                {"🌱 初級區", "純收藏（無套組加成）", {"col_bb_pink_cup","col_bb_desk_terror","col_bb_signus_chalice","col_bb_mercury_staff"}},
-                {"🌿 中級區", "純收藏（無套組加成）", {"col_bb_horn","col_bb_death_ring","col_bb_ski"}},
-                {"🌳 高級區", "純收藏（無套組加成）", {"col_bb_blood_gem","col_bb_bracelet","col_bb_mirror"}},
+                {"🌱 初級區", "強化成功率 +5%", {"col_bb_pink_cup","col_bb_desk_terror","col_bb_signus_chalice","col_bb_mercury_staff"}},
+                {"🌿 中級區", "狩獵／王團獎勵籌碼 +3%", {"col_bb_horn","col_bb_death_ring","col_bb_ski"}},
+                {"🌳 高級區", "銀行借款利率 -0.5%", {"col_bb_blood_gem","col_bb_bracelet","col_bb_mirror"}},
             },
         };
         auto has_all = [&](const std::vector<std::string>& ks) {

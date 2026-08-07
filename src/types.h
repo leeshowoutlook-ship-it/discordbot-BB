@@ -588,6 +588,11 @@ inline bool col_set_mushroom_adv(dpp::snowflake uid)   { return col_all_owned(ui
 inline bool col_set_water_adv(dpp::snowflake uid)      { return col_all_owned(uid, {"col_awl_avocado","col_sqwl_brownie","col_ywl_caramel"}); }
 inline bool col_set_ghost_adv(dpp::snowflake uid)      { return col_all_owned(uid, {"col_demon_tear","col_demon_heart","col_demon_horn","col_demon_costume"}); }
 
+// BB自然博物館：初級強化成功率+5%／中級狩獵與王團獎勵+3%／高級銀行借款利率-0.5%
+inline bool col_set_bb_basic(dpp::snowflake uid) { return col_all_owned(uid, {"col_bb_pink_cup","col_bb_desk_terror","col_bb_signus_chalice","col_bb_mercury_staff"}); }
+inline bool col_set_bb_mid(dpp::snowflake uid)   { return col_all_owned(uid, {"col_bb_horn","col_bb_death_ring","col_bb_ski"}); }
+inline bool col_set_bb_adv(dpp::snowflake uid)   { return col_all_owned(uid, {"col_bb_blood_gem","col_bb_bracelet","col_bb_mirror"}); }
+
 // 初級套組 + 強化等級的攻/血/防加成，共用同一個「乘區」相加，最後一次套用乘法
 // （而非逐一連乘取整）。以後同類加成變多時直接在這裡加一行 += 即可，不會因多次
 // 連乘造成誤差或超出預期倍率。防禦力的強化是固定值（非百分比），獨立疊加。

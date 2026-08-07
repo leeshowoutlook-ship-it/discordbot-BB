@@ -21,12 +21,15 @@ static int64_t effective_max_loan(dpp::snowflake uid) {
 }
 static double effective_loan_rate(dpp::snowflake uid) {
     std::lock_guard<std::mutex> lk(data_mutex);
+    double rate = LOAN_RATE;
     auto it = inventory_data.find(uid);
     if (it != inventory_data.end()) {
         auto jt = it->second.find("col_phone_tianxin");
-        if (jt != it->second.end() && jt->second > 0) return 0.0298;
+        if (jt != it->second.end() && jt->second > 0) rate = 0.0298;
     }
-    return LOAN_RATE;
+    // BB自然博物館高級套組：借款利率再 -0.5%（下限 0.5%，避免疊加到 0 或負利率）
+    if (col_set_bb_adv(uid)) rate = std::max(0.005, rate - 0.005);
+    return rate;
 }
 static const std::string BANK_FILE = "bank.json";
 

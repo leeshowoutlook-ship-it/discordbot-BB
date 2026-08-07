@@ -379,6 +379,9 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
         win_out = true;
         const MonsterDef* md = find_monster(g.monster_key);
         if (md) reward_out = randint((int)md->daily_min, (int)md->daily_max);
+        // BB自然博物館中級套組：狩獵／王團獎勵籌碼 +3%
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          if (col_set_bb_mid(g.uid)) reward_out = (int64_t)std::ceil(reward_out * 1.03); }
         // 各掉落獨立判定
         // 成長道具 / 回復道具共用機率，各半機率
         if (md && randint(1, 100) <= md->drop_chance) {
@@ -689,6 +692,9 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
         win_out = true;
         const VillageGroupDef* gd = find_village_group(g.group_key);
         if (gd) reward_out = randint((int)gd->daily_min, (int)gd->daily_max);
+        // BB自然博物館中級套組：狩獵／王團獎勵籌碼 +3%
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          if (col_set_bb_mid(g.uid)) reward_out = (int64_t)std::ceil(reward_out * 1.03); }
         // 各掉落獨立判定
         // 成長道具 / 回復道具共用機率，各半機率
         if (gd && randint(1, 100) <= gd->drop_chance) {

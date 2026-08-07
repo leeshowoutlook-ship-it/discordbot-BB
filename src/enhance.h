@@ -9,6 +9,11 @@
 
 static const int ENH_MAX_LEVEL = 10;
 
+// BB自然博物館初級套組：強化成功率 +5%（上限 100%）。純函式，呼叫端自行決定是否持有 data_mutex。
+static int enh_apply_rate_bonus(int base_pct, bool has_bb_basic) {
+    return std::min(100, base_pct + (has_bb_basic ? 5 : 0));
+}
+
 struct EnhTier { int stars; int64_t chips; int rate_pct; };
 // index 0 = 第1層所需, index 9 = 第10層所需
 static const std::array<EnhTier, ENH_MAX_LEVEL> ENH_TABLE = {{
@@ -112,6 +117,7 @@ static dpp::message make_enhance_stat_msg(dpp::snowflake uid, const std::string&
     std::string uid_s = std::to_string((uint64_t)uid);
     Pet pet; bool has_pet = false;
     int stars = 0; int64_t chips = get_chips(uid);
+    bool bb_basic_bonus = false;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = pet_data.find(uid);
@@ -121,6 +127,7 @@ static dpp::message make_enhance_stat_msg(dpp::snowflake uid, const std::string&
             auto sit = ii->second.find("star_unknown");
             if (sit != ii->second.end()) stars = sit->second;
         }
+        bb_basic_bonus = col_set_bb_basic(uid);
     }
 
     dpp::embed e; e.set_title("💪  " + enh_stat_label(stat) + " 強化").set_color(0xE74C3C);
@@ -150,8 +157,10 @@ static dpp::message make_enhance_stat_msg(dpp::snowflake uid, const std::string&
     bool can_afford = false;
     if (!maxed) {
         const EnhTier& t = ENH_TABLE[level]; // 升到 level+1 所需
+        int eff_rate = enh_apply_rate_bonus(t.rate_pct, bb_basic_bonus);
         desc += "**升到 Lv " + std::to_string(level + 1) + "** 需要：\n";
-        desc += "⭐ 星星 ×" + std::to_string(t.stars) + "　💰 籌碼 " + std::to_string(t.chips) + "　🎲 成功率 " + std::to_string(t.rate_pct) + "%\n";
+        desc += "⭐ 星星 ×" + std::to_string(t.stars) + "　💰 籌碼 " + std::to_string(t.chips) + "　🎲 成功率 " +
+                std::to_string(eff_rate) + "%" + (bb_basic_bonus ? "（BB博物館+5%）" : "") + "\n";
         can_afford = (stars >= t.stars && chips >= t.chips);
         if (!can_afford) desc += "\n❌ 素材或籌碼不足！";
     } else {
@@ -218,7 +227,8 @@ static void handle_enhance_button(const dpp::button_click_t& ev) {
                         // 消耗素材（無論成功失敗）
                         inv["star_unknown"] -= t.stars;
                         chip_data[uid].chips -= t.chips;
-                        bool success = std::uniform_int_distribution<int>(1, 100)(enh_rng()) <= t.rate_pct;
+                        int eff_rate = enh_apply_rate_bonus(t.rate_pct, col_set_bb_basic(uid));
+                        bool success = std::uniform_int_distribution<int>(1, 100)(enh_rng()) <= eff_rate;
                         if (success) {
                             if (stat == "atk") pet.enh_atk++; else if (stat == "def") pet.enh_def++; else pet.enh_hp++;
                             notice = "✅ 強化成功！" + enh_stat_label(stat) + " 升到 **Lv " + std::to_string(level + 1) + "**！";

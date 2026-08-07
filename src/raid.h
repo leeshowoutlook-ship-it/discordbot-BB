@@ -663,12 +663,14 @@ static const std::vector<std::string> SHARD_KEYS_RAID = {
 static std::string raid_give_rewards(dpp::snowflake uid,
                                      const std::string& display_name) {
     std::vector<std::string> parts;
-    // 2750 chips always
+    // 2750 chips always（BB自然博物館中級套組：狩獵／王團獎勵籌碼 +3%）
+    int64_t base_reward = 2750;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
-        chip_data[uid].chips += 2750;
+        if (col_set_bb_mid(uid)) base_reward = (int64_t)std::ceil(base_reward * 1.03);
+        chip_data[uid].chips += base_reward;
     }
-    parts.push_back("💰 2750 籌碼");
+    parts.push_back("💰 " + std::to_string(base_reward) + " 籌碼");
 
     // 各項獨立判定，可同時觸發
     if (raid_rand(1, 100) <= 50) {

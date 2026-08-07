@@ -685,9 +685,10 @@ static const std::vector<std::string> DD_ORB_KEYS = {
 static std::string dd_give_rewards_one(dpp::snowflake uid) {
     std::vector<std::string> parts;
 
-    // 固定 4400 籌碼
-    chip_data[uid].chips += 4400;
-    parts.push_back("💰 4400 籌碼");
+    // 固定 4400 籌碼（BB自然博物館中級套組：狩獵／王團獎勵籌碼 +3%；呼叫前已持有 data_mutex，直接查不用再上鎖）
+    int64_t base_reward = col_set_bb_mid(uid) ? (int64_t)std::ceil(4400 * 1.03) : 4400;
+    chip_data[uid].chips += base_reward;
+    parts.push_back("💰 " + std::to_string(base_reward) + " 籌碼");
 
     // 80% 成長道具
     if (dd_rand(1, 100) <= 80) {
