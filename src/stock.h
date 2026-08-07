@@ -220,17 +220,24 @@ static std::string stock_change_line(const StockInfo& s) {
 }
 
 static dpp::message make_stock_home_msg(dpp::snowflake uid,
-                                         const std::string& dn = "", const std::string& av = "") {
+                                         const std::string& dn = "", const std::string& av = "",
+                                         int page = 0) {
     std::string uid_s = std::to_string((uint64_t)uid);
     std::map<std::string, StockInfo> snap;
     { std::lock_guard<std::mutex> lk(stock_mutex); snap = stock_market; }
 
+    const int PAGE_SIZE = 5;
+    int total       = (int)STOCK_DEFS.size();
+    int total_pages = (total + PAGE_SIZE - 1) / PAGE_SIZE;
+    page = std::max(0, std::min(page, total_pages - 1));
+    int start = page * PAGE_SIZE;
+    int end   = std::min(start + PAGE_SIZE, total);
+
     auto mk_section = [&](const StockDef& d) {
         auto it = snap.find(d.key);
-        std::string square = "⬜"; // 尚無資料時中性方塊
-        if (it != snap.end() && it->second.price > 0 && it->second.prev_close > 0) {
+        std::string square = "⬜";
+        if (it != snap.end() && it->second.price > 0 && it->second.prev_close > 0)
             square = (it->second.price >= it->second.prev_close) ? "🟩" : "🟥";
-        }
         std::string text = square + " **" + d.emoji + " " + d.name + "**\n" + d.desc + "\n";
         if (it == snap.end()) text += "價格讀取中...";
         else {
@@ -244,19 +251,28 @@ static dpp::message make_stock_home_msg(dpp::snowflake uid,
                 .set_label("查看").set_id("stock_view_" + uid_s + "_" + d.key).set_style(dpp::cos_secondary));
     };
 
+    std::string header = "## 📊 股票市場（第 " + std::to_string(page + 1)
+                       + " / " + std::to_string(total_pages) + " 頁）\n"
+                       + (dn.empty() ? uid_s : dn) + "，選擇要查看的股票：";
+
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 📊 股票市場\n" + (dn.empty() ? uid_s : dn) + "，選擇要查看的股票："));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(header));
     container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
         .set_spacing(dpp::sep_small).set_divider(true));
-    for (auto& d : STOCK_DEFS) container.add_component_v2(mk_section(d));
+    for (int i = start; i < end; i++) container.add_component_v2(mk_section(STOCK_DEFS[i]));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
     msg.add_component_v2(container);
 
     dpp::component nav; nav.set_type(dpp::cot_action_row);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("◀ 上一頁").set_id("stock_page_" + uid_s + "_" + std::to_string(page - 1))
+        .set_style(dpp::cos_secondary).set_disabled(page == 0));
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("▶ 下一頁").set_id("stock_page_" + uid_s + "_" + std::to_string(page + 1))
+        .set_style(dpp::cos_secondary).set_disabled(page >= total_pages - 1));
     nav.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(nav);

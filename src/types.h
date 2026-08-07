@@ -902,6 +902,12 @@ static const std::vector<StockDef> STOCK_DEFS = {
     {"stock_yageo", "國巨 (2327)",        "2327.TW", "🔧", "被動元件大廠，波動較大。"},
     {"stock_btc",   "比特幣",             "BTC-USD", "₿",  "去中心化加密貨幣，價格波動劇烈。"},
     {"stock_mood",  "LeeShoW的心情",      "",        "😶", "價格全憑 LeeShoW 心情決定，僅供娛樂。"}, // ticker="" 代表不接 API，價格由管理員手動調整
+    // ── 第二頁：高波動美股 ───────────────────────────────────────────────────────
+    {"stock_tsla",  "Tesla",          "TSLA",    "🚗", "馬斯克的電動車帝國，推文一出股價暴震。"},
+    {"stock_nvda",  "NVIDIA",         "NVDA",    "🖥️", "AI晶片霸主，近年漲幅驚人，波動劇烈。"},
+    {"stock_mstr",  "MicroStrategy",  "MSTR",    "💾", "全倉押比特幣的公司，波動比 BTC 還激烈。"},
+    {"stock_ntdo",  "任天堂",          "7974.T",  "🎮", "日本遊戲巨頭，Switch 系列創造者（日圓計價）。"},
+    {"stock_coin",  "Coinbase",       "COIN",    "🏦", "最大加密貨幣交易所，跟加密市場同漲同跌。"},
 };
 static const StockDef* find_stock_def(const std::string& key) {
     for (auto& d : STOCK_DEFS) if (d.key == key) return &d;

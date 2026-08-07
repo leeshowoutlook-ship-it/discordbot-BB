@@ -23,6 +23,15 @@ void handle_stock_button(const dpp::button_click_t& ev)
         return {dpp::snowflake(std::stoull(rest.substr(0, sep))), rest.substr(sep + 1)};
     };
 
+    if (cid.rfind("stock_page_", 0) == 0) {
+        auto [bu, page_str] = split_uid_key(cid.substr(11));
+        if (uid != bu) { ev.reply(dpp::ir_channel_message_with_source,
+            dpp::message("❌ 這不是你的股市！").set_flags(dpp::m_ephemeral)); return; }
+        int page = 0;
+        try { page = std::stoi(page_str); } catch (...) {}
+        ev.reply(dpp::ir_update_message, make_stock_home_msg(uid, dn, av, page)); return;
+    }
+
     if (cid == "stock_home_" + uid_s) {
         // 股市首頁使用 Components V2，不能 ir_update_message 更新非 V2 訊息（例如大廳），
         // 一律送新訊息，避免 V1/V2 相容性問題。
