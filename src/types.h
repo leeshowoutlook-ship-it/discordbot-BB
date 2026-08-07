@@ -611,14 +611,13 @@ inline void apply_pet_basic_set_bonus(dpp::snowflake uid, const Pet& pet, int& a
     def += pet.enh_def / 2;
 }
 
-// 背包分頁的返回按鈕：取代原本的分頁列，改成單顆「回背包首頁」按鈕，
-// 首頁本身（make_bag_home_msg，pet.h）用 Components V2 的清單排版切換分頁。
+// 背包分頁的返回按鈕（V2 訊息用）
 inline void add_bag_home_button(dpp::message& msg, dpp::snowflake uid) {
     std::string uid_s = std::to_string((uint64_t)uid);
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📋 背包首頁").set_id("bag_home_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component(row);
+    msg.add_component_v2(row);
 }
 
 // channel_id -> room

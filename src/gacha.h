@@ -598,64 +598,59 @@ static dpp::message make_equip_msg(dpp::snowflake uid, const Pet& pet,
         apply_pet_basic_set_bonus(uid, pet, stats.atk, stats.hp, max_hp, stats.def);
     }
 
-    dpp::embed e;
-    e.set_title("🗡️  裝備總覽").set_color(0xE67E22);
-
     auto eq_line = [](const std::string& key) -> std::string {
         if (key.empty()) return "（空）";
         auto* gi = find_gacha_item(key);
         return gi ? (rarity_label(gi->rarity) + " " + gi->name) : key;
     };
-    e.add_field("⚔️ 武器",    eq_line(eq.weapon),  true);
-    e.add_field("🧤 手套",    eq_line(eq.glove),   true);
-    e.add_field("👘 套服",    eq_line(eq.clothes), true);
-    e.add_field("👟 鞋子",    eq_line(eq.shoes),   true);
-    e.add_field("💎 靈魂寶珠",eq_line(eq.orb),     true);
-    e.add_field("　","　",true); // spacer
-    e.add_field("⚔️ 總攻擊力", std::to_string(stats.atk), true);
-    e.add_field("❤️ 總生命值", std::to_string(stats.hp),  true);
-    e.add_field("🛡️ 總防禦力", std::to_string(stats.def), true);
 
-    // Set bonus status
     auto sc = calc_set_count(eq);
     int a = sc.count("A") ? sc["A"] : 0;
     int b = sc.count("B") ? sc["B"] : 0;
     int c = sc.count("C") ? sc["C"] : 0;
     auto tick = [](bool on) { return std::string(on ? "✅" : "⬜"); };
-    std::string set_desc;
-    set_desc += "**堅韌** (" + std::to_string(a) + "/4)  "
+
+    std::string content = "## 🗡️ 裝備總覽\n";
+    content += "⚔️ **武器** " + eq_line(eq.weapon) + "　";
+    content += "🧤 **手套** " + eq_line(eq.glove) + "　";
+    content += "👘 **套服** " + eq_line(eq.clothes) + "\n";
+    content += "👟 **鞋子** " + eq_line(eq.shoes) + "　";
+    content += "💎 **靈魂寶珠** " + eq_line(eq.orb) + "\n\n";
+    content += "⚔️ **總攻擊力** " + std::to_string(stats.atk) + "　";
+    content += "❤️ **總生命值** " + std::to_string(stats.hp) + "　";
+    content += "🛡️ **總防禦力** " + std::to_string(stats.def) + "\n\n";
+    content += "**✨ 套裝效果**\n";
+    content += "**堅韌** (" + std::to_string(a) + "/4)  "
               + tick(a>=2) + " 2件：防禦力 +2　"
               + tick(a>=4) + " 4件：防禦力 +5\n";
-    set_desc += "**生命** (" + std::to_string(b) + "/4)  "
+    content += "**生命** (" + std::to_string(b) + "/4)  "
               + tick(b>=2) + " 2件：生命 +10　"
               + tick(b>=4) + " 4件：生命 +25\n";
-    set_desc += "**衝鋒** (" + std::to_string(c) + "/4)  "
+    content += "**衝鋒** (" + std::to_string(c) + "/4)  "
               + tick(c>=2) + " 2件：攻擊力 +2　"
               + tick(c>=4) + " 4件：攻擊力 +5\n";
-    e.add_field("✨ 套裝效果", set_desc, false);
+    content += "\n-# 👤 " + display_name;
 
-    dpp::embed_footer footer;
-    footer.text = "👤 " + display_name;
-    if (!avatar_url.empty()) footer.icon_url = avatar_url;
-    e.set_footer(footer);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
 
-    dpp::message msg; msg.add_embed(e);
-    // Slot buttons
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
     dpp::component row1; row1.set_type(dpp::cot_action_row);
     for (auto& [lbl, slot] : std::vector<std::pair<std::string,std::string>>{
             {"⚔️ 武器","W"},{"🧤 手套","G"},{"👘 套服","C"},{"👟 鞋子","S"},{"💎 靈魂","K"}}) {
-        dpp::component b;
-        b.set_type(dpp::cot_button).set_label(lbl)
-         .set_id("equip_slot_" + uid_s + "_" + slot).set_style(dpp::cos_primary);
-        row1.add_component(b);
+        row1.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label(lbl).set_id("equip_slot_" + uid_s + "_" + slot).set_style(dpp::cos_primary));
     }
-    msg.add_component(row1);
+    msg.add_component_v2(row1);
+
     dpp::component nav_row; nav_row.set_type(dpp::cot_action_row);
-    dpp::component pet_back;
-    pet_back.set_type(dpp::cot_button).set_label("🏠 大廳")
-            .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
-    nav_row.add_component(pet_back);
-    msg.add_component(nav_row);
+    nav_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav_row);
     return msg;
 }
 
@@ -705,45 +700,36 @@ static dpp::message make_equip_slot_msg(dpp::snowflake uid, const std::string& s
     int start = page * PER_PAGE;
     int end   = std::min(start + PER_PAGE, (int)items.size());
 
-    dpp::embed e;
-    e.set_title(slot_label(slot) + "  裝備選擇").set_color(0xE67E22);
-
     std::string cur_line = cur_equipped.empty() ? "（空）" : "";
     if (!cur_equipped.empty()) {
         auto* gi = find_gacha_item(cur_equipped);
         cur_line = gi ? (rarity_label(gi->rarity) + " **" + gi->name + "** " + stat_label(*gi)) : cur_equipped;
     }
-    e.add_field("目前裝備", cur_line, false);
 
+    std::string content = "## " + slot_label(slot) + " 裝備選擇\n";
+    content += "**目前裝備** " + cur_line + "\n\n";
     if (items.empty()) {
-        e.set_description("背包中沒有此部位的裝備。");
+        content += "背包中沒有此部位的裝備。\n";
     } else {
-        std::string desc;
         for (int i = start; i < end; i++) {
             auto* gi = items[i];
             int cnt = inv.count(gi->key) ? inv.at(gi->key) : 0;
             bool is_eq = (gi->key == cur_equipped);
-            desc += (is_eq ? "✅ " : "") + rarity_label(gi->rarity)
+            content += (is_eq ? "✅ " : "") + rarity_label(gi->rarity)
                   + " **" + gi->name + "** " + stat_label(*gi)
                   + " ×" + std::to_string(cnt) + "\n";
         }
-        e.set_description(desc);
-        e.set_footer(dpp::embed_footer().set_text(
-            "第 " + std::to_string(page+1) + "/" + std::to_string(total_pages) + " 頁  |  👤 " + display_name));
+        content += "\n-# 第 " + std::to_string(page+1) + "/" + std::to_string(total_pages) + " 頁  |  👤 " + display_name;
     }
-    if (!e.footer.has_value() || e.footer->text.empty()) {
-        dpp::embed_footer footer; footer.text = "👤 " + display_name;
-        if (!avatar_url.empty()) footer.icon_url = avatar_url;
-        e.set_footer(footer);
-    }
+    if (items.empty()) content += "\n-# 👤 " + display_name;
 
-    // Show currently equipped item image as thumbnail
-    if (!cur_equipped.empty()) {
-        auto* ceq = find_gacha_item(cur_equipped);
-        if (ceq && !ceq->image_url.empty()) e.set_thumbnail(ceq->image_url);
-    }
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
 
-    dpp::message msg; msg.add_embed(e);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
 
     // Item buttons (current page)
     if (!items.empty()) {
@@ -751,47 +737,37 @@ static dpp::message make_equip_slot_msg(dpp::snowflake uid, const std::string& s
         for (int i = start; i < end; i++) {
             auto* gi = items[i];
             bool is_eq = (gi->key == cur_equipped);
-            dpp::component b;
-            b.set_type(dpp::cot_button)
-             .set_label((is_eq ? "✅ " : "") + gi->name)
-             .set_id("equip_set_" + uid_s + "_" + gi->key)
-             .set_style(is_eq ? dpp::cos_success : dpp::cos_secondary);
-            item_row.add_component(b);
+            item_row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label((is_eq ? "✅ " : "") + gi->name)
+                .set_id("equip_set_" + uid_s + "_" + gi->key)
+                .set_style(is_eq ? dpp::cos_success : dpp::cos_secondary));
         }
-        msg.add_component(item_row);
+        msg.add_component_v2(item_row);
     }
 
     // Pagination + back row
     dpp::component nav_row; nav_row.set_type(dpp::cot_action_row);
     if (page > 0) {
-        dpp::component prev;
-        prev.set_type(dpp::cot_button).set_label("◀ 上頁")
+        nav_row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("◀ 上頁")
             .set_id("equip_slot_" + uid_s + "_" + slot + "_" + std::to_string(page-1))
-            .set_style(dpp::cos_secondary);
-        nav_row.add_component(prev);
+            .set_style(dpp::cos_secondary));
     }
     if (page < total_pages - 1) {
-        dpp::component nxt;
-        nxt.set_type(dpp::cot_button).set_label("下頁 ▶")
-           .set_id("equip_slot_" + uid_s + "_" + slot + "_" + std::to_string(page+1))
-           .set_style(dpp::cos_secondary);
-        nav_row.add_component(nxt);
+        nav_row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("下頁 ▶")
+            .set_id("equip_slot_" + uid_s + "_" + slot + "_" + std::to_string(page+1))
+            .set_style(dpp::cos_secondary));
     }
     if (!cur_equipped.empty()) {
-        dpp::component uneq;
-        uneq.set_type(dpp::cot_button).set_label("脫下裝備")
-            .set_id("equip_unequip_" + uid_s + "_" + slot).set_style(dpp::cos_danger);
-        nav_row.add_component(uneq);
+        nav_row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("脫下裝備").set_id("equip_unequip_" + uid_s + "_" + slot).set_style(dpp::cos_danger));
     }
-    dpp::component back;
-    back.set_type(dpp::cot_button).set_label("↩ 返回裝備總覽")
-        .set_id("equip_main_" + uid_s).set_style(dpp::cos_secondary);
-    nav_row.add_component(back);
-    dpp::component pet_back;
-    pet_back.set_type(dpp::cot_button).set_label("🐾 寵物頁面")
-            .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary);
-    nav_row.add_component(pet_back);
-    if (!nav_row.components.empty()) msg.add_component(nav_row);
+    nav_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回裝備總覽").set_id("equip_main_" + uid_s).set_style(dpp::cos_secondary));
+    nav_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🐾 寵物頁面").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary));
+    if (!nav_row.components.empty()) msg.add_component_v2(nav_row);
     return msg;
 }
 
@@ -914,36 +890,40 @@ static dpp::message make_craft_msg(dpp::snowflake uid) {
     auto sc = [&](const std::string& k){ return inv.count(k) ? inv[k] : 0; };
     std::string uid_s = std::to_string((uint64_t)uid);
 
-    dpp::embed e;
-    e.set_title("🔨  寶珠合成").set_color(0x9B59B6);
-    e.set_description("收集 **10 個碎片** 可合成對應的寶珠。\n"
-                      "碎片只有**怪物之王**會掉落（5%×2片 / 10%×1片）。\n"
-                      "🔶 **拉圖斯碎片** 從組隊遠征拉圖斯掉落（20%，1~4片）\n"
-                      "🌑 **暗黑龍王碎片** 從組隊遠征暗黑龍王掉落（20%，1~4片）");
-    for (auto& o : ORB_CRAFT_LIST) {
-        int cnt = sc(o.shard);
-        e.add_field(o.name, "碎片：**" + std::to_string(cnt) + " / 10**　效果：" + o.effect, false);
-    }
     int wig_cnt    = sc("col_bb_wig_broken");
     int undies_cnt = sc("col_bb_undies_broken");
-    e.add_field("Zoey散發氣味的秀髮",
-        "戰損版：**" + std::to_string(wig_cnt) + " / 5**　效果：探索額外骰一次戰利品 10%（可疊加）", false);
-    e.add_field("皮包遺失的粉紅內衣",
-        "戰損版：**" + std::to_string(undies_cnt) + " / 5**　效果：探索完成返還資金 20%（可疊加）", false);
-    dpp::message msg; msg.add_embed(e);
+
+    std::string content = "## 🔨 寶珠合成\n";
+    content += "收集 **10 個碎片** 可合成對應的寶珠。\n";
+    content += "碎片只有**怪物之王**會掉落（5%×2片 / 10%×1片）。\n";
+    content += "🔶 **拉圖斯碎片** 從組隊遠征拉圖斯掉落（20%，1~4片）\n";
+    content += "🌑 **暗黑龍王碎片** 從組隊遠征暗黑龍王掉落（20%，1~4片）\n\n";
+    for (auto& o : ORB_CRAFT_LIST) {
+        int cnt = sc(o.shard);
+        content += "**" + o.name + "** 碎片：**" + std::to_string(cnt) + " / 10**　效果：" + o.effect + "\n";
+    }
+    content += "**Zoey散發氣味的秀髮** 戰損版：**" + std::to_string(wig_cnt) + " / 5**　效果：探索額外骰一次戰利品 10%（可疊加）\n";
+    content += "**皮包遺失的粉紅內衣** 戰損版：**" + std::to_string(undies_cnt) + " / 5**　效果：探索完成返還資金 20%（可疊加）\n";
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
 
     for (int base = 0; base < (int)ORB_CRAFT_LIST.size(); base += 3) {
         dpp::component row; row.set_type(dpp::cot_action_row);
         for (int i = base; i < std::min(base + 3, (int)ORB_CRAFT_LIST.size()); i++) {
             int cnt = sc(ORB_CRAFT_LIST[i].shard);
-            dpp::component btn;
-            btn.set_type(dpp::cot_button).set_label("合成 " + ORB_CRAFT_LIST[i].name)
-               .set_id("craft_orb_" + ORB_CRAFT_LIST[i].type + "_" + uid_s)
-               .set_style(cnt >= 10 ? dpp::cos_primary : dpp::cos_secondary)
-               .set_disabled(cnt < 10);
-            row.add_component(btn);
+            row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("合成 " + ORB_CRAFT_LIST[i].name)
+                .set_id("craft_orb_" + ORB_CRAFT_LIST[i].type + "_" + uid_s)
+                .set_style(cnt >= 10 ? dpp::cos_primary : dpp::cos_secondary)
+                .set_disabled(cnt < 10));
         }
-        msg.add_component(row);
+        msg.add_component_v2(row);
     }
 
     dpp::component bb_row; bb_row.set_type(dpp::cot_action_row);
@@ -953,11 +933,11 @@ static dpp::message make_craft_msg(dpp::snowflake uid) {
     bb_row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("合成 皮包遺失的粉紅內衣").set_id("craft_bb_undies_" + uid_s)
         .set_style(undies_cnt >= 5 ? dpp::cos_primary : dpp::cos_secondary).set_disabled(undies_cnt < 5));
-    msg.add_component(bb_row);
+    msg.add_component_v2(bb_row);
 
     dpp::component nav; nav.set_type(dpp::cot_action_row);
     nav.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component(nav);
+    msg.add_component_v2(nav);
     return msg;
 }

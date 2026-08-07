@@ -33,17 +33,18 @@ void handle_stock_button(const dpp::button_click_t& ev)
     }
 
     if (cid == "stock_home_" + uid_s) {
-        // 股市首頁使用 Components V2，不能 ir_update_message 更新非 V2 訊息（例如大廳），
-        // 一律送新訊息，避免 V1/V2 相容性問題。
-        ev.reply(dpp::ir_channel_message_with_source, make_stock_home_msg(uid, dn, av)); return;
+        bool src_v2 = (ev.command.message.flags & dpp::m_using_components_v2) != 0;
+        ev.reply(src_v2 ? dpp::ir_update_message : dpp::ir_channel_message_with_source,
+                 make_stock_home_msg(uid, dn, av)); return;
     }
 
     if (cid.rfind("stock_view_", 0) == 0) {
         auto [bu, key] = split_uid_key(cid.substr(11));
         if (uid != bu) { ev.reply(dpp::ir_channel_message_with_source,
             dpp::message("❌ 這不是你的股市！").set_flags(dpp::m_ephemeral)); return; }
-        // 個股詳細頁為一般 embed，不可 ir_update_message 更新 V2 首頁，改送新訊息。
-        ev.reply(dpp::ir_channel_message_with_source, make_stock_detail_msg(uid, key, dn, av)); return;
+        bool src_v2 = (ev.command.message.flags & dpp::m_using_components_v2) != 0;
+        ev.reply(src_v2 ? dpp::ir_update_message : dpp::ir_channel_message_with_source,
+                 make_stock_detail_msg(uid, key, dn, av)); return;
     }
 
     if (cid.rfind("stock_buy_", 0) == 0) {

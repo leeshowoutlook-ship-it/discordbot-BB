@@ -345,26 +345,27 @@ static dpp::message make_reincarnate_pick_msg(dpp::snowflake uid, const std::str
             if (ci != ii->second.end()) card_count = ci->second;
         }
     }
-    dpp::embed e; e.set_title("🔄  轉生卡 — 選擇品種").set_color(0x9B59B6);
-    dpp::message msg;
+    dpp::message msg; msg.set_flags(dpp::m_using_components_v2);
     if (!has_pet || pet.stage == 0) {
-        e.set_description("❌ 需要已進化的寵物才能使用轉生卡！");
-        msg.add_embed(e);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 🔄 轉生卡 — 選擇品種\n❌ 需要已進化的寵物才能使用轉生卡！"));
         dpp::component row; row.set_type(dpp::cot_action_row);
         row.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("↩ 返回").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
-        msg.add_component(row);
+        msg.add_component_v2(ct); msg.add_component_v2(row);
         return msg;
     }
-    std::string desc;
+    std::string desc = "## 🔄 轉生卡 — 選擇品種\n";
     if (!notice.empty()) desc += notice + "\n\n";
     desc += "目前品種：**" + pet_name(pet.chain, pet.stage, pet.variant) + "**\n";
     desc += "持有轉生卡：**" + std::to_string(card_count) + "** 張\n\n";
     desc += (card_count > 0)
         ? "選擇要轉生成的品種（保留階段與經驗值，消耗 1 張轉生卡）："
         : "❌ 沒有轉生卡了！";
-    e.set_description(desc);
-    msg.add_embed(e);
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+    msg.add_component_v2(ct);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     for (auto& chain : ALL_PET_CHAINS) {
@@ -377,12 +378,12 @@ static dpp::message make_reincarnate_pick_msg(dpp::snowflake uid, const std::str
            .set_disabled(card_count <= 0);
         row.add_component(btn);
     }
-    msg.add_component(row);
+    msg.add_component_v2(row);
 
     dpp::component nav; nav.set_type(dpp::cot_action_row);
     nav.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component(nav);
+    msg.add_component_v2(nav);
     return msg;
 }
 
@@ -399,26 +400,27 @@ static dpp::message make_rebirth_pick_msg(dpp::snowflake uid, const std::string&
             if (ci != ii->second.end()) card_count = ci->second;
         }
     }
-    dpp::embed e; e.set_title("🌀  重生卡 — 選擇分支路線").set_color(0x9B59B6);
-    dpp::message msg;
+    dpp::message msg; msg.set_flags(dpp::m_using_components_v2);
     if (!has_pet || pet.stage < 2) {
-        e.set_description("❌ 需要二階以上的寵物才能使用重生卡！（一階分支尚未分歧）");
-        msg.add_embed(e);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 🌀 重生卡 — 選擇分支路線\n❌ 需要二階以上的寵物才能使用重生卡！（一階分支尚未分歧）"));
         dpp::component row; row.set_type(dpp::cot_action_row);
         row.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("↩ 返回").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
-        msg.add_component(row);
+        msg.add_component_v2(ct); msg.add_component_v2(row);
         return msg;
     }
-    std::string desc;
+    std::string desc = "## 🌀 重生卡 — 選擇分支路線\n";
     if (!notice.empty()) desc += notice + "\n\n";
     desc += "目前路線：**" + pet_name(pet.chain, pet.stage, pet.variant) + "**\n";
     desc += "持有重生卡：**" + std::to_string(card_count) + "** 張\n\n";
     desc += (card_count > 0)
         ? "選擇要重生成的分支路線（保留階段與經驗值，消耗 1 張重生卡）："
         : "❌ 沒有重生卡了！";
-    e.set_description(desc);
-    msg.add_embed(e);
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+    msg.add_component_v2(ct);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     for (auto& o : rebirth_options(pet.chain)) {
@@ -431,12 +433,12 @@ static dpp::message make_rebirth_pick_msg(dpp::snowflake uid, const std::string&
            .set_disabled(is_current || card_count <= 0);
         row.add_component(btn);
     }
-    msg.add_component(row);
+    msg.add_component_v2(row);
 
     dpp::component nav; nav.set_type(dpp::cot_action_row);
     nav.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component(nav);
+    msg.add_component_v2(nav);
     return msg;
 }
 
@@ -577,16 +579,16 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
                                     const std::string& avatar_url = "",
                                     const std::string& display_name = "") {
     std::string uid_s = std::to_string((uint64_t)uid);
-    dpp::embed e;
-    e.set_title("🏠  大廳").set_color(0x5865F2);
-    e.set_description(announcement_lobby_line() + "請選擇要前往的頁面：");
-    {
-        dpp::embed_footer footer;
-        footer.text = "👤 " + (display_name.empty() ? uid_s : display_name);
-        if (!avatar_url.empty()) footer.icon_url = avatar_url;
-        e.set_footer(footer);
-    }
-    dpp::message msg; msg.add_embed(e);
+    std::string user_tag = display_name.empty() ? uid_s : display_name;
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x58, 0x65, 0xF2));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 🏠 大廳\n" + announcement_lobby_line() + "請選擇要前往的頁面：\n\n-# 👤 " + user_tag));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
 
     dpp::component row1; row1.set_type(dpp::cot_action_row);
     row1.add_component(dpp::component().set_type(dpp::cot_button)
@@ -599,7 +601,7 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
         .set_label("🐾 寵物").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_primary));
     row1.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🔨 合成").set_id("craft_main_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component(row1);
+    msg.add_component_v2(row1);
 
     dpp::component row2; row2.set_type(dpp::cot_action_row);
     row2.add_component(dpp::component().set_type(dpp::cot_button)
@@ -612,14 +614,14 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
         .set_label("🗺️ 探險").set_id("adv_main_" + uid_s).set_style(dpp::cos_secondary));
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📚 收藏").set_id("adv_collection_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component(row2);
+    msg.add_component_v2(row2);
 
     dpp::component row3; row3.set_type(dpp::cot_action_row);
     row3.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏦 銀行").set_id("wallet_bank_" + uid_s).set_style(dpp::cos_secondary));
     row3.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📊 股票").set_id("stock_home_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component(row3);
+    msg.add_component_v2(row3);
 
     return msg;
 }
@@ -633,10 +635,16 @@ static dpp::message make_pet_work_select_msg(dpp::snowflake uid) {
         if (it != pet_data.end()) pet = it->second;
     }
     auto opts = work_options(pet.stage);
-    dpp::embed e;
-    e.set_title("💼  選擇打工時長").set_color(0x9B59B6);
-    e.set_description("請選擇打工時長：");
-    dpp::message msg; msg.add_embed(e);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 💼 選擇打工時長\n請選擇打工時長："));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
     dpp::component row1; row1.set_type(dpp::cot_action_row);
     row1.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏃 1小時 (+" + std::to_string(opts[0].pay) + "碼/+" + std::to_string(opts[0].exp_gain) + "exp)")
@@ -647,11 +655,12 @@ static dpp::message make_pet_work_select_msg(dpp::snowflake uid) {
     row1.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🌙 8小時 (+" + std::to_string(opts[2].pay) + "碼/+" + std::to_string(opts[2].exp_gain) + "exp)")
         .set_id("pet_work_" + uid_s + "_8").set_style(dpp::cos_primary));
-    msg.add_component(row1);
+    msg.add_component_v2(row1);
+
     dpp::component row2; row2.set_type(dpp::cot_action_row);
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component(row2);
+    msg.add_component_v2(row2);
     return msg;
 }
 
@@ -666,60 +675,51 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
     }
 
     std::string uid_s = std::to_string((uint64_t)uid);
-    dpp::embed e; e.set_color(0x9B59B6);
-    {
-        dpp::embed_footer footer;
-        footer.text = "👤 " + (display_name.empty() ? std::to_string((uint64_t)uid) : display_name);
-        if (!avatar_url.empty()) footer.icon_url = avatar_url;
-        e.set_footer(footer);
-    }
+    std::string user_tag = display_name.empty() ? uid_s : display_name;
     dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
 
     if (!has_pet) {
-        e.set_title("🐾  我的寵物");
-        e.set_description("你還沒有寵物！\n前往 **商店 → 虛擬商店 → 寵物蛋** 購買蛋。");
-        msg.add_embed(e); return msg;
-    }
-
-    std::string name = pet_name(pet.chain, pet.stage, pet.variant);
-    std::string display = pet.custom_name.empty() ? name : (pet.custom_name + "（" + name + "）");
-    e.set_title("🐾  " + display);
-
-    if (pet.stage == 0) {
-        e.set_description("這是一顆 **" + name + "**\n使用孵蛋工具來孵化它！");
-        e.add_field("狀態", "🥚 未孵化", false);
-        std::string img0 = pet_image_url(pet.chain, 0, pet.variant);
-        if (!img0.empty()) e.set_thumbnail(img0);
-        msg.add_embed(e);
-        dpp::component row; row.set_type(dpp::cot_action_row);
-        dpp::component btn;
-        btn.set_type(dpp::cot_button).set_label("🎒 背包")
-           .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_primary);
-        row.add_component(btn);
-        msg.add_component(row);
-        dpp::component rowlob; rowlob.set_type(dpp::cot_action_row);
-        rowlob.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
-        msg.add_component(rowlob);
-        dpp::component rowrel; rowrel.set_type(dpp::cot_action_row);
-        dpp::component rel0;
-        rel0.set_type(dpp::cot_button).set_label("🕊️ 放生")
-            .set_id("pet_release_" + uid_s).set_style(dpp::cos_danger);
-        rowrel.add_component(rel0);
-        msg.add_component(rowrel);
+        dpp::component container;
+        container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 🐾 我的寵物\n你還沒有寵物！\n前往 **商店 → 虛擬商店 → 寵物蛋** 購買蛋。\n\n-# 👤 " + user_tag));
+        msg.add_component_v2(container);
         return msg;
     }
 
-    // Stage 1-3
-    std::string img = pet_image_url(pet.chain, pet.stage, pet.variant);
-    if (!img.empty()) e.set_thumbnail(img);
+    std::string name = pet_name(pet.chain, pet.stage, pet.variant);
+    std::string display_n = pet.custom_name.empty() ? name : (pet.custom_name + "（" + name + "）");
+
+    if (pet.stage == 0) {
+        dpp::component container;
+        container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 🐾 " + display_n + "\n這是一顆 **" + name + "**\n使用孵蛋工具來孵化它！\n\n**狀態** 🥚 未孵化\n\n-# 👤 " + user_tag));
+        msg.add_component_v2(container);
+
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🎒 背包").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_primary));
+        msg.add_component_v2(row);
+
+        dpp::component rowlob; rowlob.set_type(dpp::cot_action_row);
+        rowlob.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component_v2(rowlob);
+
+        dpp::component rowrel; rowrel.set_type(dpp::cot_action_row);
+        rowrel.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🕊️ 放生").set_id("pet_release_" + uid_s).set_style(dpp::cos_danger));
+        msg.add_component_v2(rowrel);
+        return msg;
+    }
+
+    // Stage 1-3: build content string
     int need = exp_needed(pet.stage);
     std::string exp_str = std::to_string(pet.exp);
     if (pet.stage < 3) exp_str += " / " + std::to_string(need);
-    e.add_field("📊  階段", "第 " + std::to_string(pet.stage) + " 階", true);
-    e.add_field("✨  經驗值", exp_str, true);
 
-    // Talent with brief description
     static const std::map<std::string,std::string> TALENT_DESC = {
         {"迅捷",     "迅捷：打工時長縮短 10%"},
         {"招人喜歡", "招人喜歡：打工報酬 +10%"},
@@ -730,20 +730,20 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
     std::string talent_display = pet.talent.empty() ? "無" : pet.talent;
     if (!pet.talent.empty() && TALENT_DESC.count(pet.talent))
         talent_display = TALENT_DESC.at(pet.talent);
-    e.add_field("✦  天賦", talent_display, true);
 
-    // ATK/HP/DEF（含收藏套組與強化加成）
-    {
-        PetStats stats = calc_pet_stats(uid, pet);
-        int max_hp = stats.hp;
-        { std::lock_guard<std::mutex> lk(data_mutex);
-          apply_pet_basic_set_bonus(uid, pet, stats.atk, stats.hp, max_hp, stats.def); }
-        e.add_field("⚔️  攻擊力", std::to_string(stats.atk), true);
-        e.add_field("❤️  生命值",  std::to_string(stats.hp),  true);
-        e.add_field("🛡️  防禦力", std::to_string(stats.def), true);
-    }
+    PetStats stats = calc_pet_stats(uid, pet);
+    int max_hp = stats.hp;
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      apply_pet_basic_set_bonus(uid, pet, stats.atk, stats.hp, max_hp, stats.def); }
 
-    // Status effects
+    std::string content = "## 🐾 " + display_n + "\n";
+    content += "📊 **階段** 第 " + std::to_string(pet.stage) + " 階　";
+    content += "✨ **經驗值** " + exp_str + "　";
+    content += "✦ **天賦** " + talent_display + "\n";
+    content += "⚔️ **攻擊力** " + std::to_string(stats.atk) + "　";
+    content += "❤️ **生命值** " + std::to_string(stats.hp) + "　";
+    content += "🛡️ **防禦力** " + std::to_string(stats.def) + "\n";
+
     if (!pet.statuses.empty()) {
         static const std::map<std::string,std::string> STATUS_DESC = {
             {"受傷",    "受傷：無法狩獵，打工報酬 -10%"},
@@ -753,11 +753,9 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
         };
         std::string status_str;
         for (auto& s : pet.statuses) status_str += "⚠️ **" + s + "**  ";
-        e.add_field("🩹  狀態", status_str, false);
-        std::string detail;
+        content += "🩹 **狀態** " + status_str + "\n";
         for (auto& s : pet.statuses)
-            if (STATUS_DESC.count(s)) detail += "• " + STATUS_DESC.at(s) + "\n";
-        if (!detail.empty()) e.add_field("📋  狀態詳情", detail, false);
+            if (STATUS_DESC.count(s)) content += "• " + STATUS_DESC.at(s) + "\n";
     }
 
     time_t now = time(nullptr);
@@ -774,7 +772,6 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
             pet = p;
         }
         save_pet_data();
-        // 收藏品：Zoey的黃金釣竿 — 溫泉完成時額外獎勵
         bool has_rod = false;
         { std::lock_guard<std::mutex> lk(data_mutex);
           auto wi = inventory_data.find(uid);
@@ -808,12 +805,11 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
     bool working   = (pet.work_task > 0 && pet.work_end > now);
     bool work_done = (pet.work_task > 0 && pet.work_end <= now);
 
-    // Common row helpers
     auto add_lobby_row = [&]() {
         dpp::component r; r.set_type(dpp::cot_action_row);
         r.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
-        msg.add_component(r);
+        msg.add_component_v2(r);
     };
     auto add_utility_row = [&]() {
         bool notify = pet.notify_after_work;
@@ -826,22 +822,28 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
             .set_label(notify ? "🔔 通知" : "🔕 通知")
             .set_id("pet_notify_toggle_" + uid_s)
             .set_style(notify ? dpp::cos_success : dpp::cos_secondary));
-        msg.add_component(r);
+        msg.add_component_v2(r);
+    };
+    auto make_container = [&](const std::string& c) {
+        dpp::component ct;
+        ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content(c + "\n\n-# 👤 " + user_tag));
+        msg.add_component_v2(ct);
     };
 
-    // Onsen state
     if (in_onsen) {
         int remain = (int)(pet.onsen_end - now);
-        int h = remain/3600, m = (remain%3600)/60, s = remain%60;
-        char buf[32]; snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, s);
-        e.add_field("🛀  溫泉狀態", "🌊 泡溫泉中，剩餘 " + std::string(buf) + "\n結束後自動清除所有負面狀態", false);
-        msg.add_embed(e);
+        int h = remain/3600, m2 = (remain%3600)/60, s2 = remain%60;
+        char buf[32]; snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m2, s2);
+        content += "🛀 **溫泉狀態** 🌊 泡溫泉中，剩餘 " + std::string(buf) + "\n結束後自動清除所有負面狀態\n";
+        make_container(content);
         dpp::component row1; row1.set_type(dpp::cot_action_row);
         row1.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🔄 刷新").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary));
         row1.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("❌ 取消泡溫泉").set_id("pet_cancel_onsen_" + uid_s).set_style(dpp::cos_danger));
-        msg.add_component(row1);
+        msg.add_component_v2(row1);
         add_lobby_row();
         add_utility_row();
         return msg;
@@ -850,39 +852,39 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
     if (onsen_done) {
         std::string onsen_result = "✨ 溫泉療癒完成！所有負面狀態已清除！";
         if (!onsen_bonus_msg.empty()) onsen_result += "\n" + onsen_bonus_msg;
-        e.add_field("🛀  泡溫泉結果", onsen_result, false);
+        content += "🛀 **泡溫泉結果** " + onsen_result + "\n";
     }
 
     if (working) {
         std::string status_label = pet.is_supervisor_work
             ? "⏳ 打工中（監工派出，收益×0.6）" : "⏳ 打工中";
         int remain = (int)(pet.work_end - now);
-        int h = remain/3600, m = (remain%3600)/60, s = remain%60;
-        char buf[32]; snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, s);
-        e.add_field("💼  打工狀態", status_label + "，剩餘 " + std::string(buf), false);
-        msg.add_embed(e);
+        int h = remain/3600, m2 = (remain%3600)/60, s2 = remain%60;
+        char buf[32]; snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m2, s2);
+        content += "💼 **打工狀態** " + status_label + "，剩餘 " + std::string(buf) + "\n";
+        make_container(content);
         dpp::component row1; row1.set_type(dpp::cot_action_row);
         row1.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🔄 刷新").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary));
         row1.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("❌ 取消打工").set_id("pet_cancel_work_" + uid_s).set_style(dpp::cos_danger));
-        msg.add_component(row1);
+        msg.add_component_v2(row1);
         add_lobby_row();
         add_utility_row();
         return msg;
     } else if (work_done) {
-        e.add_field("💼  打工狀態", "✅ 打工完成！按下按鈕領取獎勵", false);
-        msg.add_embed(e);
+        content += "💼 **打工狀態** ✅ 打工完成！按下按鈕領取獎勵\n";
+        make_container(content);
         dpp::component row1; row1.set_type(dpp::cot_action_row);
         row1.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("💰 領取打工獎勵").set_id("pet_claim_" + uid_s).set_style(dpp::cos_success));
-        msg.add_component(row1);
+        msg.add_component_v2(row1);
         add_lobby_row();
         add_utility_row();
         return msg;
     } else {
-        e.add_field("💼  打工狀態", "😴 閒置", false);
-        msg.add_embed(e);
+        content += "💼 **打工狀態** 😴 閒置\n";
+        make_container(content);
         dpp::component row1; row1.set_type(dpp::cot_action_row);
         row1.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🏃 打工").set_id("pet_work_select_" + uid_s).set_style(dpp::cos_primary));
@@ -895,7 +897,7 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
                 .set_label("✨ 提煉星星（-50 exp）").set_id("pet_refine_star_" + uid_s)
                 .set_style(dpp::cos_primary).set_disabled(pet.exp < 50));
         }
-        msg.add_component(row1);
+        msg.add_component_v2(row1);
         add_lobby_row();
         add_utility_row();
         return msg;
@@ -906,23 +908,22 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
 
 static dpp::message handle_pet_refine_star(dpp::snowflake uid) {
     std::string uid_s = std::to_string((uint64_t)uid);
-    dpp::embed e; dpp::message m;
+    auto v2msg = [](uint32_t r, uint32_t g, uint32_t b, const std::string& text) {
+        dpp::message m; m.set_flags(dpp::m_using_components_v2);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(r, g, b));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text));
+        m.add_component_v2(ct); return m;
+    };
     bool success = false;
     int new_exp = 0, star_count = 0;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto pi = pet_data.find(uid);
-        if (pi == pet_data.end() || pi->second.stage != 3) {
-            e.set_title("❌  無法提煉").set_color(0xE74C3C);
-            e.set_description("需要三階段寵物才能提煉！");
-            m.add_embed(e); return m;
-        }
+        if (pi == pet_data.end() || pi->second.stage != 3)
+            return v2msg(0xE7, 0x4C, 0x3C, "## ❌ 無法提煉\n需要三階段寵物才能提煉！");
         auto& pet = pi->second;
-        if (pet.exp < 50) {
-            e.set_title("❌  經驗值不足").set_color(0xE74C3C);
-            e.set_description("需要 **50** 經驗值才能提煉，目前只有 **" + std::to_string(pet.exp) + "**！");
-            m.add_embed(e); return m;
-        }
+        if (pet.exp < 50)
+            return v2msg(0xE7, 0x4C, 0x3C, "## ❌ 經驗值不足\n需要 **50** 經驗值才能提煉，目前只有 **" + std::to_string(pet.exp) + "**！");
         pet.exp -= 50;
         new_exp = pet.exp;
         static std::mt19937 rng(std::random_device{}());
@@ -934,23 +935,27 @@ static dpp::message handle_pet_refine_star(dpp::snowflake uid) {
     }
     save_pet_data();
     save_inventory();
+    std::string content;
+    uint32_t r, g, b;
     if (success) {
-        e.set_title("✨  提煉成功！").set_color(0xF1C40F);
-        e.set_description("消耗 **50** 經驗值，成功提煉出一顆 ⭐ **未知的星星**！\n"
-                          "不知道有什麼用的星星，可能在未來某一天會用到。\n\n"
-                          "目前持有：**" + std::to_string(star_count) + "** 顆星星\n"
-                          "剩餘經驗值：**" + std::to_string(new_exp) + "**");
+        r = 0xF1; g = 0xC4; b = 0x0F;
+        content = "## ✨ 提煉成功！\n消耗 **50** 經驗值，成功提煉出一顆 ⭐ **未知的星星**！\n"
+                  "不知道有什麼用的星星，可能在未來某一天會用到。\n\n"
+                  "目前持有：**" + std::to_string(star_count) + "** 顆星星\n"
+                  "剩餘經驗值：**" + std::to_string(new_exp) + "**";
     } else {
-        e.set_title("💨  提煉失敗").set_color(0x95A5A6);
-        e.set_description("消耗 **50** 經驗值，但這次提煉失敗了...\n"
-                          "剩餘經驗值：**" + std::to_string(new_exp) + "**");
+        r = 0x95; g = 0xA5; b = 0xA6;
+        content = "## 💨 提煉失敗\n消耗 **50** 經驗值，但這次提煉失敗了...\n"
+                  "剩餘經驗值：**" + std::to_string(new_exp) + "**";
     }
-    m.add_embed(e);
+    dpp::message m; m.set_flags(dpp::m_using_components_v2);
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(r, g, b));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+    m.add_component_v2(ct);
     dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component back;
-    back.set_type(dpp::cot_button).set_label("🏠 大廳")
-        .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
-    row.add_component(back); m.add_component(row);
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🏠 大廳")
+        .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+    m.add_component_v2(row);
     return m;
 }
 
@@ -1028,19 +1033,20 @@ static dpp::message make_bag_equip_msg(dpp::snowflake uid) {
         return ra < rb;
     });
 
-    dpp::embed e; e.set_title("⚔️  背包 — 裝備").set_color(0xE67E22);
     dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
 
     if (eq_entries.empty()) {
-        e.set_description("還沒有任何裝備！\n使用 `!轉蛋` 來抽取裝備。");
-        msg.add_embed(e);
+        dpp::component container;
+        container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## ⚔️ 背包 — 裝備\n還沒有任何裝備！\n使用 `!轉蛋` 來抽取裝備。"));
+        msg.add_component_v2(container);
         add_bag_home_button(msg, uid);
         dpp::component nav; nav.set_type(dpp::cot_action_row);
-        dpp::component back;
-        back.set_type(dpp::cot_button).set_label("🏠 大廳")
-            .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
-        nav.add_component(back);
-        msg.add_component(nav);
+        nav.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component_v2(nav);
         return msg;
     }
 
@@ -1071,21 +1077,22 @@ static dpp::message make_bag_equip_msg(dpp::snowflake uid) {
             if (gi->rarity == "UR") has_sellable_UR = true;
         }
     }
-    e.set_description(desc);
-    e.set_footer(dpp::embed_footer().set_text("✅ = 已裝備（批量售出會跳過已裝備的）"));
-    msg.add_embed(e);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## ⚔️ 背包 — 裝備\n" + desc + "\n-# ✅ = 已裝備（批量售出會跳過已裝備的）"));
+    msg.add_component_v2(container);
 
     add_bag_home_button(msg, uid);
 
-    // Nav row only — sell page is separate
+    // Nav row — sell page
     dpp::component nav_row; nav_row.set_type(dpp::cot_action_row);
-    dpp::component sell_btn, back;
-    sell_btn.set_type(dpp::cot_button).set_label("💰 售出")
-            .set_id("bag_sell_page_equip_" + uid_s).set_style(dpp::cos_danger);
-    back.set_type(dpp::cot_button).set_label("🏠 大廳")
-        .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
-    nav_row.add_component(sell_btn); nav_row.add_component(back);
-    msg.add_component(nav_row);
+    nav_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("💰 售出").set_id("bag_sell_page_equip_" + uid_s).set_style(dpp::cos_danger));
+    nav_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav_row);
     return msg;
 }
 
@@ -1127,12 +1134,15 @@ static dpp::message make_bag_sell_equip_msg(dpp::snowflake uid) {
         return ra < rb;
     });
 
-    dpp::embed e; e.set_title("💰  售出裝備").set_color(0xE74C3C);
     dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
 
     if (eq_entries.empty()) {
-        e.set_description("沒有可售出的裝備。");
-        msg.add_embed(e);
+        dpp::component container;
+        container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 💰 售出裝備\n沒有可售出的裝備。"));
+        msg.add_component_v2(container);
     } else {
         bool has_C = false, has_R = false, has_SR = false, has_UR = false;
         for (auto& en : eq_entries) {
@@ -1146,11 +1156,14 @@ static dpp::message make_bag_sell_equip_msg(dpp::snowflake uid) {
                 if (gi->rarity == "UR") has_UR = true;
             }
         }
-        e.set_description("點擊按鈕售出裝備（已裝備中的會跳過）。\n**回收價：** C=1碼 R=5碼 SR=10碼 UR=100碼");
-        e.set_footer(dpp::embed_footer().set_text("✅ = 已裝備，無法售出"));
-        msg.add_embed(e);
 
-        // Individual sell buttons (rows 1-3, max 15)
+        dpp::component container;
+        container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 💰 售出裝備\n點擊按鈕售出裝備（已裝備中的會跳過）。\n**回收價：** C=1碼 R=5碼 SR=10碼 UR=100碼\n\n-# ✅ = 已裝備，無法售出"));
+        msg.add_component_v2(container);
+
+        // Individual sell buttons (rows, max 15)
         dpp::component cur_row; cur_row.set_type(dpp::cot_action_row);
         int n = 0;
         for (auto& en : eq_entries) {
@@ -1158,7 +1171,7 @@ static dpp::message make_bag_sell_equip_msg(dpp::snowflake uid) {
             auto* gi = find_gacha_item(en.key);
             if (!gi) continue;
             if (n > 0 && n % 5 == 0) {
-                msg.add_component(cur_row);
+                msg.add_component_v2(cur_row);
                 cur_row = dpp::component(); cur_row.set_type(dpp::cot_action_row);
             }
             bool eq = is_equipped(en.key);
@@ -1171,9 +1184,9 @@ static dpp::message make_bag_sell_equip_msg(dpp::snowflake uid) {
                .set_disabled(unequipped <= 0);
             cur_row.add_component(btn); n++;
         }
-        if (n > 0) msg.add_component(cur_row);
+        if (n > 0) msg.add_component_v2(cur_row);
 
-        // Bulk sell row (row 4)
+        // Bulk sell row
         dpp::component bulk_row; bulk_row.set_type(dpp::cot_action_row);
         auto mk_bulk = [&](const std::string& rarity, bool has_any) {
             dpp::component b;
@@ -1184,15 +1197,14 @@ static dpp::message make_bag_sell_equip_msg(dpp::snowflake uid) {
             bulk_row.add_component(b);
         };
         mk_bulk("C", has_C); mk_bulk("R", has_R); mk_bulk("SR", has_SR); mk_bulk("UR", has_UR);
-        msg.add_component(bulk_row);
+        msg.add_component_v2(bulk_row);
     }
 
-    // Nav row (row 5)
+    // Nav row
     dpp::component nav; nav.set_type(dpp::cot_action_row);
-    dpp::component back;
-    back.set_type(dpp::cot_button).set_label("↩ 返回裝備背包")
-        .set_id("bag_tab_equip_" + uid_s).set_style(dpp::cos_secondary);
-    nav.add_component(back); msg.add_component(nav);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回裝備背包").set_id("bag_tab_equip_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav);
     return msg;
 }
 
@@ -1220,8 +1232,8 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
     }
 
     std::string uid_s = std::to_string((uint64_t)uid);
-    dpp::embed e; e.set_title("🎒  背包 — 消耗").set_color(0x3498DB);
     dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
 
     // Gather virtual items (excluding eggs / collectibles / "其他" 分頁的道具)
     struct ItemEntry { std::string key; int count; };
@@ -1235,15 +1247,16 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
     }
 
     if (entries.empty()) {
-        e.set_description("消耗欄是空的！\n前往 **商店 → 虛擬商店** 購買道具。");
-        msg.add_embed(e);
+        dpp::component container;
+        container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x34, 0x98, 0xDB));
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 🎒 背包 — 消耗\n消耗欄是空的！\n前往 **商店 → 虛擬商店** 購買道具。"));
+        msg.add_component_v2(container);
         add_bag_home_button(msg, uid);
         dpp::component nav; nav.set_type(dpp::cot_action_row);
-        dpp::component back;
-        back.set_type(dpp::cot_button).set_label("🏠 大廳")
-            .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
-        nav.add_component(back);
-        msg.add_component(nav);
+        nav.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component_v2(nav);
         return msg;
     }
 
@@ -1254,8 +1267,12 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
         std::string id_str = vi->item_id ? ("`" + std::to_string(vi->item_id) + "`  ") : "";
         desc += id_str + "**" + vi->name + "** ×" + std::to_string(en.count) + "　" + vi->desc + "\n";
     }
-    e.set_description(desc);
-    msg.add_embed(e);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x34, 0x98, 0xDB));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 🎒 背包 — 消耗\n" + desc));
+    msg.add_component_v2(container);
     add_bag_home_button(msg, uid);
 
     auto is_disabled = [&](const std::string& key) -> bool {
@@ -1308,7 +1325,7 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
         auto* vi = find_virtual_item(en.key);
         if (!vi) continue;
         if (n > 0 && n % 5 == 0) {
-            msg.add_component(cur_row);
+            msg.add_component_v2(cur_row);
             cur_row = dpp::component(); cur_row.set_type(dpp::cot_action_row);
         }
         bool dis = is_disabled(en.key);
@@ -1320,7 +1337,7 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
            .set_disabled(dis);
         cur_row.add_component(btn); n++;
     }
-    if (n > 0) msg.add_component(cur_row);
+    if (n > 0) msg.add_component_v2(cur_row);
 
     // Pagination row (only shown when more than one page)
     if (total_pages > 1) {
@@ -1337,21 +1354,18 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
                 .set_id("pet_bag_page_" + uid_s + "_" + std::to_string(page + 1))
                 .set_style(dpp::cos_secondary).set_disabled(page == total_pages - 1);
         pg_row.add_component(prev_btn); pg_row.add_component(page_lbl); pg_row.add_component(next_btn);
-        msg.add_component(pg_row);
+        msg.add_component_v2(pg_row);
     }
 
     // Nav row — sell page is separate
     dpp::component nav_row; nav_row.set_type(dpp::cot_action_row);
-    dpp::component sell_btn2, back_btn, discard_btn;
-    sell_btn2.set_type(dpp::cot_button).set_label("💰 售出")
-             .set_id("bag_sell_page_items_" + uid_s).set_style(dpp::cos_danger);
-    back_btn.set_type(dpp::cot_button).set_label("🏠 大廳")
-            .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
-    discard_btn.set_type(dpp::cot_button).set_label("🗑️ 丟棄道具")
-               .set_id("pet_discard_mode_" + uid_s).set_style(dpp::cos_danger);
-    nav_row.add_component(sell_btn2);
-    nav_row.add_component(back_btn); nav_row.add_component(discard_btn);
-    msg.add_component(nav_row);
+    nav_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("💰 售出").set_id("bag_sell_page_items_" + uid_s).set_style(dpp::cos_danger));
+    nav_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+    nav_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🗑️ 丟棄道具").set_id("pet_discard_mode_" + uid_s).set_style(dpp::cos_danger));
+    msg.add_component_v2(nav_row);
     return msg;
 }
 
@@ -1366,7 +1380,6 @@ static dpp::message make_pet_other_msg(dpp::snowflake uid) {
     }
 
     std::string uid_s = std::to_string((uint64_t)uid);
-    dpp::embed e; e.set_title("📦  背包 — 其他").set_color(0x7F8C8D);
 
     struct ItemEntry { std::string key; int count; };
     std::vector<ItemEntry> entries;
@@ -1378,28 +1391,31 @@ static dpp::message make_pet_other_msg(dpp::snowflake uid) {
     }
 
     dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    std::string content = "## 📦 背包 — 其他\n";
     if (entries.empty()) {
-        e.set_description("這裡是空的！\n狩獵卷、寶珠碎片等道具會顯示在這裡。");
+        content += "這裡是空的！\n狩獵卷、寶珠碎片等道具會顯示在這裡。";
     } else {
-        std::string desc;
         for (auto& en : entries) {
             auto* vi = find_virtual_item(en.key);
             if (!vi) continue;
             std::string id_str = vi->item_id ? ("`" + std::to_string(vi->item_id) + "`  ") : "";
-            desc += id_str + "**" + vi->name + "** ×" + std::to_string(en.count) + "　" + vi->desc + "\n";
+            content += id_str + "**" + vi->name + "** ×" + std::to_string(en.count) + "　" + vi->desc + "\n";
         }
-        e.set_description(desc);
-        e.set_footer(dpp::embed_footer().set_text("寶珠碎片請用 !合成 兌換寶珠"));
+        content += "\n-# 寶珠碎片請用 !合成 兌換寶珠";
     }
-    msg.add_embed(e);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x7F, 0x8C, 0x8D));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+    msg.add_component_v2(container);
     add_bag_home_button(msg, uid);
 
     dpp::component nav; nav.set_type(dpp::cot_action_row);
-    dpp::component back;
-    back.set_type(dpp::cot_button).set_label("🏠 大廳")
-        .set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary);
-    nav.add_component(back);
-    msg.add_component(nav);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav);
     return msg;
 }
 
@@ -1423,16 +1439,21 @@ static dpp::message make_bag_sell_items_msg(dpp::snowflake uid) {
             entries.push_back({vi.key, it->second});
     }
 
-    dpp::embed e; e.set_title("💰  售出道具").set_color(0xE74C3C);
     dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
 
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
     if (entries.empty()) {
-        e.set_description("沒有可售出的道具。");
-        msg.add_embed(e);
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 💰 售出道具\n沒有可售出的道具。"));
     } else {
-        e.set_description("售出價格為購買價的 40%。狩獵卷不可售出。");
-        msg.add_embed(e);
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 💰 售出道具\n售出價格為購買價的 40%。狩獵卷不可售出。"));
+    }
+    msg.add_component_v2(container);
 
+    if (!entries.empty()) {
         // Sell buttons (rows 1-2, max 10)
         dpp::component sell_row; sell_row.set_type(dpp::cot_action_row);
         int sn = 0;
@@ -1441,7 +1462,7 @@ static dpp::message make_bag_sell_items_msg(dpp::snowflake uid) {
             auto* vi = find_virtual_item(en.key);
             if (!vi) continue;
             if (sn > 0 && sn % 5 == 0) {
-                msg.add_component(sell_row);
+                msg.add_component_v2(sell_row);
                 sell_row = dpp::component(); sell_row.set_type(dpp::cot_action_row);
             }
             int64_t sell_p = (vi->price > 0 && vi->category != "hunt") ? std::max((int64_t)1, (int64_t)(vi->price * 0.4)) : 0;
@@ -1453,15 +1474,14 @@ static dpp::message make_bag_sell_items_msg(dpp::snowflake uid) {
                 .set_style(dpp::cos_danger).set_disabled(!can_sell);
             sell_row.add_component(sbtn); sn++;
         }
-        if (sn > 0) msg.add_component(sell_row);
+        if (sn > 0) msg.add_component_v2(sell_row);
     }
 
     // Nav row
     dpp::component nav; nav.set_type(dpp::cot_action_row);
-    dpp::component back;
-    back.set_type(dpp::cot_button).set_label("↩ 返回道具背包")
-        .set_id("bag_tab_items_" + uid_s).set_style(dpp::cos_secondary);
-    nav.add_component(back); msg.add_component(nav);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回道具背包").set_id("bag_tab_items_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav);
     return msg;
 }
 
@@ -1479,12 +1499,13 @@ static dpp::message make_pet_use_qty_msg(dpp::snowflake uid, const std::string& 
             if (ci != ii->second.end()) item_count = ci->second;
         }
     }
-    dpp::embed e;
-    e.set_title("📦  " + (vi ? vi->name : key)).set_color(0x3498DB);
-    e.set_description("目前持有 **" + std::to_string(item_count) + "** 個，選擇使用數量：");
-    if (vi && !vi->desc.empty()) e.add_field("道具說明", vi->desc, false);
-    dpp::message m;
-    m.add_embed(e);
+    dpp::message m; m.set_flags(dpp::m_using_components_v2);
+    std::string content = "## 📦 " + (vi ? vi->name : key) + "\n";
+    content += "目前持有 **" + std::to_string(item_count) + "** 個，選擇使用數量：";
+    if (vi && !vi->desc.empty()) content += "\n\n**道具說明** " + vi->desc;
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x34, 0x98, 0xDB));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+    m.add_component_v2(ct);
     dpp::component row; row.set_type(dpp::cot_action_row);
     for (int q : {1, 3, 5, 10}) {
         if (q > item_count) break;
@@ -1500,11 +1521,11 @@ static dpp::message make_pet_use_qty_msg(dpp::snowflake uid, const std::string& 
             .set_id("pet_useqty_" + uid_s + "_" + std::to_string(item_count) + "_" + key)
             .set_style(dpp::cos_danger));
     }
-    m.add_component(row);
+    m.add_component_v2(row);
     dpp::component row2; row2.set_type(dpp::cot_action_row);
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回背包").set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
-    m.add_component(row2);
+    m.add_component_v2(row2);
     return m;
 }
 
@@ -1527,17 +1548,17 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
 
     const VirtualShopItem* vi = find_virtual_item(key);
     std::string uid_s = std::to_string((uint64_t)uid);
-    dpp::embed e; dpp::message m;
+    dpp::embed e; dpp::message m; m.set_flags(dpp::m_using_components_v2);
 
     auto err = [&](const std::string& msg_text) {
-        e.set_title("❌  無法使用").set_color(0xE74C3C);
-        e.set_description(msg_text);
-        m.add_embed(e);
+        dpp::message em; em.set_flags(dpp::m_using_components_v2);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## ❌ 無法使用\n" + msg_text));
         dpp::component row; row.set_type(dpp::cot_action_row);
-        dpp::component bb;
-        bb.set_type(dpp::cot_button).set_label("↩ 返回").set_id("pet_open_use_" + uid_s)
-          .set_style(dpp::cos_secondary);
-        row.add_component(bb); m.add_component(row); return m;
+        row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 返回")
+            .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+        em.add_component_v2(ct); em.add_component_v2(row); return em;
     };
 
     // 寶珠兌換卷：不需要寵物，提前處理
@@ -1566,11 +1587,11 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
             }
         }
         save_inventory();
-        e.set_title("💎  寶珠兌換成功").set_color(0xFFD700);
-        std::string desc;
+        std::string desc = "## 💎 寶珠兌換成功\n";
         for (auto& n : got_names) desc += "💎 獲得了 **✨UR " + n + "**！\n";
-        e.set_description(desc);
-        m.add_embed(e); return m;
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xFF, 0xD7, 0x00));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+        m.add_component_v2(ct); return m;
     }
 
     // 特權道具：不需要寵物，提前處理
@@ -1619,12 +1640,16 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
         } else {
             return err("未知的特權道具！");
         }
-        m.add_embed(e);
-        dpp::component row; row.set_type(dpp::cot_action_row);
-        dpp::component bb;
-        bb.set_type(dpp::cot_button).set_label("↩ 返回").set_id("pet_open_use_" + uid_s)
-          .set_style(dpp::cos_secondary);
-        row.add_component(bb); m.add_component(row);
+        {
+            uint8_t cr = (e.color >> 16) & 0xFF, cg = (e.color >> 8) & 0xFF, cb = e.color & 0xFF;
+            dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(cr, cg, cb));
+            ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+                .set_content("## " + e.title + "\n" + e.description));
+            dpp::component row; row.set_type(dpp::cot_action_row);
+            row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 返回")
+                .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+            m.add_component_v2(ct); m.add_component_v2(row);
+        }
         return m;
     }
 
@@ -1651,14 +1676,15 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
             pet_data[uid] = p;
         }
         save_inventory(); save_pet_data();
-        e.set_title("🥚  已放入寵物欄").set_color(0x2ECC71);
-        e.set_description("**" + (vi ? vi->name : key) + "** 已設為當前寵物蛋！\n使用孵蛋工具來孵化它。");
-        m.add_embed(e);
-        dpp::component row; row.set_type(dpp::cot_action_row);
-        dpp::component bb;
-        bb.set_type(dpp::cot_button).set_label("↩ 返回").set_id("pet_open_use_" + uid_s)
-          .set_style(dpp::cos_secondary);
-        row.add_component(bb); m.add_component(row); return m;
+        {
+            std::string econt = "## 🥚 已放入寵物欄\n**" + (vi ? vi->name : key) + "** 已設為當前寵物蛋！\n使用孵蛋工具來孵化它。";
+            dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
+            ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(econt));
+            dpp::component row; row.set_type(dpp::cot_action_row);
+            row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 返回")
+                .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+            m.add_component_v2(ct); m.add_component_v2(row); return m;
+        }
     }
 
     // ── 孵蛋工具 ──────────────────────────────────────────────────────────────
@@ -1773,26 +1799,22 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
             success = true;
         } else {
             if (key == "talent_scroll") {
-                // 自選天賦：顯示選單，不立即消耗卷軸（有天賦也可覆蓋）
-                dpp::embed se;
-                se.set_title("✨  選擇天賦").set_color(0xF39C12);
-                std::string sdesc;
+                std::string sdesc = "## ✨ 選擇天賦\n";
                 if (!pet.talent.empty())
-                    sdesc = "目前天賦：**" + pet.talent + "**\n選擇後將覆蓋現有天賦：\n\n";
+                    sdesc += "目前天賦：**" + pet.talent + "**\n選擇後將覆蓋現有天賦：\n\n";
                 else
-                    sdesc = "請選擇要賦予 **" + pet_name(pet.chain, pet.stage, pet.variant) + "** 的天賦：\n\n";
+                    sdesc += "請選擇要賦予 **" + pet_name(pet.chain, pet.stage, pet.variant) + "** 的天賦：\n\n";
                 for (auto& t : TALENTS) sdesc += "・**" + t + "** — " + talent_desc(t) + "\n";
-                se.set_description(sdesc);
-                dpp::message sm; sm.add_embed(se);
+                dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF3, 0x9C, 0x12));
+                ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(sdesc));
                 dpp::component row; row.set_type(dpp::cot_action_row);
                 for (auto& t : TALENTS) {
-                    dpp::component btn;
-                    btn.set_type(dpp::cot_button).set_label(t)
-                       .set_id("talent_pick_" + t + "_" + std::to_string((uint64_t)uid))
-                       .set_style(dpp::cos_primary);
-                    row.add_component(btn);
+                    row.add_component(dpp::component().set_type(dpp::cot_button).set_label(t)
+                        .set_id("talent_pick_" + t + "_" + std::to_string((uint64_t)uid))
+                        .set_style(dpp::cos_primary));
                 }
-                sm.add_component(row);
+                dpp::message sm; sm.set_flags(dpp::m_using_components_v2);
+                sm.add_component_v2(ct); sm.add_component_v2(row);
                 return sm;
             }
             // talent_class: 25% random（已有天賦則不可使用）
@@ -1842,17 +1864,16 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
         }
         if (used_rec == 0) return err("你的寵物目前沒有「" + target_status + "」狀態！");
         save_pet_data(); save_inventory();
-        e.set_title("💊  恢復成功！").set_color(0x2ECC71);
-        std::string rdesc = "解除了「**" + target_status + "**」狀態！";
-        if (used_rec > 1) rdesc += "\n（共使用了 " + std::to_string(used_rec) + " 個）";
-        e.set_description(rdesc);
-        m.add_embed(e);
-        dpp::component row; row.set_type(dpp::cot_action_row);
-        dpp::component vb;
-        vb.set_type(dpp::cot_button).set_label("🐾 查看寵物")
-          .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_primary);
-        row.add_component(vb); m.add_component(row);
-        return m;
+        {
+            std::string rdesc = "## 💊 恢復成功！\n解除了「**" + target_status + "**」狀態！";
+            if (used_rec > 1) rdesc += "\n（共使用了 " + std::to_string(used_rec) + " 個）";
+            dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
+            ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(rdesc));
+            dpp::component row; row.set_type(dpp::cot_action_row);
+            row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🐾 查看寵物")
+                .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_primary));
+            m.add_component_v2(ct); m.add_component_v2(row); return m;
+        }
     }
     else if (vi->category == "hunt") {
         return err("狩獵卷請透過「!怪物狩獵」指令使用！");
@@ -1962,17 +1983,19 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
     result_desc += "\n🐾 **" + pet_name(updated.chain, updated.stage, updated.variant) + "**";
     if (updated.stage > 0)
         result_desc += "　✨ 經驗值 " + std::to_string(updated.exp);
-    e.set_description(result_desc);
-    m.add_embed(e);
-
+    {
+        uint8_t cr = (e.color >> 16) & 0xFF, cg = (e.color >> 8) & 0xFF, cb = e.color & 0xFF;
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(cr, cg, cb));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## " + e.title + "\n" + result_desc));
+        m.add_component_v2(ct);
+    }
     dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component more_btn, view_btn;
-    more_btn.set_type(dpp::cot_button).set_label("🎒 返回背包")
-            .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_primary);
-    view_btn.set_type(dpp::cot_button).set_label("🐾 查看寵物")
-            .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary);
-    row.add_component(more_btn); row.add_component(view_btn);
-    m.add_component(row);
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🎒 返回背包")
+        .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_primary));
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🐾 查看寵物")
+        .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary));
+    m.add_component_v2(row);
     return m;
 }
 
@@ -1988,12 +2011,13 @@ static dpp::message make_pet_discard_mode_msg(dpp::snowflake uid) {
         if (ii != inventory_data.end()) inv = ii->second;
     }
     std::string uid_s = std::to_string((uint64_t)uid);
-    dpp::embed e; e.set_title("🗑️  選擇要丟棄的道具").set_color(0xE67E22);
-    dpp::message msg;
+    dpp::message msg; msg.set_flags(dpp::m_using_components_v2);
 
     if (!has_pet) {
-        e.set_description("你還沒有寵物！");
-        msg.add_embed(e); return msg;
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 🗑️ 選擇要丟棄的道具\n你還沒有寵物！"));
+        msg.add_component_v2(ct); return msg;
     }
 
     struct ItemEntry { std::string key; int count; };
@@ -2006,18 +2030,20 @@ static dpp::message make_pet_discard_mode_msg(dpp::snowflake uid) {
     }
 
     if (entries.empty()) {
-        e.set_description("背包是空的，沒有可以丟棄的道具。");
-        msg.add_embed(e);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 🗑️ 選擇要丟棄的道具\n背包是空的，沒有可以丟棄的道具。"));
         dpp::component row; row.set_type(dpp::cot_action_row);
-        dpp::component back;
-        back.set_type(dpp::cot_button).set_label("↩ 返回背包")
-            .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary);
-        row.add_component(back); msg.add_component(row);
+        row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 返回背包")
+            .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component_v2(ct); msg.add_component_v2(row);
         return msg;
     }
 
-    e.set_description("點選道具丟棄 **1 個**，操作前會再次確認。");
-    msg.add_embed(e);
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 🗑️ 選擇要丟棄的道具\n點選道具丟棄 **1 個**，操作前會再次確認。"));
+    msg.add_component_v2(ct);
 
     dpp::component cur_row; cur_row.set_type(dpp::cot_action_row);
     int n = 0;
@@ -2026,7 +2052,7 @@ static dpp::message make_pet_discard_mode_msg(dpp::snowflake uid) {
         auto* vi = find_virtual_item(en.key);
         if (!vi) continue;
         if (n > 0 && n % 5 == 0) {
-            msg.add_component(cur_row);
+            msg.add_component_v2(cur_row);
             cur_row = dpp::component(); cur_row.set_type(dpp::cot_action_row);
         }
         dpp::component btn;
@@ -2036,13 +2062,12 @@ static dpp::message make_pet_discard_mode_msg(dpp::snowflake uid) {
            .set_style(dpp::cos_danger);
         cur_row.add_component(btn); n++;
     }
-    if (n > 0) msg.add_component(cur_row);
+    if (n > 0) msg.add_component_v2(cur_row);
 
     dpp::component back_row; back_row.set_type(dpp::cot_action_row);
-    dpp::component back;
-    back.set_type(dpp::cot_button).set_label("↩ 返回背包")
-        .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary);
-    back_row.add_component(back); msg.add_component(back_row);
+    back_row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 返回背包")
+        .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(back_row);
     return msg;
 }
 
@@ -2051,14 +2076,17 @@ static dpp::message make_pet_discard_mode_msg(dpp::snowflake uid) {
 static dpp::message make_pet_discard_confirm_msg(dpp::snowflake uid, const std::string& key) {
     std::string uid_s = std::to_string((uint64_t)uid);
     const VirtualShopItem* vi = find_virtual_item(key);
-    dpp::embed e; dpp::message msg;
-    e.set_title("⚠️  確認丟棄").set_color(0xE74C3C);
+    dpp::message msg; msg.set_flags(dpp::m_using_components_v2);
     if (!vi) {
-        e.set_description("道具不存在！");
-        msg.add_embed(e); return msg;
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## ⚠️ 確認丟棄\n道具不存在！"));
+        msg.add_component_v2(ct); return msg;
     }
-    e.set_description("確定要丟棄 **1 個** **" + vi->name + "** 嗎？\n此操作無法復原！");
-    msg.add_embed(e);
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## ⚠️ 確認丟棄\n確定要丟棄 **1 個** **" + vi->name + "** 嗎？\n此操作無法復原！"));
+    msg.add_component_v2(ct);
     dpp::component row; row.set_type(dpp::cot_action_row);
     dpp::component yes, no;
     yes.set_type(dpp::cot_button).set_label("✅ 確認丟棄")
@@ -2066,7 +2094,7 @@ static dpp::message make_pet_discard_confirm_msg(dpp::snowflake uid, const std::
     no.set_type(dpp::cot_button).set_label("❌ 取消")
        .set_id("pet_discard_mode_" + uid_s).set_style(dpp::cos_secondary);
     row.add_component(yes); row.add_component(no);
-    msg.add_component(row);
+    msg.add_component_v2(row);
     return msg;
 }
 
@@ -2075,11 +2103,12 @@ static dpp::message make_pet_discard_confirm_msg(dpp::snowflake uid, const std::
 static dpp::message handle_pet_discard_item(dpp::snowflake uid, const std::string& key) {
     std::string uid_s = std::to_string((uint64_t)uid);
     const VirtualShopItem* vi = find_virtual_item(key);
-    dpp::embed e; dpp::message msg;
+    dpp::message msg; msg.set_flags(dpp::m_using_components_v2);
     if (!vi) {
-        e.set_title("❌  錯誤").set_color(0xE74C3C);
-        e.set_description("道具不存在！");
-        msg.add_embed(e); return msg;
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## ❌ 錯誤\n道具不存在！"));
+        msg.add_component_v2(ct); return msg;
     }
     bool ok = false;
     {
@@ -2088,14 +2117,16 @@ static dpp::message handle_pet_discard_item(dpp::snowflake uid, const std::strin
         if (inv.count(key) && inv[key] > 0) { inv[key]--; ok = true; }
     }
     if (!ok) {
-        e.set_title("❌  數量不足").set_color(0xE74C3C);
-        e.set_description("你沒有 **" + vi->name + "**！");
-        msg.add_embed(e); return msg;
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## ❌ 數量不足\n你沒有 **" + vi->name + "**！"));
+        msg.add_component_v2(ct); return msg;
     }
     save_inventory();
-    e.set_title("🗑️  已丟棄").set_color(0x95A5A6);
-    e.set_description("丟棄了 **1 個** **" + vi->name + "**。");
-    msg.add_embed(e);
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x95, 0xA5, 0xA6));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 🗑️ 已丟棄\n丟棄了 **1 個** **" + vi->name + "**。"));
+    msg.add_component_v2(ct);
     dpp::component row; row.set_type(dpp::cot_action_row);
     dpp::component back_bag, back_pet;
     back_bag.set_type(dpp::cot_button).set_label("🎒 返回背包")
@@ -2103,7 +2134,7 @@ static dpp::message handle_pet_discard_item(dpp::snowflake uid, const std::strin
     back_pet.set_type(dpp::cot_button).set_label("🐾 查看寵物")
             .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary);
     row.add_component(back_bag); row.add_component(back_pet);
-    msg.add_component(row);
+    msg.add_component_v2(row);
     return msg;
 }
 
@@ -2116,27 +2147,23 @@ static dpp::message handle_pet_work_start(dpp::snowflake uid, int task) {
         auto it = pet_data.find(uid);
         if (it != pet_data.end()) { pet = it->second; has_pet = true; }
     }
-    dpp::embed e; dpp::message m;
-    if (!has_pet || pet.stage == 0) {
-        e.set_title("❌  無法打工").set_color(0xE74C3C);
-        e.set_description("你沒有可以打工的寵物！");
-        m.add_embed(e); return m;
-    }
+    auto v2err = [](const std::string& txt) {
+        dpp::message m; m.set_flags(dpp::m_using_components_v2);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(txt));
+        m.add_component_v2(ct); return m;
+    };
+    if (!has_pet || pet.stage == 0)
+        return v2err("## ❌ 無法打工\n你沒有可以打工的寵物！");
     // 探險中（或探險完成未收取）寵物不可打工
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto ai = adv_games.find(uid);
-        if (ai != adv_games.end() && ai->second.pet_along) {
-            e.set_title("❌  寵物探險中").set_color(0xE74C3C);
-            e.set_description("寵物正在探險，請先收取探險結果後才能打工！");
-            m.add_embed(e); return m;
-        }
+        if (ai != adv_games.end() && ai->second.pet_along)
+            return v2err("## ❌ 寵物探險中\n寵物正在探險，請先收取探險結果後才能打工！");
     }
-    if (pet.work_task > 0) {
-        e.set_title("❌  已在打工").set_color(0xE74C3C);
-        e.set_description("你的寵物已經在打工中！");
-        m.add_embed(e); return m;
-    }
+    if (pet.work_task > 0)
+        return v2err("## ❌ 已在打工\n你的寵物已經在打工中！");
     int dur = (task == 1) ? 3600 : (task == 4) ? 14400 : 28800;
     // 天賦：迅捷 — 打工時間縮短 10%
     if (pet.talent == "迅捷") dur = (int)(dur * 0.9);
@@ -2169,16 +2196,17 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
         auto it = pet_data.find(uid);
         if (it != pet_data.end()) { pet = it->second; has_pet = true; }
     }
-    dpp::embed e; dpp::message m;
-    if (!has_pet || pet.stage == 0 || pet.work_task == 0) {
-        e.set_title("❌  沒有可領取的獎勵").set_color(0xE74C3C);
-        m.add_embed(e); return m;
-    }
-    if (pet.work_end > time(nullptr)) {
-        e.set_title("❌  打工尚未完成").set_color(0xE74C3C);
-        e.set_description("請稍後再試！");
-        m.add_embed(e); return m;
-    }
+    dpp::message m; m.set_flags(dpp::m_using_components_v2);
+    auto v2e = [](const std::string& txt) {
+        dpp::message em; em.set_flags(dpp::m_using_components_v2);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(txt));
+        em.add_component_v2(ct); return em;
+    };
+    if (!has_pet || pet.stage == 0 || pet.work_task == 0)
+        return v2e("## ❌ 沒有可領取的獎勵");
+    if (pet.work_end > time(nullptr))
+        return v2e("## ❌ 打工尚未完成\n請稍後再試！");
 
     auto opts = work_options(pet.stage);
     int idx = (pet.work_task == 1) ? 0 : (pet.work_task == 4) ? 1 : 2;
@@ -2297,84 +2325,80 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
     save_pet_data();
     if (insurance_payout > 0) save_chips();
 
-    e.set_title("💰  打工完成！").set_color(0x2ECC71);
+    std::string uid_s = std::to_string((uint64_t)uid);
     std::string pet_disp = pet_name(pet.chain, pet.stage, pet.variant);
     if (!pet.talent.empty()) pet_disp += " ✦" + pet.talent;
-    e.set_description("**" + pet_disp + "** 打工回來了！");
     std::string reward_str = "+" + std::to_string(reward) + " 碼";
     if (is_supervisor)   reward_str += " 🤖（監工派出 ×0.6）";
     if (doubled_lucky)   reward_str += " 🍀（幸運雙倍！）";
     if (status_injured)  reward_str += " ⚠️（受傷 -10%）";
     if (status_depress)  reward_str += " ⚠️（憂鬱 -20%）";
     if (depress_spend)   reward_str += " 💸（憂鬱花錢了）";
-    e.add_field("💰  獎勵",   reward_str, true);
-    e.add_field("✨  經驗",   "+" + std::to_string(exp_gain) + " exp", true);
-    e.add_field("💼  餘額",   std::to_string(get_chips(uid)) + " 碼", true);
-    if (dream_triggered)      e.add_field("🌙  喜歡作夢", "🎆 籌碼翻倍！！", false);
-    if (!new_neg_status.empty()) e.add_field("⚠️  新增狀態", "「**" + new_neg_status + "**」", false);
-    if (insurance_payout > 0) e.add_field("🏥  醫療保險", "+4000 碼 保險金理賠！效果已結束。", false);
-    if (bath_blocked)         e.add_field("🛁  華瑄的洗澡卡", "✨ 負面狀態已被迴避！（本週剩餘次數請查收藏）", false);
-    m.add_embed(e);
-
-    std::string uid_s = std::to_string((uint64_t)uid);
+    std::string wcontent = "## 💰 打工完成！\n**" + pet_disp + "** 打工回來了！\n\n";
+    wcontent += "💰 **獎勵** " + reward_str + "\n";
+    wcontent += "✨ **經驗** +" + std::to_string(exp_gain) + " exp\n";
+    wcontent += "💼 **餘額** " + std::to_string(get_chips(uid)) + " 碼";
+    if (dream_triggered)         wcontent += "\n🌙 **喜歡作夢** 🎆 籌碼翻倍！！";
+    if (!new_neg_status.empty()) wcontent += "\n⚠️ **新增狀態** 「**" + new_neg_status + "**」";
+    if (insurance_payout > 0)    wcontent += "\n🏥 **醫療保險** +4000 碼 保險金理賠！效果已結束。";
+    if (bath_blocked)            wcontent += "\n🛁 **華瑄的洗澡卡** ✨ 負面狀態已被迴避！（本週剩餘次數請查收藏）";
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(wcontent));
+    m.add_component_v2(ct);
     dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component vb;
-    vb.set_type(dpp::cot_button).set_label("🐾 查看寵物")
-      .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_primary);
-    row.add_component(vb); m.add_component(row);
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🐾 查看寵物")
+        .set_id("pet_refresh_" + uid_s).set_style(dpp::cos_primary));
+    m.add_component_v2(row);
     return m;
 }
 
 // ─── Cancel work ─────────────────────────────────────────────────────────────
 
 static dpp::message handle_pet_cancel_work(dpp::snowflake uid) {
-    dpp::embed e; dpp::message m;
+    auto v2msg = [](uint32_t r, uint32_t g, uint32_t b, const std::string& text) {
+        dpp::message m; m.set_flags(dpp::m_using_components_v2);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(r, g, b));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text));
+        m.add_component_v2(ct); return m;
+    };
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = pet_data.find(uid);
-        if (it == pet_data.end() || it->second.work_task == 0) {
-            e.set_title("❌  沒有進行中的打工").set_color(0xE74C3C);
-            m.add_embed(e); return m;
-        }
+        if (it == pet_data.end() || it->second.work_task == 0)
+            return v2msg(0xE7, 0x4C, 0x3C, "## ❌ 沒有進行中的打工");
         auto& p = it->second;
         p.work_task = 0; p.work_end = 0; p.is_supervisor_work = false; p.work_notified = false;
     }
     save_pet_data();
-    e.set_title("✅  已取消打工").set_color(0x95A5A6);
-    e.set_description("寵物已立即返回，本次打工無獎勵。");
-    m.add_embed(e);
+    dpp::message m = v2msg(0x95, 0xA5, 0xA6, "## ✅ 已取消打工\n寵物已立即返回，本次打工無獎勵。");
     dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component vb;
-    vb.set_type(dpp::cot_button).set_label("🐾 查看寵物")
-      .set_id("pet_refresh_" + std::to_string((uint64_t)uid)).set_style(dpp::cos_primary);
-    row.add_component(vb); m.add_component(row);
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🐾 查看寵物")
+        .set_id("pet_refresh_" + std::to_string((uint64_t)uid)).set_style(dpp::cos_primary));
+    m.add_component_v2(row);
     return m;
 }
 
 // ─── Start onsen ──────────────────────────────────────────────────────────────
 
 static dpp::message handle_pet_start_onsen(dpp::snowflake uid) {
-    dpp::embed e; dpp::message m;
+    auto v2e = [](const std::string& text) {
+        dpp::message m; m.set_flags(dpp::m_using_components_v2);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text));
+        m.add_component_v2(ct); return m;
+    };
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = pet_data.find(uid);
-        if (it == pet_data.end() || it->second.stage == 0) {
-            e.set_title("❌  沒有寵物").set_color(0xE74C3C);
-            m.add_embed(e); return m;
-        }
+        if (it == pet_data.end() || it->second.stage == 0)
+            return v2e("## ❌ 沒有寵物");
         auto& p = it->second;
         bool has_zoey_rod = false;
         { auto wi = inventory_data.find(uid); if (wi != inventory_data.end()) { auto ji = wi->second.find("col_rod_zoey"); if (ji != wi->second.end() && ji->second > 0) has_zoey_rod = true; } }
-        if (p.statuses.empty() && !has_zoey_rod) {
-            e.set_title("❌  寵物沒有負面狀態").set_color(0xE74C3C);
-            e.set_description("泡溫泉的用途是清除負面狀態，但你的寵物目前狀態很好！");
-            m.add_embed(e); return m;
-        }
-        if (p.work_task > 0 && p.work_end > time(nullptr)) {
-            e.set_title("❌  打工中無法泡溫泉").set_color(0xE74C3C);
-            e.set_description("寵物正在打工，請先取消或等打工結束。");
-            m.add_embed(e); return m;
-        }
+        if (p.statuses.empty() && !has_zoey_rod)
+            return v2e("## ❌ 寵物沒有負面狀態\n泡溫泉的用途是清除負面狀態，但你的寵物目前狀態很好！");
+        if (p.work_task > 0 && p.work_end > time(nullptr))
+            return v2e("## ❌ 打工中無法泡溫泉\n寵物正在打工，請先取消或等打工結束。");
         int64_t onsen_secs = 7200LL;
         if (col_set_water_adv(uid)) onsen_secs = (int64_t)std::ceil(7200.0 * 0.95);
         p.onsen_end      = time(nullptr) + onsen_secs;
@@ -2382,40 +2406,41 @@ static dpp::message handle_pet_start_onsen(dpp::snowflake uid) {
         p.work_task = 0; p.work_end = 0; p.is_supervisor_work = false;
     }
     save_pet_data();
-    e.set_title("🛀  已開始泡溫泉！").set_color(0x3498DB);
-    e.set_description("寵物將在 **2 小時**後療癒完畢，自動清除所有負面狀態。");
-    m.add_embed(e);
+    dpp::message m; m.set_flags(dpp::m_using_components_v2);
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x34, 0x98, 0xDB));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 🛀 已開始泡溫泉！\n寵物將在 **2 小時**後療癒完畢，自動清除所有負面狀態。"));
+    m.add_component_v2(ct);
     dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component vb;
-    vb.set_type(dpp::cot_button).set_label("🐾 查看寵物")
-      .set_id("pet_refresh_" + std::to_string((uint64_t)uid)).set_style(dpp::cos_primary);
-    row.add_component(vb); m.add_component(row);
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🐾 查看寵物")
+        .set_id("pet_refresh_" + std::to_string((uint64_t)uid)).set_style(dpp::cos_primary));
+    m.add_component_v2(row);
     return m;
 }
 
 // ─── Cancel onsen ─────────────────────────────────────────────────────────────
 
 static dpp::message handle_pet_cancel_onsen(dpp::snowflake uid) {
-    dpp::embed e; dpp::message m;
+    auto v2msg = [](uint32_t r, uint32_t g, uint32_t b, const std::string& text) {
+        dpp::message m; m.set_flags(dpp::m_using_components_v2);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(r, g, b));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text));
+        m.add_component_v2(ct); return m;
+    };
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = pet_data.find(uid);
-        if (it == pet_data.end() || it->second.onsen_end == 0) {
-            e.set_title("❌  沒有進行中的溫泉").set_color(0xE74C3C);
-            m.add_embed(e); return m;
-        }
+        if (it == pet_data.end() || it->second.onsen_end == 0)
+            return v2msg(0xE7, 0x4C, 0x3C, "## ❌ 沒有進行中的溫泉");
         it->second.onsen_end      = 0;
         it->second.onsen_notified = false;
     }
     save_pet_data();
-    e.set_title("✅  已取消泡溫泉").set_color(0x95A5A6);
-    e.set_description("寵物已立即離開溫泉，負面狀態未清除。");
-    m.add_embed(e);
+    dpp::message m = v2msg(0x95, 0xA5, 0xA6, "## ✅ 已取消泡溫泉\n寵物已立即離開溫泉，負面狀態未清除。");
     dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component vb;
-    vb.set_type(dpp::cot_button).set_label("🐾 查看寵物")
-      .set_id("pet_refresh_" + std::to_string((uint64_t)uid)).set_style(dpp::cos_primary);
-    row.add_component(vb); m.add_component(row);
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🐾 查看寵物")
+        .set_id("pet_refresh_" + std::to_string((uint64_t)uid)).set_style(dpp::cos_primary));
+    m.add_component_v2(row);
     return m;
 }
 

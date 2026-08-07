@@ -208,23 +208,23 @@ void handle_shop_button(const dpp::button_click_t& ev)
                 ? (user.global_name.empty() ? user.username : user.global_name)
                 : ev.command.member.get_nickname();
             std::string av = user.get_avatar_url();
-            ev.reply(dpp::ir_channel_message_with_source, make_bag_home_msg(uid, dn, av));
+            ev.reply(dpp::ir_update_message, make_bag_home_msg(uid, dn, av));
 
         } else if (cid.rfind("bag_tab_equip_", 0) == 0) {
             if (!chk(dpp::snowflake(std::stoull(cid.substr(14))))) return;
-            ev.reply(dpp::ir_channel_message_with_source, make_bag_equip_msg(uid));
+            ev.reply(dpp::ir_update_message, make_bag_equip_msg(uid));
 
         } else if (cid.rfind("bag_tab_items_", 0) == 0) {
             if (!chk(dpp::snowflake(std::stoull(cid.substr(14))))) return;
-            ev.reply(dpp::ir_channel_message_with_source, make_pet_use_msg(uid));
+            ev.reply(dpp::ir_update_message, make_pet_use_msg(uid));
 
         } else if (cid.rfind("bag_tab_other_", 0) == 0) {
             if (!chk(dpp::snowflake(std::stoull(cid.substr(14))))) return;
-            ev.reply(dpp::ir_channel_message_with_source, make_pet_other_msg(uid));
+            ev.reply(dpp::ir_update_message, make_pet_other_msg(uid));
 
         } else if (cid.rfind("bag_tab_special_", 0) == 0) {
             if (!chk(dpp::snowflake(std::stoull(cid.substr(16))))) return;
-            ev.reply(dpp::ir_channel_message_with_source, make_bag_special_msg(uid));
+            ev.reply(dpp::ir_update_message, make_bag_special_msg(uid));
 
         } else if (cid.rfind("bag_sell_page_equip_", 0) == 0) {
             if (!chk(dpp::snowflake(std::stoull(cid.substr(20))))) return;

@@ -36,23 +36,18 @@ static dpp::message make_wallet_home_msg(dpp::snowflake uid) {
         if (ci != chip_data.end()) cd = ci->second;
     }
 
-    dpp::embed e;
-    e.set_title("💼  我的錢包").set_color(0x5865F2);
-    e.set_description("<@" + std::to_string((uint64_t)uid) + ">");
-    e.add_field("💰  持有籌碼", std::to_string(chips) + " 碼", false);
+    std::string content = "## 💼 我的錢包\n<@" + std::to_string((uint64_t)uid) + ">\n\n";
+    content += "**💰 持有籌碼** " + std::to_string(chips) + " 碼\n";
 
     if (has_pet) {
         std::string name = pet_name(pet.chain, pet.stage, pet.variant);
         if (!pet.custom_name.empty()) name = pet.custom_name + "（" + name + "）";
         std::string status = wallet_work_status(pet);
-        e.add_field("🐾  寵物", name + "\n" + status, false);
-        std::string img = pet_image_url(pet.chain, pet.stage, pet.variant);
-        if (!img.empty()) e.set_thumbnail(img);
+        content += "**🐾 寵物** " + name + "\n" + status + "\n";
     } else {
-        e.add_field("🐾  寵物", "尚無寵物（可至商店購買）", false);
+        content += "**🐾 寵物** 尚無寵物（可至商店購買）\n";
     }
 
-    // 特權到期時間
     {
         time_t now = time(nullptr);
         auto fmt_remain = [now](time_t until) -> std::string {
@@ -80,17 +75,24 @@ static dpp::message make_wallet_home_msg(dpp::snowflake uid) {
         }
         if (!s.empty())   priv += "🏭 **寵物監工** — " + s + "\n";
         if (!ins.empty()) priv += "💊 **醫療保險** — " + ins + "\n";
-        if (!priv.empty()) e.add_field("✨  特權狀態", priv, false);
+        if (!priv.empty()) content += "\n**✨ 特權狀態**\n" + priv;
     }
 
     std::string sid = std::to_string((uint64_t)uid);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x58, 0x65, 0xF2));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📊 遊戲統計").set_id("wallet_games_" + sid).set_style(dpp::cos_secondary));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏦 銀行").set_id("wallet_bank_" + sid).set_style(dpp::cos_secondary));
 
-    dpp::message msg; msg.add_embed(e); msg.add_component(row);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+    msg.add_component_v2(row);
     return msg;
 }
 
@@ -128,10 +130,6 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
         }
     }
 
-    dpp::embed e;
-    e.set_title("📊  遊戲統計").set_color(0x2ECC71);
-    e.set_description("<@" + std::to_string((uint64_t)uid) + ">");
-
     auto fmt_profit = [](int64_t p) -> std::string {
         return (p >= 0 ? "+" : "") + std::to_string(p) + " 碼";
     };
@@ -141,39 +139,35 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
         return buf;
     };
 
+    std::string content = "## 📊 遊戲統計\n<@" + std::to_string((uint64_t)uid) + ">\n\n";
+
     // 21點
     int bj_total = bj_w + bj_l + bj_p;
     if (bj_total > 0) {
-        e.add_field("🃏  21點",
-            "勝/負/平 **" + std::to_string(bj_w) + "/" + std::to_string(bj_l) + "/" + std::to_string(bj_p) + "**"
-            + "　勝率 **" + fmt_rate(bj_w, bj_total) + "**"
-            + "\n盈虧 **" + fmt_profit(bj_profit) + "**", false);
+        content += "**🃏 21點** 勝/負/平 **" + std::to_string(bj_w) + "/" + std::to_string(bj_l) + "/" + std::to_string(bj_p) + "**"
+            + "　勝率 **" + fmt_rate(bj_w, bj_total) + "**　盈虧 **" + fmt_profit(bj_profit) + "**\n";
     } else {
-        e.add_field("🃏  21點", "尚無紀錄", false);
+        content += "**🃏 21點** 尚無紀錄\n";
     }
 
     // 骰子
     int d_total = d_w + d_l;
     if (d_total > 0) {
-        e.add_field("🎲  骰子",
-            "勝/負 **" + std::to_string(d_w) + "/" + std::to_string(d_l) + "**"
-            + "　勝率 **" + fmt_rate(d_w, d_total) + "**"
-            + "\n盈虧 **" + fmt_profit(d_profit) + "**", false);
+        content += "**🎲 骰子** 勝/負 **" + std::to_string(d_w) + "/" + std::to_string(d_l) + "**"
+            + "　勝率 **" + fmt_rate(d_w, d_total) + "**　盈虧 **" + fmt_profit(d_profit) + "**\n";
     } else {
-        e.add_field("🎲  骰子", "尚無紀錄", false);
+        content += "**🎲 骰子** 尚無紀錄\n";
     }
 
     // 射龍門
     int sh_decided = sh_w + sh_l + sh_b;
     if (sh_decided > 0 || sh_pass > 0) {
-        e.add_field("🃏  射龍門",
-            "射中/射偏/撞柱/棄牌 **"
+        content += "**🃏 射龍門** 射中/射偏/撞柱/棄牌 **"
             + std::to_string(sh_w) + "/" + std::to_string(sh_l) + "/"
             + std::to_string(sh_b) + "/" + std::to_string(sh_pass) + "**"
-            + "　勝率 **" + fmt_rate(sh_w, sh_decided) + "**"
-            + "\n盈虧 **" + fmt_profit(sh_profit) + "**", false);
+            + "　勝率 **" + fmt_rate(sh_w, sh_decided) + "**　盈虧 **" + fmt_profit(sh_profit) + "**\n";
     } else {
-        e.add_field("🃏  射龍門", "尚無紀錄", false);
+        content += "**🃏 射龍門** 尚無紀錄\n";
     }
 
     // 火箭升空
@@ -187,12 +181,10 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
     }
     int rk_total = rk_w + rk_l;
     if (rk_total > 0) {
-        e.add_field("🚀  火箭升空",
-            "收手/爆炸 **" + std::to_string(rk_w) + "/" + std::to_string(rk_l) + "**"
-            + "　勝率 **" + fmt_rate(rk_w, rk_total) + "**"
-            + "\n盈虧 **" + fmt_profit(rk_profit_v) + "**", false);
+        content += "**🚀 火箭升空** 收手/爆炸 **" + std::to_string(rk_w) + "/" + std::to_string(rk_l) + "**"
+            + "　勝率 **" + fmt_rate(rk_w, rk_total) + "**　盈虧 **" + fmt_profit(rk_profit_v) + "**\n";
     } else {
-        e.add_field("🚀  火箭升空", "尚無紀錄", false);
+        content += "**🚀 火箭升空** 尚無紀錄\n";
     }
 
     // 刮刮樂
@@ -206,12 +198,10 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
     }
     int sk_total = sk_w + sk_l;
     if (sk_total > 0) {
-        e.add_field("🎴  刮刮樂",
-            "中獎/未中 **" + std::to_string(sk_w) + "/" + std::to_string(sk_l) + "**"
-            + "　勝率 **" + fmt_rate(sk_w, sk_total) + "**"
-            + "\n盈虧 **" + fmt_profit(sk_profit_v) + "**", false);
+        content += "**🎴 刮刮樂** 中獎/未中 **" + std::to_string(sk_w) + "/" + std::to_string(sk_l) + "**"
+            + "　勝率 **" + fmt_rate(sk_w, sk_total) + "**　盈虧 **" + fmt_profit(sk_profit_v) + "**\n";
     } else {
-        e.add_field("🎴  刮刮樂", "尚無紀錄", false);
+        content += "**🎴 刮刮樂** 尚無紀錄\n";
     }
 
     // 一夜狼人
@@ -228,16 +218,15 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
     int onw_total = onw_w + onw_v + onw_t;
     int onw_total_wins = onw_ww + onw_vw + onw_tw;
     if (onw_total > 0) {
-        e.add_field("🌙  一夜狼人",
-            "總場次 **" + std::to_string(onw_total) + "**　"
+        content += "**🌙 一夜狼人** 總場次 **" + std::to_string(onw_total) + "**　"
             "勝場 **" + std::to_string(onw_total_wins) + "**　"
-            "勝率 **" + fmt_rate(onw_total_wins, onw_total) + "**", false);
+            "勝率 **" + fmt_rate(onw_total_wins, onw_total) + "**\n";
     } else {
-        e.add_field("🌙  一夜狼人", "尚無紀錄", false);
+        content += "**🌙 一夜狼人** 尚無紀錄\n";
     }
 
     // 猜數字
-    e.add_field("🔢  猜數字", guess_stats_line(uid), false);
+    content += "**🔢 猜數字** " + guess_stats_line(uid) + "\n";
 
     // 誰是臥底
     int uc_cg = 0, uc_cw = 0, uc_sg = 0, uc_sw = 0;
@@ -251,12 +240,11 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
     }
     int uc_total = uc_cg + uc_sg, uc_wins = uc_cw + uc_sw;
     if (uc_total > 0) {
-        e.add_field("🕵️  誰是臥底",
-            "總場次 **" + std::to_string(uc_total) + "**　"
+        content += "**🕵️ 誰是臥底** 總場次 **" + std::to_string(uc_total) + "**　"
             "勝場 **" + std::to_string(uc_wins) + "**　"
-            "勝率 **" + fmt_rate(uc_wins, uc_total) + "**", false);
+            "勝率 **" + fmt_rate(uc_wins, uc_total) + "**\n";
     } else {
-        e.add_field("🕵️  誰是臥底", "尚無紀錄", false);
+        content += "**🕵️ 誰是臥底** 尚無紀錄\n";
     }
 
     // 俄羅斯輪盤
@@ -270,12 +258,10 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
     }
     int rl_total = rl_w + rl_l;
     if (rl_total > 0) {
-        e.add_field("🎲  俄羅斯輪盤",
-            "勝/負 **" + std::to_string(rl_w) + "/" + std::to_string(rl_l) + "**"
-            + "　勝率 **" + fmt_rate(rl_w, rl_total) + "**"
-            + "\n盈虧 **" + fmt_profit(rl_profit) + "**", false);
+        content += "**🎲 俄羅斯輪盤** 勝/負 **" + std::to_string(rl_w) + "/" + std::to_string(rl_l) + "**"
+            + "　勝率 **" + fmt_rate(rl_w, rl_total) + "**　盈虧 **" + fmt_profit(rl_profit) + "**\n";
     } else {
-        e.add_field("🎲  俄羅斯輪盤", "尚無紀錄", false);
+        content += "**🎲 俄羅斯輪盤** 尚無紀錄\n";
     }
 
     // 猜拳
@@ -289,15 +275,17 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
     }
     int rps_total = rps_w + rps_l;
     if (rps_total > 0) {
-        e.add_field("✊  猜拳",
-            "勝/負 **" + std::to_string(rps_w) + "/" + std::to_string(rps_l) + "**"
-            + "　勝率 **" + fmt_rate(rps_w, rps_total) + "**"
-            + "\n盈虧 **" + fmt_profit(rps_profit) + "**", false);
+        content += "**✊ 猜拳** 勝/負 **" + std::to_string(rps_w) + "/" + std::to_string(rps_l) + "**"
+            + "　勝率 **" + fmt_rate(rps_w, rps_total) + "**　盈虧 **" + fmt_profit(rps_profit) + "**\n";
     } else {
-        e.add_field("✊  猜拳", "尚無紀錄", false);
+        content += "**✊ 猜拳** 尚無紀錄\n";
     }
 
     std::string sid = std::to_string((uint64_t)uid);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("← 返回").set_id("wallet_home_" + sid).set_style(dpp::cos_secondary));
@@ -308,6 +296,9 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏦 銀行").set_id("wallet_bank_" + sid).set_style(dpp::cos_secondary));
 
-    dpp::message msg; msg.add_embed(e); msg.add_component(row);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+    msg.add_component_v2(row);
     return msg;
 }

@@ -301,30 +301,26 @@ static dpp::message make_stock_detail_msg(dpp::snowflake uid, const std::string&
         }
     }
 
-    dpp::embed e;
-    e.set_title(def ? (def->emoji + " " + def->name) : key).set_color(0x2ECC71);
-    {
-        dpp::embed_footer f; f.text = "👤 " + (dn.empty() ? uid_s : dn);
-        if (!av.empty()) f.icon_url = av; e.set_footer(f);
-    }
-    std::string desc;
-    if (!notice.empty()) desc += notice + "\n\n";
-    desc += stock_change_line(info) + "\n\n";
-    desc += "持有：**" + std::to_string(shares) + "** 股";
+    std::string stock_title = def ? (def->emoji + " " + def->name) : key;
+    std::string content = "## " + stock_title + "\n";
+    if (!notice.empty()) content += notice + "\n\n";
+    content += stock_change_line(info) + "\n\n";
+    content += "持有：**" + std::to_string(shares) + "** 股";
     if (shares > 0) {
         int64_t pnl = (info.price - avg_cost) * shares;
-        desc += "　均價 " + std::to_string(avg_cost) + " 碼　損益 " + (pnl >= 0 ? "+" : "") + std::to_string(pnl) + " 碼";
+        content += "　均價 " + std::to_string(avg_cost) + " 碼　損益 " + (pnl >= 0 ? "+" : "") + std::to_string(pnl) + " 碼";
     }
-    desc += "\n💼 錢包：**" + std::to_string(chips) + "** 碼";
-    if (key == "stock_mood") desc += "\n\n*價格由 LeeShoW 心情決定，漲跌純看心情，僅供娛樂。*";
-    e.set_description(desc);
+    content += "\n💼 錢包：**" + std::to_string(chips) + "** 碼";
+    if (key == "stock_mood") content += "\n\n*價格由 LeeShoW 心情決定，漲跌純看心情，僅供娛樂。*";
+    content += "\n\n-# 👤 " + (dn.empty() ? uid_s : dn);
 
-    std::vector<int64_t> chart_hist = info.history;
-    if (info.price > 0 && (chart_hist.empty() || chart_hist.back() != info.price)) chart_hist.push_back(info.price);
-    std::string chart_url = build_stock_chart_url(chart_hist);
-    if (!chart_url.empty()) e.set_image(chart_url);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
 
-    dpp::message msg; msg.add_embed(e);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -335,7 +331,7 @@ static dpp::message make_stock_detail_msg(dpp::snowflake uid, const std::string&
         .set_style(dpp::cos_danger).set_disabled(shares <= 0));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🔄 重整").set_id("stock_view_" + uid_s + "_" + key).set_style(dpp::cos_secondary));
-    msg.add_component(row);
+    msg.add_component_v2(row);
 
     dpp::component nav; nav.set_type(dpp::cot_action_row);
     nav.add_component(dpp::component().set_type(dpp::cot_button)
@@ -344,7 +340,7 @@ static dpp::message make_stock_detail_msg(dpp::snowflake uid, const std::string&
         nav.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🎛️ 調整心情").set_id("stock_mood_set_" + uid_s).set_style(dpp::cos_primary));
     }
-    msg.add_component(nav);
+    msg.add_component_v2(nav);
     return msg;
 }
 

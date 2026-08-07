@@ -267,25 +267,25 @@ static void save_shop() {
 // ─── Shop UI ──────────────────────────────────────────────────────────────────
 
 static dpp::message make_shop_main_msg(const std::string& back_uid = "") {
-    dpp::embed e;
-    e.set_title("🏪  商店").set_color(0x1ABC9C);
-    e.set_description("請選擇要前往的商店：");
-    e.add_field("🍁  楓之谷商店", "購買楓之谷道具", true);
-    e.add_field("💻  虛擬商店",   "購買寵物蛋、孵蛋工具、成長道具等",   true);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x1A, 0xBC, 0x9C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 🏪 商店\n請選擇要前往的商店：\n\n**🍁 楓之谷商店** — 購買楓之谷道具\n**💻 虛擬商店** — 購買寵物蛋、孵蛋工具、成長道具等"));
 
-    dpp::message msg; msg.add_embed(e);
     dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component maple_btn, virtual_btn;
-    maple_btn.set_type(dpp::cot_button).set_label("🍁 楓之谷商店")
-             .set_id("shop_maple_0").set_style(dpp::cos_success);
-    virtual_btn.set_type(dpp::cot_button).set_label("💻 虛擬商店")
-               .set_id("shop_virtual").set_style(dpp::cos_primary);
-    row.add_component(maple_btn); row.add_component(virtual_btn);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🍁 楓之谷商店").set_id("shop_maple_0").set_style(dpp::cos_success));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("💻 虛擬商店").set_id("shop_virtual").set_style(dpp::cos_primary));
     if (!back_uid.empty()) {
         row.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🏠 大廳").set_id("lobby_main_" + back_uid).set_style(dpp::cos_secondary));
     }
-    msg.add_component(row);
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+    msg.add_component_v2(row);
     return msg;
 }
 
@@ -296,20 +296,21 @@ static dpp::message make_maple_shop_msg(int page = 0) {
     int start = page * PAGE_SIZE;
     int end   = std::min(start + PAGE_SIZE, (int)maple_items.size());
 
-    dpp::embed e;
-    e.set_title("🍁  楓之谷商店").set_color(0xE74C3C);
-
+    std::string content = "## 🍁 楓之谷商店\n";
     for (int i = start; i < end; i++) {
         auto& item = maple_items[i];
         std::string remain_str = (item.total == -1) ? "∞" : std::to_string(item.total - item.sold);
-        e.add_field(item.name,
-            "💰 **" + std::to_string(item.price) + "** 碼  |  剩餘：**" + remain_str + "**",
-            false);
+        content += "**" + item.name + "** 💰 **" + std::to_string(item.price) + "** 碼  |  剩餘：**" + remain_str + "**\n";
     }
-    e.set_footer(dpp::embed_footer().set_text(
-        "第 " + std::to_string(page+1) + "/" + std::to_string(total_pages) + " 頁"));
+    content += "\n-# 第 " + std::to_string(page+1) + "/" + std::to_string(total_pages) + " 頁";
 
-    dpp::message msg; msg.add_embed(e);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
 
     // Buy buttons
     dpp::component row1; row1.set_type(dpp::cot_action_row);
@@ -324,22 +325,21 @@ static dpp::message make_maple_shop_msg(int page = 0) {
          .set_disabled(out);
         row1.add_component(b);
     }
-    msg.add_component(row1);
+    msg.add_component_v2(row1);
 
     // Nav buttons
     dpp::component row2; row2.set_type(dpp::cot_action_row);
-    dpp::component back_btn, prev_btn, next_btn;
-    back_btn.set_type(dpp::cot_button).set_label("↩ 返回商店")
-            .set_id("shop_main").set_style(dpp::cos_secondary);
-    prev_btn.set_type(dpp::cot_button).set_label("◀ 上一頁")
-            .set_id("shop_maple_" + std::to_string(page-1))
-            .set_style(dpp::cos_secondary).set_disabled(page == 0);
-    next_btn.set_type(dpp::cot_button).set_label("下一頁 ▶")
-            .set_id("shop_maple_" + std::to_string(page+1))
-            .set_style(dpp::cos_secondary).set_disabled(page == total_pages-1);
-    row2.add_component(back_btn);
-    if (total_pages > 1) { row2.add_component(prev_btn); row2.add_component(next_btn); }
-    msg.add_component(row2);
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回商店").set_id("shop_main").set_style(dpp::cos_secondary));
+    if (total_pages > 1) {
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("◀ 上一頁").set_id("shop_maple_" + std::to_string(page-1))
+            .set_style(dpp::cos_secondary).set_disabled(page == 0));
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("下一頁 ▶").set_id("shop_maple_" + std::to_string(page+1))
+            .set_style(dpp::cos_secondary).set_disabled(page == total_pages-1));
+    }
+    msg.add_component_v2(row2);
     return msg;
 }
 
@@ -357,13 +357,21 @@ static dpp::message make_buy_confirm_msg(dpp::snowflake uid, int item_idx) {
     e.add_field("📊  剩餘",   unlimited ? "∞" : (std::to_string(remain) + " 份"), true);
     e.add_field("💼  你的餘額", std::to_string(bal) + " 碼",        false);
 
-    dpp::message msg; msg.add_embed(e);
+    dpp::message msg; msg.set_flags(dpp::m_using_components_v2);
     if (remain <= 0 || bal < item.price) {
-        dpp::embed err; err.set_title("❌  無法購買").set_color(0xE74C3C);
-        err.set_description(remain <= 0 ? "商品已售完" : "籌碼不足");
-        dpp::message m; m.add_embed(err); return m;
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## ❌ 無法購買\n" + std::string(remain <= 0 ? "商品已售完" : "籌碼不足")));
+        msg.add_component_v2(ct); return msg;
     }
-
+    std::string content = "## 🛒 購買確認\n";
+    content += "📦 **商品** " + item.name + "\n";
+    content += "💰 **售價** " + std::to_string(item.price) + " 碼\n";
+    content += "📊 **剩餘** " + (unlimited ? std::string("∞") : std::to_string(remain) + " 份") + "\n";
+    content += "💼 **你的餘額** " + std::to_string(bal) + " 碼";
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF3, 0x9C, 0x12));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+    msg.add_component_v2(ct);
     dpp::component row; row.set_type(dpp::cot_action_row);
     dpp::component ok, cancel;
     ok.set_type(dpp::cot_button).set_label("✅ 確認購買")
@@ -372,26 +380,26 @@ static dpp::message make_buy_confirm_msg(dpp::snowflake uid, int item_idx) {
     cancel.set_type(dpp::cot_button).set_label("❌ 取消")
           .set_id("shop_maple_0").set_style(dpp::cos_danger);
     row.add_component(ok); row.add_component(cancel);
-    msg.add_component(row);
+    msg.add_component_v2(row);
     return msg;
 }
 
 static dpp::message handle_buy(dpp::snowflake uid, const std::string& username, int item_idx) {
+    auto v2_err = [](const std::string& text) {
+        dpp::message m; m.set_flags(dpp::m_using_components_v2);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text));
+        m.add_component_v2(ct); return m;
+    };
     if (item_idx < 0 || item_idx >= (int)maple_items.size()) return {};
     auto& item = maple_items[item_idx];
-    dpp::embed e;
-    if (item.total != -1 && item.sold >= item.total) {
-        e.set_title("❌  商品已售完").set_color(0xE74C3C);
-        dpp::message m; m.add_embed(e); return m;
-    }
+    if (item.total != -1 && item.sold >= item.total)
+        return v2_err("## ❌ 商品已售完");
     // Monthly limit: one purchase per item per person per calendar month
     {
         std::lock_guard<std::mutex> lk(data_mutex);
-        if (has_maple_bought_this_month(uid, item.name)) {
-            e.set_title("❌  本月已購買過").set_color(0xE74C3C);
-            e.set_description("**" + item.name + "** 每人每月限購一次。");
-            dpp::message m; m.add_embed(e); return m;
-        }
+        if (has_maple_bought_this_month(uid, item.name))
+            return v2_err("## ❌ 本月已購買過\n**" + item.name + "** 每人每月限購一次。");
     }
     int64_t bal;
     bool ok = false;
@@ -415,60 +423,67 @@ static dpp::message handle_buy(dpp::snowflake uid, const std::string& username, 
         }
     }
     if (!ok) {
-        e.set_title("❌  籌碼不足").set_color(0xE74C3C);
-        dpp::message m; m.add_embed(e); return m;
+        dpp::message m; m.set_flags(dpp::m_using_components_v2);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content("## ❌ 籌碼不足"));
+        m.add_component_v2(ct); return m;
     }
     save_chips(); save_shop(); save_purchases();
-    e.set_title("✅  購買成功").set_color(0x2ECC71);
-    e.add_field("📦  商品", item.name,                           true);
-    e.add_field("💰  花費", std::to_string(item.price) + " 碼", true);
-    e.add_field("💼  餘額", std::to_string(bal)        + " 碼", false);
-    e.set_footer(dpp::embed_footer().set_text("請聯繫管理員領取商品"));
-    dpp::message ret; ret.add_embed(e); return ret;
+    dpp::message ret; ret.set_flags(dpp::m_using_components_v2);
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(
+        "## ✅ 購買成功\n"
+        "📦 **商品** " + item.name + "\n" +
+        "💰 **花費** " + std::to_string(item.price) + " 碼\n" +
+        "💼 **餘額** " + std::to_string(bal) + " 碼\n\n-# 請聯繫管理員領取商品"));
+    ret.add_component_v2(ct); return ret;
 }
 
 // ─── Virtual shop ─────────────────────────────────────────────────────────────
 
 static dpp::message make_virtual_shop_msg() {
-    dpp::embed e;
-    e.set_title("💻  虛擬商店").set_color(0x9B59B6);
-    e.set_description("請選擇商品類別：");
-    e.add_field("🥚  寵物蛋",  "購買未孵化的寵物蛋",           true);
-    e.add_field("🔥  孵蛋工具","使用後有機率孵化寵物蛋",        true);
-    e.add_field("🌱  成長工具","使用後讓寵物獲得經驗值",         true);
-    e.add_field("⚡  進化工具","使用後讓寵物進化到下一個階段",   true);
-    e.add_field("🌿  成長路徑","購買道具開啟分支進化路線",       true);
-    e.add_field("✨  天賦道具","賦予或重抽寵物天賦技能",         true);
-    e.add_field("📜  特殊道具","怪物狩獵卷等特殊消耗品",         true);
-    e.add_field("💊  恢復道具","解除寵物負面狀態的藥品",         true);
-    e.add_field("⭐  特權道具","VIP 自動領籌碼、寵物監工等特殊效果", true);
-    dpp::message msg; msg.add_embed(e);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 💻 虛擬商店\n請選擇商品類別：\n\n"
+            "🥚 **寵物蛋** — 購買未孵化的寵物蛋\n"
+            "🔥 **孵蛋工具** — 使用後有機率孵化寵物蛋\n"
+            "🌱 **成長工具** — 使用後讓寵物獲得經驗值\n"
+            "⚡ **進化工具** — 使用後讓寵物進化到下一個階段\n"
+            "🌿 **成長路徑** — 購買道具開啟分支進化路線\n"
+            "✨ **天賦道具** — 賦予或重抽寵物天賦技能\n"
+            "📜 **特殊道具** — 怪物狩獵卷等特殊消耗品\n"
+            "💊 **恢復道具** — 解除寵物負面狀態的藥品\n"
+            "⭐ **特權道具** — VIP 自動領籌碼、寵物監工等特殊效果"));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
     dpp::component row1; row1.set_type(dpp::cot_action_row);
     auto mk = [&](const std::string& lbl, const std::string& id) {
-        dpp::component b;
-        b.set_type(dpp::cot_button).set_label(lbl).set_id(id).set_style(dpp::cos_primary);
-        row1.add_component(b);
+        row1.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label(lbl).set_id(id).set_style(dpp::cos_primary));
     };
     mk("🥚 寵物蛋",  "shop_vcat_egg");
     mk("🔥 孵蛋工具","shop_vcat_incubator");
     mk("🌱 成長工具","shop_vcat_growth");
     mk("⚡ 進化工具","shop_vcat_evolution");
     mk("🌿 成長路徑","shop_vcat_path");
-    msg.add_component(row1);
+    msg.add_component_v2(row1);
+
     dpp::component row2; row2.set_type(dpp::cot_action_row);
-    auto mk2 = [&](const std::string& lbl, const std::string& id) {
-        dpp::component b;
-        b.set_type(dpp::cot_button).set_label(lbl).set_id(id).set_style(dpp::cos_primary);
-        row2.add_component(b);
-    };
-    mk2("✨ 天賦道具","shop_vcat_talent");
-    mk2("📜 特殊道具","shop_vcat_hunt");
-    mk2("💊 恢復道具","shop_vcat_recovery");
-    mk2("⭐ 特權道具","shop_vcat_privilege");
-    dpp::component back_btn;
-    back_btn.set_type(dpp::cot_button).set_label("↩ 返回商店主頁")
-            .set_id("shop_main").set_style(dpp::cos_secondary);
-    row2.add_component(back_btn); msg.add_component(row2);
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("✨ 天賦道具").set_id("shop_vcat_talent").set_style(dpp::cos_primary));
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("📜 特殊道具").set_id("shop_vcat_hunt").set_style(dpp::cos_primary));
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("💊 恢復道具").set_id("shop_vcat_recovery").set_style(dpp::cos_primary));
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("⭐ 特權道具").set_id("shop_vcat_privilege").set_style(dpp::cos_primary));
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回商店主頁").set_id("shop_main").set_style(dpp::cos_secondary));
+    msg.add_component_v2(row2);
     return msg;
 }
 
@@ -486,74 +501,74 @@ static dpp::message make_vcat_shop_msg(dpp::snowflake uid, const std::string& ca
     };
     // hunt, recovery and privilege are always purchasable
     bool can_buy = (cat == "hunt" || cat == "recovery" || cat == "privilege") ? true : can_buy_virtual_cat(uid, cat);
-    dpp::embed e;
-    e.set_title(titles.count(cat) ? titles.at(cat) : "虛擬商店");
-    e.set_color(0x1ABC9C);
-    if (!can_buy) {
-        std::string reason;
-        if (cat == "egg")       reason = "你已擁有寵物，無法再購買蛋！";
-        else if (cat == "incubator") reason = "你的寵物已孵化，不需要孵蛋工具！";
-        else reason = "你的寵物已達最高階！";
-        e.set_description("❌ " + reason + "\n\n以下商品供參考：");
-    }
 
     std::vector<const VirtualShopItem*> items;
     for (auto& vi : VIRTUAL_ITEMS) if (vi.category == cat) items.push_back(&vi);
-    for (auto* vi : items)
-        e.add_field(vi->name, "💰 **" + std::to_string(vi->price) + "** 碼　" + vi->desc, false);
     int64_t bal = get_chips(uid);
-    e.set_footer(dpp::embed_footer().set_text("你的餘額：" + std::to_string(bal) + " 碼"));
 
-    dpp::message msg; msg.add_embed(e);
+    std::string title = titles.count(cat) ? titles.at(cat) : "虛擬商店";
+    std::string content = "## " + title + "\n";
+    if (!can_buy) {
+        std::string reason;
+        if (cat == "egg")            reason = "你已擁有寵物，無法再購買蛋！";
+        else if (cat == "incubator") reason = "你的寵物已孵化，不需要孵蛋工具！";
+        else                         reason = "你的寵物已達最高階！";
+        content += "❌ " + reason + "\n\n以下商品供參考：\n";
+    }
+    for (auto* vi : items)
+        content += "**" + vi->name + "** 💰 **" + std::to_string(vi->price) + "** 碼　" + vi->desc + "\n";
+    content += "\n-# 你的餘額：" + std::to_string(bal) + " 碼";
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x1A, 0xBC, 0x9C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
     if (can_buy) {
         dpp::component cur_row; cur_row.set_type(dpp::cot_action_row);
         int n = 0;
         for (auto* vi : items) {
             if (n > 0 && n % 5 == 0) {
-                msg.add_component(cur_row);
+                msg.add_component_v2(cur_row);
                 cur_row = dpp::component(); cur_row.set_type(dpp::cot_action_row);
             }
-            dpp::component btn;
-            btn.set_type(dpp::cot_button)
-               .set_label("購買 " + vi->name)
-               .set_id("shop_vbuy_" + vi->key)
-               .set_style(dpp::cos_primary);
-            cur_row.add_component(btn); n++;
+            cur_row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("購買 " + vi->name).set_id("shop_vbuy_" + vi->key)
+                .set_style(dpp::cos_primary));
+            n++;
         }
-        if (n > 0) msg.add_component(cur_row);
+        if (n > 0) msg.add_component_v2(cur_row);
     }
     dpp::component nav; nav.set_type(dpp::cot_action_row);
-    dpp::component back_btn;
-    back_btn.set_type(dpp::cot_button).set_label("↩ 返回虛擬商店")
-            .set_id("shop_vback").set_style(dpp::cos_secondary);
-    nav.add_component(back_btn); msg.add_component(nav);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回虛擬商店").set_id("shop_vback").set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav);
     return msg;
 }
 
 static dpp::message make_vbuy_confirm_msg(dpp::snowflake uid, const std::string& key) {
     const VirtualShopItem* vi = find_virtual_item(key);
-    dpp::embed e;
-    if (!vi) {
-        e.set_title("❌  商品不存在").set_color(0xE74C3C);
-        dpp::message m; m.add_embed(e); return m;
-    }
+    dpp::message msg; msg.set_flags(dpp::m_using_components_v2);
+    auto err_msg = [&](const std::string& text) {
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text));
+        msg.add_component_v2(ct); return msg;
+    };
+    if (!vi) return err_msg("## ❌ 商品不存在");
     int64_t bal = get_chips(uid);
-    if (bal < vi->price) {
-        e.set_title("❌  籌碼不足").set_color(0xE74C3C);
-        dpp::message m; m.add_embed(e); return m;
-    }
+    if (bal < vi->price) return err_msg("## ❌ 籌碼不足");
     if (vi->category != "hunt" && vi->category != "recovery" && vi->category != "privilege"
-        && !can_buy_virtual_cat(uid, vi->category)) {
-        e.set_title("❌  條件不符").set_color(0xE74C3C);
-        dpp::message m; m.add_embed(e); return m;
-    }
-    e.set_title("🛒  購買確認").set_color(0xF39C12);
-    e.add_field("📦  商品",    vi->name,                           true);
-    e.add_field("💰  單價",    std::to_string(vi->price) + " 碼", true);
-    e.add_field("💼  你的餘額", std::to_string(bal) + " 碼",      false);
-    e.set_description("選擇購買數量：");
-    dpp::message msg; msg.add_embed(e);
-    // Quantity buttons: ×1 ×3 ×5 ×10 (disable if not enough chips)
+        && !can_buy_virtual_cat(uid, vi->category)) return err_msg("## ❌ 條件不符");
+    std::string content = "## 🛒 購買確認\n選擇購買數量：\n\n";
+    content += "📦 **商品** " + vi->name + "\n";
+    content += "💰 **單價** " + std::to_string(vi->price) + " 碼\n";
+    content += "💼 **你的餘額** " + std::to_string(bal) + " 碼";
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF3, 0x9C, 0x12));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+    msg.add_component_v2(ct);
     dpp::component row; row.set_type(dpp::cot_action_row);
     for (int qty : {1, 3, 5, 10}) {
         int64_t cost = (int64_t)qty * vi->price;
@@ -566,7 +581,7 @@ static dpp::message make_vbuy_confirm_msg(dpp::snowflake uid, const std::string&
     dpp::component row2; row2.set_type(dpp::cot_action_row);
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("❌ 取消").set_id("shop_vcat_" + vi->category).set_style(dpp::cos_danger));
-    msg.add_component(row); msg.add_component(row2);
+    msg.add_component_v2(row); msg.add_component_v2(row2);
     return msg;
 }
 
@@ -581,17 +596,16 @@ static dpp::message handle_vbuy(dpp::snowflake uid, const std::string& username,
     }
     if (qty < 1) qty = 1; if (qty > 10) qty = 10;
     const VirtualShopItem* vi = find_virtual_item(key);
-    dpp::embed e;
-    if (!vi) {
-        e.set_title("❌  商品不存在").set_color(0xE74C3C);
-        dpp::message m; m.add_embed(e); return m;
-    }
+    auto v2e = [](const std::string& t) {
+        dpp::message m; m.set_flags(dpp::m_using_components_v2);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(t));
+        m.add_component_v2(ct); return m;
+    };
+    if (!vi) return v2e("## ❌ 商品不存在");
     // Check restriction again
     if (vi->category != "hunt" && vi->category != "recovery" && vi->category != "privilege"
-        && !can_buy_virtual_cat(uid, vi->category)) {
-        e.set_title("❌  條件不符").set_color(0xE74C3C);
-        dpp::message m; m.add_embed(e); return m;
-    }
+        && !can_buy_virtual_cat(uid, vi->category)) return v2e("## ❌ 條件不符");
     int64_t total_cost = (int64_t)qty * vi->price;
     int64_t bal = 0; bool ok = false;
     {
@@ -604,8 +618,10 @@ static dpp::message handle_vbuy(dpp::snowflake uid, const std::string& username,
         }
     }
     if (!ok) {
-        e.set_title("❌  籌碼不足").set_color(0xE74C3C);
-        dpp::message m; m.add_embed(e); return m;
+        dpp::message m; m.set_flags(dpp::m_using_components_v2);
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content("## ❌ 籌碼不足"));
+        m.add_component_v2(ct); return m;
     }
 
     // Eggs: qty=1 for first-time pet creation, rest go to inventory
@@ -645,20 +661,18 @@ static dpp::message handle_vbuy(dpp::snowflake uid, const std::string& username,
     }
     save_chips(); save_purchases();
 
-    e.set_title("✅  購買成功").set_color(0x2ECC71);
-    e.add_field("📦  商品", vi->name + (qty > 1 ? " ×" + std::to_string(qty) : ""), true);
-    e.add_field("💰  花費", std::to_string(total_cost) + " 碼", true);
-    e.add_field("💼  餘額", std::to_string(bal)        + " 碼", false);
-    if (vi->category == "egg")
-        e.set_footer(dpp::embed_footer().set_text("使用 !寵物 查看你的蛋！"));
-    else
-        e.set_footer(dpp::embed_footer().set_text("使用 !背包 來使用道具！"));
-    dpp::message ret; ret.add_embed(e);
-
+    dpp::message ret; ret.set_flags(dpp::m_using_components_v2);
+    std::string hint = (vi->category == "egg") ? "-# 使用 !寵物 查看你的蛋！" : "-# 使用 !背包 來使用道具！";
+    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
+    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(
+        "## ✅ 購買成功\n"
+        "📦 **商品** " + vi->name + (qty > 1 ? " ×" + std::to_string(qty) : "") + "\n" +
+        "💰 **花費** " + std::to_string(total_cost) + " 碼\n" +
+        "💼 **餘額** " + std::to_string(bal) + " 碼\n\n" + hint));
+    ret.add_component_v2(ct);
     dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component cont_btn;
-    cont_btn.set_type(dpp::cot_button).set_label("↩ 繼續購物")
-            .set_id("shop_vcat_" + vi->category).set_style(dpp::cos_secondary);
-    row.add_component(cont_btn); ret.add_component(row);
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 繼續購物")
+        .set_id("shop_vcat_" + vi->category).set_style(dpp::cos_secondary));
+    ret.add_component_v2(row);
     return ret;
 }

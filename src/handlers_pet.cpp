@@ -21,9 +21,9 @@ void handle_pet_button(const dpp::button_click_t& ev)
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 這不是你的視窗！").set_flags(dpp::m_ephemeral)); return;
             }
-            ev.reply(dpp::ir_channel_message_with_source, make_lobby_msg(uid,
-                user.get_avatar_url(),
-                ev.command.member.get_nickname()));
+            bool src_v2 = (ev.command.message.flags & dpp::m_using_components_v2) != 0;
+            ev.reply(src_v2 ? dpp::ir_update_message : dpp::ir_channel_message_with_source,
+                make_lobby_msg(uid, user.get_avatar_url(), ev.command.member.get_nickname()));
         } else if (cid.rfind("lobby_shop_", 0) == 0) {
             dpp::snowflake btn_uid(std::stoull(cid.substr(11)));
             if (uid != btn_uid) {
@@ -93,16 +93,16 @@ void handle_pet_button(const dpp::button_click_t& ev)
             }
             {
                 std::string uid_s = std::to_string((uint64_t)uid);
-                dpp::embed ce; ce.set_title("❓  確定要取消打工？").set_color(0xE74C3C);
-                ce.set_description("本次打工將**立即中止**，不會獲得任何報酬。");
+                dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+                ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+                    .set_content("## ❓ 確定要取消打工？\n本次打工將**立即中止**，不會獲得任何報酬。"));
                 dpp::component cr; cr.set_type(dpp::cot_action_row);
                 cr.add_component(dpp::component().set_type(dpp::cot_button)
-                    .set_label("✅ 是，取消打工").set_id("pet_cancel_work_confirm_" + uid_s)
-                    .set_style(dpp::cos_danger));
+                    .set_label("✅ 是，取消打工").set_id("pet_cancel_work_confirm_" + uid_s).set_style(dpp::cos_danger));
                 cr.add_component(dpp::component().set_type(dpp::cot_button)
-                    .set_label("❌ 不，繼續打工").set_id("pet_refresh_" + uid_s)
-                    .set_style(dpp::cos_success));
-                dpp::message cm; cm.add_embed(ce); cm.add_component(cr);
+                    .set_label("❌ 不，繼續打工").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_success));
+                dpp::message cm; cm.set_flags(dpp::m_using_components_v2);
+                cm.add_component_v2(ct); cm.add_component_v2(cr);
                 ev.reply(dpp::ir_update_message, cm);
             }
         } else if (cid.rfind("pet_start_onsen_", 0) == 0) {
@@ -127,18 +127,16 @@ void handle_pet_button(const dpp::button_click_t& ev)
             }
             {
                 std::string uid_s = std::to_string((uint64_t)uid);
-                dpp::embed ce;
-                ce.set_title("⚠️  確定要取消泡溫泉？").set_color(0xE67E22);
-                ce.set_description("取消後**負面狀態不會清除**，已花費的溫泉時間也不會退回。");
-                dpp::message cm; cm.add_embed(ce);
+                dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
+                ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+                    .set_content("## ⚠️ 確定要取消泡溫泉？\n取消後**負面狀態不會清除**，已花費的溫泉時間也不會退回。"));
                 dpp::component row; row.set_type(dpp::cot_action_row);
-                dpp::component yes, no;
-                yes.set_type(dpp::cot_button).set_label("✅ 確認取消")
-                   .set_id("pet_cancel_onsen_confirm_" + uid_s).set_style(dpp::cos_danger);
-                no.set_type(dpp::cot_button).set_label("↩️ 返回")
-                   .set_id("pet_view_" + uid_s).set_style(dpp::cos_secondary);
-                row.add_component(yes); row.add_component(no);
-                cm.add_component(row);
+                row.add_component(dpp::component().set_type(dpp::cot_button).set_label("✅ 確認取消")
+                    .set_id("pet_cancel_onsen_confirm_" + uid_s).set_style(dpp::cos_danger));
+                row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩️ 返回")
+                    .set_id("pet_view_" + uid_s).set_style(dpp::cos_secondary));
+                dpp::message cm; cm.set_flags(dpp::m_using_components_v2);
+                cm.add_component_v2(ct); cm.add_component_v2(row);
                 ev.reply(dpp::ir_update_message, cm);
             }
         } else if (cid.rfind("pet_notify_toggle_", 0) == 0) {
@@ -340,15 +338,17 @@ void handle_pet_button(const dpp::button_click_t& ev)
             }
             {
                 std::string sid = std::to_string((uint64_t)uid);
-                dpp::embed ce; ce.set_title("✨  提煉星星").set_color(0xF1C40F);
-                ce.set_description("確定要消耗 **50 exp** 提煉星星嗎？\n成功率：**90%**");
+                dpp::message cm; cm.set_flags(dpp::m_using_components_v2 | dpp::m_ephemeral);
+                dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF1, 0xC4, 0x0F));
+                ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+                    .set_content("## ✨ 提煉星星\n確定要消耗 **50 exp** 提煉星星嗎？\n成功率：**90%**"));
+                cm.add_component_v2(ct);
                 dpp::component row; row.set_type(dpp::cot_action_row);
                 row.add_component(dpp::component().set_type(dpp::cot_button)
                     .set_label("✅ 確認提煉").set_id("pet_refine_confirm_" + sid).set_style(dpp::cos_success));
                 row.add_component(dpp::component().set_type(dpp::cot_button)
                     .set_label("❌ 取消").set_id("pet_refine_cancel_" + sid).set_style(dpp::cos_secondary));
-                dpp::message cm; cm.add_embed(ce); cm.add_component(row);
-                cm.set_flags(dpp::m_ephemeral);
+                cm.add_component_v2(row);
                 ev.reply(dpp::ir_channel_message_with_source, cm);
             }
         } else if (cid.rfind("pet_refine_confirm_", 0) == 0) {
@@ -359,8 +359,13 @@ void handle_pet_button(const dpp::button_click_t& ev)
             }
             ev.reply(dpp::ir_update_message, handle_pet_refine_star(uid));
         } else if (cid.rfind("pet_refine_cancel_", 0) == 0) {
-            ev.reply(dpp::ir_update_message,
-                dpp::message("❌ 已取消提煉。").set_flags(dpp::m_ephemeral));
+            {
+                dpp::message cm; cm.set_flags(dpp::m_using_components_v2 | dpp::m_ephemeral);
+                dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x95, 0xA5, 0xA6));
+                ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content("❌ 已取消提煉。"));
+                cm.add_component_v2(ct);
+                ev.reply(dpp::ir_update_message, cm);
+            }
         } else if (cid.rfind("pet_release_", 0) == 0) {
             dpp::snowflake btn_uid(std::stoull(cid.substr(12)));
             if (uid != btn_uid) {
@@ -396,9 +401,10 @@ void handle_pet_button(const dpp::button_click_t& ev)
             auto& inv = inventory_data[uid];
             auto it = inv.find("talent_scroll");
             if (it == inv.end() || it->second <= 0) {
-                ev.reply(dpp::ir_update_message,
-                    dpp::message().add_embed(dpp::embed().set_title("❌  失敗").set_color(0xE74C3C)
-                        .set_description("你已沒有天賦賦予卷軸！"))); return;
+                dpp::component ct3; ct3.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+                ct3.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content("## ❌ 失敗\n你已沒有天賦賦予卷軸！"));
+                dpp::message em3; em3.set_flags(dpp::m_using_components_v2); em3.add_component_v2(ct3);
+                ev.reply(dpp::ir_update_message, em3); return;
             }
             auto& pet = pet_data[uid];
             old_talent = pet.talent;
@@ -415,13 +421,15 @@ void handle_pet_button(const dpp::button_click_t& ev)
             if (t == "喜歡作夢")  return "每次打工完有 0.1% 機率將現有籌碼翻倍！";
             return "";
         };
-        dpp::embed re;
-        re.set_title("🌟  天賦覺醒！").set_color(0xF39C12);
+        std::string result_txt;
         if (!old_talent.empty())
-            re.set_description("🔄 天賦已替換！\n**" + old_talent + "** → **" + talent + "**\n" + talent_desc_fn(talent));
+            result_txt = "## 🌟 天賦覺醒！\n🔄 天賦已替換！\n**" + old_talent + "** → **" + talent + "**\n" + talent_desc_fn(talent);
         else
-            re.set_description("✨ 天賦賦予成功！\n**" + talent + "** — " + talent_desc_fn(talent));
-        ev.reply(dpp::ir_update_message, dpp::message().add_embed(re));
+            result_txt = "## 🌟 天賦覺醒！\n✨ 天賦賦予成功！\n**" + talent + "** — " + talent_desc_fn(talent);
+        dpp::component ct4; ct4.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF3, 0x9C, 0x12));
+        ct4.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(result_txt));
+        dpp::message rm; rm.set_flags(dpp::m_using_components_v2); rm.add_component_v2(ct4);
+        ev.reply(dpp::ir_update_message, rm);
         return;
     }
 }

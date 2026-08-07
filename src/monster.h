@@ -135,36 +135,27 @@ static dpp::message make_hunt_main_msg(dpp::snowflake uid, const Pet& pet,
         apply_pet_basic_set_bonus(uid, pet, stats.atk, stats.hp, max_hp, stats.def);
     }
 
-    dpp::embed e;
-    e.set_title("⚔️  怪物狩獵").set_color(0xC0392B);
-
     bool has_injured = false;
     for (auto& s : pet.statuses) if (s == "受傷") { has_injured = true; break; }
 
-    if (has_injured) {
-        e.set_description("⚠️ 你的寵物**受傷**了，無法進行狩獵！\n請使用「高級傷藥」恢復後再來。");
-    } else if (pet.stage == 0) {
-        e.set_description("❌ 需要已進化的寵物才能進行狩獵！");
-    } else {
-        e.set_description("選擇難度開始狩獵！");
-    }
+    std::string content = "## ⚔️ 怪物狩獵\n";
+    if (has_injured)    content += "⚠️ 你的寵物**受傷**了，無法進行狩獵！\n請使用「高級傷藥」恢復後再來。\n";
+    else if (pet.stage == 0) content += "❌ 需要已進化的寵物才能進行狩獵！\n";
+    else                content += "選擇難度開始狩獵！\n";
+    content += "\n📜 狩獵卷剩餘：**" + std::to_string(scrolls) + "** 張";
+    if (pet.stage > 0)
+        content += "　⚔️ 攻擊力：**" + std::to_string(stats.atk) + "**　❤️ 生命值：**" + std::to_string(stats.hp) + "**";
+    content += "\n\n-# 👤 " + display_name;
 
-    e.add_field("📜 狩獵卷剩餘", std::to_string(scrolls) + " 張", true);
-    if (pet.stage > 0) {
-        e.add_field("⚔️ 攻擊力", std::to_string(stats.atk), true);
-        e.add_field("❤️ 生命值", std::to_string(stats.hp),  true);
-    }
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xC0, 0x39, 0x2B));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
 
-    dpp::embed_footer footer;
-    footer.text = "👤 " + display_name;
-    if (!avatar_url.empty()) footer.icon_url = avatar_url;
-    if (!avatar_url.empty()) e.set_thumbnail(avatar_url);
-    e.set_footer(footer);
-
-    dpp::message msg; msg.add_embed(e);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
 
     bool can_hunt = !has_injured && pet.stage > 0 && scrolls > 0;
-    // Row 1: difficulty buttons
     dpp::component row; row.set_type(dpp::cot_action_row);
     for (auto& [lbl, diff] : std::vector<std::pair<std::string,std::string>>{
             {"⭐ 簡單","easy"},{"⭐⭐ 普通","normal"},
@@ -177,18 +168,14 @@ static dpp::message make_hunt_main_msg(dpp::snowflake uid, const Pet& pet,
          .set_disabled(!can_hunt || !unlocked);
         row.add_component(b);
     }
-    msg.add_component(row);
-    // Row 2: 怪物村落 + 組隊遠征
+    msg.add_component_v2(row);
+
     dpp::component row2; row2.set_type(dpp::cot_action_row);
     row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🏘️ 怪物村落")
-        .set_id("hunt_village_" + uid_s)
-        .set_style(dpp::cos_secondary));
+        .set_label("🏘️ 怪物村落").set_id("hunt_village_" + uid_s).set_style(dpp::cos_secondary));
     row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("⚔️ 組隊遠征")
-        .set_id("hunt_team_" + uid_s)
-        .set_style(dpp::cos_success));
-    msg.add_component(row2);
+        .set_label("⚔️ 組隊遠征").set_id("hunt_team_" + uid_s).set_style(dpp::cos_success));
+    msg.add_component_v2(row2);
     return msg;
 }
 
@@ -205,43 +192,40 @@ static dpp::message make_hunt_diff_msg(dpp::snowflake uid, const std::string& di
         if (it != hunt_clear_data.end()) cleared = it->second;
     }
 
-    dpp::embed e;
-    e.set_title("⚔️  " + diff_label(diff) + " — 選擇怪物").set_color(0xC0392B);
-    std::string desc;
+    std::string content = "## ⚔️ " + diff_label(diff) + " — 選擇怪物\n";
     for (auto& m : MONSTERS) {
         if (m.difficulty != diff) continue;
         bool done = cleared.count(m.key) > 0;
-        desc += std::string(done ? "✅ " : "🔲 ") + "**" + m.name + "**"
-              + "　ATK:" + std::to_string(m.atk)
-              + " HP:" + std::to_string(m.hp)
-              + " DEF:" + std::to_string(m.def) + "\n";
-        desc += "　首通：" + std::to_string(m.first_clear_reward) + " 碼";
-        desc += (done ? " （已首通）" : " ⬅ 首通獎勵");
-        desc += "　通關：" + std::to_string(m.daily_min) + "~" + std::to_string(m.daily_max) + " 碼\n";
+        content += std::string(done ? "✅ " : "🔲 ") + "**" + m.name + "**"
+                 + "　ATK:" + std::to_string(m.atk)
+                 + " HP:" + std::to_string(m.hp)
+                 + " DEF:" + std::to_string(m.def) + "\n";
+        content += "　首通：" + std::to_string(m.first_clear_reward) + " 碼";
+        content += (done ? " （已首通）" : " ⬅ 首通獎勵");
+        content += "　通關：" + std::to_string(m.daily_min) + "~" + std::to_string(m.daily_max) + " 碼\n";
     }
-    e.set_description(desc);
+    content += "\n-# 👤 " + display_name;
 
-    dpp::embed_footer footer;
-    footer.text = "👤 " + display_name;
-    if (!avatar_url.empty()) footer.icon_url = avatar_url;
-    e.set_footer(footer);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xC0, 0x39, 0x2B));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
 
-    dpp::message msg; msg.add_embed(e);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
     dpp::component row; row.set_type(dpp::cot_action_row);
     for (auto& m : MONSTERS) {
         if (m.difficulty != diff) continue;
-        dpp::component b;
-        b.set_type(dpp::cot_button).set_label(m.name)
-         .set_id("hunt_monster_" + uid_s + "_" + m.key).set_style(dpp::cos_danger);
-        row.add_component(b);
+        row.add_component(dpp::component().set_type(dpp::cot_button).set_label(m.name)
+             .set_id("hunt_monster_" + uid_s + "_" + m.key).set_style(dpp::cos_danger));
     }
-    msg.add_component(row);
+    msg.add_component_v2(row);
+
     dpp::component nav_row; nav_row.set_type(dpp::cot_action_row);
-    dpp::component back;
-    back.set_type(dpp::cot_button).set_label("↩ 返回")
-        .set_id("hunt_main_" + uid_s).set_style(dpp::cos_secondary);
-    nav_row.add_component(back);
-    msg.add_component(nav_row);
+    nav_row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 返回")
+        .set_id("hunt_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav_row);
     return msg;
 }
 
@@ -251,61 +235,46 @@ static dpp::message make_combat_msg(const MonsterHuntGame& g,
                                     const std::string& display_name,
                                     const std::string& avatar_url) {
     std::string uid_s = std::to_string((uint64_t)g.uid);
-    dpp::embed e;
-    e.set_title("⚔️  狩獵中：" + g.monster_name + "　回合 " + std::to_string(g.turn))
-     .set_color(0xC0392B);
 
-    // Show monster image as thumbnail if available
-    const MonsterDef* cmd = find_monster(g.monster_key);
-    if (cmd && !cmd->image_url.empty()) e.set_thumbnail(cmd->image_url);
-
-    std::string desc;
-    desc += "**👹 " + g.monster_name + "**\n";
-    desc += "❤️ " + hp_bar(g.monster_hp, g.monster_max_hp) + "\n";
+    std::string content = "## ⚔️ 狩獵中：" + g.monster_name + "　回合 " + std::to_string(g.turn) + "\n";
+    content += "**👹 " + g.monster_name + "**\n";
+    content += "❤️ " + hp_bar(g.monster_hp, g.monster_max_hp) + "\n";
     if (g.atk_down_turns > 0)
-        desc += "⬇️ 攻擊力削弱中（剩 **" + std::to_string(g.atk_down_turns) + "** 次）\n";
-    desc += "\n**🐾 你的寵物**\n";
-    desc += "❤️ " + hp_bar(g.pet_hp, g.pet_max_hp) + "\n";
-    desc += "⚔️ 攻擊力 " + std::to_string(g.pet_atk) + "　🛡️ 防禦力 " + std::to_string(g.pet_def) + "\n";
-
+        content += "⬇️ 攻擊力削弱中（剩 **" + std::to_string(g.atk_down_turns) + "** 次）\n";
+    content += "\n**🐾 你的寵物**\n";
+    content += "❤️ " + hp_bar(g.pet_hp, g.pet_max_hp) + "\n";
+    content += "⚔️ 攻擊力 " + std::to_string(g.pet_atk) + "　🛡️ 防禦力 " + std::to_string(g.pet_def) + "\n";
     if (g.orb_key == "EQ_K_VIKING") {
         double r = (g.pet_max_hp > 0) ? (double)g.pet_hp / g.pet_max_hp : 1.0;
-        if (r < 0.25)      desc += "🔥 **狂暴爆發！** 傷害 ×1.7（HP≤25%）\n";
-        else if (r < 0.50) desc += "⚡ **憤怒之力！** 傷害 ×1.4（HP≤50%）\n";
+        if (r < 0.25)      content += "🔥 **狂暴爆發！** 傷害 ×1.7（HP≤25%）\n";
+        else if (r < 0.50) content += "⚡ **憤怒之力！** 傷害 ×1.4（HP≤50%）\n";
     }
-    if (!g.log_line.empty()) desc += "\n📋 " + g.log_line;
-    e.set_description(desc);
+    if (!g.log_line.empty()) content += "\n📋 " + g.log_line;
+    content += "\n\n-# 👤 " + display_name + "　|　限時 10 分鐘";
 
-    dpp::embed_footer footer;
-    footer.text = "👤 " + display_name + "　|　限時 10 分鐘";
-    if (!avatar_url.empty()) footer.icon_url = avatar_url;
-    e.set_footer(footer);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xC0, 0x39, 0x2B));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
 
-    dpp::message msg; msg.add_embed(e);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
     dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component atk, pow_atk;
-    atk.set_type(dpp::cot_button).set_label("⚔️ 攻擊")
-       .set_id("hunt_atk_" + uid_s).set_style(dpp::cos_primary);
-    pow_atk.set_type(dpp::cot_button).set_label("💥 耗費氣力的攻擊")
-            .set_id("hunt_pow_" + uid_s).set_style(dpp::cos_danger);
-    row.add_component(atk); row.add_component(pow_atk);
-    // 寶珠特殊行動按鈕
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("⚔️ 攻擊")
+        .set_id("hunt_atk_" + uid_s).set_style(dpp::cos_primary));
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("💥 耗費氣力的攻擊")
+        .set_id("hunt_pow_" + uid_s).set_style(dpp::cos_danger));
     if (g.orb_key == "EQ_K_BEAR") {
-        dpp::component block_btn;
-        block_btn.set_type(dpp::cot_button).set_label("🛡️ 防禦")
-                 .set_id("hunt_block_" + uid_s).set_style(dpp::cos_secondary);
-        row.add_component(block_btn);
+        row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🛡️ 防禦")
+            .set_id("hunt_block_" + uid_s).set_style(dpp::cos_secondary));
     }
-    // 維京寶珠：被動狂暴，無需按鈕
-    msg.add_component(row);
+    msg.add_component_v2(row);
 
-    // Refresh row (separate from combat actions)
     dpp::component ref_row; ref_row.set_type(dpp::cot_action_row);
     ref_row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🔄 刷新").set_id("hunt_refresh_" + uid_s)
-        .set_style(dpp::cos_secondary));
-    msg.add_component(ref_row);
-
+        .set_label("🔄 刷新").set_id("hunt_refresh_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(ref_row);
     return msg;
 }
 
@@ -444,39 +413,37 @@ static dpp::message make_combat_end_msg(bool win, const MonsterHuntGame& g,
                                         const std::string& display_name,
                                         const std::string& avatar_url) {
     std::string uid_s = std::to_string((uint64_t)g.uid);
-    dpp::embed e;
-    const MonsterDef* emd = find_monster(g.monster_key);
-    if (emd && !emd->image_url.empty()) e.set_thumbnail(emd->image_url);
+    uint32_t accent = win ? dpp::utility::rgb(0x2E, 0xCC, 0x71) : dpp::utility::rgb(0xE7, 0x4C, 0x3C);
+    std::string content;
     if (win) {
-        e.set_title("🎉  狩獵成功！").set_color(0x2ECC71);
-        std::string desc = "你擊敗了 **" + g.monster_name + "**！\n";
-        if (first_clear) desc += "⭐ **首次通關！額外獎勵！**\n";
-        desc += "💰 獲得 **" + std::to_string(reward) + "** 籌碼！";
+        content = "## 🎉 狩獵成功！\n你擊敗了 **" + g.monster_name + "**！\n";
+        if (first_clear) content += "⭐ **首次通關！額外獎勵！**\n";
+        content += "💰 獲得 **" + std::to_string(reward) + "** 籌碼！";
         for (auto& [key, cnt] : drops) {
             std::string nm = key;
             for (auto& vi : VIRTUAL_ITEMS) if (vi.key == key) { nm = vi.name; break; }
             std::string icon = key.find("shard") != std::string::npos ? "💎"
                              : key == "star_unknown" ? "⭐" : "🎁";
-            desc += "\n" + icon + " 掉落：**" + nm + "** ×" + std::to_string(cnt) + "！";
+            content += "\n" + icon + " 掉落：**" + nm + "** ×" + std::to_string(cnt) + "！";
         }
-        e.set_description(desc);
     } else {
-        e.set_title("💀  狩獵失敗").set_color(0xE74C3C);
-        e.set_description("**" + g.monster_name + "** 打倒了你的寵物...\n"
-                          "💔 寵物獲得了「**受傷**」狀態，需要高級傷藥才能再次狩獵。");
+        content = "## 💀 狩獵失敗\n**" + g.monster_name + "** 打倒了你的寵物...\n"
+                  "💔 寵物獲得了「**受傷**」狀態，需要高級傷藥才能再次狩獵。";
     }
-    dpp::embed_footer footer;
-    footer.text = "👤 " + display_name;
-    if (!avatar_url.empty()) footer.icon_url = avatar_url;
-    e.set_footer(footer);
+    content += "\n\n-# 👤 " + display_name;
 
-    dpp::message msg; msg.add_embed(e);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(accent);
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
     dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component back;
-    back.set_type(dpp::cot_button).set_label("↩ 返回狩獵頁面")
-        .set_id("hunt_main_" + uid_s).set_style(dpp::cos_secondary);
-    row.add_component(back);
-    msg.add_component(row);
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 返回狩獵頁面")
+        .set_id("hunt_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
     return msg;
 }
 
@@ -523,18 +490,19 @@ static dpp::message make_village_select_msg(dpp::snowflake uid,
                                              const std::string& display_name,
                                              const std::string& avatar_url) {
     std::string uid_s = std::to_string((uint64_t)uid);
-    dpp::embed e;
-    e.set_title("🏘️  選擇目標村落").set_color(0x3498DB);
-    std::string desc = "選擇要挑戰的怪物村落：\n\n";
-    for (auto& g : VILLAGE_GROUPS) {
-        desc += "**" + g.name + "**\n" + g.description + "\n\n";
-    }
-    e.set_description(desc);
-    dpp::embed_footer footer;
-    footer.text = "👤 " + display_name + "　|　消耗 1 張狩獵卷";
-    if (!avatar_url.empty()) footer.icon_url = avatar_url;
-    e.set_footer(footer);
-    dpp::message msg; msg.add_embed(e);
+    std::string content = "## 🏘️ 選擇目標村落\n選擇要挑戰的怪物村落：\n\n";
+    for (auto& g : VILLAGE_GROUPS)
+        content += "**" + g.name + "**\n" + g.description + "\n\n";
+    content += "-# 👤 " + display_name + "　|　消耗 1 張狩獵卷";
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x34, 0x98, 0xDB));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
     dpp::component row; row.set_type(dpp::cot_action_row);
     for (auto& grp : VILLAGE_GROUPS) {
         row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -542,13 +510,12 @@ static dpp::message make_village_select_msg(dpp::snowflake uid,
             .set_id("village_start_" + uid_s + "_" + grp.key)
             .set_style(dpp::cos_primary));
     }
-    msg.add_component(row);
+    msg.add_component_v2(row);
+
     dpp::component row2; row2.set_type(dpp::cot_action_row);
     row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("↩ 返回")
-        .set_id("hunt_main_" + uid_s)
-        .set_style(dpp::cos_secondary));
-    msg.add_component(row2);
+        .set_label("↩ 返回").set_id("hunt_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row2);
     return msg;
 }
 
@@ -559,78 +526,61 @@ static dpp::message make_village_combat_msg(const VillageGame& g,
                                              const std::string& avatar_url) {
     std::string uid_s = std::to_string((uint64_t)g.uid);
     const VillageGroupDef* gd = find_village_group(g.group_key);
-    dpp::embed e;
-    e.set_title("🏘️  " + (gd ? gd->name : "怪物村落") + "　回合 " + std::to_string(g.turn))
-     .set_color(0x1ABC9C);
-    if (gd && !gd->image_url.empty()) e.set_thumbnail(gd->image_url);
 
-    // Spirits
-    std::string desc = "**👹 敵方**\n";
+    std::string content = "## 🏘️ " + (gd ? gd->name : "怪物村落") + "　回合 " + std::to_string(g.turn) + "\n";
+    content += "**👹 敵方**\n";
     for (auto& s : g.spirits)
-        desc += "• **" + s.name + "**　" + hp_bar(s.hp, s.max_hp, 8) + "\n";
-    // Combined attack
-    int total_atk = 0;
-    int alive_count = 0;
+        content += "• **" + s.name + "**　" + hp_bar(s.hp, s.max_hp, 8) + "\n";
+    int total_atk = 0, alive_count = 0;
     for (auto& s : g.spirits) if (s.hp > 0) { total_atk += s.atk; alive_count++; }
-    desc += "（存活 " + std::to_string(alive_count) + " 隻，合計攻擊 " + std::to_string(total_atk) + "）\n";
-    desc += "\n**🐾 你的寵物**\n";
-    desc += "❤️ " + hp_bar(g.pet_hp, g.pet_max_hp) + "\n";
-    desc += "⚔️ 攻擊力 " + std::to_string(g.pet_atk) + "　🛡️ 防禦力 " + std::to_string(g.pet_def) + "\n";
-    if (!g.log_line.empty()) desc += "\n📋 " + g.log_line;
-    e.set_description(desc);
+    content += "（存活 " + std::to_string(alive_count) + " 隻，合計攻擊 " + std::to_string(total_atk) + "）\n";
+    content += "\n**🐾 你的寵物**\n";
+    content += "❤️ " + hp_bar(g.pet_hp, g.pet_max_hp) + "\n";
+    content += "⚔️ 攻擊力 " + std::to_string(g.pet_atk) + "　🛡️ 防禦力 " + std::to_string(g.pet_def) + "\n";
+    if (!g.log_line.empty()) content += "\n📋 " + g.log_line;
+    content += "\n\n-# 👤 " + display_name + "　|　限時 10 分鐘";
 
-    dpp::embed_footer footer;
-    footer.text = "👤 " + display_name + "　|　限時 10 分鐘";
-    if (!avatar_url.empty()) footer.icon_url = avatar_url;
-    e.set_footer(footer);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x1A, 0xBC, 0x9C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
 
-    dpp::message msg; msg.add_embed(e);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
 
-    // Target selection row
     dpp::component row; row.set_type(dpp::cot_action_row);
     for (int i = 0; i < (int)g.spirits.size(); i++) {
         auto& s = g.spirits[i];
         bool is_selected = (i == g.selected_target);
-        dpp::component b;
-        b.set_type(dpp::cot_button)
-         .set_label(s.hp <= 0 ? "💀 " + s.name : (is_selected ? "🎯 " : "") + s.name)
-         .set_id("village_atk_" + uid_s + "_" + std::to_string(i))
-         .set_style(s.hp <= 0 ? dpp::cos_secondary : is_selected ? dpp::cos_success : dpp::cos_danger)
-         .set_disabled(s.hp <= 0);
-        row.add_component(b);
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+             .set_label(s.hp <= 0 ? "💀 " + s.name : (is_selected ? "🎯 " : "") + s.name)
+             .set_id("village_atk_" + uid_s + "_" + std::to_string(i))
+             .set_style(s.hp <= 0 ? dpp::cos_secondary : is_selected ? dpp::cos_success : dpp::cos_danger)
+             .set_disabled(s.hp <= 0));
     }
-    msg.add_component(row);
+    msg.add_component_v2(row);
 
-    // Attack type row (only when target selected)
     if (g.selected_target >= 0 && g.selected_target < (int)g.spirits.size() && g.spirits[g.selected_target].hp > 0) {
         dpp::component exec_row; exec_row.set_type(dpp::cot_action_row);
         exec_row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("⚔️ 一般攻擊")
-            .set_id("village_exec_" + uid_s + "_n")
-            .set_style(dpp::cos_primary));
+            .set_label("⚔️ 一般攻擊").set_id("village_exec_" + uid_s + "_n").set_style(dpp::cos_primary));
         exec_row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("🎲 氣力攻擊（×0.1~2.0）")
-            .set_id("village_exec_" + uid_s + "_p")
-            .set_style(dpp::cos_danger));
+            .set_label("🎲 氣力攻擊（×0.1~2.0）").set_id("village_exec_" + uid_s + "_p").set_style(dpp::cos_danger));
         exec_row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("↩ 返回")
-            .set_id("village_back_" + uid_s)
-            .set_style(dpp::cos_secondary));
-        msg.add_component(exec_row);
+            .set_label("↩ 返回").set_id("village_back_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component_v2(exec_row);
     }
 
     if (g.orb_key == "EQ_K_BEAR") {
         dpp::component bear_row; bear_row.set_type(dpp::cot_action_row);
         bear_row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("🛡️ 防禦").set_id("village_block_" + uid_s)
-            .set_style(dpp::cos_secondary));
-        msg.add_component(bear_row);
+            .set_label("🛡️ 防禦").set_id("village_block_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component_v2(bear_row);
     }
     dpp::component ref_row; ref_row.set_type(dpp::cot_action_row);
     ref_row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🔄 刷新").set_id("village_refresh_" + uid_s)
-        .set_style(dpp::cos_secondary));
-    msg.add_component(ref_row);
+        .set_label("🔄 刷新").set_id("village_refresh_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(ref_row);
     return msg;
 }
 
@@ -751,37 +701,38 @@ static dpp::message make_village_end_msg(bool win, const VillageGame& g,
                                           int spirits_killed) {
     std::string uid_s = std::to_string((uint64_t)g.uid);
     const VillageGroupDef* gd = find_village_group(g.group_key);
-    dpp::embed e;
+    uint32_t accent = win ? dpp::utility::rgb(0x2E, 0xCC, 0x71) : dpp::utility::rgb(0xE7, 0x4C, 0x3C);
+    std::string content;
     if (win) {
-        e.set_title("🎉  全部消滅！").set_color(0x2ECC71);
-        std::string desc = "全數擊敗 **" + (gd ? gd->name : "怪物") + "**！\n";
-        if (first_clear) desc += "⭐ **首次通關！額外獎勵 3000 碼！**\n";
-        desc += "💰 獲得 **" + std::to_string(reward) + "** 碼！";
+        content = "## 🎉 全部消滅！\n全數擊敗 **" + (gd ? gd->name : "怪物") + "**！\n";
+        if (first_clear) content += "⭐ **首次通關！額外獎勵 3000 碼！**\n";
+        content += "💰 獲得 **" + std::to_string(reward) + "** 碼！";
         for (auto& [key, cnt] : drops) {
             std::string nm = key;
             for (auto& vi : VIRTUAL_ITEMS) if (vi.key == key) { nm = vi.name; break; }
             std::string icon = key.find("shard") != std::string::npos ? "💎"
                              : key == "star_unknown" ? "⭐" : "🎁";
-            desc += "\n" + icon + " 掉落：**" + nm + "** ×" + std::to_string(cnt) + "！";
+            content += "\n" + icon + " 掉落：**" + nm + "** ×" + std::to_string(cnt) + "！";
         }
-        e.set_description(desc);
     } else {
-        e.set_title("💀  挑戰失敗").set_color(0xE74C3C);
         int total_spirits = gd ? (int)([&]{ int n=0; for(auto& sd:gd->spirit_types) n+=sd.count; return n; }()) : (int)g.spirits.size();
-        std::string group_label = gd ? gd->name : "怪物";
-        e.set_description("消滅了 **" + std::to_string(spirits_killed) + "/" + std::to_string(total_spirits) + "** 隻" + group_label + "。\n"
-                          "💔 寵物獲得了「**受傷**」狀態，需要高級傷藥才能再次狩獵。");
+        content = "## 💀 挑戰失敗\n消滅了 **" + std::to_string(spirits_killed) + "/" + std::to_string(total_spirits) + "** 隻" + (gd ? gd->name : "怪物") + "。\n"
+                  "💔 寵物獲得了「**受傷**」狀態，需要高級傷藥才能再次狩獵。";
     }
-    if (gd && !gd->image_url.empty()) e.set_thumbnail(gd->image_url);
-    dpp::embed_footer footer;
-    footer.text = "👤 " + display_name;
-    if (!avatar_url.empty()) footer.icon_url = avatar_url;
-    e.set_footer(footer);
-    dpp::message msg; msg.add_embed(e);
+    content += "\n\n-# 👤 " + display_name;
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(accent);
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回狩獵頁面").set_id("hunt_main_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component(row);
+    msg.add_component_v2(row);
     return msg;
 }
 
@@ -791,17 +742,20 @@ static dpp::message make_village_timeout_msg(const VillageGame& g,
                                               const std::string& display_name,
                                               const std::string& avatar_url) {
     std::string uid_s = std::to_string((uint64_t)g.uid);
-    dpp::embed e;
-    e.set_title("⏰  時間到！").set_color(0xE74C3C);
-    e.set_description("10 分鐘限時到了！戰鬥自動判定失敗。\n💔 寵物獲得了「**受傷**」狀態。");
-    dpp::embed_footer footer;
-    footer.text = "👤 " + display_name;
-    if (!avatar_url.empty()) footer.icon_url = avatar_url;
-    e.set_footer(footer);
-    dpp::message msg; msg.add_embed(e);
-    msg.add_component(dpp::component().set_type(dpp::cot_action_row)
-        .add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("↩ 返回狩獵頁面").set_id("hunt_main_" + uid_s).set_style(dpp::cos_secondary)));
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## ⏰ 時間到！\n10 分鐘限時到了！戰鬥自動判定失敗。\n💔 寵物獲得了「**受傷**」狀態。\n\n-# 👤 " + display_name));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回狩獵頁面").set_id("hunt_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
     return msg;
 }
 
@@ -811,20 +765,20 @@ static dpp::message make_combat_timeout_msg(const MonsterHuntGame& g,
                                             const std::string& display_name,
                                             const std::string& avatar_url) {
     std::string uid_s = std::to_string((uint64_t)g.uid);
-    dpp::embed e;
-    e.set_title("⏰  時間到！").set_color(0xE74C3C);
-    e.set_description("10 分鐘限時到了！戰鬥自動判定失敗。\n"
-                      "💔 寵物獲得了「**受傷**」狀態。");
-    dpp::embed_footer footer;
-    footer.text = "👤 " + display_name;
-    if (!avatar_url.empty()) footer.icon_url = avatar_url;
-    e.set_footer(footer);
-    dpp::message msg; msg.add_embed(e);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## ⏰ 時間到！\n10 分鐘限時到了！戰鬥自動判定失敗。\n"
+                     "💔 寵物獲得了「**受傷**」狀態。\n\n-# 👤 " + display_name));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
     dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component back;
-    back.set_type(dpp::cot_button).set_label("↩ 返回狩獵頁面")
-        .set_id("hunt_main_" + uid_s).set_style(dpp::cos_secondary);
-    row.add_component(back);
-    msg.add_component(row);
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 返回狩獵頁面")
+        .set_id("hunt_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
     return msg;
 }

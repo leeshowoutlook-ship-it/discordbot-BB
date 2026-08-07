@@ -168,38 +168,38 @@ static dpp::message make_bank_msg(dpp::snowflake uid, const std::string& notice 
     int64_t loan_total = calc_loan_with_interest(loan, loan_time_v);
     time_t  next_mid   = next_utc8_midnight();
 
-    dpp::embed e;
-    e.set_title("🏦  銀行").set_color(0x27AE60);
-    if (!notice.empty()) e.set_description(notice);
+    std::string content = "## 🏦 銀行\n";
+    if (!notice.empty()) content += notice + "\n\n";
 
     if (deposited > 0) {
-        e.add_field("💰  存款餘額", "**" + std::to_string(deposited) + "** 碼", false);
-        std::string min_s = "**" + std::to_string(daily_min) + "** 碼";
-        min_s += "（今日計息基礎，利息 +" + std::to_string((int64_t)(daily_min * DEPOSIT_RATE + 0.5)) + " 碼）";
-        e.add_field("📉  今日最低餘額", min_s, false);
-        e.add_field("⏰  下次計息",
-            "<t:" + std::to_string((int64_t)next_mid) + ":f>（<t:" + std::to_string((int64_t)next_mid) + ":R>）", false);
+        std::string min_s = "**" + std::to_string(daily_min) + "** 碼"
+            + "（今日計息基礎，利息 +" + std::to_string((int64_t)(daily_min * DEPOSIT_RATE + 0.5)) + " 碼）";
+        content += "**💰 存款餘額** **" + std::to_string(deposited) + "** 碼\n";
+        content += "**📉 今日最低餘額** " + min_s + "\n";
+        content += "**⏰ 下次計息** <t:" + std::to_string((int64_t)next_mid) + ":f>（<t:" + std::to_string((int64_t)next_mid) + ":R>）\n";
     }
     if (loan_total > 0) {
         std::string s = "**" + std::to_string(loan_total) + "** 碼";
         if (loan_total > loan)
             s += "（本金 " + std::to_string(loan) + "，利息 +" + std::to_string(loan_total - loan) + "）";
-        e.add_field("💸  借款餘額", s, false);
+        content += "**💸 借款餘額** " + s + "\n";
         int64_t loan_days      = (time(nullptr) - loan_time_v) / 86400;
         int64_t next_loan_tick = loan_time_v + (loan_days + 1) * 86400;
-        e.add_field("⏰  借款下次跳息",
-            "<t:" + std::to_string(next_loan_tick) + ":f>（<t:" + std::to_string(next_loan_tick) + ":R>）", false);
+        content += "**⏰ 借款下次跳息** <t:" + std::to_string(next_loan_tick) + ":f>（<t:" + std::to_string(next_loan_tick) + ":R>）\n";
     }
     if (deposited == 0 && loan_total == 0)
-        e.add_field("📊  目前狀態", "無存款、無借款", false);
+        content += "**📊 目前狀態** 無存款、無借款\n";
 
-    e.add_field("💼  錢包持有", "**" + std::to_string(chips) + "** 碼", false);
-    e.set_footer(dpp::embed_footer().set_text(
-        "存款利率 0.5%/天（每日最低餘額計息，午夜 12:00 結算）· 借款利率 5%/天（複利）· 借款上限 10,000 碼"));
+    content += "**💼 錢包持有** **" + std::to_string(chips) + "** 碼\n";
+    content += "\n-# 存款利率 0.5%/天（每日最低餘額計息，午夜 12:00 結算）· 借款利率 5%/天（複利）· 借款上限 10,000 碼";
 
     std::string sid = std::to_string((uint64_t)uid);
-    bool has_dep   = deposited > 0;
+    bool has_dep    = deposited > 0;
     bool has_loan_b = loan_total > 0;
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x27, 0xAE, 0x60));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -224,6 +224,10 @@ static dpp::message make_bank_msg(dpp::snowflake uid, const std::string& notice 
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏠 大廳").set_id("lobby_main_" + sid).set_style(dpp::cos_secondary));
 
-    dpp::message msg; msg.add_embed(e); msg.add_component(row); msg.add_component(row2);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+    msg.add_component_v2(row);
+    msg.add_component_v2(row2);
     return msg;
 }

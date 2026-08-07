@@ -68,30 +68,35 @@ static dpp::message make_enhance_main_msg(dpp::snowflake uid,
         }
     }
 
-    dpp::embed e; e.set_title("💪  寵物強化").set_color(0xE74C3C);
-    {
-        dpp::embed_footer f; f.text = "👤 " + (dn.empty() ? uid_s : dn);
-        if (!av.empty()) f.icon_url = av; e.set_footer(f);
-    }
-
     dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    std::string user_tag = dn.empty() ? uid_s : dn;
+
     if (!has_pet) {
-        e.set_description("❌ 需要已進化的寵物才能強化！");
-        msg.add_embed(e);
+        dpp::component container;
+        container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 💪 寵物強化\n❌ 需要已進化的寵物才能強化！\n\n-# 👤 " + user_tag));
+        msg.add_component_v2(container);
         dpp::component nav; nav.set_type(dpp::cot_action_row);
         nav.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
-        msg.add_component(nav);
+        msg.add_component_v2(nav);
         return msg;
     }
 
-    std::string desc = "消耗 **未知的星星** 與籌碼，有機率強化成功（失敗不退還素材）。\n";
+    std::string desc = "## 💪 寵物強化\n";
+    desc += "消耗 **未知的星星** 與籌碼，有機率強化成功（失敗不退還素材）。\n";
     desc += "⭐ 目前持有：**" + std::to_string(stars) + "** 顆\n\n";
     desc += "⚔️ 攻擊力：Lv **" + std::to_string(pet.enh_atk) + "/" + std::to_string(ENH_MAX_LEVEL) + "**（" + enh_stat_effect("atk", pet.enh_atk) + "）\n";
     desc += "🛡️ 防禦力：Lv **" + std::to_string(pet.enh_def) + "/" + std::to_string(ENH_MAX_LEVEL) + "**（" + enh_stat_effect("def", pet.enh_def) + "）\n";
     desc += "❤️ 生命值：Lv **" + std::to_string(pet.enh_hp)  + "/" + std::to_string(ENH_MAX_LEVEL) + "**（" + enh_stat_effect("hp",  pet.enh_hp)  + "）\n";
-    e.set_description(desc);
-    msg.add_embed(e);
+    desc += "\n-# 👤 " + user_tag;
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+    msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -100,12 +105,12 @@ static dpp::message make_enhance_main_msg(dpp::snowflake uid,
         .set_label("🛡️ 防禦力").set_id("enh_pick_" + uid_s + "_def").set_style(dpp::cos_primary));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("❤️ 生命值").set_id("enh_pick_" + uid_s + "_hp").set_style(dpp::cos_primary));
-    msg.add_component(row);
+    msg.add_component_v2(row);
 
     dpp::component nav; nav.set_type(dpp::cot_action_row);
     nav.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component(nav);
+    msg.add_component_v2(nav);
     return msg;
 }
 
@@ -130,25 +135,25 @@ static dpp::message make_enhance_stat_msg(dpp::snowflake uid, const std::string&
         bb_basic_bonus = col_set_bb_basic(uid);
     }
 
-    dpp::embed e; e.set_title("💪  " + enh_stat_label(stat) + " 強化").set_color(0xE74C3C);
-    {
-        dpp::embed_footer f; f.text = "👤 " + (dn.empty() ? uid_s : dn);
-        if (!av.empty()) f.icon_url = av; e.set_footer(f);
-    }
-
     dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    std::string user_tag = dn.empty() ? uid_s : dn;
+
     if (!has_pet) {
-        e.set_description("❌ 需要已進化的寵物才能強化！");
-        msg.add_embed(e);
+        dpp::component container;
+        container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 💪 " + enh_stat_label(stat) + " 強化\n❌ 需要已進化的寵物才能強化！\n\n-# 👤 " + user_tag));
+        msg.add_component_v2(container);
         dpp::component nav; nav.set_type(dpp::cot_action_row);
         nav.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
-        msg.add_component(nav);
+        msg.add_component_v2(nav);
         return msg;
     }
 
     int level = enh_level_of(pet, stat);
-    std::string desc;
+    std::string desc = "## 💪 " + enh_stat_label(stat) + " 強化\n";
     if (!notice.empty()) desc += notice + "\n\n";
     desc += "目前等級：Lv **" + std::to_string(level) + "/" + std::to_string(ENH_MAX_LEVEL) + "**（" + enh_stat_effect(stat, level) + "）\n";
     desc += "⭐ 持有星星：**" + std::to_string(stars) + "**　💼 持有籌碼：**" + std::to_string(chips) + "**\n\n";
@@ -156,7 +161,7 @@ static dpp::message make_enhance_stat_msg(dpp::snowflake uid, const std::string&
     bool maxed = level >= ENH_MAX_LEVEL;
     bool can_afford = false;
     if (!maxed) {
-        const EnhTier& t = ENH_TABLE[level]; // 升到 level+1 所需
+        const EnhTier& t = ENH_TABLE[level];
         int eff_rate = enh_apply_rate_bonus(t.rate_pct, bb_basic_bonus);
         desc += "**升到 Lv " + std::to_string(level + 1) + "** 需要：\n";
         desc += "⭐ 星星 ×" + std::to_string(t.stars) + "　💰 籌碼 " + std::to_string(t.chips) + "　🎲 成功率 " +
@@ -166,8 +171,12 @@ static dpp::message make_enhance_stat_msg(dpp::snowflake uid, const std::string&
     } else {
         desc += "✅ 已達最高等級！";
     }
-    e.set_description(desc);
-    msg.add_embed(e);
+    desc += "\n\n-# 👤 " + user_tag;
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+    msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -175,7 +184,7 @@ static dpp::message make_enhance_stat_msg(dpp::snowflake uid, const std::string&
         .set_style(dpp::cos_danger).set_disabled(maxed || !can_afford));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回").set_id("enh_main_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component(row);
+    msg.add_component_v2(row);
     return msg;
 }
 
