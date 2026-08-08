@@ -583,10 +583,7 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x58, 0x65, 0xF2));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 🏠 大廳\n" + announcement_lobby_line() + "請選擇要前往的頁面：\n\n-# 👤 " + user_tag));
-    if (!avatar_url.empty())
-        container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(avatar_url));
+    container.add_component_v2(v2_section("## 🏠 大廳\n" + announcement_lobby_line() + "請選擇要前往的頁面：\n\n-# 👤 " + user_tag, avatar_url));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -830,10 +827,7 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
     auto make_container = [&](const std::string& c) {
         dpp::component ct;
         ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
-        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-            .set_content(c + "\n\n-# 👤 " + user_tag));
-        if (!pet_img.empty())
-            ct.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(pet_img));
+        ct.add_component_v2(v2_section(c + "\n\n-# 👤 " + user_tag, pet_img));
         msg.add_component_v2(ct);
     };
 

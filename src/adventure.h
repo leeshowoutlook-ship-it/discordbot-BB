@@ -417,13 +417,12 @@ static dpp::message make_collection_msg(dpp::snowflake uid,
     std::string user_tag = dn.empty() ? uid_s : dn;
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 📚 收藏\n"
-            "📗 **一般收藏**：各地區探險掉落的蒐藏品，未獲得者顯示 `????`。\n"
-            "⭐ **限定收藏**：全球唯一的限定品，可透過 `!交易` 轉讓。\n\n"
-            "目前持有　📗 一般：**" + std::to_string(normal_cnt) + "**　⭐ 限定：**" + std::to_string(limited_cnt) + "**"
-            "\n\n-# 👤 " + user_tag));
-    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
+    container.add_component_v2(v2_section(
+        "## 📚 收藏\n"
+        "📗 **一般收藏**：各地區探險掉落的蒐藏品，未獲得者顯示 `????`。\n"
+        "⭐ **限定收藏**：全球唯一的限定品，可透過 `!交易` 轉讓。\n\n"
+        "目前持有　📗 一般：**" + std::to_string(normal_cnt) + "**　⭐ 限定：**" + std::to_string(limited_cnt) + "**"
+        "\n\n-# 👤 " + user_tag, av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -510,8 +509,7 @@ static dpp::message make_normal_col_msg(dpp::snowflake uid,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x27, 0xAE, 0x60));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
+    container.add_component_v2(v2_section(content, av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -619,8 +617,7 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF3, 0x9C, 0x12));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
-    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
+    container.add_component_v2(v2_section(desc, av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -671,8 +668,7 @@ static dpp::message make_col_sell_msg(dpp::snowflake uid,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
+    container.add_component_v2(v2_section(content, av));
     msg.add_component_v2(container);
 
     if (!entries.empty()) {
@@ -776,8 +772,7 @@ static dpp::message make_bag_special_msg(dpp::snowflake uid,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
-    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
+    container.add_component_v2(v2_section(desc, av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -864,8 +859,7 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
-    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
+    container.add_component_v2(v2_section(desc, av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -951,8 +945,7 @@ static dpp::message make_adv_active_msg(dpp::snowflake uid,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(accent_color);
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
-    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
+    container.add_component_v2(v2_section(desc, av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -1001,8 +994,7 @@ static dpp::message make_adv_region_select_msg(dpp::snowflake uid, const std::st
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
+    container.add_component_v2(v2_section(content, av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -1028,9 +1020,7 @@ static dpp::message make_adv_duration_select_msg(dpp::snowflake uid, const std::
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## ⏰ 選擇探險時長\n最少 **2 小時**，最多 **12 小時**。\n\n-# 👤 " + user_tag));
-    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
+    container.add_component_v2(v2_section("## ⏰ 選擇探險時長\n最少 **2 小時**，最多 **12 小時**。\n\n-# 👤 " + user_tag, av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -1070,11 +1060,10 @@ static dpp::message make_adv_funds_select_msg(dpp::snowflake uid, const std::str
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 💰 選擇探險資金\n"
-            "投入的資金在探索完成前無法取回；若中途取消探索，只會退還 60%。\n上限 10000 碼。\n\n"
-            "目前錢包：**" + std::to_string(cur) + "** 碼\n\n-# 👤 " + user_tag));
-    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
+    container.add_component_v2(v2_section(
+        "## 💰 選擇探險資金\n"
+        "投入的資金在探索完成前無法取回；若中途取消探索，只會退還 60%。\n上限 10000 碼。\n\n"
+        "目前錢包：**" + std::to_string(cur) + "** 碼\n\n-# 👤 " + user_tag, av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -1123,8 +1112,7 @@ static dpp::message make_adv_partner_select_msg(dpp::snowflake uid, const std::s
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
-    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
+    container.add_component_v2(v2_section(desc, av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);

@@ -149,9 +149,7 @@ static dpp::message make_hunt_main_msg(dpp::snowflake uid, const Pet& pet,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xC0, 0x39, 0x2B));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    if (!avatar_url.empty())
-        container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(avatar_url));
+    container.add_component_v2(v2_section(content, avatar_url));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -210,9 +208,7 @@ static dpp::message make_hunt_diff_msg(dpp::snowflake uid, const std::string& di
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xC0, 0x39, 0x2B));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    if (!avatar_url.empty())
-        container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(avatar_url));
+    container.add_component_v2(v2_section(content, avatar_url));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -258,9 +254,7 @@ static dpp::message make_combat_msg(const MonsterHuntGame& g,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xC0, 0x39, 0x2B));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    if (!avatar_url.empty())
-        container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(avatar_url));
+    container.add_component_v2(v2_section(content, avatar_url));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -440,9 +434,7 @@ static dpp::message make_combat_end_msg(bool win, const MonsterHuntGame& g,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(accent);
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    if (!avatar_url.empty())
-        container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(avatar_url));
+    container.add_component_v2(v2_section(content, avatar_url));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -505,9 +497,7 @@ static dpp::message make_village_select_msg(dpp::snowflake uid,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x34, 0x98, 0xDB));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    if (!avatar_url.empty())
-        container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(avatar_url));
+    container.add_component_v2(v2_section(content, avatar_url));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -552,9 +542,7 @@ static dpp::message make_village_combat_msg(const VillageGame& g,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x1A, 0xBC, 0x9C));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    if (!avatar_url.empty())
-        container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(avatar_url));
+    container.add_component_v2(v2_section(content, avatar_url));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -735,9 +723,7 @@ static dpp::message make_village_end_msg(bool win, const VillageGame& g,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(accent);
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    if (!avatar_url.empty())
-        container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(avatar_url));
+    container.add_component_v2(v2_section(content, avatar_url));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -759,10 +745,7 @@ static dpp::message make_village_timeout_msg(const VillageGame& g,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## ⏰ 時間到！\n10 分鐘限時到了！戰鬥自動判定失敗。\n💔 寵物獲得了「**受傷**」狀態。\n\n-# 👤 " + display_name));
-    if (!avatar_url.empty())
-        container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(avatar_url));
+    container.add_component_v2(v2_section("## ⏰ 時間到！\n10 分鐘限時到了！戰鬥自動判定失敗。\n💔 寵物獲得了「**受傷**」狀態。\n\n-# 👤 " + display_name, avatar_url));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -784,11 +767,8 @@ static dpp::message make_combat_timeout_msg(const MonsterHuntGame& g,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## ⏰ 時間到！\n10 分鐘限時到了！戰鬥自動判定失敗。\n"
-                     "💔 寵物獲得了「**受傷**」狀態。\n\n-# 👤 " + display_name));
-    if (!avatar_url.empty())
-        container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(avatar_url));
+    container.add_component_v2(v2_section("## ⏰ 時間到！\n10 分鐘限時到了！戰鬥自動判定失敗。\n"
+                     "💔 寵物獲得了「**受傷**」狀態。\n\n-# 👤 " + display_name, avatar_url));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);

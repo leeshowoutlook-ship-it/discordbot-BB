@@ -633,9 +633,7 @@ static dpp::message make_equip_msg(dpp::snowflake uid, const Pet& pet,
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    if (!avatar_url.empty())
-        container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(avatar_url));
+    container.add_component_v2(v2_section(content, avatar_url));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -727,9 +725,7 @@ static dpp::message make_equip_slot_msg(dpp::snowflake uid, const std::string& s
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    if (!avatar_url.empty())
-        container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(avatar_url));
+    container.add_component_v2(v2_section(content, avatar_url));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
