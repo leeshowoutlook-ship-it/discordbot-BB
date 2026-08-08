@@ -916,10 +916,9 @@ static const StockDef* find_stock_def(const std::string& key) {
 // V2 helper：把文字（與可選縮圖）包成一個 section，再加入 container
 // 若 thumb_url 為空，退化成純 text_display（不使用 section）
 static inline dpp::component v2_section(const std::string& text, const std::string& thumb_url = "") {
-    auto td = dpp::component().set_type(dpp::cot_text_display).set_content(text);
     if (thumb_url.empty())
-        return dpp::component().set_type(dpp::cot_section).add_component_v2(td);
+        return dpp::component().set_type(dpp::cot_text_display).set_content(text);
     return dpp::component().set_type(dpp::cot_section)
-        .add_component_v2(td)
+        .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
         .set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(thumb_url));
 }
