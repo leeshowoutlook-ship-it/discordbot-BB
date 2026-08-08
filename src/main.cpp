@@ -1601,8 +1601,7 @@ int main(int argc, char* argv[]) {
                 }
             }
             if (saved) { save_chips(); save_bank(); }
-            ev.reply(dpp::ir_channel_message_with_source,
-                make_bank_msg(modal_uid, notice).set_flags(dpp::m_ephemeral));
+            ev.reply(dpp::ir_update_message, make_bank_msg(modal_uid, notice));
             return;
         }
 
@@ -1653,8 +1652,7 @@ int main(int argc, char* argv[]) {
                 }
             }
             if (saved) { save_chips(); save_bank(); }
-            ev.reply(dpp::ir_channel_message_with_source,
-                make_bank_msg(modal_uid, notice).set_flags(dpp::m_ephemeral));
+            ev.reply(dpp::ir_update_message, make_bank_msg(modal_uid, notice));
             return;
         }
 
@@ -1699,8 +1697,7 @@ int main(int argc, char* argv[]) {
                 } // outer else
             }
             if (saved) { save_chips(); save_bank(); }
-            ev.reply(dpp::ir_channel_message_with_source,
-                make_bank_msg(modal_uid, notice).set_flags(dpp::m_ephemeral));
+            ev.reply(dpp::ir_update_message, make_bank_msg(modal_uid, notice));
             return;
         }
 
@@ -1759,8 +1756,7 @@ int main(int argc, char* argv[]) {
                 }
             }
             if (saved) { save_chips(); save_bank(); }
-            ev.reply(dpp::ir_channel_message_with_source,
-                make_bank_msg(modal_uid, notice).set_flags(dpp::m_ephemeral));
+            ev.reply(dpp::ir_update_message, make_bank_msg(modal_uid, notice));
             return;
         }
 

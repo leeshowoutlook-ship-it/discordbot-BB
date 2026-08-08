@@ -77,6 +77,7 @@ static dpp::message make_enhance_main_msg(dpp::snowflake uid,
         container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
         container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
             .set_content("## 💪 寵物強化\n❌ 需要已進化的寵物才能強化！\n\n-# 👤 " + user_tag));
+        if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
         msg.add_component_v2(container);
         dpp::component nav; nav.set_type(dpp::cot_action_row);
         nav.add_component(dpp::component().set_type(dpp::cot_button)
@@ -96,6 +97,7 @@ static dpp::message make_enhance_main_msg(dpp::snowflake uid,
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
     msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
@@ -144,6 +146,7 @@ static dpp::message make_enhance_stat_msg(dpp::snowflake uid, const std::string&
         container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
         container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
             .set_content("## 💪 " + enh_stat_label(stat) + " 強化\n❌ 需要已進化的寵物才能強化！\n\n-# 👤 " + user_tag));
+        if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
         msg.add_component_v2(container);
         dpp::component nav; nav.set_type(dpp::cot_action_row);
         nav.add_component(dpp::component().set_type(dpp::cot_button)
@@ -176,6 +179,7 @@ static dpp::message make_enhance_stat_msg(dpp::snowflake uid, const std::string&
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
     msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);

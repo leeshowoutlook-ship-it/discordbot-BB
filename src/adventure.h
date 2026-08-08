@@ -423,6 +423,7 @@ static dpp::message make_collection_msg(dpp::snowflake uid,
             "⭐ **限定收藏**：全球唯一的限定品，可透過 `!交易` 轉讓。\n\n"
             "目前持有　📗 一般：**" + std::to_string(normal_cnt) + "**　⭐ 限定：**" + std::to_string(limited_cnt) + "**"
             "\n\n-# 👤 " + user_tag));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -510,6 +511,7 @@ static dpp::message make_normal_col_msg(dpp::snowflake uid,
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x27, 0xAE, 0x60));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -618,6 +620,7 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF3, 0x9C, 0x12));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -669,6 +672,7 @@ static dpp::message make_col_sell_msg(dpp::snowflake uid,
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
     msg.add_component_v2(container);
 
     if (!entries.empty()) {
@@ -773,6 +777,7 @@ static dpp::message make_bag_special_msg(dpp::snowflake uid,
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -846,8 +851,12 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
         if (setup.star_boost) desc += "（含星星 +10）";
         if (reg) {
             AdvPreview prev = calc_adv_preview(reg->key, prog);
-            desc += "\n📊 有 **" + std::to_string((int)std::lround(prev.miss_pct))
-                  + "%** 機率無法獲得戰利品，目前最有可能前往 **" + prev.likely_tier + "**";
+            if (setup.star_boost) {
+                desc += "\n📊 有 **0%** 機率無法獲得戰利品（星星保證重骰到有為止），目前最有可能前往 **" + prev.likely_tier + "**";
+            } else {
+                desc += "\n📊 有 **" + std::to_string((int)std::lround(prev.miss_pct))
+                      + "%** 機率無法獲得戰利品，目前最有可能前往 **" + prev.likely_tier + "**";
+            }
         }
     }
     desc += "\n\n⚠️ **注意：探索度並不是越高越好。**";
@@ -856,6 +865,7 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -942,6 +952,7 @@ static dpp::message make_adv_active_msg(dpp::snowflake uid,
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(accent_color);
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -991,6 +1002,7 @@ static dpp::message make_adv_region_select_msg(dpp::snowflake uid, const std::st
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -1018,6 +1030,7 @@ static dpp::message make_adv_duration_select_msg(dpp::snowflake uid, const std::
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
         .set_content("## ⏰ 選擇探險時長\n最少 **2 小時**，最多 **12 小時**。\n\n-# 👤 " + user_tag));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -1061,6 +1074,7 @@ static dpp::message make_adv_funds_select_msg(dpp::snowflake uid, const std::str
         .set_content("## 💰 選擇探險資金\n"
             "投入的資金在探索完成前無法取回；若中途取消探索，只會退還 60%。\n上限 10000 碼。\n\n"
             "目前錢包：**" + std::to_string(cur) + "** 碼\n\n-# 👤 " + user_tag));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -1110,6 +1124,7 @@ static dpp::message make_adv_partner_select_msg(dpp::snowflake uid, const std::s
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+    if (!av.empty()) container.set_accessory(dpp::component().set_type(dpp::cot_thumbnail).set_thumbnail(av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -1467,7 +1482,8 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
 
             item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
             if (item_key.empty() && g.star_boost) {
-                item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
+                for (int _r = 0; _r < 50 && item_key.empty(); _r++)
+                    item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
                 star_rerolled = true;
             }
             if (!item_key.empty()) { inv[item_key]++; item_added = true; }
