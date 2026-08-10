@@ -2717,10 +2717,12 @@ int main(int argc, char* argv[]) {
     });
 
     // ── on_ready ──────────────────────────────────────────────────────────────
+    // 斷線後若 session 過期（無法 resume），DPP 會重新 IDENTIFY，on_ready 會再次觸發。
+    // 整個 body 用 run_once 包起來，避免 timer（股價、抽獎、備份...）被重複註冊。
     bot.on_ready([&bot](const dpp::ready_t& event) {
+      if (dpp::run_once<struct on_ready_once>()) {
         // 清除舊的 global commands（避免與 guild commands 重複顯示）
-        if (dpp::run_once<struct clear_global_cmds>())
-            bot.global_bulk_command_create({});
+        bot.global_bulk_command_create({});
 
         // 從 bot 應用程式抓 application emoji（需手動帶 Authorization header）
         std::string app_id   = std::to_string((uint64_t)bot.me.id);
@@ -2923,6 +2925,7 @@ int main(int argc, char* argv[]) {
                 }
             }
         }, 300);
+      } // run_once<on_ready_once>
 
         printf("Bot 已上線：%s\n", bot.me.username.c_str());
     });
