@@ -191,6 +191,12 @@ static const std::map<std::string,int64_t> COL_SELL_PRICE = {
     {"col_mushroom_head", 3000}, {"col_mb_crown", 3000}, {"col_mb_staff", 3000},
     {"col_awl_avocado",   3000}, {"col_sqwl_brownie", 3000}, {"col_ywl_caramel", 3000},
     {"col_demon_tear",    3000}, {"col_demon_heart", 3000}, {"col_demon_horn", 3000}, {"col_demon_costume", 3000},
+    // BB自然博物館 — 低級（1000）
+    {"col_bb_pink_cup", 1000}, {"col_bb_desk_terror", 1000}, {"col_bb_signus_chalice", 1000}, {"col_bb_mercury_staff", 1000},
+    // BB自然博物館 — 中級（2000）
+    {"col_bb_horn", 2000}, {"col_bb_death_ring", 2000}, {"col_bb_ski", 2000},
+    // BB自然博物館 — 高級（3000）
+    {"col_bb_blood_gem", 3000}, {"col_bb_bracelet", 3000}, {"col_bb_mirror", 3000},
 };
 static std::string col_tier_label(const std::string& key) {
     auto it = COL_SELL_PRICE.find(key);

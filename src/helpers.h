@@ -11,6 +11,12 @@
 #else
 #include <fcntl.h>
 #include <unistd.h>
+// MSVC 專屬的 localtime_s(tm*, time_t*)，Mac/Linux 標準函式庫沒有這個函式。
+// 用 POSIX 的 localtime_r 包成同樣的參數順序/簽名，讓全專案既有的呼叫點不用改，
+// 只在非 Windows 平台編譯時生效，完全不影響 Windows/執行機那邊的行為。
+inline int localtime_s(struct tm* out, const time_t* t) {
+    return localtime_r(t, out) ? 0 : 1;
+}
 #endif
 
 // Atomic JSON save: write to .tmp, fsync to flush OS write cache, then rename.
@@ -172,7 +178,11 @@ static int parse_duration(const std::string& s) {
     if (s.empty()) return 3600;
     int val = 0;
     char unit = 'h';
+#ifdef _WIN32
     sscanf_s(s.c_str(), "%d%c", &val, &unit, 1);
+#else
+    sscanf(s.c_str(), "%d%c", &val, &unit);
+#endif
     if (val <= 0) return 3600;
     switch (unit) {
         case 'm': case 'M': return val * 60;
@@ -266,7 +276,11 @@ static bool is_date_past(const std::string& date_label) {
     struct tm tm_now{};
     localtime_s(&tm_now, &now);
     int mon, day;
+#ifdef _WIN32
     if (sscanf_s(date_label.c_str(), "%d/%d", &mon, &day) != 2) return false;
+#else
+    if (sscanf(date_label.c_str(), "%d/%d", &mon, &day) != 2) return false;
+#endif
     struct tm today_cmp = tm_now;
     today_cmp.tm_hour = 0; today_cmp.tm_min = 0; today_cmp.tm_sec = 0;
     time_t today_t0 = mktime(&today_cmp);

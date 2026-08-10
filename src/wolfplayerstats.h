@@ -97,31 +97,30 @@ static dpp::message make_wallet_wolf_msg(dpp::snowflake uid) {
         return buf;
     };
 
-    dpp::embed e;
-    e.set_title("🐺  狼人殺紀錄").set_color(0x8B0000);
-    e.set_description("<@" + std::to_string((uint64_t)uid) + ">");
+    std::string content = "## 🐺 狼人殺紀錄\n<@" + std::to_string((uint64_t)uid) + ">\n\n";
+    content += "**😇 好人陣營**\n";
+    content += (s.good_games > 0)
+        ? ("場次 **" + std::to_string(s.good_games) + "**　勝場 **" + std::to_string(s.good_wins) +
+           "**　勝率 **" + fmt_rate(s.good_wins, s.good_games) + "**\n\n")
+        : "尚無紀錄\n\n";
+    content += "**🐺 壞人陣營**\n";
+    content += (s.bad_games > 0)
+        ? ("場次 **" + std::to_string(s.bad_games) + "**　勝場 **" + std::to_string(s.bad_wins) +
+           "**　勝率 **" + fmt_rate(s.bad_wins, s.bad_games) + "**")
+        : "尚無紀錄";
 
-    if (s.good_games > 0) {
-        e.add_field("😇  好人陣營",
-            "場次 **" + std::to_string(s.good_games) + "**　"
-            "勝場 **" + std::to_string(s.good_wins) + "**　"
-            "勝率 **" + fmt_rate(s.good_wins, s.good_games) + "**", false);
-    } else {
-        e.add_field("😇  好人陣營", "尚無紀錄", false);
-    }
-    if (s.bad_games > 0) {
-        e.add_field("🐺  壞人陣營",
-            "場次 **" + std::to_string(s.bad_games) + "**　"
-            "勝場 **" + std::to_string(s.bad_wins) + "**　"
-            "勝率 **" + fmt_rate(s.bad_wins, s.bad_games) + "**", false);
-    } else {
-        e.add_field("🐺  壞人陣營", "尚無紀錄", false);
-    }
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x8B, 0x00, 0x00));
+    container.add_component_v2(v2_section(content));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
 
     std::string sid = std::to_string((uint64_t)uid);
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("← 返回").set_id("wallet_games_" + sid).set_style(dpp::cos_secondary));
-    dpp::message msg; msg.add_embed(e); msg.add_component(row);
+    msg.add_component_v2(row);
     return msg;
 }

@@ -56,39 +56,35 @@ static dpp::message make_wallet_onw_msg(dpp::snowflake uid) {
         return buf;
     };
 
-    dpp::embed e;
-    e.set_title("🌙  一夜狼人紀錄").set_color(0x2C3E50);
-    e.set_description("<@" + std::to_string((uint64_t)uid) + ">");
+    std::string content = "## 🌙 一夜狼人紀錄\n<@" + std::to_string((uint64_t)uid) + ">\n\n";
+    content += "**🐺 狼人陣**\n";
+    content += (s.wolf_games > 0)
+        ? ("場次 **" + std::to_string(s.wolf_games) + "**　勝場 **" + std::to_string(s.wolf_wins) +
+           "**　勝率 **" + fmt_rate(s.wolf_wins, s.wolf_games) + "**\n\n")
+        : "尚無紀錄\n\n";
+    content += "**🏘️ 村民陣**\n";
+    content += (s.village_games > 0)
+        ? ("場次 **" + std::to_string(s.village_games) + "**　勝場 **" + std::to_string(s.village_wins) +
+           "**　勝率 **" + fmt_rate(s.village_wins, s.village_games) + "**\n\n")
+        : "尚無紀錄\n\n";
+    content += "**🩱 皮革匠**\n";
+    content += (s.tanner_games > 0)
+        ? ("場次 **" + std::to_string(s.tanner_games) + "**　獨贏 **" + std::to_string(s.tanner_wins) +
+           "**　勝率 **" + fmt_rate(s.tanner_wins, s.tanner_games) + "**")
+        : "尚無紀錄";
 
-    if (s.wolf_games > 0) {
-        e.add_field("🐺  狼人陣",
-            "場次 **" + std::to_string(s.wolf_games) + "**　"
-            "勝場 **" + std::to_string(s.wolf_wins) + "**　"
-            "勝率 **" + fmt_rate(s.wolf_wins, s.wolf_games) + "**", false);
-    } else {
-        e.add_field("🐺  狼人陣", "尚無紀錄", false);
-    }
-    if (s.village_games > 0) {
-        e.add_field("🏘️  村民陣",
-            "場次 **" + std::to_string(s.village_games) + "**　"
-            "勝場 **" + std::to_string(s.village_wins) + "**　"
-            "勝率 **" + fmt_rate(s.village_wins, s.village_games) + "**", false);
-    } else {
-        e.add_field("🏘️  村民陣", "尚無紀錄", false);
-    }
-    if (s.tanner_games > 0) {
-        e.add_field("🩱  皮革匠",
-            "場次 **" + std::to_string(s.tanner_games) + "**　"
-            "獨贏 **" + std::to_string(s.tanner_wins) + "**　"
-            "勝率 **" + fmt_rate(s.tanner_wins, s.tanner_games) + "**", false);
-    } else {
-        e.add_field("🩱  皮革匠", "尚無紀錄", false);
-    }
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2C, 0x3E, 0x50));
+    container.add_component_v2(v2_section(content));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
 
     std::string sid = std::to_string((uint64_t)uid);
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("← 返回").set_id("wallet_games_" + sid).set_style(dpp::cos_secondary));
-    dpp::message msg; msg.add_embed(e); msg.add_component(row);
+    msg.add_component_v2(row);
     return msg;
 }

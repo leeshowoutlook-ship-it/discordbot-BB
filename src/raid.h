@@ -135,17 +135,20 @@ static dpp::message make_raid_boss_select_msg(dpp::snowflake uid,
                                               const std::string& av) {
     std::string uid_s = std::to_string((uint64_t)uid);
 
-    dpp::embed e;
-    e.set_title("⚔️  組隊遠征 — 選擇王");
-    e.set_color(0xE74C3C);
-    e.set_description("選擇要挑戰的王，需持有 **每週怪物狩獵卷** ×1。");
-    e.add_field("👑 可挑戰",
-        "🐉 **拉圖斯**　HP 1500　ATK 40　DEF 2\n"
-        "🌑 **暗黑龍王**　HP 2500　ATK 55　DEF 5　⚠️ 生命汲取無視防禦", false);
-    e.add_field("🔒 未開放",
-        "🔥 **混沌炎魔**", false);
-    if (!av.empty()) e.set_thumbnail(av);
-    e.set_footer(dpp::embed_footer().set_text("👤 " + dn));
+    std::string content = "## ⚔️ 組隊遠征 — 選擇王\n選擇要挑戰的王，需持有 **每週怪物狩獵卷** ×1。\n\n";
+    content += "**👑 可挑戰**\n"
+               "🐉 **拉圖斯**　HP 1500　ATK 40　DEF 2\n"
+               "🌑 **暗黑龍王**　HP 2500　ATK 55　DEF 5　⚠️ 生命汲取無視防禦\n\n";
+    content += "**🔒 未開放**\n🔥 **混沌炎魔**\n\n";
+    content += "-# 👤 " + dn;
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    container.add_component_v2(v2_section(content, av));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -175,8 +178,8 @@ static dpp::message make_raid_boss_select_msg(dpp::snowflake uid,
         .set_id("hunt_main_" + uid_s)
         .set_style(dpp::cos_secondary));
 
-    dpp::message msg; msg.add_embed(e);
-    msg.add_component(row).add_component(row2);
+    msg.add_component_v2(row);
+    msg.add_component_v2(row2);
     return msg;
 }
 

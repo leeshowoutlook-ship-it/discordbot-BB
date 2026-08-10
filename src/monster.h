@@ -81,8 +81,9 @@ static const std::vector<std::string> DROP_RECOVERY_ITEMS = {
 
 static std::string hp_bar(int cur, int max_hp, int len = 10) {
     int filled = (max_hp > 0) ? std::max(0, cur * len / max_hp) : 0;
-    std::string bar(filled, '█');
-    bar += std::string(len - filled, '░');
+    filled = std::max(0, std::min(len, filled));
+    std::string bar;
+    for (int i = 0; i < len; i++) bar += (i < filled) ? "█" : "░";
     return bar + " " + std::to_string(cur) + "/" + std::to_string(max_hp);
 }
 
