@@ -477,8 +477,8 @@ int main(int argc, char* argv[]) {
             dpp::message m;
             if (text.empty()) {
                 m = make_announcement_view_msg();
-            } else if (!is_draw_authorized_msg(uid, ev.msg.member.get_roles())) {
-                m.set_content("❌ 只有管理員或副會長能設定公告！");
+            } else if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
+                m.set_content("❌ 沒有權限設定公告！");
             } else {
                 std::string dn = ev.msg.member.get_nickname().empty()
                                ? ev.msg.author.username : ev.msg.member.get_nickname();
@@ -2040,9 +2040,9 @@ int main(int argc, char* argv[]) {
             if (std::holds_alternative<std::string>(tp)) text = std::get<std::string>(tp);
             if (text.empty()) {
                 ev.reply(dpp::ir_channel_message_with_source, make_announcement_view_msg());
-            } else if (!is_draw_authorized_msg(uid, ev.command.member.get_roles())) {
+            } else if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
                 ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 只有管理員或副會長能設定公告！").set_flags(dpp::m_ephemeral));
+                    dpp::message("❌ 沒有權限設定公告！").set_flags(dpp::m_ephemeral));
             } else {
                 std::string dn = ev.command.member.get_nickname().empty() ? user.username : ev.command.member.get_nickname();
                 ev.reply(dpp::ir_channel_message_with_source, dpp::message(set_announcement(text, dn)));
