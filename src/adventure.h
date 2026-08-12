@@ -74,7 +74,8 @@ static const std::vector<AdvRegion> ADV_REGIONS = {
                 {"col_awl_avocado",     22},
                 {"col_sqwl_brownie",    22},
                 {"col_ywl_caramel",     22},
-                {"col_rod_zoey",         2},
+                {"col_cat_tears",        1},
+                {"col_golden_staff",     1},
             }},
         }
     },
@@ -136,11 +137,56 @@ static const std::vector<AdvRegion> ADV_REGIONS = {
             }},
         }
     },
+    {
+        "red_dragon_range", "赤龍山脈", "🐉",
+        {
+            { 46, 65, {
+                {"",                     10},
+                {"dragon_chest_small",   30},
+                {"col_rd_amber",          9},
+                {"col_rd_claw",           9},
+                {"col_rd_azurescale",    10},
+                {"col_rd_azuremarrow",   10},
+                {"col_rd_earthbone",     11},
+                {"col_rd_earthblood",    11},
+            }},
+            { 70, 30, {
+                {"",                      9},
+                {"dragon_chest_mid",     29},
+                {"col_rd_iceeye",        11},
+                {"col_rd_icescale",      11},
+                {"col_rd_blackwing",     10},
+                {"col_rd_blackeye",      10},
+                {"col_rd_demonclaw",      9},
+                {"col_rd_demoneye",       9},
+                {"col_rd_rainbow",        2},
+            }},
+            {100,  5, {
+                {"",                     13},
+                {"col_rd_azureorb",       6},
+                {"col_rd_redorb",         6},
+                {"col_rd_iceorb",         6},
+                {"col_rd_blackorb",       6},
+                {"col_rd_demonorb",       6},
+                {"col_rd_earthorb",       6},
+                {"dragon_chest_grand",   47},
+                {"col_rd_campticket",     1},
+                {"col_rd_lovebook",       1},
+                {"col_rd_simpmanual",     1},
+                {"col_rd_dogbook",        1},
+            }},
+        }
+    },
 };
 
 static const AdvRegion* find_adv_region(const std::string& key) {
     for (auto& r : ADV_REGIONS) if (r.key == key) return &r;
     return nullptr;
+}
+
+// 赤龍山脈：必須攜帶寵物、時長至少 6 小時
+static bool adv_region_requires_pet6h(const std::string& region_key) {
+    return region_key == "red_dragon_range";
 }
 
 // Collection display regions (3 pages; empty adv_key = locked/coming soon)
@@ -150,6 +196,7 @@ static const std::vector<ColDisplayRegion> COL_DISPLAY_REGIONS = {
     {"water_spirit_cave",  "綠水靈洞窟", "💧"},
     {"ghost_graveyard",    "亡魂墓地",   "💀"},
     {"bb_museum",          "BB自然博物館", "🦴"},
+    {"red_dragon_range",   "赤龍山脈",   "🐉"},
 };
 
 static const std::set<std::string> LIMITED_COL_ITEMS = {
@@ -160,6 +207,10 @@ static const std::set<std::string> LIMITED_COL_ITEMS = {
     "col_bb_sian_cloak", "col_bb_lost_underwear", "col_bb_magnifier", "col_bb_risk_dice",
     // BB博物館限定（全球限量，上限見 LIMITED_MAX_COUNT）
     "col_bb_wig_broken", "col_bb_undies_broken", "col_bb_wig_full", "col_bb_undies_full",
+    // 赤龍山脈限定（全球唯一）
+    "col_rd_campticket", "col_rd_lovebook", "col_rd_simpmanual", "col_rd_dogbook",
+    // 綠水靈洞窟限定（全球唯一）
+    "col_cat_tears", "col_golden_staff",
 };
 
 // 全球限量道具：跟 LIMITED_COL_ITEMS（全球僅 1 份）不同，這些是全球固定份數上限。
@@ -173,7 +224,7 @@ static const std::map<std::string, LimitedMaxRule> LIMITED_MAX_COUNT = {
 
 // 「特殊」分頁：可使用的消耗型道具（風險骰子）
 static const std::set<std::string> SPECIAL_COL_ITEMS = {
-    "col_bb_risk_dice",
+    "col_bb_risk_dice", "col_rd_lovebook", "col_rd_simpmanual", "col_rd_dogbook",
 };
 
 // ─── Collectible selling（限定收藏品全球唯一，不可售出，只能 !交易）──────────────
@@ -197,6 +248,15 @@ static const std::map<std::string,int64_t> COL_SELL_PRICE = {
     {"col_bb_horn", 2000}, {"col_bb_death_ring", 2000}, {"col_bb_ski", 2000},
     // BB自然博物館 — 高級（3000）
     {"col_bb_blood_gem", 3000}, {"col_bb_bracelet", 3000}, {"col_bb_mirror", 3000},
+    // 赤龍山脈 — 低級（1000）
+    {"col_rd_amber", 1000}, {"col_rd_claw", 1000}, {"col_rd_azurescale", 1000},
+    {"col_rd_azuremarrow", 1000}, {"col_rd_earthbone", 1000}, {"col_rd_earthblood", 1000},
+    // 赤龍山脈 — 中級（2000）
+    {"col_rd_iceeye", 2000}, {"col_rd_icescale", 2000}, {"col_rd_blackwing", 2000},
+    {"col_rd_blackeye", 2000}, {"col_rd_demonclaw", 2000}, {"col_rd_demoneye", 2000}, {"col_rd_rainbow", 2000},
+    // 赤龍山脈 — 高級（3000）
+    {"col_rd_azureorb", 3000}, {"col_rd_redorb", 3000}, {"col_rd_iceorb", 3000},
+    {"col_rd_blackorb", 3000}, {"col_rd_demonorb", 3000}, {"col_rd_earthorb", 3000},
 };
 static std::string col_tier_label(const std::string& key) {
     auto it = COL_SELL_PRICE.find(key);
@@ -221,6 +281,12 @@ static const std::map<std::string, ColSetCheckFn> COL_KEY_TO_SET_CHECK = {
     {"col_bb_pink_cup", col_set_bb_basic}, {"col_bb_desk_terror", col_set_bb_basic}, {"col_bb_signus_chalice", col_set_bb_basic}, {"col_bb_mercury_staff", col_set_bb_basic},
     {"col_bb_horn", col_set_bb_mid}, {"col_bb_death_ring", col_set_bb_mid}, {"col_bb_ski", col_set_bb_mid},
     {"col_bb_blood_gem", col_set_bb_adv}, {"col_bb_bracelet", col_set_bb_adv}, {"col_bb_mirror", col_set_bb_adv},
+    {"col_rd_amber", col_set_rd_basic}, {"col_rd_claw", col_set_rd_basic}, {"col_rd_azurescale", col_set_rd_basic},
+    {"col_rd_azuremarrow", col_set_rd_basic}, {"col_rd_earthbone", col_set_rd_basic}, {"col_rd_earthblood", col_set_rd_basic},
+    {"col_rd_iceeye", col_set_rd_mid}, {"col_rd_icescale", col_set_rd_mid}, {"col_rd_blackwing", col_set_rd_mid},
+    {"col_rd_blackeye", col_set_rd_mid}, {"col_rd_demonclaw", col_set_rd_mid}, {"col_rd_demoneye", col_set_rd_mid}, {"col_rd_rainbow", col_set_rd_mid},
+    {"col_rd_azureorb", col_set_rd_adv}, {"col_rd_redorb", col_set_rd_adv}, {"col_rd_iceorb", col_set_rd_adv},
+    {"col_rd_blackorb", col_set_rd_adv}, {"col_rd_demonorb", col_set_rd_adv}, {"col_rd_earthorb", col_set_rd_adv},
 };
 
 // 若移交（售出／交易）1 個 key 會讓該玩家目前完整的套組加成失效，回傳 true。
@@ -380,6 +446,27 @@ static void load_adv_games() {
     } catch (...) {}
 }
 
+// 柴犬百科全書：全域每週次數，獨立小檔案持久化
+static const std::string DOGBOOK_FILE = "dogbook.json";
+
+static void save_dogbook() {
+    nlohmann::json j;
+    { std::lock_guard<std::mutex> lk(data_mutex); j = {{"week", g_dogbook_week}, {"uses_left", g_dogbook_uses_left}}; }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
+    atomic_write(DOGBOOK_FILE, j.dump(2));
+}
+
+static void load_dogbook() {
+    std::ifstream f(DOGBOOK_FILE);
+    if (!f.is_open()) return;
+    try {
+        nlohmann::json j; f >> j;
+        std::lock_guard<std::mutex> lk(data_mutex);
+        g_dogbook_week      = j.value("week",      0);
+        g_dogbook_uses_left = j.value("uses_left", 0);
+    } catch (...) {}
+}
+
 // ─── UI helpers ───────────────────────────────────────────────────────────────
 
 static std::string adv_fmt_remain(time_t end_t) {
@@ -490,6 +577,11 @@ static dpp::message make_normal_col_msg(dpp::snowflake uid,
                 {"🌿 中級區", "狩獵／王團獎勵籌碼 +3%", {"col_bb_horn","col_bb_death_ring","col_bb_ski"}},
                 {"🌳 高級區", "銀行借款利率 -0.5%", {"col_bb_blood_gem","col_bb_bracelet","col_bb_mirror"}},
             },
+            { // 赤龍山脈（1%機率的限定道具另外顯示在「限定收藏」頁）
+                {"🌱 初級區", "強化所需金額 -5%",  {"col_rd_amber","col_rd_claw","col_rd_azurescale","col_rd_azuremarrow","col_rd_earthbone","col_rd_earthblood"}},
+                {"🌿 中級區", "強化所需金額 -10%", {"col_rd_iceeye","col_rd_icescale","col_rd_blackwing","col_rd_blackeye","col_rd_demonclaw","col_rd_demoneye","col_rd_rainbow"}},
+                {"🌳 高級區", "強化所需金額 -15%", {"col_rd_azureorb","col_rd_redorb","col_rd_iceorb","col_rd_blackorb","col_rd_demonorb","col_rd_earthorb"}},
+            },
         };
         auto has_all = [&](const std::vector<std::string>& ks) {
             for (auto& k : ks) { auto it = inv.find(k); if (it == inv.end() || it->second <= 0) return false; }
@@ -535,8 +627,39 @@ static dpp::message make_normal_col_msg(dpp::snowflake uid,
 }
 
 // Limited collection – global uniqueness display
+// 限定收藏顯示清單（獨立於 LIMITED_COL_ITEMS）：需要合成才能取得的完整版（Zoey的秀髮／皮包遺失的粉紅內衣）
+// 不列在這裡，只顯示可以直接探險拿到的戰損版；完整版本身仍受 LIMITED_MAX_COUNT／不可售出等規則保護，只是不佔這頁版面。
+static const std::vector<std::pair<std::string,std::string>> LIMITED_ORDER = {
+    // 全球唯一（1份）
+    {"col_yaya_bounty",     "每日狩獵卷上限 +1"},
+    {"col_slim_wallet",     "打工收益 +3%"},
+    {"col_fat_wallet",      "打工收益 +7%"},
+    {"col_phone_tianxin",   "借款上限 +30000，利率降至 2.98%"},
+    {"col_bath_huaxuan",    "每週 3 次，阻擋寵物負面狀態"},
+    {"col_rod_zoey",        "寵物泡溫泉完成後觸發釣魚效果"},
+    {"col_penguin_relic",   "寵物戰鬥防禦力 +1"},
+    {"col_shark_relic",     "寵物戰鬥攻擊力 +1"},
+    {"col_koala_relic",     "寵物戰鬥血量 +10"},
+    {"col_koala_autograph", "打工時間縮短 3%"},
+    {"col_cat_tears",       "戰鬥中受到傷害時，5% 機率恢復 5 點血量"},
+    {"col_golden_staff",    "戰鬥中攻擊時，1% 機率額外多打一下"},
+    // BB博物館 — 全球唯一（1份）
+    {"col_bb_sian_cloak",     "戰鬥中每回合機率閃避怪物攻擊（1%）"},
+    {"col_bb_lost_underwear", "每場戰鬥第一次攻擊，攻擊力 +5"},
+    {"col_bb_magnifier",      "探索時長 -5%"},
+    {"col_bb_risk_dice",      "背包「特殊」分頁可用，一天可擲 2 次：1% -5000碼／10% +5000碼／89% -500碼"},
+    // BB博物館 — 全球限量（5份，可疊加）
+    {"col_bb_wig_broken",     "探險收取時有 1% 機率額外骰一次戰利品（可疊加）── 全球限量 5 份"},
+    {"col_bb_undies_broken",  "探險完成有 2% 機率返還探索資金（可疊加）── 全球限量 5 份"},
+    // 赤龍山脈 — 全球唯一（1份）
+    {"col_rd_campticket", "持有時打工只剩「24小時／12000碼／20exp／必定憂鬱」單一選項，不觸發監工代打與醫療保險"},
+    {"col_rd_lovebook",   "虛擬商店購買 95 折、轉帳與交易免手續費 ── 背包「特殊」分頁可付 2000 碼解鎖一次性交易"},
+    {"col_rd_simpmanual", "背包「特殊」分頁每天可領取 1 杯高級強效咖啡（本人無法使用/售出，須交易給別人才能用）"},
+    {"col_rd_dogbook",    "背包「特殊」分頁每週 4 次隨機抽取虛擬商店 3000 碼以下道具（25% 失敗機率）"},
+};
+
 static dpp::message make_limited_col_msg(dpp::snowflake uid,
-                                          const std::string& dn, const std::string& av) {
+                                          const std::string& dn, const std::string& av, int page = 1) {
     std::string uid_s = std::to_string((uint64_t)uid);
     std::map<std::string,int> inv;
     std::map<std::string,dpp::snowflake> holder;
@@ -565,32 +688,17 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
         }
     }
 
+    const int PAGE_SIZE = 10;
+    int total_pages = std::max(1, (int)((LIMITED_ORDER.size() + PAGE_SIZE - 1) / PAGE_SIZE));
+    page = std::max(1, std::min(page, total_pages));
+    int start = (page - 1) * PAGE_SIZE;
+    int end = std::min((int)LIMITED_ORDER.size(), start + PAGE_SIZE);
+
     std::string user_tag = dn.empty() ? uid_s : dn;
-    std::string desc = "## ⭐ 限定收藏\n限定收藏品全球稀有，可透過探險獲得，也可透過 `!交易` 轉讓。\n\n";
-    static const std::vector<std::pair<std::string,std::string>> LIMITED_ORDER = {
-        // 全球唯一（1份）
-        {"col_yaya_bounty",     "每日狩獵卷上限 +1"},
-        {"col_slim_wallet",     "打工收益 +3%"},
-        {"col_fat_wallet",      "打工收益 +7%"},
-        {"col_phone_tianxin",   "借款上限 +30000，利率降至 2.98%"},
-        {"col_bath_huaxuan",    "每週 3 次，阻擋寵物負面狀態"},
-        {"col_rod_zoey",        "寵物泡溫泉完成後觸發釣魚效果"},
-        {"col_penguin_relic",   "寵物戰鬥防禦力 +1"},
-        {"col_shark_relic",     "寵物戰鬥攻擊力 +1"},
-        {"col_koala_relic",     "寵物戰鬥血量 +10"},
-        {"col_koala_autograph", "打工時間縮短 3%"},
-        // BB博物館 — 全球唯一（1份）
-        {"col_bb_sian_cloak",     "戰鬥中機率閃避怪物攻擊（1%）── 效果開發中"},
-        {"col_bb_lost_underwear", "每場戰鬥第一次攻擊，攻擊力 +5 ── 效果開發中"},
-        {"col_bb_magnifier",      "探索時長 -5%"},
-        {"col_bb_risk_dice",      "背包「特殊」分頁可用，一天可擲 2 次：1% -5000碼／10% +5000碼／89% -500碼"},
-        // BB博物館 — 全球限量（5份，可疊加）
-        {"col_bb_wig_broken",     "探險收取時有 1% 機率額外骰一次戰利品（可疊加）── 全球限量 5 份"},
-        {"col_bb_undies_broken",  "探險完成有 2% 機率返還探索資金（可疊加）── 全球限量 5 份"},
-        {"col_bb_wig_full",       "探險收取時有 10% 機率額外骰一次戰利品（可疊加）── 由 5 個戰損版合成"},
-        {"col_bb_undies_full",    "探險完成有 20% 機率返還探索資金（可疊加）── 由 5 個戰損版合成"},
-    };
-    for (auto& [key, effect] : LIMITED_ORDER) {
+    std::string desc = "## ⭐ 限定收藏\n限定收藏品全球稀有，可透過探險獲得，也可透過 `!交易` 轉讓。\n"
+                        "第 **" + std::to_string(page) + "/" + std::to_string(total_pages) + "** 頁\n\n";
+    for (int i = start; i < end; i++) {
+        auto& [key, effect] = LIMITED_ORDER[i];
         auto* vi = find_virtual_item(key);
         int owned = 0; auto oit = inv.find(key); if (oit != inv.end()) owned = oit->second;
         std::string id_s = vi ? "**ID: " + std::to_string(vi->item_id) + "**" : key;
@@ -629,6 +737,17 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
     msg.set_flags(dpp::m_using_components_v2);
     msg.add_component_v2(container);
 
+    if (total_pages > 1) {
+        dpp::component pg_row; pg_row.set_type(dpp::cot_action_row);
+        pg_row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("◀").set_id("adv_col_limited_page_" + uid_s + "_" + std::to_string(page - 1))
+            .set_style(dpp::cos_secondary).set_disabled(page <= 1));
+        pg_row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("▶").set_id("adv_col_limited_page_" + uid_s + "_" + std::to_string(page + 1))
+            .set_style(dpp::cos_secondary).set_disabled(page >= total_pages));
+        msg.add_component_v2(pg_row);
+    }
+
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回").set_id("adv_collection_" + uid_s).set_style(dpp::cos_secondary));
@@ -640,35 +759,52 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
 // 限定收藏品全球唯一，不列在這裡（不可售出，只能 !交易 轉讓）
 
 static dpp::message make_col_sell_msg(dpp::snowflake uid,
-                                       const std::string& dn, const std::string& av) {
+                                       const std::string& dn, const std::string& av, int page = 1) {
     std::string uid_s = std::to_string((uint64_t)uid);
     std::map<std::string,int> inv;
     { std::lock_guard<std::mutex> lk(data_mutex); auto it = inventory_data.find(uid); if (it != inventory_data.end()) inv = it->second; }
 
-    struct ColEntry { std::string key; int count; int64_t price; std::string tier; };
+    struct ColEntry { std::string key; int count; int64_t price; std::string tier; bool breaks; };
     std::vector<ColEntry> entries;
     for (auto& [key, price] : COL_SELL_PRICE) {
         auto it = inv.find(key);
         if (it != inv.end() && it->second > 0)
-            entries.push_back({key, it->second, price, col_tier_label(key)});
+            entries.push_back({key, it->second, price, col_tier_label(key), false});
     }
     std::sort(entries.begin(), entries.end(), [](const ColEntry& a, const ColEntry& b) {
         if (a.price != b.price) return a.price < b.price;
         return a.key < b.key;
     });
+    // ⚠️ 標示：賣掉這一件是否會讓目前完成的套組失效（只有剩最後一個時才會，col_would_break_set 已處理）
+    for (auto& en : entries) en.breaks = col_would_break_set(uid, en.key);
+
+    bool has_excess_low = false, has_excess_mid = false, has_excess_high = false;
+    for (auto& en : entries) {
+        if (en.count <= 1) continue; // 只剩1件的話賣多餘的沒有意義
+        if (en.tier == "低級") has_excess_low = true;
+        else if (en.tier == "中級") has_excess_mid = true;
+        else if (en.tier == "高級") has_excess_high = true;
+    }
+
+    const int PAGE_SIZE = 10; // 2 列 × 5 顆，留空間給分頁/批量/返回列（V2 訊息一次最多約 5 個 action row）
+    int total_pages = std::max(1, (int)((entries.size() + PAGE_SIZE - 1) / PAGE_SIZE));
+    page = std::max(1, std::min(page, total_pages));
+    int start = (page - 1) * PAGE_SIZE;
+    int end = std::min((int)entries.size(), start + PAGE_SIZE);
 
     std::string user_tag = dn.empty() ? uid_s : dn;
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
 
-    bool has_low = false, has_mid = false, has_high = false;
     std::string content = "## 💰 售出收藏品\n";
     if (entries.empty()) {
         content += "沒有可售出的收藏品。\n限定收藏品無法售出，只能透過 `!交易` 轉讓。";
     } else {
         content += "低級 **1000** 碼／中級 **2000** 碼／高級 **3000** 碼。\n"
-                   "⚠️ 賣掉某地區某分級裡的任一件，該分級的套組加成就會失效！\n"
-                   "限定收藏品無法售出，只能透過 `!交易` 轉讓。";
+                   "⚠️ 標示代表賣掉這件會讓套組加成失效（僅剩最後一件時才會標示）。\n"
+                   "「售出多餘」會保留每種 1 件、賣掉其餘的，不會打破套組。\n"
+                   "限定收藏品無法售出，只能透過 `!交易` 轉讓。\n"
+                   "第 **" + std::to_string(page) + "/" + std::to_string(total_pages) + "** 頁（共 " + std::to_string(entries.size()) + " 種）";
     }
     content += "\n\n-# 👤 " + user_tag;
 
@@ -680,35 +816,44 @@ static dpp::message make_col_sell_msg(dpp::snowflake uid,
     if (!entries.empty()) {
         dpp::component cur_row; cur_row.set_type(dpp::cot_action_row);
         int n = 0;
-        for (auto& en : entries) {
-            if (en.tier == "低級") has_low = true;
-            else if (en.tier == "中級") has_mid = true;
-            else if (en.tier == "高級") has_high = true;
-            if (n >= 15) continue;
+        for (int i = start; i < end; i++) {
+            auto& en = entries[i];
             auto* vi = find_virtual_item(en.key);
             if (!vi) continue;
             if (n > 0 && n % 5 == 0) {
                 msg.add_component_v2(cur_row);
                 cur_row = dpp::component(); cur_row.set_type(dpp::cot_action_row);
             }
+            std::string label = (en.breaks ? "⚠️ " : "") + vi->name + "（" + en.tier + "）+" + std::to_string(en.price) + "碼";
             cur_row.add_component(dpp::component().set_type(dpp::cot_button)
-               .set_label(vi->name + "（" + en.tier + "）+" + std::to_string(en.price) + "碼")
+               .set_label(label)
                .set_id("adv_col_sellitem_" + uid_s + "_" + en.key)
                .set_style(dpp::cos_danger));
             n++;
         }
         if (n > 0) msg.add_component_v2(cur_row);
 
-        dpp::component bulk_row; bulk_row.set_type(dpp::cot_action_row);
-        auto mk_bulk = [&](const std::string& label, const std::string& tier, bool has_any) {
-            bulk_row.add_component(dpp::component().set_type(dpp::cot_button).set_label(label)
-                 .set_id("adv_col_sellbulk_" + uid_s + "_" + tier)
-                 .set_style(dpp::cos_danger).set_disabled(!has_any));
+        if (total_pages > 1) {
+            dpp::component pg_row; pg_row.set_type(dpp::cot_action_row);
+            pg_row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("◀").set_id("adv_col_sell_page_" + uid_s + "_" + std::to_string(page - 1))
+                .set_style(dpp::cos_secondary).set_disabled(page <= 1));
+            pg_row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("▶").set_id("adv_col_sell_page_" + uid_s + "_" + std::to_string(page + 1))
+                .set_style(dpp::cos_secondary).set_disabled(page >= total_pages));
+            msg.add_component_v2(pg_row);
+        }
+
+        dpp::component excess_row; excess_row.set_type(dpp::cot_action_row);
+        auto mk_excess = [&](const std::string& label, const std::string& tier, bool has_excess) {
+            excess_row.add_component(dpp::component().set_type(dpp::cot_button).set_label(label)
+                 .set_id("adv_col_sellexcess_" + uid_s + "_" + tier)
+                 .set_style(dpp::cos_danger).set_disabled(!has_excess));
         };
-        mk_bulk("批量售出 低級", "low", has_low);
-        mk_bulk("批量售出 中級", "mid", has_mid);
-        mk_bulk("批量售出 高級", "high", has_high);
-        msg.add_component_v2(bulk_row);
+        mk_excess("售出多餘 低級", "low", has_excess_low);
+        mk_excess("售出多餘 中級", "mid", has_excess_mid);
+        mk_excess("售出多餘 高級", "high", has_excess_high);
+        msg.add_component_v2(excess_row);
     }
 
     dpp::component nav; nav.set_type(dpp::cot_action_row);
@@ -732,6 +877,8 @@ static dpp::message make_bag_special_msg(dpp::snowflake uid,
     std::string uid_s = std::to_string((uint64_t)uid);
     std::map<std::string,int> inv;
     int risk_uses_today = 0;
+    bool lovebook_unlocked = false;
+    bool coffee_claimed_today = false;
     std::map<std::string, StockHolding> holdings;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
@@ -744,6 +891,17 @@ static dpp::message make_bag_special_msg(dpp::snowflake uid,
         }
         auto sit = player_stocks.find(uid);
         if (sit != player_stocks.end()) holdings = sit->second;
+        if (it != inventory_data.end()) {
+            auto lit = it->second.find("_lovebook_unlocked");
+            if (lit != it->second.end() && lit->second > 0) lovebook_unlocked = true;
+            auto cit2 = it->second.find("_coffee_last_claim");
+            if (cit2 != it->second.end() && risk_dice_same_day(time(nullptr), (time_t)cit2->second)) coffee_claimed_today = true;
+        }
+        // 柴犬百科：全域每週次數，跨週重置
+        time_t now_t = time(nullptr); struct tm tmw = {}; localtime_s(&tmw, &now_t);
+        char wbuf[8]; strftime(wbuf, sizeof(wbuf), "%G%V", &tmw);
+        int cur_week = std::stoi(wbuf);
+        if (g_dogbook_week != cur_week) { g_dogbook_week = cur_week; g_dogbook_uses_left = 4; }
     }
 
     std::string user_tag = dn.empty() ? uid_s : dn;
@@ -805,6 +963,40 @@ static dpp::message make_bag_special_msg(dpp::snowflake uid,
         msg.add_component_v2(row);
     }
 
+    bool has_lovebook = inv.count("col_rd_lovebook") && inv.at("col_rd_lovebook") > 0;
+    if (has_lovebook) {
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label(lovebook_unlocked ? "✅ 已解鎖交易中" : "💕 付費解鎖交易（2000碼）")
+            .set_id("adv_lovebook_unlock_" + uid_s)
+            .set_style(lovebook_unlocked ? dpp::cos_secondary : dpp::cos_danger)
+            .set_disabled(lovebook_unlocked));
+        msg.add_component_v2(row);
+    }
+
+    bool has_simpmanual = inv.count("col_rd_simpmanual") && inv.at("col_rd_simpmanual") > 0;
+    if (has_simpmanual) {
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label(coffee_claimed_today ? "☕ 今日已領取" : "☕ 領取今日咖啡")
+            .set_id("adv_simpmanual_claim_" + uid_s)
+            .set_style(dpp::cos_danger)
+            .set_disabled(coffee_claimed_today));
+        msg.add_component_v2(row);
+    }
+
+    bool has_dogbook = inv.count("col_rd_dogbook") && inv.at("col_rd_dogbook") > 0;
+    if (has_dogbook) {
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        bool can_draw = g_dogbook_uses_left > 0;
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🐕 隨機抽取道具（本週剩 " + std::to_string(g_dogbook_uses_left) + "/4）")
+            .set_id("adv_dogbook_draw_" + uid_s)
+            .set_style(dpp::cos_danger)
+            .set_disabled(!can_draw));
+        msg.add_component_v2(row);
+    }
+
     dpp::component nav; nav.set_type(dpp::cot_action_row);
     nav.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
@@ -838,7 +1030,12 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
     else if (setup.partner == 0) desc += "🚫 不帶寵物";
     else desc += "（未選擇）";
 
-    bool all_set = reg && setup.duration_hours > 0 && setup.funds >= 0 && setup.partner >= 0;
+    bool region_reqs_met = true;
+    if (reg && adv_region_requires_pet6h(reg->key)) {
+        region_reqs_met = setup.duration_hours >= 6 && setup.partner == 1;
+        if (!region_reqs_met) desc += "\n\n⚠️ **此地區需要攜帶寵物且時長至少 6 小時才能出發。**";
+    }
+    bool all_set = reg && setup.duration_hours > 0 && setup.funds >= 0 && setup.partner >= 0 && region_reqs_met;
     if (all_set) {
         int pet_stage = 0;
         if (setup.partner == 1) {
@@ -1024,9 +1221,16 @@ static dpp::message make_adv_duration_select_msg(dpp::snowflake uid, const std::
     std::string uid_s = std::to_string((uint64_t)uid);
     std::string user_tag = dn.empty() ? uid_s : dn;
 
+    AdventureSetup setup;
+    { std::lock_guard<std::mutex> lk(data_mutex); auto it = adv_setups.find(uid); if (it != adv_setups.end()) setup = it->second; }
+    bool min6 = adv_region_requires_pet6h(setup.region_key);
+
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
-    container.add_component_v2(v2_section("## ⏰ 選擇探險時長\n最少 **2 小時**，最多 **12 小時**。\n\n-# 👤 " + user_tag, av));
+    std::string dur_desc = min6
+        ? "## ⏰ 選擇探險時長\n此地區最少 **6 小時**，最多 **12 小時**。\n\n-# 👤 " + user_tag
+        : "## ⏰ 選擇探險時長\n最少 **2 小時**，最多 **12 小時**。\n\n-# 👤 " + user_tag;
+    container.add_component_v2(v2_section(dur_desc, av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -1037,7 +1241,7 @@ static dpp::message make_adv_duration_select_msg(dpp::snowflake uid, const std::
         row1.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label(std::to_string(h) + "小時")
             .set_id("adv_dur_" + uid_s + "_" + std::to_string(h))
-            .set_style(dpp::cos_primary));
+            .set_style(dpp::cos_primary).set_disabled(min6 && h < 6));
     msg.add_component_v2(row1);
 
     dpp::component row2; row2.set_type(dpp::cot_action_row);
@@ -1099,6 +1303,7 @@ static dpp::message make_adv_funds_select_msg(dpp::snowflake uid, const std::str
 static dpp::message make_adv_partner_select_msg(dpp::snowflake uid, const std::string& dn = "", const std::string& av = "") {
     std::string uid_s = std::to_string((uint64_t)uid);
     Pet pet; bool has_pet = false; bool pet_busy = false;
+    AdventureSetup setup;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = pet_data.find(uid);
@@ -1109,9 +1314,12 @@ static dpp::message make_adv_partner_select_msg(dpp::snowflake uid, const std::s
         // Also blocked if already on adventure with pet
         auto ai = adv_games.find(uid);
         if (ai != adv_games.end() && ai->second.pet_along) pet_busy = true;
+        auto sit = adv_setups.find(uid); if (sit != adv_setups.end()) setup = sit->second;
     }
+    bool require_pet = adv_region_requires_pet6h(setup.region_key);
     std::string user_tag = dn.empty() ? uid_s : dn;
     std::string desc = "## 🐾 選擇探險夥伴\n探險期間寵物無法打工。\n\n";
+    if (require_pet) desc += "⚠️ 此地區必須攜帶寵物才能出發。\n";
     if (!has_pet) desc += "⚠️ 你沒有可以出行的寵物。\n";
     else if (pet_busy) desc += "⚠️ 寵物打工中或已在探險，無法攜帶！\n";
     desc += "\n-# 👤 " + user_tag;
@@ -1131,7 +1339,7 @@ static dpp::message make_adv_partner_select_msg(dpp::snowflake uid, const std::s
         .set_style(dpp::cos_primary).set_disabled(!can_bring));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🚫 不帶寵物").set_id("adv_partner_" + uid_s + "_0")
-        .set_style(dpp::cos_secondary));
+        .set_style(dpp::cos_secondary).set_disabled(require_pet));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回").set_id("adv_main_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
@@ -1166,9 +1374,21 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
     if (cid == "adv_col_limited_" + uid_s) {
         ev.reply(dpp::ir_update_message, make_limited_col_msg(uid, dn, av)); return;
     }
+    // 限定收藏翻頁: adv_col_limited_page_<uid>_<page>
+    if (cid.rfind("adv_col_limited_page_" + uid_s + "_", 0) == 0) {
+        int page = 1;
+        try { page = std::stoi(cid.substr(std::string("adv_col_limited_page_" + uid_s + "_").size())); } catch (...) {}
+        ev.reply(dpp::ir_update_message, make_limited_col_msg(uid, dn, av, page)); return;
+    }
     // 收藏品售出頁: adv_col_sell_<uid>
     if (cid == "adv_col_sell_" + uid_s) {
         ev.reply(dpp::ir_update_message, make_col_sell_msg(uid, dn, av)); return;
+    }
+    // 收藏品售出頁翻頁: adv_col_sell_page_<uid>_<page>
+    if (cid.rfind("adv_col_sell_page_" + uid_s + "_", 0) == 0) {
+        int page = 1;
+        try { page = std::stoi(cid.substr(std::string("adv_col_sell_page_" + uid_s + "_").size())); } catch (...) {}
+        ev.reply(dpp::ir_update_message, make_col_sell_msg(uid, dn, av, page)); return;
     }
     // 售出單一收藏品: adv_col_sellitem_<uid>_<key>
     if (cid.rfind("adv_col_sellitem_" + uid_s + "_", 0) == 0) {
@@ -1186,9 +1406,9 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         save_inventory(); save_chips();
         ev.reply(dpp::ir_update_message, make_col_sell_msg(uid, dn, av)); return;
     }
-    // 批量售出: adv_col_sellbulk_<uid>_<tier>（low/mid/high）
-    if (cid.rfind("adv_col_sellbulk_" + uid_s + "_", 0) == 0) {
-        std::string tier = cid.substr(std::string("adv_col_sellbulk_" + uid_s + "_").size());
+    // 售出多餘（保留每種1件）: adv_col_sellexcess_<uid>_<tier>（low/mid/high）— 不會打破套組，不需確認
+    if (cid.rfind("adv_col_sellexcess_" + uid_s + "_", 0) == 0) {
+        std::string tier = cid.substr(std::string("adv_col_sellexcess_" + uid_s + "_").size());
         int64_t target_price = (tier == "low") ? 1000 : (tier == "mid") ? 2000 : 3000;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
@@ -1197,9 +1417,10 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             for (auto& [key, price] : COL_SELL_PRICE) {
                 if (price != target_price) continue;
                 auto it = inv.find(key);
-                if (it != inv.end() && it->second > 0) {
-                    total += (int64_t)it->second * price;
-                    it->second = 0;
+                if (it != inv.end() && it->second > 1) {
+                    int excess = it->second - 1;
+                    total += (int64_t)excess * price;
+                    it->second = 1;
                 }
             }
             chip_data[uid].chips += total;
@@ -1238,6 +1459,93 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             }
         }
         save_chips();
+        ev.reply(dpp::ir_update_message, make_bag_special_msg(uid, dn, av, notice)); return;
+    }
+    // 貓哥的戀愛教典：付 2000 碼解鎖一次性可交易
+    if (cid == "adv_lovebook_unlock_" + uid_s) {
+        std::string notice;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto iit = inventory_data.find(uid);
+            if (iit == inventory_data.end() || iit->second.count("col_rd_lovebook") == 0
+                || iit->second.at("col_rd_lovebook") <= 0) {
+                notice = "❌ 你沒有貓哥的戀愛教典！";
+            } else if (iit->second.count("_lovebook_unlocked") && iit->second.at("_lovebook_unlocked") > 0) {
+                notice = "❌ 已經是解鎖狀態了！";
+            } else if (chip_data[uid].chips < 2000) {
+                notice = "❌ 籌碼不足，需要 2000 碼！";
+            } else {
+                chip_data[uid].chips -= 2000;
+                inventory_data[uid]["_lovebook_unlocked"] = 1;
+                notice = "✅ 已解鎖一次性可交易！交易完成後會自動恢復不可交易。";
+            }
+        }
+        save_chips(); save_inventory();
+        ev.reply(dpp::ir_update_message, make_bag_special_msg(uid, dn, av, notice)); return;
+    }
+    // 天元的舔狗密笈：每日領取一杯高級強效咖啡（被詛咒版，本人無法使用/售出）
+    if (cid == "adv_simpmanual_claim_" + uid_s) {
+        std::string notice;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto iit = inventory_data.find(uid);
+            if (iit == inventory_data.end() || iit->second.count("col_rd_simpmanual") == 0
+                || iit->second.at("col_rd_simpmanual") <= 0) {
+                notice = "❌ 你沒有天元的舔狗密笈！";
+            } else {
+                time_t now = time(nullptr);
+                auto& inv = inventory_data[uid];
+                auto cit = inv.find("_coffee_last_claim");
+                bool already = (cit != inv.end() && risk_dice_same_day(now, (time_t)cit->second));
+                if (already) {
+                    notice = "❌ 今天已經領取過了！";
+                } else {
+                    inv["_coffee_last_claim"] = (int)now;
+                    inv["recover_fatigue_cursed"]++;
+                    notice = "☕ 領取了一杯被詛咒的高級強效咖啡！你無法使用或售出，交易給別人後對方就能正常使用。";
+                }
+            }
+        }
+        save_inventory();
+        ev.reply(dpp::ir_update_message, make_bag_special_msg(uid, dn, av, notice)); return;
+    }
+    // 左邊畫個龍的柴犬百科全書：每週4次隨機抽取虛擬商店 <3000 道具（25%失敗），全域計次
+    if (cid == "adv_dogbook_draw_" + uid_s) {
+        std::string notice;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto iit = inventory_data.find(uid);
+            if (iit == inventory_data.end() || iit->second.count("col_rd_dogbook") == 0
+                || iit->second.at("col_rd_dogbook") <= 0) {
+                notice = "❌ 你沒有柴犬百科全書！";
+            } else {
+                time_t now_t = time(nullptr); struct tm tmw = {}; localtime_s(&tmw, &now_t);
+                char wbuf[8]; strftime(wbuf, sizeof(wbuf), "%G%V", &tmw);
+                int cur_week = std::stoi(wbuf);
+                if (g_dogbook_week != cur_week) { g_dogbook_week = cur_week; g_dogbook_uses_left = 4; }
+                if (g_dogbook_uses_left <= 0) {
+                    notice = "❌ 本週次數已用完（上限 4 次）！";
+                } else {
+                    g_dogbook_uses_left--;
+                    static std::mt19937 dogbook_rng(std::random_device{}());
+                    if (std::uniform_int_distribution<int>(1, 100)(dogbook_rng) <= 25) {
+                        notice = "😢 抽取失敗！（本週剩 " + std::to_string(g_dogbook_uses_left) + "/4 次）";
+                    } else {
+                        std::vector<const VirtualShopItem*> pool;
+                        for (auto& vi : VIRTUAL_ITEMS)
+                            if (vi.price > 0 && vi.price < 3000) pool.push_back(&vi);
+                        if (pool.empty()) {
+                            notice = "😢 商店裡沒有符合條件的道具！";
+                        } else {
+                            auto* got = pool[std::uniform_int_distribution<int>(0, (int)pool.size()-1)(dogbook_rng)];
+                            inventory_data[uid][got->key]++;
+                            notice = "🎉 抽到了 **" + got->name + "**！（本週剩 " + std::to_string(g_dogbook_uses_left) + "/4 次）";
+                        }
+                    }
+                }
+            }
+        }
+        save_inventory(); save_dogbook();
         ev.reply(dpp::ir_update_message, make_bag_special_msg(uid, dn, av, notice)); return;
     }
     if (cid == "adv_set_region_" + uid_s) {
@@ -1280,7 +1588,13 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         int h = 0;
         try { h = std::stoi(cid.substr(9 + uid_s.size())); } catch (...) {}
         if (h < 2 || h > 12) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 時長須為 2~12 小時！").set_flags(dpp::m_ephemeral)); return; }
-        { std::lock_guard<std::mutex> lk(data_mutex); adv_setups[uid].duration_hours = h; }
+        bool too_short = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            too_short = (h < 6 && adv_region_requires_pet6h(adv_setups[uid].region_key));
+            if (!too_short) adv_setups[uid].duration_hours = h;
+        }
+        if (too_short) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 此地區最少需要 6 小時！").set_flags(dpp::m_ephemeral)); return; }
         ev.reply(dpp::ir_update_message, make_adv_setup_msg(uid, dn, av)); return;
     }
 
@@ -1308,6 +1622,10 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
               }
             }
             if (!ok) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 寵物必須空閒才能帶去探險！\n（打工中、有未領取的打工、泡溫泉中皆無法出發）").set_flags(dpp::m_ephemeral)); return; }
+        } else {
+            bool require_pet = false;
+            { std::lock_guard<std::mutex> lk(data_mutex); require_pet = adv_region_requires_pet6h(adv_setups[uid].region_key); }
+            if (require_pet) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 此地區必須攜帶寵物！").set_flags(dpp::m_ephemeral)); return; }
         }
         { std::lock_guard<std::mutex> lk(data_mutex); adv_setups[uid].partner = with_pet ? 1 : 0; }
         ev.reply(dpp::ir_update_message, make_adv_setup_msg(uid, dn, av)); return;
@@ -1348,6 +1666,9 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         if (setup.region_key.empty() || setup.duration_hours <= 0 || setup.funds < 0 || setup.partner < 0) {
             ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 請先完成所有設定！").set_flags(dpp::m_ephemeral)); return;
         }
+        if (adv_region_requires_pet6h(setup.region_key) && (setup.duration_hours < 6 || setup.partner != 1)) {
+            ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 此地區必須攜帶寵物且時長至少 6 小時！").set_flags(dpp::m_ephemeral)); return;
+        }
         { std::lock_guard<std::mutex> lk(data_mutex);
           if (adv_games.count(uid)) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你已有進行中的探險！").set_flags(dpp::m_ephemeral)); return; }
         }
@@ -1382,9 +1703,10 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         g.start_time = time(nullptr);
         int64_t adv_secs = (int64_t)g.duration_hours * 3600LL;
         { std::lock_guard<std::mutex> lk(data_mutex);
-          int reductions = col_adv_reduction_count(uid);
-          if (reductions > 0) adv_secs = (int64_t)std::ceil(adv_secs * std::pow(0.99, reductions));
-          if (col_has_bb_magnifier(uid)) adv_secs = (int64_t)std::ceil(adv_secs * 0.95);
+          // 探索時長乘區：每組地區中級套組 -1%（最多3組）+ BB博物館放大鏡 -5%，加總後一次套用（無條件進位）
+          double dur_delta = -0.01 * col_adv_reduction_count(uid);
+          if (col_has_bb_magnifier(uid)) dur_delta += -0.05;
+          adv_secs = (int64_t)std::ceil(adv_secs * std::max(0.0, 1.0 + dur_delta));
           g.end_time = g.start_time + adv_secs;
           adv_games[uid] = g; adv_setups.erase(uid);
         }

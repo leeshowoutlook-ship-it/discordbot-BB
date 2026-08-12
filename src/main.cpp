@@ -38,6 +38,22 @@ static std::pair<std::string,std::string> trade_item_info(int id) {
     return {"",""};
 }
 
+// 是否禁止交易此道具。貓哥的戀愛教典預設不可交易，需先在背包「特殊」分頁付 2000 碼解鎖一次。
+// 呼叫前不可持有 data_mutex（自己上鎖）。
+static bool trade_item_blocked(dpp::snowflake uid, const std::string& key) {
+    if (key == "orb_ticket") return true;
+    if (key == "col_rd_lovebook") {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = inventory_data.find(uid);
+        if (it != inventory_data.end()) {
+            auto jt = it->second.find("_lovebook_unlocked");
+            if (jt != it->second.end() && jt->second > 0) return false;
+        }
+        return true;
+    }
+    return false;
+}
+
 static dpp::message make_trade_msg(const TradeOffer& t,
                                    const std::string& from_name,
                                    const std::string& to_name,
@@ -50,8 +66,12 @@ static dpp::message make_trade_msg(const TradeOffer& t,
     std::string desc;
     desc += from_name + " 向 " + to_name + " 提出交易\n\n";
 
-    auto chips_with_fee = [](int64_t chips) -> std::string {
+    auto chips_with_fee = [](int64_t chips, dpp::snowflake payer_uid) -> std::string {
         if (chips <= 0) return "";
+        bool has_lovebook = false;
+        { std::lock_guard<std::mutex> lk(data_mutex); has_lovebook = col_has_lovebook(payer_uid); }
+        if (has_lovebook)
+            return "• 💰 " + std::to_string(chips) + " 籌碼（戀愛教典：免手續費）\n";
         int64_t fee = (chips + 99) / 100;
         return "• 💰 " + std::to_string(chips) + " 籌碼（含 1% 手續費 " + std::to_string(fee) + " 碼，實付 " + std::to_string(chips + fee) + " 碼）\n";
     };
@@ -64,7 +84,7 @@ static dpp::message make_trade_msg(const TradeOffer& t,
         if (col_would_break_set(t.from_uid, from_key))
             desc += "　⚠️ 交易後 " + from_name + " 的收藏套組加成將會失效！\n";
     }
-    if (t.from_chips > 0) desc += chips_with_fee(t.from_chips);
+    if (t.from_chips > 0) desc += chips_with_fee(t.from_chips, t.from_uid);
     if (from_empty) desc += "• （無）\n";
 
     desc += "\n**" + to_name + " 提供：**\n";
@@ -75,7 +95,7 @@ static dpp::message make_trade_msg(const TradeOffer& t,
         if (col_would_break_set(t.to_uid, to_key))
             desc += "　⚠️ 交易後 " + to_name + " 的收藏套組加成將會失效！\n";
     }
-    if (t.to_chips > 0) desc += chips_with_fee(t.to_chips);
+    if (t.to_chips > 0) desc += chips_with_fee(t.to_chips, t.to_uid);
     if (to_empty) desc += "• （無）\n";
 
     if (status.empty()) desc += "\n⏳ 等待 " + to_name + " 確認...";
@@ -133,6 +153,7 @@ int main(int argc, char* argv[]) {
     load_equipped();
     load_hunt_clear();
     load_adv_games();
+    load_dogbook();
     load_gacha_pity();
     load_uc_stats();
     load_guess_stats();
@@ -600,8 +621,7 @@ int main(int argc, char* argv[]) {
                 bot.message_create(m); return;
             }
             if (!from_key.empty()) {
-                static const std::set<std::string> NO_TRADE_KEYS = {"orb_ticket"};
-                if (NO_TRADE_KEYS.count(from_key)) {
+                if (trade_item_blocked(uid, from_key)) {
                     dpp::message m; m.channel_id = ch;
                     m.set_content("❌ **" + from_iname + "** 不可交易！");
                     bot.message_create(m); return;
@@ -617,7 +637,9 @@ int main(int argc, char* argv[]) {
             }
             if (from_chips < 0) from_chips = 0;
             if (from_chips > 0) {
-                int64_t from_fee_chk = (from_chips + 99) / 100;
+                bool has_lovebook_chk = false;
+                { std::lock_guard<std::mutex> lk(data_mutex); has_lovebook_chk = col_has_lovebook(uid); }
+                int64_t from_fee_chk = has_lovebook_chk ? 0 : (from_chips + 99) / 100;
                 if (get_chips(uid) < from_chips + from_fee_chk) {
                     dpp::message m; m.channel_id = ch;
                     m.set_content("❌ 你的籌碼不足（含 1% 手續費 " + std::to_string(from_fee_chk) + " 碼，需 " + std::to_string(from_chips + from_fee_chk) + " 碼）！");
@@ -632,8 +654,7 @@ int main(int argc, char* argv[]) {
                 bot.message_create(m); return;
             }
             if (!to_key_chk.empty()) {
-                static const std::set<std::string> NO_TRADE_KEYS2 = {"orb_ticket"};
-                if (NO_TRADE_KEYS2.count(to_key_chk)) {
+                if (trade_item_blocked(target, to_key_chk)) {
                     dpp::message m; m.channel_id = ch;
                     m.set_content("❌ **" + to_iname_chk + "** 不可交易！");
                     bot.message_create(m); return;
@@ -941,8 +962,8 @@ int main(int argc, char* argv[]) {
                     if (it2 == inventory_data[t.from_uid].end() || it2->second <= 0)
                         fail_reason = "提案方已沒有該道具！交易取消。";
                 }
-                int64_t from_fee = (t.from_chips > 0) ? (t.from_chips + 99) / 100 : 0;
-                int64_t to_fee   = (t.to_chips   > 0) ? (t.to_chips   + 99) / 100 : 0;
+                int64_t from_fee = (t.from_chips > 0 && !col_has_lovebook(t.from_uid)) ? (t.from_chips + 99) / 100 : 0;
+                int64_t to_fee   = (t.to_chips   > 0 && !col_has_lovebook(t.to_uid))   ? (t.to_chips   + 99) / 100 : 0;
                 if (fail_reason.empty() && t.from_chips > 0 && chip_data[t.from_uid].chips < t.from_chips + from_fee)
                     fail_reason = "提案方籌碼不足（含手續費）！交易取消。";
                 if (fail_reason.empty() && !tkey.empty()) {
@@ -960,10 +981,20 @@ int main(int argc, char* argv[]) {
                     if (!fkey.empty()) {
                         inventory_data[t.from_uid][fkey]--;
                         inventory_data[t.to_uid][fkey]++;
+                        if (fkey == "col_rd_lovebook") inventory_data[t.from_uid]["_lovebook_unlocked"] = 0;
+                        if (fkey == "recover_fatigue_cursed") { // 交易出去後變回一般高級強效咖啡
+                            inventory_data[t.to_uid]["recover_fatigue_cursed"]--;
+                            inventory_data[t.to_uid]["recover_fatigue"]++;
+                        }
                     }
                     if (!tkey.empty()) {
                         inventory_data[t.to_uid][tkey]--;
                         inventory_data[t.from_uid][tkey]++;
+                        if (tkey == "col_rd_lovebook") inventory_data[t.to_uid]["_lovebook_unlocked"] = 0;
+                        if (tkey == "recover_fatigue_cursed") {
+                            inventory_data[t.from_uid]["recover_fatigue_cursed"]--;
+                            inventory_data[t.from_uid]["recover_fatigue"]++;
+                        }
                     }
                     if (t.from_chips > 0) {
                         chip_data[t.from_uid].chips -= t.from_chips + from_fee;  // 手續費燒掉
@@ -2251,6 +2282,10 @@ int main(int argc, char* argv[]) {
                     dpp::message("❌ 道具 ID `" + std::to_string(from_item_id) + "` 不存在！").set_flags(dpp::m_ephemeral)); return;
             }
             if (!from_key2.empty()) {
+                if (trade_item_blocked(uid, from_key2)) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("❌ **" + from_iname2 + "** 不可交易！").set_flags(dpp::m_ephemeral)); return;
+                }
                 std::lock_guard<std::mutex> lk(data_mutex);
                 auto it = inventory_data[uid].find(from_key2);
                 if (it == inventory_data[uid].end() || it->second <= 0) {
@@ -2260,7 +2295,9 @@ int main(int argc, char* argv[]) {
             }
             if (from_chips < 0) from_chips = 0;
             if (from_chips > 0) {
-                int64_t from_fee_chk2 = (from_chips + 99) / 100;
+                bool has_lovebook_chk2 = false;
+                { std::lock_guard<std::mutex> lk(data_mutex); has_lovebook_chk2 = col_has_lovebook(uid); }
+                int64_t from_fee_chk2 = has_lovebook_chk2 ? 0 : (from_chips + 99) / 100;
                 if (get_chips(uid) < from_chips + from_fee_chk2) {
                     ev.reply(dpp::ir_channel_message_with_source,
                         dpp::message("❌ 你的籌碼不足（含 1% 手續費 " + std::to_string(from_fee_chk2) + " 碼，需 " + std::to_string(from_chips + from_fee_chk2) + " 碼）！").set_flags(dpp::m_ephemeral)); return;
@@ -2271,6 +2308,10 @@ int main(int argc, char* argv[]) {
             if (to_item_id && to_key2.empty()) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 對方道具 ID `" + std::to_string(to_item_id) + "` 不存在！").set_flags(dpp::m_ephemeral)); return;
+            }
+            if (!to_key2.empty() && trade_item_blocked(target, to_key2)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ **" + to_iname2 + "** 不可交易！").set_flags(dpp::m_ephemeral)); return;
             }
             TradeOffer t;
             {
@@ -2821,6 +2862,7 @@ int main(int argc, char* argv[]) {
                 for (auto& [uid, pet] : pet_data) {
                     if (pet.stage == 0) continue;                           // 蛋不能打工
                     if (pet.work_task == 0 || pet.work_end > now) continue; // 無打工或打工中
+                    if (pet.work_task == 24) continue;                      // 自願留營表：不觸發監工代打
                     // 探險中不自動再派
                     { auto ai = adv_games.find(uid); if (ai != adv_games.end() && ai->second.pet_along && ai->second.end_time > now) continue; }
                     if (pet.onsen_end > now) continue;                      // 泡溫泉中

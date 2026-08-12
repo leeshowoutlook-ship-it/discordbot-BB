@@ -125,8 +125,8 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"col_bb_horn",           "利里諾斯的角",           0, "collectible", "從BB自然博物館探險取得的蒐藏品", 90040},
     {"col_bb_death_ring",     "達納托斯的魔戒",         0, "collectible", "從BB自然博物館探險取得的蒐藏品", 90041},
     {"col_bb_ski",            "雪毛怪人的滑雪板",       0, "collectible", "從BB自然博物館探險取得的蒐藏品", 90042},
-    {"col_bb_sian_cloak",     "Sian的隱形斗篷",         0, "collectible", "特殊道具（限定）。效果：戰鬥中機率性閃避怪物攻擊（1%）── 效果開發中，尚未生效", 90043},
-    {"col_bb_lost_underwear", "觀觀遺失的胖次",         0, "collectible", "特殊道具（限定）。效果：每場戰鬥第一次攻擊，攻擊力 +5 ── 效果開發中，尚未生效", 90044},
+    {"col_bb_sian_cloak",     "Sian的隱形斗篷",         0, "collectible", "特殊道具（限定）。效果：戰鬥中每回合有 1% 機率完全閃避怪物攻擊", 90043},
+    {"col_bb_lost_underwear", "觀觀遺失的胖次",         0, "collectible", "特殊道具（限定）。效果：每場戰鬥第一次攻擊，攻擊力 +5", 90044},
     {"col_bb_magnifier",      "Xu的探險放大鏡",         0, "collectible", "特殊道具（限定）。持有後探索時長 -5%", 90045},
     {"col_bb_blood_gem",      "殘暴炎魔血色秘石",       0, "collectible", "從BB自然博物館探險取得的蒐藏品（稀有）", 90046},
     {"col_bb_bracelet",       "深山鬼怪青光手鐲",       0, "collectible", "從BB自然博物館探險取得的蒐藏品（稀有）", 90047},
@@ -135,6 +135,45 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"col_bb_undies_broken",  "皮包的粉紅內衣碎片（戰損版）", 0, "collectible", "特殊道具，全球限量 5 份。持有時探險完成有 2% 機率返還該次探索花費的資金，可疊加機率；5 個可用 !合成 換成「皮包遺失的粉紅內衣」", 90050},
     {"col_bb_wig_full",       "Zoey散發氣味的秀髮",     0, "collectible", "由 5 個「Zoey不正常的假髮（戰損版）」合成。探險收取結果有 10% 機率額外骰一次戰利品，可疊加機率", 90051},
     {"col_bb_undies_full",    "皮包遺失的粉紅內衣",     0, "collectible", "由 5 個「皮包的粉紅內衣碎片（戰損版）」合成。探險完成有 20% 機率返還該次探索花費的資金，可疊加機率", 90052},
+    // ── 赤龍山脈 蒐藏品 ─────────────────────────────────────────────────────────
+    {"col_rd_amber",       "赤龍的血色琥珀",         0, "collectible", "從赤龍山脈探險取得的蒐藏品", 90053},
+    {"col_rd_claw",        "赤龍的燎原之爪",         0, "collectible", "從赤龍山脈探險取得的蒐藏品", 90054},
+    {"col_rd_azurescale",  "青龍的蒼玉龍鱗",         0, "collectible", "從赤龍山脈探險取得的蒐藏品", 90055},
+    {"col_rd_azuremarrow", "青龍的碧落龍髓",         0, "collectible", "從赤龍山脈探險取得的蒐藏品", 90056},
+    {"col_rd_earthbone",   "土龍的磐石龍骨",         0, "collectible", "從赤龍山脈探險取得的蒐藏品", 90057},
+    {"col_rd_earthblood",  "土龍的地堭龍血",         0, "collectible", "從赤龍山脈探險取得的蒐藏品", 90058},
+    {"col_rd_iceeye",      "冰龍的寒月之瞳",         0, "collectible", "從赤龍山脈探險取得的蒐藏品", 90059},
+    {"col_rd_icescale",    "冰龍的霜天之鱗",         0, "collectible", "從赤龍山脈探險取得的蒐藏品", 90060},
+    {"col_rd_blackwing",   "散發不詳氣息的黑龍之翼", 0, "collectible", "從赤龍山脈探險取得的蒐藏品", 90061},
+    {"col_rd_blackeye",    "黑龍的幽冥龍瞳",         0, "collectible", "從赤龍山脈探險取得的蒐藏品", 90062},
+    {"col_rd_demonclaw",   "魔龍的嗜魂魔爪",         0, "collectible", "從赤龍山脈探險取得的蒐藏品", 90063},
+    {"col_rd_demoneye",    "魔龍的混沌龍瞳",         0, "collectible", "從赤龍山脈探險取得的蒐藏品", 90064},
+    {"col_rd_rainbow",     "龍族七彩石",             0, "collectible", "從赤龍山脈探險取得的蒐藏品（稀有）", 90065},
+    {"col_rd_azureorb",    "青龍・蒼穹龍珠",         0, "collectible", "從赤龍山脈探險取得的蒐藏品（稀有）", 90066},
+    {"col_rd_redorb",      "赤龍・焚世龍珠",         0, "collectible", "從赤龍山脈探險取得的蒐藏品（稀有）", 90067},
+    {"col_rd_iceorb",      "冰龍・寒光龍珠",         0, "collectible", "從赤龍山脈探險取得的蒐藏品（稀有）", 90068},
+    {"col_rd_blackorb",    "黑龍・闇夜龍珠",         0, "collectible", "從赤龍山脈探險取得的蒐藏品（稀有）", 90069},
+    {"col_rd_demonorb",    "魔龍・幽冥龍珠",         0, "collectible", "從赤龍山脈探險取得的蒐藏品（稀有）", 90070},
+    {"col_rd_earthorb",    "土龍・泰岳龍珠",         0, "collectible", "從赤龍山脈探險取得的蒐藏品（稀有）", 90071},
+    // 赤龍山脈 限定收藏（全球僅1份）
+    {"col_rd_campticket", "Sneaky的自願留營表", 0, "collectible",
+        "特殊道具（限定）。持有時打工只剩「24小時／12000碼／20exp／必定憂鬱」單一選項，不會觸發監工代打，也不會觸發醫療保險", 90072},
+    {"col_rd_lovebook",   "貓哥的戀愛教典",     0, "collectible",
+        "特殊道具（限定）。虛擬商店購買 95 折、轉帳與交易免手續費。預設不可交易，需在背包「特殊」分頁付 2000 碼解鎖一次性可交易，交易完成後恢復不可交易", 90073},
+    {"col_rd_simpmanual", "天元的舔狗密笈",     0, "collectible",
+        "特殊道具（限定）。背包「特殊」分頁每天可領取 1 杯「高級強效咖啡」，但領取者本人無法使用或售出，須交易給別人後才能使用", 90074},
+    {"col_rd_dogbook",    "左邊畫個龍的柴犬百科全書", 0, "collectible",
+        "特殊道具（限定）。背包「特殊」分頁每週可用 4 次，隨機抽取虛擬商店 3000 碼以下道具（25% 失敗機率），次數全域計算、不因交易換人而重置", 90075},
+    // 綠水靈洞窟 限定收藏（全球僅1份）
+    {"col_cat_tears",    "貓哥的眼淚",   0, "collectible", "特殊道具（限定）。效果：戰鬥中受到傷害時，5% 機率恢復 5 點血量", 90076},
+    {"col_golden_staff", "李秀的金箍棒", 0, "collectible", "特殊道具（限定）。效果：戰鬥中攻擊時，1% 機率額外多打一下", 90077},
+    // 赤龍山脈 龍族寶箱（消耗品，非收藏品）
+    {"dragon_chest_small", "小型龍族寶箱", 2500, "consumable", "使用後獲得 1500~4500 碼", 96001},
+    {"dragon_chest_mid",   "中型龍族寶箱", 5500, "consumable", "使用後獲得 4500~7500 碼", 96002},
+    {"dragon_chest_grand", "豪邁龍族寶箱", 12000, "consumable", "使用後獲得 10500~15000 碼", 96003},
+    // 天元的舔狗密笈 專用：被詛咒的咖啡（跟一般高級強效咖啡效果相同，但領取者本人不可用/不可賣）
+    {"recover_fatigue_cursed", "高級強效咖啡（被詛咒）", 0, "recovery",
+        "由「天元的舔狗密笈」每日領取產生。目前持有者無法使用或售出，交易給別人後會變回一般的高級強效咖啡", 96004},
 };
 
 static const VirtualShopItem* find_virtual_item(const std::string& key) {
@@ -628,20 +667,46 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
 static dpp::message make_pet_work_select_msg(dpp::snowflake uid) {
     std::string uid_s = std::to_string((uint64_t)uid);
     Pet pet;
+    bool has_camp_ticket = false;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = pet_data.find(uid);
         if (it != pet_data.end()) pet = it->second;
+        auto ii = inventory_data.find(uid);
+        if (ii != inventory_data.end() && ii->second.count("col_rd_campticket") && ii->second.at("col_rd_campticket") > 0)
+            has_camp_ticket = true;
     }
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    if (has_camp_ticket) {
+        dpp::component container;
+        container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 💼 選擇打工時長\n持有「Sneaky的自願留營表」，只能選擇留營：\n"
+                         "🏕️ **24小時**（+12000碼／+20exp／必定憂鬱，不觸發監工／醫療保險）"));
+        msg.add_component_v2(container);
+
+        dpp::component row1; row1.set_type(dpp::cot_action_row);
+        row1.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🏕️ 24小時留營（必定憂鬱）")
+            .set_id("pet_work_" + uid_s + "_24").set_style(dpp::cos_danger));
+        msg.add_component_v2(row1);
+
+        dpp::component row2; row2.set_type(dpp::cot_action_row);
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("↩ 返回").set_id("pet_refresh_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component_v2(row2);
+        return msg;
+    }
+
     auto opts = work_options(pet.stage);
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
         .set_content("## 💼 選擇打工時長\n請選擇打工時長："));
-
-    dpp::message msg;
-    msg.set_flags(dpp::m_using_components_v2);
     msg.add_component_v2(container);
 
     dpp::component row1; row1.set_type(dpp::cot_action_row);
@@ -1653,6 +1718,35 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
         return m;
     }
 
+    // 龍族寶箱：不需要寵物，開啟後隨機獲得籌碼
+    if (vi && (key == "dragon_chest_small" || key == "dragon_chest_mid" || key == "dragon_chest_grand")) {
+        if (item_count <= 0) return err("道具數量不足！");
+        int lo, hi;
+        if (key == "dragon_chest_small")      { lo = 1500;  hi = 4500; }
+        else if (key == "dragon_chest_mid")   { lo = 4500;  hi = 7500; }
+        else                                  { lo = 10500; hi = 15000; }
+        int actual_qty = std::min(qty, item_count);
+        static thread_local std::mt19937 chest_rng(std::random_device{}());
+        int64_t total = 0;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            inventory_data[uid][key] -= actual_qty;
+            for (int i = 0; i < actual_qty; i++)
+                total += std::uniform_int_distribution<int>(lo, hi)(chest_rng);
+            chip_data[uid].chips += total;
+        }
+        save_inventory(); save_chips();
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF1, 0xC4, 0x0F));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 🐉 開啟" + vi->name + (actual_qty > 1 ? "×" + std::to_string(actual_qty) : "") +
+                         "\n獲得 **" + std::to_string(total) + "** 碼！"));
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 返回")
+            .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+        m.add_component_v2(ct); m.add_component_v2(row);
+        return m;
+    }
+
     if (!vi || !has_pet || item_count <= 0) return err("道具不存在或數量不足！");
 
     static thread_local std::mt19937 rng(std::random_device{}());
@@ -1841,6 +1935,8 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
     }
     // ── 成長路徑道具（path）── 不可直接使用，提示 ────────────────────────────
     else if (vi->category == "recovery") {
+        if (key == "recover_fatigue_cursed")
+            return err("這杯被詛咒了！領取者本人無法使用，交易給別人後對方就能正常使用。");
         static const std::map<std::string,std::string> ITEM_STATUS = {
             {"recover_depress","憂鬱"}, {"recover_injury","受傷"},
             {"recover_muscle","肌肉緊繃"}, {"recover_fatigue","疲勞"},
@@ -2165,20 +2261,43 @@ static dpp::message handle_pet_work_start(dpp::snowflake uid, int task) {
     }
     if (pet.work_task > 0)
         return v2err("## ❌ 已在打工\n你的寵物已經在打工中！");
+
+    // Sneaky的自願留營表：固定24小時，跳過所有時長加成/懲罰，不計入監工資格
+    if (task == 24) {
+        bool has_ticket = false;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          auto ii = inventory_data.find(uid);
+          if (ii != inventory_data.end() && ii->second.count("col_rd_campticket") && ii->second.at("col_rd_campticket") > 0)
+              has_ticket = true;
+        }
+        if (!has_ticket) return v2err("## ❌ 無法選擇\n你沒有「Sneaky的自願留營表」！");
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            pet_data[uid].work_task          = 24;
+            pet_data[uid].work_end           = time(nullptr) + 86400;
+            pet_data[uid].work_notified      = false;
+            pet_data[uid].is_supervisor_work = false;
+        }
+        save_pet_data();
+        return make_pet_view_msg(uid);
+    }
+
     int dur = (task == 1) ? 3600 : (task == 4) ? 14400 : 28800;
-    // 天賦：迅捷 — 打工時間縮短 10%
-    if (pet.talent == "迅捷") dur = (int)(dur * 0.9);
-    // 收藏品：考拉の親筆簽名 — 打工時長 -3%；菇菇王國高級套組 — 打工時長 -1%
+    // 打工時長乘區：加總後一次套用（無條件進位），不逐一連乘。
+    // 天賦：迅捷 -10%
+    double dur_delta = (pet.talent == "迅捷") ? -0.10 : 0.0;
+    // 收藏品：考拉の親筆簽名 -3%；菇菇王國高級套組 -1%
     { std::lock_guard<std::mutex> lk(data_mutex);
       auto wi = inventory_data.find(uid);
       if (wi != inventory_data.end()) {
           auto jt = wi->second.find("col_koala_autograph");
-          if (jt != wi->second.end() && jt->second > 0) dur = (int)(dur * 0.97);
+          if (jt != wi->second.end() && jt->second > 0) dur_delta += -0.03;
       }
-      if (col_set_mushroom_adv(uid)) dur = (int)std::ceil(dur * 0.99);
+      if (col_set_mushroom_adv(uid)) dur_delta += -0.01;
     }
-    // 負面狀態：疲勞 — 打工時長 +30%
-    for (auto& s : pet.statuses) if (s == "疲勞") { dur = (int)(dur * 1.3); break; }
+    // 負面狀態：疲勞 +30%
+    for (auto& s : pet.statuses) if (s == "疲勞") { dur_delta += 0.30; break; }
+    dur = (int)std::ceil(dur * std::max(0.0, 1.0 + dur_delta));
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         pet_data[uid].work_task          = task;
@@ -2209,27 +2328,60 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
     if (pet.work_end > time(nullptr))
         return v2e("## ❌ 打工尚未完成\n請稍後再試！");
 
+    // Sneaky的自願留營表：固定 12000碼／20exp／必定憂鬱，不觸發醫療保險與洗澡卡迴避
+    if (pet.work_task == 24) {
+        add_chips(uid, 12000);
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& p = pet_data[uid];
+            if (p.stage > 0) {
+                if (p.stage < 3) p.exp = std::min(p.exp + 20, exp_needed(p.stage));
+                else              p.exp += 20;
+            }
+            p.work_task = 0; p.work_end = 0; p.is_supervisor_work = false; p.work_notified = false;
+            bool already = false;
+            for (auto& s : p.statuses) if (s == "憂鬱") { already = true; break; }
+            if (!already) p.statuses.push_back("憂鬱");
+        }
+        save_pet_data();
+        std::string uid_s2 = std::to_string((uint64_t)uid);
+        std::string pet_disp2 = pet_name(pet.chain, pet.stage, pet.variant);
+        if (!pet.talent.empty()) pet_disp2 += " ✦" + pet.talent;
+        std::string wcontent2 = "## 🏕️ 留營結束！\n**" + pet_disp2 + "** 留營回來了！\n\n";
+        wcontent2 += "💰 **獎勵** +12000 碼\n✨ **經驗** +20 exp\n💼 **餘額** " + std::to_string(get_chips(uid)) + " 碼";
+        wcontent2 += "\n⚠️ **新增狀態** 「**憂鬱**」（自願留營表：必定觸發，不受洗澡卡/保險影響）";
+        dpp::component ct2; ct2.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
+        ct2.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(wcontent2));
+        m.add_component_v2(ct2);
+        dpp::component row2; row2.set_type(dpp::cot_action_row);
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🐾 返回").set_id("pet_refresh_" + uid_s2).set_style(dpp::cos_secondary));
+        m.add_component_v2(row2);
+        return m;
+    }
+
     auto opts = work_options(pet.stage);
     int idx = (pet.work_task == 1) ? 0 : (pet.work_task == 4) ? 1 : 2;
     int64_t reward   = opts[idx].pay;
     int     exp_gain = opts[idx].exp_gain;
 
-    // 監工派出的打工收益 ×0.6
+    // 打工報酬乘區：所有百分比加成/懲罰先加總，最後一次套用乘法（無條件進位），
+    // 不逐一連乘取整，避免多個加成疊加時互相侵蝕或誤差累積。
+    // 監工派出：-40%
     bool is_supervisor = pet.is_supervisor_work;
-    if (is_supervisor) reward = (int64_t)(reward * 0.6);
+    double reward_delta = is_supervisor ? -0.40 : 0.0;
 
     static thread_local std::mt19937 claim_rng(std::random_device{}());
     auto roll_pct = [&](int pct) { return std::uniform_int_distribution<int>(1,1000)(claim_rng) <= pct*10; };
 
-    // 負面狀態：受傷 — 報酬 -10%
+    // 負面狀態：受傷 -10%／憂鬱 -20%
     bool status_injured = false, status_depress = false;
     for (auto& s : pet.statuses) {
         if (s == "受傷")  status_injured  = true;
         if (s == "憂鬱")  status_depress  = true;
     }
-    if (status_injured) reward = (int64_t)(reward * 0.9);
-    // 負面狀態：憂鬱 — 報酬 -20%
-    if (status_depress) reward = (int64_t)(reward * 0.8);
+    if (status_injured) reward_delta += -0.10;
+    if (status_depress) reward_delta += -0.20;
 
     // 收藏品皮包加成 + 亡魂墓地高級套組 +1%
     {
@@ -2237,16 +2389,19 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
         auto wi = inventory_data.find(uid);
         if (wi != inventory_data.end()) {
             if (wi->second.count("col_slim_wallet") && wi->second.at("col_slim_wallet") > 0)
-                reward = (int64_t)(reward * 1.03);
+                reward_delta += 0.03;
             if (wi->second.count("col_fat_wallet") && wi->second.at("col_fat_wallet") > 0)
-                reward = (int64_t)(reward * 1.07);
+                reward_delta += 0.07;
         }
-        if (col_set_ghost_adv(uid)) reward = (int64_t)std::ceil(reward * 1.01);
+        if (col_set_ghost_adv(uid)) reward_delta += 0.01;
     }
-    // 天賦：招人喜歡 — 報酬 +10%
+    // 天賦：招人喜歡 +10%
+    if (pet.talent == "招人喜歡") reward_delta += 0.10;
+
+    reward = (int64_t)std::ceil(reward * std::max(0.0, 1.0 + reward_delta));
+
+    // 天賦：幸運 — 5% 雙倍報酬（機率事件，不併入乘區，套用在乘區結果之後）
     bool doubled_lucky = false;
-    if (pet.talent == "招人喜歡") reward = (int64_t)(reward * 1.1);
-    // 天賦：幸運 — 5% 雙倍報酬
     if (pet.talent == "幸運" && roll_pct(5)) { reward *= 2; doubled_lucky = true; }
 
     // 負面狀態：憂鬱 — 有機率隨機花錢 (扣 30~60% 報酬)

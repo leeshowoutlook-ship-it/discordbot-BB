@@ -319,12 +319,23 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
                 if (hp_r < 0.25)      { base_mult = 1.7; log += "🔥 **狂暴爆發**！×1.7\n"; }
                 else if (hp_r < 0.50) { base_mult = 1.4; log += "⚡ **憤怒之力**！×1.4\n"; }
             }
+            // BB博物館限定：觀觀遺失的胖次 — 本場戰鬥第一次攻擊 +5 攻擊力
+            int effective_pet_atk = g.pet_atk;
+            if (!g.underwear_first_atk_used) {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto wi = inventory_data.find(g.uid);
+                if (wi != inventory_data.end() && wi->second.count("col_bb_lost_underwear") && wi->second.at("col_bb_lost_underwear") > 0) {
+                    effective_pet_atk += 5;
+                    log += "🩲 **胖次加持**！首次攻擊 +5 攻擊力\n";
+                }
+                g.underwear_first_atk_used = true;
+            }
             if (power_attack) {
                 double mult = base_mult * (0.1 + std::uniform_real_distribution<double>(0.0, 1.9)(hunt_rng()));
-                pet_dmg = std::max(0, (int)(g.pet_atk * mult) - g.monster_def);
+                pet_dmg = std::max(0, (int)(effective_pet_atk * mult) - g.monster_def);
                 log += "💥 氣力攻擊對 **" + g.monster_name + "** 造成 **" + std::to_string(pet_dmg) + "** 傷害！";
             } else {
-                pet_dmg = std::max(0, (int)(g.pet_atk * base_mult) - g.monster_def);
+                pet_dmg = std::max(0, (int)(effective_pet_atk * base_mult) - g.monster_def);
                 log += "⚔️ 攻擊對 **" + g.monster_name + "** 造成 **" + std::to_string(pet_dmg) + "** 傷害！";
             }
             g.monster_hp -= pet_dmg;
@@ -334,6 +345,19 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
                 if (heal > 0) {
                     g.pet_hp = std::min(g.pet_hp + heal, g.pet_max_hp);
                     log += " 🌑（+" + std::to_string(heal) + " HP）";
+                }
+            }
+            // 綠水靈洞窟限定：李秀的金箍棒 — 1% 機率攻擊時額外多打一下
+            {
+                bool has_staff = false;
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto wi = inventory_data.find(g.uid);
+                  has_staff = wi != inventory_data.end() && wi->second.count("col_golden_staff") && wi->second.at("col_golden_staff") > 0;
+                }
+                if (has_staff && randint(1, 100) <= 1) {
+                    int extra_dmg = std::max(0, (int)(effective_pet_atk * base_mult) - g.monster_def);
+                    g.monster_hp -= extra_dmg;
+                    log += "\n🥢 **金箍棒**！額外多打一下，追加 **" + std::to_string(extra_dmg) + "** 傷害！";
                 }
             }
         } else {
@@ -382,10 +406,34 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
         effective_mon_atk = (int)(effective_mon_atk * 0.4); // 60% reduction
         g.atk_down_turns--;
     }
-    int mon_dmg = std::max(0, effective_mon_atk - g.pet_def);
+    // BB博物館限定：Sian的隱形斗篷 — 1% 機率完全閃避怪物攻擊
+    bool dodged = false;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto wi = inventory_data.find(g.uid);
+        if (wi != inventory_data.end() && wi->second.count("col_bb_sian_cloak") && wi->second.at("col_bb_sian_cloak") > 0)
+            dodged = (randint(1, 100) <= 1);
+    }
+    int mon_dmg = dodged ? 0 : std::max(0, effective_mon_atk - g.pet_def);
     g.pet_hp -= mon_dmg;
-    log += "　👹 **" + g.monster_name + "** 反擊造成 **" + std::to_string(mon_dmg) + "** 傷害！";
-    if (debuff_active) log += "（削弱-60%）";
+    if (dodged) {
+        log += "　💨 **完全閃避了怪物攻擊！**（隱形斗篷）";
+    } else {
+        log += "　👹 **" + g.monster_name + "** 反擊造成 **" + std::to_string(mon_dmg) + "** 傷害！";
+        if (debuff_active) log += "（削弱-60%）";
+        // 綠水靈洞窟限定：貓哥的眼淚 — 受到傷害時 5% 機率恢復 5 點血量
+        if (g.pet_hp > 0) {
+            bool has_tears = false;
+            { std::lock_guard<std::mutex> lk(data_mutex);
+              auto wi = inventory_data.find(g.uid);
+              has_tears = wi != inventory_data.end() && wi->second.count("col_cat_tears") && wi->second.at("col_cat_tears") > 0;
+            }
+            if (has_tears && randint(1, 100) <= 5) {
+                int heal = std::min(5, g.pet_max_hp - g.pet_hp);
+                if (heal > 0) { g.pet_hp += heal; log += " 💧（貓哥的眼淚：恢復" + std::to_string(heal) + "HP）"; }
+            }
+        }
+    }
 
     // 拉圖斯寶珠：HP≤20% 回復至 50%（每場一次）
     if (g.pet_hp > 0 && g.orb_key == "EQ_K_LATUS" && !g.latus_orb_triggered && g.pet_hp <= g.pet_max_hp / 5) {
@@ -609,15 +657,26 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
     if (!is_block) {
     auto& tgt = g.spirits[target_idx];
     int dmg = 0;
+    // BB博物館限定：觀觀遺失的胖次 — 本場戰鬥第一次攻擊 +5 攻擊力
+    int effective_pet_atk = g.pet_atk;
+    if (!g.underwear_first_atk_used) {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto wi = inventory_data.find(g.uid);
+        if (wi != inventory_data.end() && wi->second.count("col_bb_lost_underwear") && wi->second.at("col_bb_lost_underwear") > 0) {
+            effective_pet_atk += 5;
+            log += "🩲 **胖次加持**！首次攻擊 +5 攻擊力 ";
+        }
+        g.underwear_first_atk_used = true;
+    }
     if (attack_type == 1) {
         // 氣力攻擊：隨機 0.1~2.0× 有效傷害
-        int base = std::max(0, g.pet_atk - tgt.def);
+        int base = std::max(0, effective_pet_atk - tgt.def);
         double mult = 0.1 + randint(0, 190) / 100.0;
         dmg = std::max(1, (int)(base * mult));
         char buf[8]; snprintf(buf, sizeof(buf), "%.1f", mult);
         log += "🎲 氣力攻擊（×" + std::string(buf) + "）";
     } else {
-        dmg = std::max(0, g.pet_atk - tgt.def);
+        dmg = std::max(0, effective_pet_atk - tgt.def);
     }
     tgt.hp = std::max(0, tgt.hp - dmg);
     // 暗黑龍王寶珠：攻擊後回復傷害的 1/10（最多 10 HP）
@@ -626,6 +685,19 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
         if (heal > 0) {
             g.pet_hp = std::min(g.pet_hp + heal, g.pet_max_hp);
             log += " 🌑（+" + std::to_string(heal) + " HP）";
+        }
+    }
+    // 綠水靈洞窟限定：李秀的金箍棒 — 1% 機率攻擊時額外多打一下
+    {
+        bool has_staff = false;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          auto wi = inventory_data.find(g.uid);
+          has_staff = wi != inventory_data.end() && wi->second.count("col_golden_staff") && wi->second.at("col_golden_staff") > 0;
+        }
+        if (has_staff && tgt.hp > 0 && randint(1, 100) <= 1) {
+            int extra_dmg = std::max(0, effective_pet_atk - tgt.def);
+            tgt.hp = std::max(0, tgt.hp - extra_dmg);
+            log += " 🥢（金箍棒：追加" + std::to_string(extra_dmg) + "傷害）";
         }
     }
     if (!log.empty()) log += " ";
@@ -670,10 +742,34 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
     bool block_active = g.bear_block_turns > 0;
     int effective_atk = block_active ? (int)(total_atk * 0.4) : total_atk;
     if (block_active) g.bear_block_turns--;
-    int mon_dmg = std::max(0, effective_atk - g.pet_def);
+    // BB博物館限定：Sian的隱形斗篷 — 1% 機率完全閃避怪物攻擊
+    bool dodged = false;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto wi = inventory_data.find(g.uid);
+        if (wi != inventory_data.end() && wi->second.count("col_bb_sian_cloak") && wi->second.at("col_bb_sian_cloak") > 0)
+            dodged = (randint(1, 100) <= 1);
+    }
+    int mon_dmg = dodged ? 0 : std::max(0, effective_atk - g.pet_def);
     g.pet_hp = std::max(0, g.pet_hp - mon_dmg);
-    log += "　👹 全體反擊 **" + std::to_string(mon_dmg) + "** 傷害（合計 " + std::to_string(total_atk) + "-防 " + std::to_string(g.pet_def) + "）";
-    if (block_active) log += "（削弱-60%）";
+    if (dodged) {
+        log += "　💨 **全體攻擊被完全閃避了！**（隱形斗篷）";
+    } else {
+        log += "　👹 全體反擊 **" + std::to_string(mon_dmg) + "** 傷害（合計 " + std::to_string(total_atk) + "-防 " + std::to_string(g.pet_def) + "）";
+        if (block_active) log += "（削弱-60%）";
+        // 綠水靈洞窟限定：貓哥的眼淚 — 受到傷害時 5% 機率恢復 5 點血量
+        if (g.pet_hp > 0) {
+            bool has_tears = false;
+            { std::lock_guard<std::mutex> lk(data_mutex);
+              auto wi = inventory_data.find(g.uid);
+              has_tears = wi != inventory_data.end() && wi->second.count("col_cat_tears") && wi->second.at("col_cat_tears") > 0;
+            }
+            if (has_tears && randint(1, 100) <= 5) {
+                int heal = std::min(5, g.pet_max_hp - g.pet_hp);
+                if (heal > 0) { g.pet_hp += heal; log += " 💧（貓哥的眼淚：恢復" + std::to_string(heal) + "HP）"; }
+            }
+        }
+    }
 
     // 拉圖斯寶珠：HP≤20% 回復至 50%（每場一次）
     if (g.pet_hp > 0 && g.orb_key == "EQ_K_LATUS" && !g.latus_orb_triggered && g.pet_hp <= g.pet_max_hp / 5) {

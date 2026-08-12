@@ -192,6 +192,7 @@ struct VillageGame {
     std::string orb_key;
     bool        latus_orb_triggered = false;
     int         bear_block_turns = 0;
+    bool        underwear_first_atk_used = false; // 觀觀遺失的胖次：本場首次攻擊 +5 ATK 是否已用掉
 };
 
 // ─── Adventure ────────────────────────────────────────────────────────────────
@@ -247,6 +248,7 @@ struct MonsterHuntGame {
     bool           battlecry_pending = false;
     int            atk_down_turns    = 0;  // wargod orb: turns of 60% monster ATK reduction remaining
     bool           latus_orb_triggered = false;
+    bool           underwear_first_atk_used = false; // 觀觀遺失的胖次：本場首次攻擊 +5 ATK 是否已用掉
 };
 
 // ─── Raid system ─────────────────────────────────────────────────────────────
@@ -266,6 +268,7 @@ struct RaidPlayer {
     bool           speed_extra_used = false; // 迅捷：already got extra turn this round
     bool           battlecry_next = false; // next attack +25% (from 戰吼 targeting)
     bool           latus_orb_triggered = false;
+    bool           underwear_first_atk_used = false; // 觀觀遺失的胖次：本場首次攻擊 +5 ATK 是否已用掉
 };
 
 struct RaidRoom {
@@ -346,6 +349,7 @@ struct DDPlayer {
     int          def_down_turns = 0;        // 防禦瓦解剩餘回合
     bool         burning        = false;    // 燃燒狀態（下回合+10傷）
     bool         latus_orb_triggered = false;
+    bool         underwear_first_atk_used = false; // 觀觀遺失的胖次：本場首次攻擊 +5 ATK 是否已用掉
 };
 
 struct DDGame {
@@ -544,6 +548,10 @@ inline std::map<dpp::snowflake, AdventureSetup>     adv_setups;
 inline std::map<dpp::snowflake, AdventureGame>      adv_games;
 inline std::map<dpp::snowflake, RaidRoom>           raid_rooms;
 
+// 左邊畫個龍的柴犬百科全書：全球唯一道具，次數全域計算（不因交易換人重置），用 data_mutex 保護
+inline int g_dogbook_week      = 0;
+inline int g_dogbook_uses_left = 0;
+
 // 寵物聖物加成（需持有 data_mutex 呼叫）
 inline int col_pet_atk_bonus(dpp::snowflake uid) {
     auto it = inventory_data.find(uid); if (it == inventory_data.end()) return 0;
@@ -585,6 +593,11 @@ inline bool col_has_bb_magnifier(dpp::snowflake uid) {
     auto it = inventory_data.find(uid);
     return it != inventory_data.end() && it->second.count("col_bb_magnifier") && it->second.at("col_bb_magnifier") > 0;
 }
+// 赤龍山脈：貓哥的戀愛教典，持有時轉帳／交易免手續費、虛擬商店95折（需持有 data_mutex 呼叫）
+inline bool col_has_lovebook(dpp::snowflake uid) {
+    auto it = inventory_data.find(uid);
+    return it != inventory_data.end() && it->second.count("col_rd_lovebook") && it->second.at("col_rd_lovebook") > 0;
+}
 // 高級
 inline bool col_set_mushroom_adv(dpp::snowflake uid)   { return col_all_owned(uid, {"col_mushroom_head","col_mb_crown","col_mb_staff"}); }
 inline bool col_set_water_adv(dpp::snowflake uid)      { return col_all_owned(uid, {"col_awl_avocado","col_sqwl_brownie","col_ywl_caramel"}); }
@@ -594,6 +607,11 @@ inline bool col_set_ghost_adv(dpp::snowflake uid)      { return col_all_owned(ui
 inline bool col_set_bb_basic(dpp::snowflake uid) { return col_all_owned(uid, {"col_bb_pink_cup","col_bb_desk_terror","col_bb_signus_chalice","col_bb_mercury_staff"}); }
 inline bool col_set_bb_mid(dpp::snowflake uid)   { return col_all_owned(uid, {"col_bb_horn","col_bb_death_ring","col_bb_ski"}); }
 inline bool col_set_bb_adv(dpp::snowflake uid)   { return col_all_owned(uid, {"col_bb_blood_gem","col_bb_bracelet","col_bb_mirror"}); }
+
+// 赤龍山脈：初級強化所需金額-5%／中級-10%／高級-15%（同乘區，加總後一次套用）
+inline bool col_set_rd_basic(dpp::snowflake uid) { return col_all_owned(uid, {"col_rd_amber","col_rd_claw","col_rd_azurescale","col_rd_azuremarrow","col_rd_earthbone","col_rd_earthblood"}); }
+inline bool col_set_rd_mid(dpp::snowflake uid)   { return col_all_owned(uid, {"col_rd_iceeye","col_rd_icescale","col_rd_blackwing","col_rd_blackeye","col_rd_demonclaw","col_rd_demoneye","col_rd_rainbow"}); }
+inline bool col_set_rd_adv(dpp::snowflake uid)   { return col_all_owned(uid, {"col_rd_azureorb","col_rd_redorb","col_rd_iceorb","col_rd_blackorb","col_rd_demonorb","col_rd_earthorb"}); }
 
 // 初級套組 + 強化等級的攻/血/防加成，共用同一個「乘區」相加，最後一次套用乘法
 // （而非逐一連乘取整）。以後同類加成變多時直接在這裡加一行 += 即可，不會因多次

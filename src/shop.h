@@ -454,7 +454,8 @@ static dpp::message make_virtual_shop_msg() {
             "✨ **天賦道具** — 賦予或重抽寵物天賦技能\n"
             "📜 **特殊道具** — 怪物狩獵卷等特殊消耗品\n"
             "💊 **恢復道具** — 解除寵物負面狀態的藥品\n"
-            "⭐ **特權道具** — VIP 自動領籌碼、寵物監工等特殊效果"));
+            "⭐ **特權道具** — VIP 自動領籌碼、寵物監工等特殊效果\n"
+            "🐉 **龍族寶箱** — 開啟後隨機獲得籌碼"));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -481,9 +482,14 @@ static dpp::message make_virtual_shop_msg() {
         .set_label("💊 恢復道具").set_id("shop_vcat_recovery").set_style(dpp::cos_primary));
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("⭐ 特權道具").set_id("shop_vcat_privilege").set_style(dpp::cos_primary));
-    row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("↩ 返回商店主頁").set_id("shop_main").set_style(dpp::cos_secondary));
     msg.add_component_v2(row2);
+
+    dpp::component row3; row3.set_type(dpp::cot_action_row);
+    row3.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🐉 龍族寶箱").set_id("shop_vcat_consumable").set_style(dpp::cos_primary));
+    row3.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回商店主頁").set_id("shop_main").set_style(dpp::cos_secondary));
+    msg.add_component_v2(row3);
     return msg;
 }
 
@@ -549,6 +555,13 @@ static dpp::message make_vcat_shop_msg(dpp::snowflake uid, const std::string& ca
     return msg;
 }
 
+// 貓哥的戀愛教典：虛擬商店 95 折
+static int64_t vshop_effective_price(dpp::snowflake uid, int64_t base_price) {
+    bool has_lovebook = false;
+    { std::lock_guard<std::mutex> lk(data_mutex); has_lovebook = col_has_lovebook(uid); }
+    return has_lovebook ? (int64_t)(base_price * 0.95) : base_price;
+}
+
 static dpp::message make_vbuy_confirm_msg(dpp::snowflake uid, const std::string& key) {
     const VirtualShopItem* vi = find_virtual_item(key);
     dpp::message msg; msg.set_flags(dpp::m_using_components_v2);
@@ -558,20 +571,21 @@ static dpp::message make_vbuy_confirm_msg(dpp::snowflake uid, const std::string&
         msg.add_component_v2(ct); return msg;
     };
     if (!vi) return err_msg("## ❌ 商品不存在");
+    int64_t unit_price = vshop_effective_price(uid, vi->price);
     int64_t bal = get_chips(uid);
-    if (bal < vi->price) return err_msg("## ❌ 籌碼不足");
+    if (bal < unit_price) return err_msg("## ❌ 籌碼不足");
     if (vi->category != "hunt" && vi->category != "recovery" && vi->category != "privilege"
         && !can_buy_virtual_cat(uid, vi->category)) return err_msg("## ❌ 條件不符");
     std::string content = "## 🛒 購買確認\n選擇購買數量：\n\n";
     content += "📦 **商品** " + vi->name + "\n";
-    content += "💰 **單價** " + std::to_string(vi->price) + " 碼\n";
+    content += "💰 **單價** " + std::to_string(unit_price) + " 碼" + (unit_price != vi->price ? "（戀愛教典95折）" : "") + "\n";
     content += "💼 **你的餘額** " + std::to_string(bal) + " 碼";
     dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF3, 0x9C, 0x12));
     ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
     msg.add_component_v2(ct);
     dpp::component row; row.set_type(dpp::cot_action_row);
     for (int qty : {1, 3, 5, 10}) {
-        int64_t cost = (int64_t)qty * vi->price;
+        int64_t cost = (int64_t)qty * unit_price;
         bool dis = (bal < cost);
         row.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("×" + std::to_string(qty) + "（" + std::to_string(cost) + "碼）")
@@ -606,7 +620,7 @@ static dpp::message handle_vbuy(dpp::snowflake uid, const std::string& username,
     // Check restriction again
     if (vi->category != "hunt" && vi->category != "recovery" && vi->category != "privilege"
         && !can_buy_virtual_cat(uid, vi->category)) return v2e("## ❌ 條件不符");
-    int64_t total_cost = (int64_t)qty * vi->price;
+    int64_t total_cost = (int64_t)qty * vshop_effective_price(uid, vi->price);
     int64_t bal = 0; bool ok = false;
     {
         std::lock_guard<std::mutex> lk(data_mutex);

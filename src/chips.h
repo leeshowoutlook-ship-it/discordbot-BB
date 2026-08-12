@@ -329,7 +329,9 @@ static dpp::message handle_transfer(dpp::snowflake from_uid,
         e.set_title("❌  金額必須大於 0").set_color(0xE74C3C);
         dpp::message msg; msg.add_embed(e); return msg;
     }
-    int64_t fee   = use_free ? 0 : (amount + 99) / 100;
+    bool has_lovebook = false;
+    { std::lock_guard<std::mutex> lk(data_mutex); has_lovebook = col_has_lovebook(from_uid); }
+    int64_t fee   = (use_free || has_lovebook) ? 0 : (amount + 99) / 100;
     int64_t total = amount + fee;
     int64_t from_bal = 0, to_bal = 0;
     bool ok = false;
@@ -357,7 +359,9 @@ static dpp::message handle_transfer(dpp::snowflake from_uid,
         e.add_field("👤  轉帳者",    from_name,                        true);
     e.add_field("👤  收款人",    to_name,                           true);
     e.add_field("💰  轉帳金額",  std::to_string(amount) + " 碼",    false);
-    if (use_free) {
+    if (has_lovebook) {
+        e.add_field("💕  手續費",   "免費（貓哥的戀愛教典）",       false);
+    } else if (use_free) {
         e.add_field("🎟️  手續費",   "免費（使用 1 次免手續費）",       false);
     } else {
         e.add_field("💳  手續費（1%）", std::to_string(fee) + " 碼",  true);
@@ -385,8 +389,12 @@ static dpp::message handle_transfer_request(
     }
     int64_t bal      = get_chips(from_uid);
     int      free_n  = 0;
-    { std::lock_guard<std::mutex> lk(data_mutex); free_n = chip_data[from_uid].free_xfer; }
-    int64_t fee   = (amount + 99) / 100;
+    bool     has_lovebook = false;
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      free_n = chip_data[from_uid].free_xfer;
+      has_lovebook = col_has_lovebook(from_uid);
+    }
+    int64_t fee   = has_lovebook ? 0 : (amount + 99) / 100;
     int64_t total = amount + fee;
     if (bal < total && (free_n == 0 || bal < amount)) {
         // 付費模式也不夠，且沒有免費次數（或免費模式也不夠）

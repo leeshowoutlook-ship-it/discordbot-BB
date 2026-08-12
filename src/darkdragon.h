@@ -321,6 +321,16 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         if (r < 0.25)      vk_log = " 🔥狂暴×1.7";
         else if (r < 0.50) vk_log = " ⚡憤怒×1.4";
     }
+    // BB博物館限定：觀觀遺失的胖次 — 本場戰鬥第一次攻擊 +5 攻擊力
+    if (!cp.underwear_first_atk_used) {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto wi = inventory_data.find(cp.uid);
+        if (wi != inventory_data.end() && wi->second.count("col_bb_lost_underwear") && wi->second.at("col_bb_lost_underwear") > 0) {
+            eff_atk += 5;
+            vk_log += "🩲（胖次加持+5）";
+        }
+        cp.underwear_first_atk_used = true;
+    }
 
     int raw = 0;
     int atk_dmg = 0;
@@ -364,6 +374,21 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         }
     }
 
+    // 綠水靈洞窟限定：李秀的金箍棒 — 1% 機率攻擊時額外多打一下
+    if (h.alive) {
+        bool has_staff = false;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          auto wi = inventory_data.find(cp.uid);
+          has_staff = wi != inventory_data.end() && wi->second.count("col_golden_staff") && wi->second.at("col_golden_staff") > 0;
+        }
+        if (has_staff && dd_rand(1, 100) <= 1) {
+            int extra_dmg = std::max(1, eff_atk - h.def);
+            h.hp -= extra_dmg;
+            log += "\n🥢 **金箍棒**！額外多打一下，追加 **" + std::to_string(extra_dmg) + "** 傷害！";
+            if (h.hp <= 0) { h.hp = 0; h.alive = false; log += "\n💥 **" + h.name + "** 被擊倒！"; }
+        }
+    }
+
     // Check victory
     bool all_dead = true;
     for (auto& hh : g.heads) if (hh.alive) { all_dead = false; break; }
@@ -385,6 +410,28 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
 
 static std::string dd_do_boss_turn(DDGame& g) {
     std::string log;
+
+    // BB博物館限定：Sian的隱形斗篷 — 每位持有者各自 1% 機率完全閃避怪物攻擊
+    auto roll_dodge = [&](dpp::snowflake uid) -> bool {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto wi = inventory_data.find(uid);
+        if (wi == inventory_data.end() || !wi->second.count("col_bb_sian_cloak") || wi->second.at("col_bb_sian_cloak") <= 0)
+            return false;
+        return dd_rand(1, 100) <= 1;
+    };
+    // 綠水靈洞窟限定：貓哥的眼淚 — 受到傷害時 5% 機率恢復 5 點血量
+    auto roll_tears_heal = [&](DDPlayer& p) {
+        if (p.hp <= 0) return;
+        bool has_tears = false;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          auto wi = inventory_data.find(p.uid);
+          has_tears = wi != inventory_data.end() && wi->second.count("col_cat_tears") && wi->second.at("col_cat_tears") > 0;
+        }
+        if (has_tears && dd_rand(1, 100) <= 5) {
+            int heal = std::min(5, p.max_hp - p.hp);
+            if (heal > 0) { p.hp += heal; log += "\n  → " + p.display_name + " 💧（貓哥的眼淚：恢復" + std::to_string(heal) + "HP）"; }
+        }
+    };
 
     // 1. Apply burning damage
     for (auto& p : g.players) {
@@ -440,6 +487,10 @@ static std::string dd_do_boss_turn(DDGame& g) {
             log += "🌊 **左頭** 【龍焰掃射】！";
             for (int idx : pool_idx) {
                 auto& p = g.players[idx];
+                if (roll_dodge(p.uid)) {
+                    log += "\n  → " + p.display_name + " 💨 完全閃避了攻擊！（隱形斗篷）";
+                    continue;
+                }
                 int dmg = std::max(1, raw - dd_eff_def(p, g));
                 if (g.block_active) dmg = std::max(1, (int)(dmg * 0.8));
                 p.hp -= dmg;
@@ -448,6 +499,7 @@ static std::string dd_do_boss_turn(DDGame& g) {
                 if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
                     p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
                 }
+                roll_tears_heal(p);
             }
         } else if (sk == 1) {
             // 龍爪橫掃：2隨機
@@ -457,6 +509,10 @@ static std::string dd_do_boss_turn(DDGame& g) {
                     if (pool_idx.empty()) break;
                     int ti = pool_idx[dd_rand(0, (int)pool_idx.size()-1)];
                     auto& p = g.players[ti];
+                    if (roll_dodge(p.uid)) {
+                        log += "\n  → " + p.display_name + " 💨 完全閃避了攻擊！（隱形斗篷）";
+                        continue;
+                    }
                     int dmg = std::max(1, lh.atk - dd_eff_def(p, g));
                     if (g.block_active) dmg = std::max(1, dmg / 2);
                     p.hp -= dmg;
@@ -465,6 +521,7 @@ static std::string dd_do_boss_turn(DDGame& g) {
                     if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
                         p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
                     }
+                    roll_tears_heal(p);
                 }
             }
         } else if (sk == 2) {
@@ -473,6 +530,10 @@ static std::string dd_do_boss_turn(DDGame& g) {
             log += "💥 **左頭** 【龍焰爆炎】！";
             for (int idx : pool_idx) {
                 auto& p = g.players[idx];
+                if (roll_dodge(p.uid)) {
+                    log += "\n  → " + p.display_name + " 💨 完全閃避了攻擊！（隱形斗篷）";
+                    continue;
+                }
                 int dmg = std::max(1, raw - dd_eff_def(p, g));
                 if (g.block_active) dmg = std::max(1, (int)(dmg * 0.8));
                 p.hp -= dmg;
@@ -481,6 +542,7 @@ static std::string dd_do_boss_turn(DDGame& g) {
                 if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
                     p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
                 }
+                roll_tears_heal(p);
             }
         } else {
             // 黑暗恢復：三頭各+50
@@ -539,13 +601,18 @@ static std::string dd_do_boss_turn(DDGame& g) {
                 if (!alive_idx.empty()) {
                     int ti = alive_idx[dd_rand(0, (int)alive_idx.size()-1)];
                     auto& p = g.players[ti];
-                    int dmg = std::max(1, raw - dd_eff_def(p, g));
-                    if (g.block_active) dmg = std::max(1, (int)(dmg * 0.8));
-                    p.hp -= dmg;
-                    log += "⛓️ **中頭** 【黑暗鎖鍊】→ **" + p.display_name + "** 受到 **" + std::to_string(dmg) + "** 傷害！";
-                    if (p.hp <= 0) { p.hp = 0; p.alive = false; log += " 💀"; }
-                    if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
-                        p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                    if (roll_dodge(p.uid)) {
+                        log += "⛓️ **中頭** 【黑暗鎖鍊】→ **" + p.display_name + "** 完全閃避了攻擊！💨（隱形斗篷）";
+                    } else {
+                        int dmg = std::max(1, raw - dd_eff_def(p, g));
+                        if (g.block_active) dmg = std::max(1, (int)(dmg * 0.8));
+                        p.hp -= dmg;
+                        log += "⛓️ **中頭** 【黑暗鎖鍊】→ **" + p.display_name + "** 受到 **" + std::to_string(dmg) + "** 傷害！";
+                        if (p.hp <= 0) { p.hp = 0; p.alive = false; log += " 💀"; }
+                        if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
+                            p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                        }
+                        roll_tears_heal(p);
                     }
                 }
                 mh.chain_cd = 1;
@@ -555,6 +622,10 @@ static std::string dd_do_boss_turn(DDGame& g) {
                 log += "👁️ **中頭** 【暗黑凝視】！AOE + 力量削弱！";
                 for (auto& p : g.players) {
                     if (!p.alive) continue;
+                    if (roll_dodge(p.uid)) {
+                        log += "\n  → " + p.display_name + " 💨 完全閃避了攻擊！（隱形斗篷）";
+                        continue;
+                    }
                     int dmg = std::max(1, raw - dd_eff_def(p, g));
                     p.hp -= dmg;
                     p.atk_down_turns = std::max(p.atk_down_turns, 1); // 下一次 boss 回合 -ATK
@@ -563,6 +634,7 @@ static std::string dd_do_boss_turn(DDGame& g) {
                     if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
                         p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
                     }
+                    roll_tears_heal(p);
                 }
                 mh.chain_cd = 0;
             }
@@ -633,6 +705,10 @@ static std::string dd_do_boss_turn(DDGame& g) {
             log += "🔥 **右頭** 【龍息燃燒】！AOE + 燃燒！";
             for (int idx : rh_targets) {
                 auto& p = g.players[idx];
+                if (roll_dodge(p.uid)) {
+                    log += "\n  → " + p.display_name + " 💨 完全閃避了攻擊！（隱形斗篷）";
+                    continue;
+                }
                 int dmg = std::max(1, raw - dd_eff_def(p, g));
                 if (g.block_active) dmg = std::max(1, (int)(dmg * 0.8));
                 p.hp -= dmg;
@@ -642,6 +718,7 @@ static std::string dd_do_boss_turn(DDGame& g) {
                 if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
                     p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
                 }
+                roll_tears_heal(p);
             }
         }
     }

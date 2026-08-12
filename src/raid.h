@@ -489,12 +489,38 @@ static std::string raid_do_boss_turn(RaidGame& g) {
     bool ur_def_active = ur_orb_count > 0;
     int ur_def_bonus = ur_orb_count * 2;
 
+    // BB博物館限定：Sian的隱形斗篷 — 每位持有者各自 1% 機率完全閃避怪物攻擊
+    auto roll_dodge = [&](dpp::snowflake uid) -> bool {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto wi = inventory_data.find(uid);
+        if (wi == inventory_data.end() || !wi->second.count("col_bb_sian_cloak") || wi->second.at("col_bb_sian_cloak") <= 0)
+            return false;
+        return raid_rand(1, 100) <= 1;
+    };
+    // 綠水靈洞窟限定：貓哥的眼淚 — 受到傷害時 5% 機率恢復 5 點血量
+    auto roll_tears_heal = [&](RaidPlayer& p) {
+        if (p.hp <= 0) return;
+        bool has_tears = false;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          auto wi = inventory_data.find(p.uid);
+          has_tears = wi != inventory_data.end() && wi->second.count("col_cat_tears") && wi->second.at("col_cat_tears") > 0;
+        }
+        if (has_tears && raid_rand(1, 100) <= 5) {
+            int heal = std::min(5, p.max_hp - p.hp);
+            if (heal > 0) { p.hp += heal; log += "\n  → " + p.display_name + " 💧（貓哥的眼淚：恢復" + std::to_string(heal) + "HP）"; }
+        }
+    };
+
     switch (atk) {
     case BossAttack::AOE: {
         log = "🌊 **" + g.boss_name + "** 發動【全體攻擊】！";
         if (ur_def_active) log += "\n🌟 *女神守護 ×" + std::to_string(ur_orb_count) + "：全體 -" + std::to_string(ur_def_bonus) + " 傷害*";
         for (int idx : alive_idx) {
             auto& p = g.players[idx];
+            if (roll_dodge(p.uid)) {
+                log += "\n  → " + p.display_name + " 💨 完全閃避了攻擊！（隱形斗篷）";
+                continue;
+            }
             int raw = aoe_dmg;
             if (g.block_active) raw = (int)(raw * 0.8);
             int dmg = std::max(1, raw - p.def - ur_def_bonus);
@@ -505,12 +531,18 @@ static std::string raid_do_boss_turn(RaidGame& g) {
                 p.latus_orb_triggered = true; p.hp = p.max_hp / 2;
                 log += " 🔶（拉圖斯寶珠！回復至50%）";
             }
+            roll_tears_heal(p);
         }
         break;
     }
     case BossAttack::SINGLE: {
         int tidx = alive_idx[raid_rand(0, (int)alive_idx.size()-1)];
         auto& p = g.players[tidx];
+        if (roll_dodge(p.uid)) {
+            log = "🎯 **" + g.boss_name + "** 對 **" + p.display_name +
+                  "** 發動【集中攻擊】，但被完全閃避了！💨（隱形斗篷）";
+            break;
+        }
         int raw = single_dmg;
         if (g.block_active) raw = raw / 2;
         int dmg = std::max(1, raw - p.def - ur_def_bonus);
@@ -523,6 +555,7 @@ static std::string raid_do_boss_turn(RaidGame& g) {
             p.latus_orb_triggered = true; p.hp = p.max_hp / 2;
             log += "\n🔶 **" + p.display_name + "** 拉圖斯寶珠發動！回復至 50% HP！";
         }
+        roll_tears_heal(p);
         break;
     }
     case BossAttack::STUN: {
@@ -543,6 +576,10 @@ static std::string raid_do_boss_turn(RaidGame& g) {
         // 生命汲取：對隨機目標造成 30% 最大HP真實傷害，龍王回復 100 HP
         int tidx = alive_idx[raid_rand(0, (int)alive_idx.size()-1)];
         auto& p = g.players[tidx];
+        if (roll_dodge(p.uid)) {
+            log = "🌑 **" + g.boss_name + "** 發動【生命汲取】，但被 **" + p.display_name + "** 完全閃避了！💨（隱形斗篷）";
+            break;
+        }
         int dmg = std::max(1, p.max_hp * 30 / 100);
         p.hp = std::max(0, p.hp - dmg);
         int healed = std::min(100, g.boss_max_hp - g.boss_hp);
@@ -554,6 +591,7 @@ static std::string raid_do_boss_turn(RaidGame& g) {
             p.latus_orb_triggered = true; p.hp = p.max_hp / 2;
             log += "\n🔶 **" + p.display_name + "** 拉圖斯寶珠發動！回復至 50% HP！";
         }
+        roll_tears_heal(p);
         break;
     }
     }
@@ -590,6 +628,18 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
     auto& cp = g.players[g.current_player];
     int base_atk = cp.atk;
 
+    // BB博物館限定：觀觀遺失的胖次 — 本場戰鬥第一次攻擊 +5 攻擊力
+    std::string underwear_log;
+    if (!cp.underwear_first_atk_used) {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto wi = inventory_data.find(cp.uid);
+        if (wi != inventory_data.end() && wi->second.count("col_bb_lost_underwear") && wi->second.at("col_bb_lost_underwear") > 0) {
+            base_atk += 5;
+            underwear_log = "🩲（胖次加持+5）";
+        }
+        cp.underwear_first_atk_used = true;
+    }
+
     // 維京寶珠：狂暴被動 — HP 越低傷害越高
     double vk_mult = 1.0;
     std::string vk_log;
@@ -601,7 +651,7 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
 
     g.round_first_action = false;
 
-    std::string extra_log = vk_log;
+    std::string extra_log = vk_log + underwear_log;
     std::string log;
     int atk_dmg = 0;
 
@@ -637,6 +687,22 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
         if (heal > 0) {
             cp.hp = std::min(cp.hp + heal, cp.max_hp);
             log += "\n🌑 暗黑龍王寶珠：回復 **" + std::to_string(heal) + "** HP";
+        }
+    }
+
+    // 綠水靈洞窟限定：李秀的金箍棒 — 1% 機率攻擊時額外多打一下
+    if (!g.game_over) {
+        bool has_staff = false;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          auto wi = inventory_data.find(cp.uid);
+          has_staff = wi != inventory_data.end() && wi->second.count("col_golden_staff") && wi->second.at("col_golden_staff") > 0;
+        }
+        if (has_staff && raid_rand(1, 100) <= 1) {
+            int raw = (int)(base_atk * vk_mult);
+            int extra_dmg = std::max(1, raw - g.boss_def);
+            g.boss_hp -= extra_dmg;
+            log += "\n🥢 **金箍棒**！額外多打一下，追加 **" + std::to_string(extra_dmg) + "** 傷害！";
+            if (g.boss_hp <= 0) { g.boss_hp = 0; g.victory = true; g.game_over = true; log += " 🏆 Boss 倒下！"; }
         }
     }
 

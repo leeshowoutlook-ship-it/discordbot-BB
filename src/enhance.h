@@ -14,6 +14,12 @@ static int enh_apply_rate_bonus(int base_pct, bool has_bb_basic) {
     return std::min(100, base_pct + (has_bb_basic ? 5 : 0));
 }
 
+// 赤龍山脈套組：強化所需金額乘區，-5%/-10%/-15% 加總後一次套用（無條件捨去）。純函式。
+static int64_t enh_apply_cost_bonus(int64_t base_chips, bool rd_basic, bool rd_mid, bool rd_adv) {
+    double delta = (rd_basic ? -0.05 : 0.0) + (rd_mid ? -0.10 : 0.0) + (rd_adv ? -0.15 : 0.0);
+    return (int64_t)(base_chips * std::max(0.0, 1.0 + delta));
+}
+
 struct EnhTier { int stars; int64_t chips; int rate_pct; };
 // index 0 = 第1層所需, index 9 = 第10層所需
 static const std::array<EnhTier, ENH_MAX_LEVEL> ENH_TABLE = {{
@@ -122,6 +128,7 @@ static dpp::message make_enhance_stat_msg(dpp::snowflake uid, const std::string&
     Pet pet; bool has_pet = false;
     int stars = 0; int64_t chips = get_chips(uid);
     bool bb_basic_bonus = false;
+    bool rd_basic = false, rd_mid = false, rd_adv = false;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = pet_data.find(uid);
@@ -132,6 +139,7 @@ static dpp::message make_enhance_stat_msg(dpp::snowflake uid, const std::string&
             if (sit != ii->second.end()) stars = sit->second;
         }
         bb_basic_bonus = col_set_bb_basic(uid);
+        rd_basic = col_set_rd_basic(uid); rd_mid = col_set_rd_mid(uid); rd_adv = col_set_rd_adv(uid);
     }
 
     dpp::message msg;
@@ -161,10 +169,12 @@ static dpp::message make_enhance_stat_msg(dpp::snowflake uid, const std::string&
     if (!maxed) {
         const EnhTier& t = ENH_TABLE[level];
         int eff_rate = enh_apply_rate_bonus(t.rate_pct, bb_basic_bonus);
+        int64_t eff_cost = enh_apply_cost_bonus(t.chips, rd_basic, rd_mid, rd_adv);
         desc += "**升到 Lv " + std::to_string(level + 1) + "** 需要：\n";
-        desc += "⭐ 星星 ×" + std::to_string(t.stars) + "　💰 籌碼 " + std::to_string(t.chips) + "　🎲 成功率 " +
+        desc += "⭐ 星星 ×" + std::to_string(t.stars) + "　💰 籌碼 " + std::to_string(eff_cost) +
+                (eff_cost != t.chips ? "（赤龍山脈套組折扣）" : "") + "　🎲 成功率 " +
                 std::to_string(eff_rate) + "%" + (bb_basic_bonus ? "（BB博物館+5%）" : "") + "\n";
-        can_afford = (stars >= t.stars && chips >= t.chips);
+        can_afford = (stars >= t.stars && chips >= eff_cost);
         if (!can_afford) desc += "\n❌ 素材或籌碼不足！";
     } else {
         desc += "✅ 已達最高等級！";
@@ -228,12 +238,13 @@ static void handle_enhance_button(const dpp::button_click_t& ev) {
                     auto sit = inv.find("star_unknown");
                     if (sit != inv.end()) stars = sit->second;
                     int64_t chips = chip_data[uid].chips;
-                    if (stars < t.stars || chips < t.chips) {
+                    int64_t eff_cost = enh_apply_cost_bonus(t.chips, col_set_rd_basic(uid), col_set_rd_mid(uid), col_set_rd_adv(uid));
+                    if (stars < t.stars || chips < eff_cost) {
                         blocked = true;
                     } else {
                         // 消耗素材（無論成功失敗）
                         inv["star_unknown"] -= t.stars;
-                        chip_data[uid].chips -= t.chips;
+                        chip_data[uid].chips -= eff_cost;
                         int eff_rate = enh_apply_rate_bonus(t.rate_pct, col_set_bb_basic(uid));
                         bool success = std::uniform_int_distribution<int>(1, 100)(enh_rng()) <= eff_rate;
                         if (success) {
