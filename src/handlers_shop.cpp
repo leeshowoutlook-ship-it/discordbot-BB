@@ -269,7 +269,7 @@ void handle_shop_button(const dpp::button_click_t& ev)
             std::string vi_key = rest.substr(s1 + 1);
             auto* vi = find_virtual_item(vi_key);
             if (!vi || vi->price <= 0 || vi->category == "hunt") return;
-            int64_t sell_p = std::max((int64_t)1, (int64_t)(vi->price * 0.4));
+            int64_t sell_p = vi_sell_price(vi);
             bool sold = false;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);

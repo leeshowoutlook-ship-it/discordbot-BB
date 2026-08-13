@@ -182,6 +182,13 @@ static const VirtualShopItem* find_virtual_item(const std::string& key) {
     return nullptr;
 }
 
+// 回收（賣回商店）價格：一般道具為購買價的 40%，龍族寶箱等消耗品無購買管道，price 本身即為回收價
+static int64_t vi_sell_price(const VirtualShopItem* vi) {
+    if (!vi || vi->price <= 0 || vi->category == "hunt") return 0;
+    if (vi->category == "consumable") return vi->price;
+    return std::max((int64_t)1, (int64_t)(vi->price * 0.4));
+}
+
 static const VirtualShopItem* find_virtual_item_by_id(int id) {
     if (!id) return nullptr;
     for (auto& vi : VIRTUAL_ITEMS)
@@ -925,7 +932,11 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
         int remain = (int)(pet.work_end - now);
         int h = remain/3600, m2 = (remain%3600)/60, s2 = remain%60;
         char buf[32]; snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m2, s2);
+        struct tm end_tm{}; time_t work_end_t = pet.work_end; localtime_s(&end_tm, &work_end_t);
+        char end_buf[32]; snprintf(end_buf, sizeof(end_buf), "%02d/%02d %02d:%02d",
+            end_tm.tm_mon+1, end_tm.tm_mday, end_tm.tm_hour, end_tm.tm_min);
         content += "💼 **打工狀態** " + status_label + "，剩餘 " + std::string(buf) + "\n";
+        content += "📅 完成時間：" + std::string(end_buf) + "\n";
         make_container(content);
         dpp::component row1; row1.set_type(dpp::cot_action_row);
         row1.add_component(dpp::component().set_type(dpp::cot_button)
@@ -1513,7 +1524,7 @@ static dpp::message make_bag_sell_items_msg(dpp::snowflake uid) {
             .set_content("## 💰 售出道具\n沒有可售出的道具。"));
     } else {
         container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-            .set_content("## 💰 售出道具\n售出價格為購買價的 40%。狩獵卷不可售出。"));
+            .set_content("## 💰 售出道具\n售出價格為購買價的 40%（龍族寶箱按原價回收）。狩獵卷不可售出。"));
     }
     msg.add_component_v2(container);
 
@@ -1529,7 +1540,7 @@ static dpp::message make_bag_sell_items_msg(dpp::snowflake uid) {
                 msg.add_component_v2(sell_row);
                 sell_row = dpp::component(); sell_row.set_type(dpp::cot_action_row);
             }
-            int64_t sell_p = (vi->price > 0 && vi->category != "hunt") ? std::max((int64_t)1, (int64_t)(vi->price * 0.4)) : 0;
+            int64_t sell_p = vi_sell_price(vi);
             bool can_sell = sell_p > 0;
             dpp::component sbtn;
             sbtn.set_type(dpp::cot_button)

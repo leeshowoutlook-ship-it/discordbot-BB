@@ -225,6 +225,11 @@ static dpp::message make_stock_home_msg(dpp::snowflake uid,
     std::string uid_s = std::to_string((uint64_t)uid);
     std::map<std::string, StockInfo> snap;
     { std::lock_guard<std::mutex> lk(stock_mutex); snap = stock_market; }
+    std::map<std::string, StockHolding> holdings;
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      auto hit = player_stocks.find(uid);
+      if (hit != player_stocks.end()) holdings = hit->second;
+    }
 
     const int PAGE_SIZE = 5;
     int total       = (int)STOCK_DEFS.size();
@@ -244,6 +249,9 @@ static dpp::message make_stock_home_msg(dpp::snowflake uid,
             text += stock_change_line(it->second);
             if (!it->second.fetch_ok && !d.ticker.empty()) text += "\n⚠️ 上次更新失敗，顯示最後已知價格";
         }
+        auto hit = holdings.find(d.key);
+        if (hit != holdings.end() && hit->second.shares > 0)
+            text += "\n持有：**" + std::to_string(hit->second.shares) + "** 股";
         return dpp::component()
             .set_type(dpp::cot_section)
             .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
@@ -336,10 +344,62 @@ static dpp::message make_stock_detail_msg(dpp::snowflake uid, const std::string&
     dpp::component nav; nav.set_type(dpp::cot_action_row);
     nav.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回股市").set_id("stock_home_" + uid_s).set_style(dpp::cos_secondary));
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("📋 持股").set_id("stock_holders_" + uid_s + "_" + key).set_style(dpp::cos_secondary));
     if (key == "stock_mood" && !cfg.notify_user_id.empty() && std::to_string((uint64_t)uid) == cfg.notify_user_id) {
         nav.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🎛️ 調整心情").set_id("stock_mood_set_" + uid_s).set_style(dpp::cos_primary));
     }
+    msg.add_component_v2(nav);
+    return msg;
+}
+
+// ─── UI：股東頁（顯示某支股票所有持有人與持股數）─────────────────────────────────
+
+static dpp::message make_stock_holders_msg(dpp::snowflake uid, const std::string& key) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    const StockDef* def = find_stock_def(key);
+    std::string stock_title = def ? (def->emoji + " " + def->name) : key;
+
+    std::vector<std::pair<dpp::snowflake, int64_t>> holders;
+    int64_t total_shares = 0;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [huid, holdings] : player_stocks) {
+            auto hit = holdings.find(key);
+            if (hit == holdings.end() || hit->second.shares <= 0) continue;
+            holders.push_back({huid, hit->second.shares});
+            total_shares += hit->second.shares;
+        }
+    }
+    std::sort(holders.begin(), holders.end(), [](auto& a, auto& b) { return a.second > b.second; });
+
+    std::string content = "## 📋  " + stock_title + " 股東名單\n";
+    if (holders.empty()) {
+        content += "目前沒有人持有這支股票。";
+    } else {
+        static const char* MEDALS[] = {"🥇", "🥈", "🥉"};
+        int rank = 0;
+        for (auto& [huid, shares] : holders) {
+            std::string label = (rank < 3) ? MEDALS[rank] : (std::to_string(rank + 1) + ".");
+            content += label + " <@" + std::to_string((uint64_t)huid) + ">　**" + std::to_string(shares) + "** 股\n";
+            rank++;
+            if (rank >= 25) { content += "-# ……僅顯示前 25 名"; break; }
+        }
+        content += "\n總計流通 **" + std::to_string(total_shares) + "** 股（" + std::to_string(holders.size()) + " 人持有）";
+    }
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
+    dpp::component nav; nav.set_type(dpp::cot_action_row);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回").set_id("stock_view_" + uid_s + "_" + key).set_style(dpp::cos_secondary));
     msg.add_component_v2(nav);
     return msg;
 }

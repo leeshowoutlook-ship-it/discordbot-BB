@@ -87,6 +87,25 @@ struct ChipData {
     int     risk_dice_uses     = 0; // 當天已使用次數（上限 2，跨天重置）
 };
 
+// ─── !領取 防腳本按鈕驗證 ───────────────────────────────────────────────────────
+// 若玩家上一個小時也有領取（連續每小時都領），有一定機率要求按鈕驗證才會真正發放，
+// 提高固定排程腳本的模擬成本。用 data_mutex 保護。
+struct ClaimChallenge {
+    int                      correct_idx = 0;
+    std::vector<std::string> options;    // 按鈕上顯示的文字（表情符號或數字答案）
+    std::string              prompt;     // 驗證題目描述
+    time_t                   expires_at  = 0;
+    uint64_t                 token       = 0;  // 讓逾時計時器只處理自己那一次挑戰，不會誤傷後來新出的題目
+    dpp::snowflake           channel_id;       // 逾時後要編輯提示訊息用（!領取，一般頻道訊息）
+    dpp::snowflake           message_id;
+    std::string              interaction_token; // 逾時後要編輯提示訊息用（/領取，ephemeral 只能靠這個編輯）
+};
+inline std::map<dpp::snowflake, ClaimChallenge> claim_challenges;
+inline std::atomic<uint64_t> claim_challenge_token_seq{1};
+static const int CLAIM_VERIFY_CHANCE = 30; // 上一個小時也有領取時，觸發驗證的機率（%）
+static const int CLAIM_VERIFY_SECS   = 60; // 驗證時限（秒）：逾時未按也會被鎖
+static const int CLAIM_PENALTY_HOURS = 2;  // 答錯／逾時：這次 + 接下來這麼多次整點都不能領
+
 struct BankData {
     int64_t deposited         = 0;
     int64_t deposit_time      = 0;  // legacy, kept for JSON compat
@@ -654,8 +673,10 @@ struct TradeOffer {
     dpp::snowflake channel_id;
     time_t         created_at   = 0;
     int            from_item_id = 0;  // 0 = no item
+    int64_t        from_qty     = 1;  // from_item_id 的數量
     int64_t        from_chips   = 0;
     int            to_item_id   = 0;  // 0 = no item
+    int64_t        to_qty       = 1;  // to_item_id 的數量
     int64_t        to_chips     = 0;
 };
 inline std::map<uint64_t, TradeOffer> trade_offers;
@@ -912,22 +933,27 @@ struct StockHolding {
 inline std::map<dpp::snowflake, std::map<std::string, StockHolding>> player_stocks; // uid -> key -> holding（用 data_mutex 保護，跟其他玩家資料一致）
 
 // 5支股票的靜態定義（純資料，跟抓價/UI邏輯分開放，讓 adventure.h 的背包特殊分頁也能直接引用）
-struct StockDef { std::string key, name, ticker, emoji, desc; };
+struct StockDef { std::string key, name, ticker, emoji, desc; int item_id = 0; };
 static const std::vector<StockDef> STOCK_DEFS = {
-    {"stock_0050",  "元大台灣50 (0050)", "0050.TW", "📈", "追蹤台灣市值前50大企業的ETF，波動較穩健。"},
-    {"stock_tsmc",  "台積電 (2330)",      "2330.TW", "🏭", "台灣護國神山，全球晶圓代工龍頭。"},
-    {"stock_yageo", "國巨 (2327)",        "2327.TW", "🔧", "被動元件大廠，波動較大。"},
-    {"stock_btc",   "比特幣",             "BTC-USD", "₿",  "去中心化加密貨幣，價格波動劇烈。"},
-    {"stock_mood",  "LeeShoW的心情",      "",        "😶", "價格全憑 LeeShoW 心情決定，僅供娛樂。"}, // ticker="" 代表不接 API，價格由管理員手動調整
+    {"stock_0050",  "元大台灣50 (0050)", "0050.TW", "📈", "追蹤台灣市值前50大企業的ETF，波動較穩健。", 98001},
+    {"stock_tsmc",  "台積電 (2330)",      "2330.TW", "🏭", "台灣護國神山，全球晶圓代工龍頭。", 98002},
+    {"stock_yageo", "國巨 (2327)",        "2327.TW", "🔧", "被動元件大廠，波動較大。", 98003},
+    {"stock_btc",   "比特幣",             "BTC-USD", "₿",  "去中心化加密貨幣，價格波動劇烈。", 98004},
+    {"stock_mood",  "LeeShoW的心情",      "",        "😶", "價格全憑 LeeShoW 心情決定，僅供娛樂。", 98005}, // ticker="" 代表不接 API，價格由管理員手動調整
     // ── 第二頁：高波動美股 ───────────────────────────────────────────────────────
-    {"stock_tsla",  "Tesla",          "TSLA",    "🚗", "馬斯克的電動車帝國，推文一出股價暴震。"},
-    {"stock_nvda",  "NVIDIA",         "NVDA",    "🖥️", "AI晶片霸主，近年漲幅驚人，波動劇烈。"},
-    {"stock_mstr",  "MicroStrategy",  "MSTR",    "💾", "全倉押比特幣的公司，波動比 BTC 還激烈。"},
-    {"stock_ntdo",  "任天堂",          "7974.T",  "🎮", "日本遊戲巨頭，Switch 系列創造者（日圓計價）。"},
-    {"stock_coin",  "Coinbase",       "COIN",    "🏦", "最大加密貨幣交易所，跟加密市場同漲同跌。"},
+    {"stock_tsla",  "Tesla",          "TSLA",    "🚗", "馬斯克的電動車帝國，推文一出股價暴震。", 98006},
+    {"stock_nvda",  "NVIDIA",         "NVDA",    "🖥️", "AI晶片霸主，近年漲幅驚人，波動劇烈。", 98007},
+    {"stock_mstr",  "MicroStrategy",  "MSTR",    "💾", "全倉押比特幣的公司，波動比 BTC 還激烈。", 98008},
+    {"stock_ntdo",  "任天堂",          "7974.T",  "🎮", "日本遊戲巨頭，Switch 系列創造者（日圓計價）。", 98009},
+    {"stock_coin",  "Coinbase",       "COIN",    "🏦", "最大加密貨幣交易所，跟加密市場同漲同跌。", 98010},
 };
 static const StockDef* find_stock_def(const std::string& key) {
     for (auto& d : STOCK_DEFS) if (d.key == key) return &d;
+    return nullptr;
+}
+static const StockDef* find_stock_def_by_id(int id) {
+    if (!id) return nullptr;
+    for (auto& d : STOCK_DEFS) if (d.item_id == id) return &d;
     return nullptr;
 }
 

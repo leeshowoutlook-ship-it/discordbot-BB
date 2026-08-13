@@ -30,12 +30,49 @@
 
 // ─── Trade helpers ────────────────────────────────────────────────────────────
 
-// Unified item lookup by numeric ID — checks virtual items then gacha equipment
+// Unified item lookup by numeric ID — checks virtual items, gacha equipment, then stocks
 static std::pair<std::string,std::string> trade_item_info(int id) {
     if (!id) return {"",""};
     if (auto* vi = find_virtual_item_by_id(id)) return {vi->key, vi->name};
     if (auto* gi = find_gacha_item_by_id(id))   return {gi->key, gi->name};
+    if (auto* sd = find_stock_def_by_id(id))    return {sd->key, sd->name};
     return {"",""};
+}
+
+static bool trade_is_stock(const std::string& key) { return key.rfind("stock_", 0) == 0; }
+
+// 是否持有至少 qty 個道具／股數。呼叫前不可持有 data_mutex（自己上鎖）。
+static bool trade_has_item(dpp::snowflake uid, const std::string& key, int64_t qty) {
+    std::lock_guard<std::mutex> lk(data_mutex);
+    if (trade_is_stock(key)) {
+        auto pit = player_stocks.find(uid);
+        if (pit == player_stocks.end()) return false;
+        auto hit = pit->second.find(key);
+        return hit != pit->second.end() && hit->second.shares >= qty;
+    }
+    auto it = inventory_data.find(uid);
+    return it != inventory_data.end() && it->second.count(key) && it->second.at(key) >= qty;
+}
+
+// 執行道具／股票的轉移。呼叫前必須持有 data_mutex。
+static void trade_transfer_item(dpp::snowflake from_uid, dpp::snowflake to_uid, const std::string& key, int64_t qty) {
+    if (trade_is_stock(key)) {
+        auto& fh = player_stocks[from_uid][key];
+        auto& th = player_stocks[to_uid][key];
+        int64_t total_cost = th.avg_cost * th.shares + fh.avg_cost * qty;
+        th.shares += qty;
+        th.avg_cost = th.shares > 0 ? total_cost / th.shares : 0;
+        fh.shares -= qty;
+        if (fh.shares <= 0) { fh.shares = 0; fh.avg_cost = 0; }
+        return;
+    }
+    inventory_data[from_uid][key] -= qty;
+    inventory_data[to_uid][key]   += qty;
+    if (key == "col_rd_lovebook") inventory_data[from_uid]["_lovebook_unlocked"] = 0;
+    if (key == "recover_fatigue_cursed") { // 交易出去後變回一般高級強效咖啡
+        inventory_data[to_uid]["recover_fatigue_cursed"] -= qty;
+        inventory_data[to_uid]["recover_fatigue"]         += qty;
+    }
 }
 
 // 是否禁止交易此道具。貓哥的戀愛教典預設不可交易，需先在背包「特殊」分頁付 2000 碼解鎖一次。
@@ -58,9 +95,11 @@ static dpp::message make_trade_msg(const TradeOffer& t,
                                    const std::string& from_name,
                                    const std::string& to_name,
                                    const std::string& status = "") {
-    auto item_desc = [](int id) -> std::string {
+    auto item_desc = [](int id, int64_t qty) -> std::string {
         auto [key, name] = trade_item_info(id);
-        return std::string("`") + std::to_string(id) + "` " + (name.empty() ? "未知道具" : name);
+        std::string s = std::string("`") + std::to_string(id) + "` " + (name.empty() ? "未知道具" : name);
+        if (qty > 1) s += " ×" + std::to_string(qty);
+        return s;
     };
 
     std::string desc;
@@ -79,7 +118,7 @@ static dpp::message make_trade_msg(const TradeOffer& t,
     desc += "**" + from_name + " 提供：**\n";
     bool from_empty = (!t.from_item_id && t.from_chips <= 0);
     if (t.from_item_id) {
-        desc += "• " + item_desc(t.from_item_id) + "\n";
+        desc += "• " + item_desc(t.from_item_id, t.from_qty) + "\n";
         auto [from_key, from_iname2] = trade_item_info(t.from_item_id);
         if (col_would_break_set(t.from_uid, from_key))
             desc += "　⚠️ 交易後 " + from_name + " 的收藏套組加成將會失效！\n";
@@ -90,7 +129,7 @@ static dpp::message make_trade_msg(const TradeOffer& t,
     desc += "\n**" + to_name + " 提供：**\n";
     bool to_empty = (!t.to_item_id && t.to_chips <= 0);
     if (t.to_item_id) {
-        desc += "• " + item_desc(t.to_item_id) + "\n";
+        desc += "• " + item_desc(t.to_item_id, t.to_qty) + "\n";
         auto [to_key, to_iname2] = trade_item_info(t.to_item_id);
         if (col_would_break_set(t.to_uid, to_key))
             desc += "　⚠️ 交易後 " + to_name + " 的收藏套組加成將會失效！\n";
@@ -170,6 +209,9 @@ int main(int argc, char* argv[]) {
 
     // ── 訊息指令 ──────────────────────────────────────────────────────────────
     bot.on_message_create([&bot](const dpp::message_create_t& ev) {
+        // 擋掉所有機器人帳號（含其他 bot／webhook），避免被拿來自動洗 !領取 等指令
+        if (ev.msg.author.is_bot()) return;
+
         // Normalize full-width ！ (U+FF01, UTF-8: EF BC 81) to ASCII !
         std::string content = ev.msg.content;
         { const std::string fw = "\xEF\xBC\x81"; size_t p;
@@ -278,8 +320,8 @@ int main(int argc, char* argv[]) {
             });
         }
         else if (content == "!領取") {
-            bool claimed = false;
-            dpp::message m = handle_claim(uid, &claimed);
+            bool claimed = false, challenged = false; uint64_t claim_token = 0;
+            dpp::message m = handle_claim(uid, &claimed, &challenged, &claim_token);
             if (claimed) {
                 int64_t repaid = bank_auto_repay(uid, CLAIM_AMOUNT / 2);
                 if (repaid > 0) {
@@ -334,14 +376,25 @@ int main(int argc, char* argv[]) {
                 }
             }
             m.channel_id = ch;
-            bot.message_create(m, [&bot, ch](const dpp::confirmation_callback_t& cb) {
-                if (!cb.is_error()) {
-                    dpp::snowflake mid = std::get<dpp::message>(cb.value).id;
-                    bot.start_timer([&bot, mid, ch](dpp::timer t) {
-                        bot.message_delete(mid, ch); bot.stop_timer(t);
-                    }, 15);
-                }
-            });
+            if (challenged) {
+                // 驗證按鈕還沒按，先不要自動刪除訊息；改排一個逾時鎖定計時器
+                bot.message_create(m, [uid, ch, claim_token](const dpp::confirmation_callback_t& cb) {
+                    if (!cb.is_error()) {
+                        dpp::snowflake mid = std::get<dpp::message>(cb.value).id;
+                        { std::lock_guard<std::mutex> lk(data_mutex); msg_owner[mid] = uid; }
+                        schedule_claim_verify_timeout(uid, ch, mid, claim_token);
+                    }
+                });
+            } else {
+                bot.message_create(m, [&bot, ch](const dpp::confirmation_callback_t& cb) {
+                    if (!cb.is_error()) {
+                        dpp::snowflake mid = std::get<dpp::message>(cb.value).id;
+                        bot.start_timer([&bot, mid, ch](dpp::timer t) {
+                            bot.message_delete(mid, ch); bot.stop_timer(t);
+                        }, 15);
+                    }
+                });
+            }
         }
         else if (content == "!每週領取") {
             bool claimed = false;
@@ -593,11 +646,11 @@ int main(int argc, char* argv[]) {
                  content == "!一夜狼人" || content == "!一夜狼人規則" || content == "!狼人殺規則") {
             handle_wolf_message(ev, content, uid, ch); return;
         }
-        // !交易 @對象 我的道具ID 我的籌碼 對方道具ID 對方籌碼  (ID=0 表示不出)
+        // !交易 @對象 我的道具ID 我的道具數量 我的籌碼 對方道具ID 對方道具數量 對方籌碼  (ID=0 表示不出，數量預設1)
         else if (content.rfind("!交易", 0) == 0) {
             auto trade_usage = [&]() {
                 dpp::message m; m.channel_id = ch;
-                m.set_content("用法：`!交易 @對象 我的道具ID 我出的籌碼 對方道具ID 對方出的籌碼`（不出填 0）\n例：`!交易 @小明 50001 0 50002 500`");
+                m.set_content("用法：`!交易 @對象 我的道具ID 我的道具數量 我出的籌碼 對方道具ID 對方道具數量 對方出的籌碼`（不出填 0，數量預設1）\n例：`!交易 @小明 50001 1 0 50002 1 500`");
                 bot.message_create(m);
             };
             dpp::snowflake target = parse_mention(content);
@@ -610,8 +663,10 @@ int main(int argc, char* argv[]) {
             }
             std::istringstream iss(content.substr(gt + 1));
             int from_item_id = 0, to_item_id = 0;
-            int64_t from_chips = 0, to_chips = 0;
-            iss >> from_item_id >> from_chips >> to_item_id >> to_chips;
+            int64_t from_qty = 1, to_qty = 1, from_chips = 0, to_chips = 0;
+            iss >> from_item_id >> from_qty >> from_chips >> to_item_id >> to_qty >> to_chips;
+            if (from_qty <= 0) from_qty = 1;
+            if (to_qty   <= 0) to_qty   = 1;
 
             // Validate sender's side
             auto [from_key, from_iname] = trade_item_info(from_item_id);
@@ -626,12 +681,9 @@ int main(int argc, char* argv[]) {
                     m.set_content("❌ **" + from_iname + "** 不可交易！");
                     bot.message_create(m); return;
                 }
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto& inv = inventory_data[uid];
-                auto it = inv.find(from_key);
-                if (it == inv.end() || it->second <= 0) {
+                if (!trade_has_item(uid, from_key, from_qty)) {
                     dpp::message m; m.channel_id = ch;
-                    m.set_content("❌ 你沒有 **" + from_iname + "**！");
+                    m.set_content("❌ 你沒有 **" + std::to_string(from_qty) + "** 個/股 **" + from_iname + "**！");
                     bot.message_create(m); return;
                 }
             }
@@ -666,8 +718,8 @@ int main(int argc, char* argv[]) {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 t.id = trade_counter++;
                 t.from_uid = uid; t.to_uid = target; t.channel_id = ch;
-                t.from_item_id = from_item_id; t.from_chips = from_chips;
-                t.to_item_id   = to_item_id;   t.to_chips   = to_chips;
+                t.from_item_id = from_item_id; t.from_qty = from_qty; t.from_chips = from_chips;
+                t.to_item_id   = to_item_id;   t.to_qty   = to_qty;   t.to_chips   = to_chips;
                 t.created_at   = time(nullptr);
                 trade_offers[t.id] = t;
             }
@@ -881,6 +933,27 @@ int main(int argc, char* argv[]) {
             int new_page = is_prev ? cur_page - 1 : cur_page + 1;
             ev.reply(dpp::ir_update_message, make_help_msg(new_page));
         }
+        // ── 領取驗證按鈕 ─────────────────────────────────────────────────────
+        else if (cid.rfind("claim_verify_", 0) == 0) {
+            std::string rest = cid.substr(13);
+            size_t sep = rest.find('_'); if (sep == std::string::npos) return;
+            dpp::snowflake bu(std::stoull(rest.substr(0, sep)));
+            if (uid != bu) { ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的驗證！").set_flags(dpp::m_ephemeral)); return; }
+            int idx = 0;
+            try { idx = std::stoi(rest.substr(sep + 1)); } catch (...) {}
+            bool granted = false;
+            dpp::message m = handle_claim_verify(uid, idx, &granted);
+            if (granted) {
+                int64_t repaid = bank_auto_repay(uid, CLAIM_AMOUNT / 2);
+                if (repaid > 0) {
+                    save_chips(); save_bank();
+                    if (!m.embeds.empty())
+                        m.embeds[0].add_field("💳 自動還款", std::to_string(repaid) + " 碼已從本次領取扣除", false);
+                }
+            }
+            ev.reply(dpp::ir_update_message, m);
+        }
         // ── 富豪榜翻頁 ────────────────────────────────────────────────────────
         else if (cid.rfind("lb_", 0) == 0) {
             if (!page_is_mine(ev.command.message_id, uid)) {
@@ -957,20 +1030,25 @@ int main(int argc, char* argv[]) {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 auto [fkey, fname2] = trade_item_info(t.from_item_id);
                 auto [tkey, tname2] = trade_item_info(t.to_item_id);
-                if (!fkey.empty()) {
-                    auto it2 = inventory_data[t.from_uid].find(fkey);
-                    if (it2 == inventory_data[t.from_uid].end() || it2->second <= 0)
-                        fail_reason = "提案方已沒有該道具！交易取消。";
-                }
+                auto has_enough = [](dpp::snowflake u, const std::string& key, int64_t qty) {
+                    if (key.empty()) return true;
+                    if (trade_is_stock(key)) {
+                        auto pit = player_stocks.find(u);
+                        if (pit == player_stocks.end()) return false;
+                        auto hit = pit->second.find(key);
+                        return hit != pit->second.end() && hit->second.shares >= qty;
+                    }
+                    auto it2 = inventory_data[u].find(key);
+                    return it2 != inventory_data[u].end() && it2->second >= qty;
+                };
+                if (!has_enough(t.from_uid, fkey, t.from_qty))
+                    fail_reason = "提案方已沒有足夠的該道具！交易取消。";
                 int64_t from_fee = (t.from_chips > 0 && !col_has_lovebook(t.from_uid)) ? (t.from_chips + 99) / 100 : 0;
                 int64_t to_fee   = (t.to_chips   > 0 && !col_has_lovebook(t.to_uid))   ? (t.to_chips   + 99) / 100 : 0;
                 if (fail_reason.empty() && t.from_chips > 0 && chip_data[t.from_uid].chips < t.from_chips + from_fee)
                     fail_reason = "提案方籌碼不足（含手續費）！交易取消。";
-                if (fail_reason.empty() && !tkey.empty()) {
-                    auto it2 = inventory_data[t.to_uid].find(tkey);
-                    if (it2 == inventory_data[t.to_uid].end() || it2->second <= 0)
-                        fail_reason = "你沒有對方要求的道具！交易取消。";
-                }
+                if (fail_reason.empty() && !has_enough(t.to_uid, tkey, t.to_qty))
+                    fail_reason = "你沒有足夠的對方要求的道具！交易取消。";
                 if (fail_reason.empty() && t.to_chips > 0 && chip_data[t.to_uid].chips < t.to_chips + to_fee)
                     fail_reason = "你的籌碼不足（含手續費）！交易取消。";
 
@@ -978,24 +1056,8 @@ int main(int argc, char* argv[]) {
                     trade_offers.erase(tid);
                 } else {
                     // Execute
-                    if (!fkey.empty()) {
-                        inventory_data[t.from_uid][fkey]--;
-                        inventory_data[t.to_uid][fkey]++;
-                        if (fkey == "col_rd_lovebook") inventory_data[t.from_uid]["_lovebook_unlocked"] = 0;
-                        if (fkey == "recover_fatigue_cursed") { // 交易出去後變回一般高級強效咖啡
-                            inventory_data[t.to_uid]["recover_fatigue_cursed"]--;
-                            inventory_data[t.to_uid]["recover_fatigue"]++;
-                        }
-                    }
-                    if (!tkey.empty()) {
-                        inventory_data[t.to_uid][tkey]--;
-                        inventory_data[t.from_uid][tkey]++;
-                        if (tkey == "col_rd_lovebook") inventory_data[t.to_uid]["_lovebook_unlocked"] = 0;
-                        if (tkey == "recover_fatigue_cursed") {
-                            inventory_data[t.from_uid]["recover_fatigue_cursed"]--;
-                            inventory_data[t.from_uid]["recover_fatigue"]++;
-                        }
-                    }
+                    if (!fkey.empty()) trade_transfer_item(t.from_uid, t.to_uid, fkey, t.from_qty);
+                    if (!tkey.empty()) trade_transfer_item(t.to_uid, t.from_uid, tkey, t.to_qty);
                     if (t.from_chips > 0) {
                         chip_data[t.from_uid].chips -= t.from_chips + from_fee;  // 手續費燒掉
                         chip_data[t.to_uid].chips   += t.from_chips;
@@ -1012,6 +1074,8 @@ int main(int argc, char* argv[]) {
             }
             save_chips();
             save_inventory();
+            if (trade_is_stock(trade_item_info(t.from_item_id).first) || trade_is_stock(trade_item_info(t.to_item_id).first))
+                save_stock_holdings();
             ev.reply(dpp::ir_update_message, make_trade_msg(t, from_name, to_name, "ok"));
         }
         // ── 組隊房間開始：依 boss 分流 ────────────────────────────────────────
@@ -2012,9 +2076,12 @@ int main(int argc, char* argv[]) {
             std::string filter;
             if (opt.value.index() != 0) try { filter = std::get<std::string>(opt.value); } catch (...) {}
             std::map<std::string,int> inv;
+            std::map<std::string,StockHolding> holdings;
             { std::lock_guard<std::mutex> lk(data_mutex);
               auto it = inventory_data.find(uid);
               if (it != inventory_data.end()) inv = it->second;
+              auto sit = player_stocks.find(uid);
+              if (sit != player_stocks.end()) holdings = sit->second;
             }
             std::vector<dpp::command_option_choice> choices;
             for (auto& [key, cnt] : inv) {
@@ -2032,6 +2099,17 @@ int main(int argc, char* argv[]) {
                 }
                 choices.push_back(dpp::command_option_choice(label, std::to_string(item_id)));
                 if (choices.size() >= 25) break;
+            }
+            for (auto& [key, h] : holdings) {
+                if (h.shares <= 0 || choices.size() >= 25) continue;
+                auto* sd = find_stock_def(key);
+                if (!sd || sd->item_id == 0) continue;
+                std::string label = sd->name + " ×" + std::to_string(h.shares) + " 股（ID: " + std::to_string(sd->item_id) + "）";
+                if (!filter.empty()) {
+                    if (label.find(filter) == std::string::npos &&
+                        std::to_string(sd->item_id).find(filter) == std::string::npos) continue;
+                }
+                choices.push_back(dpp::command_option_choice(label, std::to_string(sd->item_id)));
             }
             dpp::interaction_response res(dpp::ir_autocomplete_reply);
             for (auto& c : choices) res.add_autocomplete_choice(c);
@@ -2083,8 +2161,8 @@ int main(int argc, char* argv[]) {
             ev.reply(dpp::ir_channel_message_with_source, make_help_msg(0));
         }
         else if (cmd_name == "領取" || cmd_name == "claim") {
-            bool claimed = false;
-            dpp::message m = handle_claim(uid, &claimed);
+            bool claimed = false, challenged = false; uint64_t claim_token = 0;
+            dpp::message m = handle_claim(uid, &claimed, &challenged, &claim_token);
             if (claimed) {
                 int64_t repaid = bank_auto_repay(uid, CLAIM_AMOUNT / 2);
                 if (repaid > 0) {
@@ -2122,6 +2200,7 @@ int main(int argc, char* argv[]) {
                 }
             }
             ev.reply(dpp::ir_channel_message_with_source, m.set_flags(dpp::m_ephemeral));
+            if (challenged) schedule_claim_verify_timeout_interaction(uid, ev.command.token, claim_token);
         }
         else if (cmd_name == "每週領取" || cmd_name == "weekly") {
             bool claimed = false;
@@ -2269,8 +2348,10 @@ int main(int argc, char* argv[]) {
             int from_item_id = 0;
             { auto p = ev.get_parameter("我的道具");
               if (p.index() != 0) try { from_item_id = std::stoi(std::get<std::string>(p)); } catch (...) {} }
+            int64_t from_qty   = get_int("我的道具數量"); if (from_qty <= 0) from_qty = 1;
             int64_t from_chips = get_int("我的籌碼");
             int to_item_id   = (int)get_int("對方道具");
+            int64_t to_qty   = get_int("對方道具數量"); if (to_qty <= 0) to_qty = 1;
             int64_t to_chips = get_int("對方籌碼");
             if (target == uid) {
                 ev.reply(dpp::ir_channel_message_with_source,
@@ -2286,11 +2367,9 @@ int main(int argc, char* argv[]) {
                     ev.reply(dpp::ir_channel_message_with_source,
                         dpp::message("❌ **" + from_iname2 + "** 不可交易！").set_flags(dpp::m_ephemeral)); return;
                 }
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto it = inventory_data[uid].find(from_key2);
-                if (it == inventory_data[uid].end() || it->second <= 0) {
+                if (!trade_has_item(uid, from_key2, from_qty)) {
                     ev.reply(dpp::ir_channel_message_with_source,
-                        dpp::message("❌ 你沒有 **" + from_iname2 + "**！").set_flags(dpp::m_ephemeral)); return;
+                        dpp::message("❌ 你沒有 **" + std::to_string(from_qty) + "** 個/股 **" + from_iname2 + "**！").set_flags(dpp::m_ephemeral)); return;
                 }
             }
             if (from_chips < 0) from_chips = 0;
@@ -2318,8 +2397,8 @@ int main(int argc, char* argv[]) {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 t.id = trade_counter++;
                 t.from_uid = uid; t.to_uid = target; t.channel_id = ch;
-                t.from_item_id = from_item_id; t.from_chips = from_chips;
-                t.to_item_id   = to_item_id;   t.to_chips   = to_chips;
+                t.from_item_id = from_item_id; t.from_qty = from_qty; t.from_chips = from_chips;
+                t.to_item_id   = to_item_id;   t.to_qty   = to_qty;   t.to_chips   = to_chips;
                 t.created_at   = time(nullptr);
                 trade_offers[t.id] = t;
             }
@@ -2647,16 +2726,20 @@ int main(int argc, char* argv[]) {
             trade_cmd.add_option(dpp::command_option(dpp::co_user, "對象", "交易對象", true));
             { auto p = dpp::command_option(dpp::co_string, "我的道具", "我出的道具（從清單選擇或手動輸入ID）", false);
               p.set_auto_complete(true); trade_cmd.add_option(p); }
-            trade_cmd.add_option(dpp::command_option(dpp::co_integer, "我的籌碼", "我出的籌碼（0=無）",  false))
+            trade_cmd.add_option(dpp::command_option(dpp::co_integer, "我的道具數量", "我出的道具數量（預設1，股票可填股數）", false))
+                     .add_option(dpp::command_option(dpp::co_integer, "我的籌碼", "我出的籌碼（0=無）",  false))
                      .add_option(dpp::command_option(dpp::co_integer, "對方道具", "要對方出的道具ID（0=無）", false))
+                     .add_option(dpp::command_option(dpp::co_integer, "對方道具數量", "要對方出的道具數量（預設1）", false))
                      .add_option(dpp::command_option(dpp::co_integer, "對方籌碼", "要對方出的籌碼（0=無）",  false));
 
             dpp::slashcommand trade_en("trade", "Propose an item/chip trade with another player", bot.me.id);
             trade_en.add_option(dpp::command_option(dpp::co_user, "對象", "Trade target", true));
             { auto p = dpp::command_option(dpp::co_string, "我的道具", "Your item (pick from list or type ID)", false);
               p.set_auto_complete(true); trade_en.add_option(p); }
-            trade_en.add_option(dpp::command_option(dpp::co_integer, "我的籌碼", "Your chips (0=none)",   false))
+            trade_en.add_option(dpp::command_option(dpp::co_integer, "我的道具數量", "Your item quantity (default 1, shares for stocks)", false))
+                    .add_option(dpp::command_option(dpp::co_integer, "我的籌碼", "Your chips (0=none)",   false))
                     .add_option(dpp::command_option(dpp::co_integer, "對方道具", "Their item ID (0=none)",false))
+                    .add_option(dpp::command_option(dpp::co_integer, "對方道具數量", "Their item quantity (default 1)", false))
                     .add_option(dpp::command_option(dpp::co_integer, "對方籌碼", "Their chips (0=none)",  false));
 
             dpp::slashcommand roulette_cmd("輪盤", "向玩家發起俄羅斯輪盤（賭注輸贏）", bot.me.id);

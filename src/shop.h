@@ -454,8 +454,7 @@ static dpp::message make_virtual_shop_msg() {
             "✨ **天賦道具** — 賦予或重抽寵物天賦技能\n"
             "📜 **特殊道具** — 怪物狩獵卷等特殊消耗品\n"
             "💊 **恢復道具** — 解除寵物負面狀態的藥品\n"
-            "⭐ **特權道具** — VIP 自動領籌碼、寵物監工等特殊效果\n"
-            "🐉 **龍族寶箱** — 開啟後隨機獲得籌碼"));
+            "⭐ **特權道具** — VIP 自動領籌碼、寵物監工等特殊效果"));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -486,8 +485,6 @@ static dpp::message make_virtual_shop_msg() {
 
     dpp::component row3; row3.set_type(dpp::cot_action_row);
     row3.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🐉 龍族寶箱").set_id("shop_vcat_consumable").set_style(dpp::cos_primary));
-    row3.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回商店主頁").set_id("shop_main").set_style(dpp::cos_secondary));
     msg.add_component_v2(row3);
     return msg;
@@ -509,7 +506,9 @@ static dpp::message make_vcat_shop_msg(dpp::snowflake uid, const std::string& ca
     bool can_buy = (cat == "hunt" || cat == "recovery" || cat == "privilege") ? true : can_buy_virtual_cat(uid, cat);
 
     std::vector<const VirtualShopItem*> items;
-    for (auto& vi : VIRTUAL_ITEMS) if (vi.category == cat) items.push_back(&vi);
+    for (auto& vi : VIRTUAL_ITEMS)
+        // 被詛咒的咖啡只能靠「天元的舔狗密笈」每日領取，不開放商店購買
+        if (vi.category == cat && vi.key != "recover_fatigue_cursed") items.push_back(&vi);
     int64_t bal = get_chips(uid);
 
     std::string title = titles.count(cat) ? titles.at(cat) : "虛擬商店";

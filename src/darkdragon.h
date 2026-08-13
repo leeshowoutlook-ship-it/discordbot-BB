@@ -322,8 +322,8 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         else if (r < 0.50) vk_log = " ⚡憤怒×1.4";
     }
     // BB博物館限定：觀觀遺失的胖次 — 本場戰鬥第一次攻擊 +5 攻擊力
+    // 呼叫前必須持有 data_mutex（dd_do_attack 只會在呼叫端已鎖的情況下被呼叫，自己再鎖會死鎖）
     if (!cp.underwear_first_atk_used) {
-        std::lock_guard<std::mutex> lk(data_mutex);
         auto wi = inventory_data.find(cp.uid);
         if (wi != inventory_data.end() && wi->second.count("col_bb_lost_underwear") && wi->second.at("col_bb_lost_underwear") > 0) {
             eff_atk += 5;
@@ -374,13 +374,10 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         }
     }
 
-    // 綠水靈洞窟限定：李秀的金箍棒 — 1% 機率攻擊時額外多打一下
+    // 綠水靈洞窟限定：李秀的金箍棒 — 1% 機率攻擊時額外多打一下（呼叫端已持有 data_mutex）
     if (h.alive) {
-        bool has_staff = false;
-        { std::lock_guard<std::mutex> lk(data_mutex);
-          auto wi = inventory_data.find(cp.uid);
-          has_staff = wi != inventory_data.end() && wi->second.count("col_golden_staff") && wi->second.at("col_golden_staff") > 0;
-        }
+        auto wi = inventory_data.find(cp.uid);
+        bool has_staff = wi != inventory_data.end() && wi->second.count("col_golden_staff") && wi->second.at("col_golden_staff") > 0;
         if (has_staff && dd_rand(1, 100) <= 1) {
             int extra_dmg = std::max(1, eff_atk - h.def);
             h.hp -= extra_dmg;
@@ -412,21 +409,18 @@ static std::string dd_do_boss_turn(DDGame& g) {
     std::string log;
 
     // BB博物館限定：Sian的隱形斗篷 — 每位持有者各自 1% 機率完全閃避怪物攻擊
+    // 呼叫前必須持有 data_mutex（dd_do_boss_turn 只會在呼叫端已鎖的情況下被呼叫，自己再鎖會死鎖）
     auto roll_dodge = [&](dpp::snowflake uid) -> bool {
-        std::lock_guard<std::mutex> lk(data_mutex);
         auto wi = inventory_data.find(uid);
         if (wi == inventory_data.end() || !wi->second.count("col_bb_sian_cloak") || wi->second.at("col_bb_sian_cloak") <= 0)
             return false;
         return dd_rand(1, 100) <= 1;
     };
-    // 綠水靈洞窟限定：貓哥的眼淚 — 受到傷害時 5% 機率恢復 5 點血量
+    // 綠水靈洞窟限定：貓哥的眼淚 — 受到傷害時 5% 機率恢復 5 點血量（同樣假設呼叫端已持有 data_mutex）
     auto roll_tears_heal = [&](DDPlayer& p) {
         if (p.hp <= 0) return;
-        bool has_tears = false;
-        { std::lock_guard<std::mutex> lk(data_mutex);
-          auto wi = inventory_data.find(p.uid);
-          has_tears = wi != inventory_data.end() && wi->second.count("col_cat_tears") && wi->second.at("col_cat_tears") > 0;
-        }
+        auto wi = inventory_data.find(p.uid);
+        bool has_tears = wi != inventory_data.end() && wi->second.count("col_cat_tears") && wi->second.at("col_cat_tears") > 0;
         if (has_tears && dd_rand(1, 100) <= 5) {
             int heal = std::min(5, p.max_hp - p.hp);
             if (heal > 0) { p.hp += heal; log += "\n  → " + p.display_name + " 💧（貓哥的眼淚：恢復" + std::to_string(heal) + "HP）"; }

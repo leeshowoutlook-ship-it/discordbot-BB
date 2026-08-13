@@ -78,6 +78,13 @@ void handle_stock_button(const dpp::button_click_t& ev)
         ev.dialog(modal); return;
     }
 
+    if (cid.rfind("stock_holders_", 0) == 0) {
+        auto [bu, key] = split_uid_key(cid.substr(14));
+        if (uid != bu) { ev.reply(dpp::ir_channel_message_with_source,
+            dpp::message("❌ 這不是你的股市！").set_flags(dpp::m_ephemeral)); return; }
+        ev.reply(dpp::ir_update_message, make_stock_holders_msg(uid, key)); return;
+    }
+
     if (cid == "stock_mood_set_" + uid_s) {
         if (cfg.notify_user_id.empty() || uid_s != cfg.notify_user_id) {
             ev.reply(dpp::ir_channel_message_with_source,
