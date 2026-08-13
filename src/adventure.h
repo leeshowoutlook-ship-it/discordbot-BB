@@ -1209,9 +1209,12 @@ static dpp::message make_adv_region_select_msg(dpp::snowflake uid, const std::st
             .set_label(r.emoji + " " + r.name)
             .set_id("adv_region_" + uid_s + "_" + r.key)
             .set_style(dpp::cos_primary));
-    row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("↩ 返回").set_id("adv_main_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
+
+    dpp::component back_row; back_row.set_type(dpp::cot_action_row);
+    back_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回").set_id("adv_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(back_row);
     return msg;
 }
 
