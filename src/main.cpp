@@ -1304,7 +1304,7 @@ int main(int argc, char* argv[]) {
             handle_shop_button(ev); return;
         }
         // ── 寵物 / 大廳 / 天賦按鈕 ────────────────────────────────────────────
-        else if (cid.rfind("lobby_", 0) == 0 || cid.rfind("pet_", 0) == 0 || cid.rfind("talent_pick_", 0) == 0) {
+        else if (cid.rfind("lobby_", 0) == 0 || cid.rfind("pet_", 0) == 0 || cid.rfind("talent_pick_", 0) == 0 || cid.rfind("talent_slot_", 0) == 0) {
             handle_pet_button(ev); return;
         }
         // ── 銀行按鈕 ──────────────────────────────────────────────────────────
