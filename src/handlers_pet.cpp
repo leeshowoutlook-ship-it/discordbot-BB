@@ -385,51 +385,79 @@ void handle_pet_button(const dpp::button_click_t& ev)
 
     // ── 天賦選擇按鈕（talent_pick_ 不以 pet_ 開頭）────────────────────────────
     if (cid.rfind("talent_pick_", 0) == 0) {
-        // talent_pick_{talent}_{uid}
+        // talent_pick_{slot}_{talent}_{uid}
         std::string rest = cid.substr(12);
+        size_t s1 = rest.find('_');
+        if (s1 == std::string::npos) return;
+        int slot = 0;
+        try { slot = std::stoi(rest.substr(0, s1)); } catch (...) {}
+        rest = rest.substr(s1 + 1);
         size_t last = rest.rfind('_');
-        if (last == std::string::npos) return;
+        if (last == std::string::npos || (slot != 1 && slot != 2)) return;
         std::string talent = rest.substr(0, last);
         dpp::snowflake btn_uid(std::stoull(rest.substr(last + 1)));
         if (uid != btn_uid) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 這不是你的背包！").set_flags(dpp::m_ephemeral)); return;
         }
-        std::string old_talent;
+        std::string old_talent, fail_reason;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& inv = inventory_data[uid];
             auto it = inv.find("talent_scroll");
             if (it == inv.end() || it->second <= 0) {
-                dpp::component ct3; ct3.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
-                ct3.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content("## ❌ 失敗\n你已沒有天賦賦予卷軸！"));
-                dpp::message em3; em3.set_flags(dpp::m_using_components_v2); em3.add_component_v2(ct3);
-                ev.reply(dpp::ir_update_message, em3); return;
+                fail_reason = "你已沒有天賦賦予卷軸！";
+            } else {
+                auto& pet = pet_data[uid];
+                std::string& other = (slot == 1) ? pet.talent2 : pet.talent;
+                if (slot == 2 && !pet.talent2_unlocked) fail_reason = "第二天賦欄位還沒解鎖！";
+                else if (talent == other) fail_reason = "兩個天賦欄位不能是相同天賦！";
+                else {
+                    std::string& target = (slot == 1) ? pet.talent : pet.talent2;
+                    old_talent = target;
+                    inv["talent_scroll"]--;
+                    target = talent;
+                }
             }
-            auto& pet = pet_data[uid];
-            old_talent = pet.talent;
-            inv["talent_scroll"]--;
-            pet.talent = talent;
+        }
+        if (!fail_reason.empty()) {
+            dpp::component ct3; ct3.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+            ct3.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content("## ❌ 失敗\n" + fail_reason));
+            dpp::message em3; em3.set_flags(dpp::m_using_components_v2); em3.add_component_v2(ct3);
+            ev.reply(dpp::ir_update_message, em3); return;
         }
         save_inventory();
         save_pet_data();
-        auto talent_desc_fn = [](const std::string& t) -> std::string {
-            if (t == "迅捷")      return "打工時間縮短 10%！";
-            if (t == "招人喜歡")  return "打工報酬提升 10%！";
-            if (t == "幸運")      return "打工有 5% 機率獲得雙倍報酬！";
-            if (t == "天然呆")    return "使用道具時有 5% 機率不消耗道具！";
-            if (t == "喜歡作夢")  return "每次打工完有 0.1% 機率將現有籌碼翻倍！";
-            return "";
-        };
+        std::string slot_label = (slot == 1) ? "天賦一" : "天賦二";
         std::string result_txt;
         if (!old_talent.empty())
-            result_txt = "## 🌟 天賦覺醒！\n🔄 天賦已替換！\n**" + old_talent + "** → **" + talent + "**\n" + talent_desc_fn(talent);
+            result_txt = "## 🌟 " + slot_label + "覺醒！\n🔄 " + slot_label + "已替換！\n**" + old_talent + "** → **" + talent + "**\n" + talent_effect_desc(talent);
         else
-            result_txt = "## 🌟 天賦覺醒！\n✨ 天賦賦予成功！\n**" + talent + "** — " + talent_desc_fn(talent);
+            result_txt = "## 🌟 " + slot_label + "覺醒！\n✨ 賦予成功！\n**" + talent + "** — " + talent_effect_desc(talent);
         dpp::component ct4; ct4.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF3, 0x9C, 0x12));
         ct4.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(result_txt));
         dpp::message rm; rm.set_flags(dpp::m_using_components_v2); rm.add_component_v2(ct4);
         ev.reply(dpp::ir_update_message, rm);
+        return;
+    }
+
+    // ── 天賦欄位選擇按鈕（talent_slot_{itemkey}_{slot}_{uid}）─────────────────
+    if (cid.rfind("talent_slot_", 0) == 0) {
+        std::string rest = cid.substr(12);
+        size_t last1 = rest.rfind('_');
+        if (last1 == std::string::npos) return;
+        dpp::snowflake btn_uid(std::stoull(rest.substr(last1 + 1)));
+        rest = rest.substr(0, last1);
+        size_t last2 = rest.rfind('_');
+        if (last2 == std::string::npos) return;
+        int slot = 0;
+        try { slot = std::stoi(rest.substr(last2 + 1)); } catch (...) {}
+        std::string item_key = rest.substr(0, last2);
+        if (uid != btn_uid || (slot != 1 && slot != 2)) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的背包！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, handle_pet_use_item(uid, item_key, 1, slot));
         return;
     }
 }

@@ -163,7 +163,9 @@ struct Pet {
     time_t      work_end  = 0;
     std::string variant   = ""; // "" | "苔蘚" | "殭屍" | "藍菇" | "沙漠" | "企鵝王"
     std::string custom_name = "";
-    std::string talent    = ""; // "" | "迅捷" | "招人喜歡" | "幸運" | "天然呆" | "喜歡作夢"
+    std::string talent    = ""; // 天賦一，見 ALL_TALENTS（pet.h）
+    std::string talent2   = ""; // 天賦二，需先用「第二天賦解鎖石」解鎖才能賦予；不可跟天賦一相同
+    bool        talent2_unlocked = false; // 是否已使用第二天賦解鎖石
     std::vector<std::string> statuses; // "受傷"|"憂鬱"|"肌肉緊繃"|"疲勞"
     time_t      onsen_end  = 0;      // 泡溫泉到期時間 (0 = 未在泡溫泉)
     bool        is_supervisor_work = false; // 由監工自動派出的打工，收益×0.6
@@ -236,6 +238,7 @@ struct AdventureGame {
     int64_t funds          = 0;
     bool    pet_along      = false;
     int     pet_stage      = 0; // 出發時同行寵物的階段（0=未帶寵物，鎖定出發當下的階段避免中途進化影響已算好的探索度）
+    std::string pet_talent1, pet_talent2; // 出發時同行寵物的天賦（同樣鎖定出發當下，避免中途改天賦影響結果）
     time_t  start_time     = 0;
     time_t  end_time       = 0;
     bool    notify_on_finish = false; // 探險完成時私訊通知

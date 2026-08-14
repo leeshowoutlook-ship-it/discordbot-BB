@@ -408,6 +408,8 @@ static void save_adv_games() {
                 {"funds",          (int64_t)g.funds},
                 {"pet_along",      g.pet_along},
                 {"pet_stage",      g.pet_stage},
+                {"pet_talent1",    g.pet_talent1},
+                {"pet_talent2",    g.pet_talent2},
                 {"start_time",     (int64_t)g.start_time},
                 {"end_time",       (int64_t)g.end_time},
                 {"notify_on_finish", g.notify_on_finish},
@@ -436,6 +438,8 @@ static void load_adv_games() {
             g.pet_along      = v.value("pet_along",      false);
             // 舊資料沒有 pet_stage：帶寵物就當作三階（沿用舊版固定 +20 的行為）
             g.pet_stage      = v.value("pet_stage", g.pet_along ? 3 : 0);
+            g.pet_talent1    = v.value("pet_talent1", std::string{});
+            g.pet_talent2    = v.value("pet_talent2", std::string{});
             g.start_time     = (time_t)v.value("start_time", (int64_t)0);
             g.end_time       = (time_t)v.value("end_time",   (int64_t)0);
             g.notify_on_finish = v.value("notify_on_finish", false);
@@ -1038,19 +1042,32 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
     bool all_set = reg && setup.duration_hours > 0 && setup.funds >= 0 && setup.partner >= 0 && region_reqs_met;
     if (all_set) {
         int pet_stage = 0;
+        std::string pet_t1, pet_t2;
         if (setup.partner == 1) {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto pit = pet_data.find(uid);
-            if (pit != pet_data.end()) pet_stage = pit->second.stage;
+            if (pit != pet_data.end()) {
+                pet_stage = pit->second.stage;
+                pet_t1 = pit->second.talent;
+                pet_t2 = pit->second.talent2_unlocked ? pit->second.talent2 : "";
+            }
         }
+        bool has_survival = (pet_t1 == "求生專家" || pet_t2 == "求生專家");
+        bool has_treasure = (pet_t1 == "尋寶專家" || pet_t2 == "尋寶專家");
         int prog = calc_adv_progress(setup.duration_hours, setup.funds, pet_stage);
         if (setup.star_boost) prog += 10;
+        if (has_survival) prog += 10;
         desc += "\n\n✨ **預計探索度：" + std::to_string(prog) + "**";
         if (setup.star_boost) desc += "（含星星 +10）";
+        if (has_survival) desc += "（含求生專家 +10）";
         if (reg) {
             AdvPreview prev = calc_adv_preview(reg->key, prog);
             if (setup.star_boost) {
                 desc += "\n📊 有 **0%** 機率無法獲得戰利品（星星保證重骰到有為止），目前最有可能前往 **" + prev.likely_tier + "**";
+            } else if (has_treasure) {
+                double miss2 = prev.miss_pct * prev.miss_pct / 100.0;
+                desc += "\n📊 有 **" + std::to_string((int)std::lround(miss2))
+                      + "%** 機率無法獲得戰利品（尋寶專家：空手多判定一次），目前最有可能前往 **" + prev.likely_tier + "**";
             } else {
                 desc += "\n📊 有 **" + std::to_string((int)std::lround(prev.miss_pct))
                       + "%** 機率無法獲得戰利品，目前最有可能前往 **" + prev.likely_tier + "**";
@@ -1679,6 +1696,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 籌碼不足！需要 **" + std::to_string(setup.funds) + "** 碼。").set_flags(dpp::m_ephemeral)); return;
         }
         int pet_stage = 0;
+        std::string pet_talent1, pet_talent2;
         if (setup.partner == 1) {
             bool ok = false;
             { std::lock_guard<std::mutex> lk(data_mutex);
@@ -1687,6 +1705,8 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
                   auto& p = it->second;
                   ok = (p.work_task == 0 && p.onsen_end == 0);
                   pet_stage = p.stage;
+                  pet_talent1 = p.talent;
+                  pet_talent2 = p.talent2_unlocked ? p.talent2 : "";
               }
             }
             if (!ok) {
@@ -1701,14 +1721,17 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         g.duration_hours = setup.duration_hours; g.funds = setup.funds;
         g.pet_along = (setup.partner == 1);
         g.pet_stage = pet_stage;
+        g.pet_talent1 = pet_talent1; g.pet_talent2 = pet_talent2;
         g.notify_on_finish = setup.notify_on_finish;
         g.star_boost = setup.star_boost;
         g.start_time = time(nullptr);
         int64_t adv_secs = (int64_t)g.duration_hours * 3600LL;
         { std::lock_guard<std::mutex> lk(data_mutex);
-          // 探索時長乘區：每組地區中級套組 -1%（最多3組）+ BB博物館放大鏡 -5%，加總後一次套用（無條件進位）
+          // 探索時長乘區：每組地區中級套組 -1%（最多3組）+ BB博物館放大鏡 -5% + 膽小鬼-15% + 尋寶專家+20%，加總後一次套用（無條件進位）
           double dur_delta = -0.01 * col_adv_reduction_count(uid);
           if (col_has_bb_magnifier(uid)) dur_delta += -0.05;
+          if (g.pet_talent1 == "膽小鬼"   || g.pet_talent2 == "膽小鬼")   dur_delta += -0.15;
+          if (g.pet_talent1 == "尋寶專家" || g.pet_talent2 == "尋寶專家") dur_delta += 0.20;
           adv_secs = (int64_t)std::ceil(adv_secs * std::max(0.0, 1.0 + dur_delta));
           g.end_time = g.start_time + adv_secs;
           adv_games[uid] = g; adv_setups.erase(uid);
@@ -1763,10 +1786,14 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         }
         int progress = calc_adv_progress(g.duration_hours, g.funds, g.pet_stage);
         if (g.star_boost) progress += 10;
+        bool has_survival_expert = (g.pet_talent1 == "求生專家" || g.pet_talent2 == "求生專家");
+        if (has_survival_expert) progress += 10;
+        bool has_treasure_expert = (g.pet_talent1 == "尋寶專家" || g.pet_talent2 == "尋寶專家");
         std::string item_key, item_key2;
         bool item_added = false;
         bool refund_triggered = false;
         bool star_rerolled = false;
+        bool treasure_rerolled = false;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& inv = inventory_data[uid];
@@ -1804,6 +1831,10 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
                 for (int _r = 0; _r < 50 && item_key.empty(); _r++)
                     item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
                 star_rerolled = true;
+            } else if (item_key.empty() && has_treasure_expert) {
+                // 尋寶專家：沒收穫時額外多判定一次（不像星星加成保底重骰到中為止，只多一次機會）
+                item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
+                treasure_rerolled = true;
             }
             if (!item_key.empty()) { inv[item_key]++; item_added = true; }
 
@@ -1844,6 +1875,9 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         desc_r += "▸ 資金：" + std::to_string(g.funds) + " 碼\n";
         desc_r += "▸ 夥伴：" + (g.pet_along ? std::string("🐾 寵物同行") : std::string("無")) + "\n";
         if (g.star_boost) desc_r += "▸ 星星加成：✅ 探索度+10" + std::string(star_rerolled ? "、空包彈重骰一次" : "") + "\n";
+        if (has_survival_expert) desc_r += "▸ 🧭 求生專家：探索度+10\n";
+        if (g.pet_talent1 == "膽小鬼" || g.pet_talent2 == "膽小鬼") desc_r += "▸ 😱 膽小鬼：探索時長-15%\n";
+        if (has_treasure_expert) desc_r += "▸ 💰 尋寶專家：探索時長+20%" + std::string(treasure_rerolled ? "、空手多判定一次" : "") + "\n";
         desc_r += "\n";
         if (item_key.empty())
             desc_r += "📦 這次探險沒有找到蒐藏品...";

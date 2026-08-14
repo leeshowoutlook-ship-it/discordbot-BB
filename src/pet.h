@@ -48,6 +48,7 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"talent_scroll",  "天賦賦予卷軸",       15000, "talent", "100% 為寵物賦予一個天賦（可自選）",  50001},
     {"talent_class",   "送去上才藝班",        2000, "talent", "25% 為寵物發現一個隨機天賦",                            50002},
     {"talent_reroll",  "你不可以學畫畫!",    2000, "talent", "重新抽一個不同的天賦（需已有天賦）",                    50003},
+    {"talent2_unlock", "第二天賦解鎖石",    50000, "talent", "使用後解鎖第二天賦欄位，之後才能用天賦道具賦予第二天賦（不可跟第一天賦相同）", 50004},
     // ── Branch evolution path items ───────────────────────────────────────────
     {"path_moss_shell",    "苔癬蝸牛殼",       500, "path", "嫩寶一階段進化時觸發苔蘚分支",          60001},
     {"path_penguin_crown", "企鵝王冠",         500, "path", "小企鵝一階段進化時觸發王冠分支",        60002},
@@ -194,6 +195,30 @@ static const VirtualShopItem* find_virtual_item_by_id(int id) {
     for (auto& vi : VIRTUAL_ITEMS)
         if (vi.item_id == id) return &vi;
     return nullptr;
+}
+
+// ─── 天賦定義（唯一資料來源，其餘地方都引用這裡，不要各自複製一份清單）───────────
+
+struct TalentDef { std::string key, effect_desc; };
+static const std::vector<TalentDef> ALL_TALENTS = {
+    {"迅捷",     "打工時間縮短 10%"},
+    {"招人喜歡", "打工報酬 +10%"},
+    {"幸運",     "5% 機率打工雙倍報酬"},
+    {"天然呆",   "使用道具時有 5% 機率不消耗道具"},
+    {"喜歡作夢", "每次打工完有 0.1% 機率將現有籌碼翻倍"},
+    {"求生專家", "帶去探險時，探索度額外 +10"},
+    {"膽小鬼",   "帶去探險時，探索時長 -15%"},
+    {"尋寶專家", "帶去探險時，若沒有收穫會額外進行一次判定，但探索時長 +20%"},
+};
+static std::string talent_effect_desc(const std::string& t) {
+    for (auto& d : ALL_TALENTS) if (d.key == t) return d.effect_desc;
+    return "";
+}
+// 挑選天賦清單，排除掉一或兩個天賦（用於：兩個天賦欄位不能相同）
+static std::vector<std::string> talent_pool_excluding(const std::string& e1, const std::string& e2 = "") {
+    std::vector<std::string> out;
+    for (auto& d : ALL_TALENTS) if (d.key != e1 && (e2.empty() || d.key != e2)) out.push_back(d.key);
+    return out;
 }
 
 // ─── Pet helpers ──────────────────────────────────────────────────────────────
@@ -531,6 +556,8 @@ static void load_pet_data() {
             p.variant     = v.value("variant",      std::string{});
             p.custom_name = v.value("custom_name",  std::string{});
             p.talent      = v.value("talent",       std::string{});
+            p.talent2     = v.value("talent2",      std::string{});
+            p.talent2_unlocked = v.value("talent2_unlocked", false);
             p.enh_atk     = v.value("enh_atk",       0);
             p.enh_def     = v.value("enh_def",       0);
             p.enh_hp      = v.value("enh_hp",        0);
@@ -553,7 +580,7 @@ static void save_pet_data() {
                 {"notify_after_work", p.notify_after_work}, {"work_notified", p.work_notified},
                 {"onsen_notified", p.onsen_notified},
                 {"variant", p.variant}, {"custom_name", p.custom_name},
-                {"talent", p.talent},
+                {"talent", p.talent}, {"talent2", p.talent2}, {"talent2_unlocked", p.talent2_unlocked},
                 {"enh_atk", p.enh_atk}, {"enh_def", p.enh_def}, {"enh_hp", p.enh_hp},
                 {"statuses", [&]{ nlohmann::json a=nlohmann::json::array();
                     for (auto& s:p.statuses) a.push_back(s); return a; }()}
@@ -791,16 +818,13 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
     std::string exp_str = std::to_string(pet.exp);
     if (pet.stage < 3) exp_str += " / " + std::to_string(need);
 
-    static const std::map<std::string,std::string> TALENT_DESC = {
-        {"迅捷",     "迅捷：打工時長縮短 10%"},
-        {"招人喜歡", "招人喜歡：打工報酬 +10%"},
-        {"幸運",     "幸運：5% 機率雙倍打工報酬"},
-        {"天然呆",   "天然呆：使用道具時不消耗（5%）"},
-        {"喜歡作夢", "喜歡作夢：0.1% 機率籌碼翻倍"},
+    auto talent_line = [](const std::string& t) -> std::string {
+        if (t.empty()) return "無";
+        std::string d = talent_effect_desc(t);
+        return d.empty() ? t : (t + "：" + d);
     };
-    std::string talent_display = pet.talent.empty() ? "無" : pet.talent;
-    if (!pet.talent.empty() && TALENT_DESC.count(pet.talent))
-        talent_display = TALENT_DESC.at(pet.talent);
+    std::string talent1_display = talent_line(pet.talent);
+    std::string talent2_display = pet.talent2_unlocked ? talent_line(pet.talent2) : "🔒 未解鎖（使用第二天賦解鎖石）";
 
     PetStats stats = calc_pet_stats(uid, pet);
     int max_hp = stats.hp;
@@ -809,8 +833,9 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
 
     std::string content = "## 🐾 " + display_n + "\n";
     content += "📊 **階段** 第 " + std::to_string(pet.stage) + " 階　";
-    content += "✨ **經驗值** " + exp_str + "　";
-    content += "✦ **天賦** " + talent_display + "\n";
+    content += "✨ **經驗值** " + exp_str + "\n";
+    content += "✦ **天賦一** " + talent1_display + "\n";
+    content += "✦ **天賦二** " + talent2_display + "\n";
     content += "⚔️ **攻擊力** " + std::to_string(stats.atk) + "　";
     content += "❤️ **生命值** " + std::to_string(stats.hp) + "　";
     content += "🛡️ **防禦力** " + std::to_string(stats.def) + "\n";
@@ -1362,9 +1387,14 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
         if (vi->category == "incubator") return pet.stage != 0;
         if (vi->category == "growth")    return pet.stage == 0; // stage 3 allowed: grind exp for star refine
         if (vi->category == "talent") {
-            if (key == "talent_reroll") return (pet.stage == 0 || pet.talent.empty());
-            if (key == "talent_scroll") return (pet.stage == 0);
-            return (pet.stage == 0 || !pet.talent.empty());
+            if (pet.stage == 0) return true;
+            bool slot1_has   = !pet.talent.empty();
+            bool slot2_avail = pet.talent2_unlocked;
+            bool slot2_has   = slot2_avail && !pet.talent2.empty();
+            if (key == "talent2_unlock") return pet.talent2_unlocked;
+            if (key == "talent_reroll")  return !(slot1_has || slot2_has);
+            if (key == "talent_scroll")  return false;
+            return !(!slot1_has || (slot2_avail && !slot2_has)); // talent_class：需要至少一個空欄位
         }
         if (vi->category == "collectible") return true; // 蒐藏品不可使用，僅展示
         if (key == "path_reincarnate") return pet.stage == 0;
@@ -1606,7 +1636,27 @@ static dpp::message make_pet_use_qty_msg(dpp::snowflake uid, const std::string& 
 
 // ─── Use item handler ─────────────────────────────────────────────────────────
 
-static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& key, int qty = 1) {
+// 天賦道具目前可以套用的欄位（1和/或2）；talent_scroll 可覆蓋，talent_class 需要空欄位，talent_reroll 需要已有天賦的欄位
+static std::vector<int> talent_item_valid_slots(const std::string& key, const Pet& pet) {
+    std::vector<int> slots;
+    bool slot1_has   = !pet.talent.empty();
+    bool slot2_avail = pet.talent2_unlocked;
+    bool slot2_has   = slot2_avail && !pet.talent2.empty();
+    if (key == "talent_scroll") {
+        slots.push_back(1);
+        if (slot2_avail) slots.push_back(2);
+    } else if (key == "talent_class") {
+        if (!slot1_has) slots.push_back(1);
+        if (slot2_avail && !slot2_has) slots.push_back(2);
+    } else if (key == "talent_reroll") {
+        if (slot1_has) slots.push_back(1);
+        if (slot2_avail && slot2_has) slots.push_back(2);
+    }
+    return slots;
+}
+
+// slot = 0：尚未指定（valid slot 只有一個時自動使用；有兩個時會回傳「請選擇欄位」畫面）
+static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& key, int qty = 1, int slot = 0) {
     Pet pet; bool has_pet = false; int item_count = 0;
     std::map<std::string,int> inv_snapshot;
     {
@@ -1877,70 +1927,106 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
     // ── 天賦道具 ─────────────────────────────────────────────────────────────
     else if (vi->category == "talent") {
         if (pet.stage == 0) return err("蛋還沒孵化，無法賦予天賦！");
-        static const std::vector<std::string> TALENTS = {"迅捷", "招人喜歡", "幸運", "天然呆", "喜歡作夢"};
-        auto talent_desc = [](const std::string& t) -> std::string {
-            if (t == "迅捷")        return "打工時間縮短 10%！";
-            if (t == "招人喜歡")    return "打工報酬提升 10%！";
-            if (t == "幸運")        return "打工有 5% 機率獲得雙倍報酬！";
-            if (t == "天然呆")      return "使用道具時有 5% 機率不消耗道具！";
-            if (t == "喜歡作夢")    return "每次打工完有 0.1% 機率將現有籌碼翻倍！";
-            return "";
-        };
-        if (key == "talent_reroll") {
-            // Reroll: needs existing talent, picks a different one
-            if (pet.talent.empty()) return err("寵物還沒有天賦，請先使用天賦賦予卷軸！");
-            std::string old_talent = pet.talent;
-            std::vector<std::string> others;
-            for (auto& t : TALENTS) if (t != old_talent) others.push_back(t);
-            int idx = std::uniform_int_distribution<int>(0, (int)others.size()-1)(rng);
-            std::string new_talent = others[idx];
+
+        if (key == "talent2_unlock") {
+            if (pet.talent2_unlocked) return err("第二天賦欄位已經解鎖過了！");
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
-                inventory_data[uid][key]--; // 天然呆不影響天賦道具
-                pet_data[uid].talent = new_talent;
+                inventory_data[uid][key]--;
+                pet_data[uid].talent2_unlocked = true;
             }
-            result_desc = "🎨 天賦改變！**" + old_talent + "** → **" + new_talent + "**\n" + talent_desc(new_talent);
-            e.set_title("🎨  天賦重置！").set_color(0x3498DB);
+            result_desc = "🔓 第二天賦欄位解鎖！現在可以用天賦道具賦予第二天賦了。";
+            e.set_title("🔓  解鎖成功！").set_color(0x3498DB);
             success = true;
         } else {
-            if (key == "talent_scroll") {
-                std::string sdesc = "## ✨ 選擇天賦\n";
-                if (!pet.talent.empty())
-                    sdesc += "目前天賦：**" + pet.talent + "**\n選擇後將覆蓋現有天賦：\n\n";
-                else
-                    sdesc += "請選擇要賦予 **" + pet_name(pet.chain, pet.stage, pet.variant) + "** 的天賦：\n\n";
-                for (auto& t : TALENTS) sdesc += "・**" + t + "** — " + talent_desc(t) + "\n";
+            std::vector<int> valid_slots = talent_item_valid_slots(key, pet);
+            if (valid_slots.empty()) {
+                if (key == "talent_reroll") return err("寵物還沒有天賦，請先使用天賦賦予卷軸！");
+                return err("已經沒有空的天賦欄位了！如需更換請使用「你不可以學畫畫!」或「天賦賦予卷軸」！");
+            }
+            // slot 是外部指定時（欄位選擇按鈕點回來），狀態可能在中途變了，重新確認仍然合法
+            if (slot != 0 && std::find(valid_slots.begin(), valid_slots.end(), slot) == valid_slots.end())
+                return err("這個天賦欄位的狀態已經改變了，請重新操作！");
+            if (slot == 0 && valid_slots.size() > 1) {
+                // 兩個欄位都可以套用，先讓玩家選欄位
+                std::string sdesc = "## 🎯 選擇要套用的天賦欄位\n";
+                sdesc += "・天賦一：" + (pet.talent.empty()  ? std::string("無") : pet.talent)  + "\n";
+                sdesc += "・天賦二：" + (pet.talent2.empty() ? std::string("無") : pet.talent2) + "\n";
                 dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF3, 0x9C, 0x12));
                 ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(sdesc));
                 dpp::component row; row.set_type(dpp::cot_action_row);
-                for (auto& t : TALENTS) {
-                    row.add_component(dpp::component().set_type(dpp::cot_button).set_label(t)
-                        .set_id("talent_pick_" + t + "_" + std::to_string((uint64_t)uid))
-                        .set_style(dpp::cos_primary));
-                }
+                row.add_component(dpp::component().set_type(dpp::cot_button).set_label("天賦一")
+                    .set_id("talent_slot_" + key + "_1_" + std::to_string((uint64_t)uid)).set_style(dpp::cos_primary));
+                row.add_component(dpp::component().set_type(dpp::cot_button).set_label("天賦二")
+                    .set_id("talent_slot_" + key + "_2_" + std::to_string((uint64_t)uid)).set_style(dpp::cos_primary));
                 dpp::message sm; sm.set_flags(dpp::m_using_components_v2);
                 sm.add_component_v2(ct); sm.add_component_v2(row);
                 return sm;
             }
-            // talent_class: 25% random（已有天賦則不可使用）
-            if (!pet.talent.empty()) return err("寵物已擁有天賦：**" + pet.talent + "**\n如需更換請使用「你不可以學畫畫!」或「天賦賦予卷軸」！");
-            success = roll(25);
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                inventory_data[uid][key]--; // 天然呆不影響天賦道具
-                if (success) {
-                    int idx = std::uniform_int_distribution<int>(0, (int)TALENTS.size()-1)(rng);
-                    pet_data[uid].talent = TALENTS[idx];
+            int target_slot = (slot != 0) ? slot : valid_slots[0];
+            std::string  target_cur   = (target_slot == 1) ? pet.talent  : pet.talent2; // 目前套用中的天賦（讀取快照）
+            std::string  other_talent = (target_slot == 1) ? pet.talent2 : pet.talent;  // 另一個欄位的天賦（不可重複）
+            std::string  slot_label   = (target_slot == 1) ? "天賦一" : "天賦二";
+
+            if (key == "talent_reroll") {
+                std::vector<std::string> others = talent_pool_excluding(target_cur, other_talent);
+                int idx = std::uniform_int_distribution<int>(0, (int)others.size()-1)(rng);
+                std::string new_talent = others[idx];
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    inventory_data[uid][key]--; // 天然呆不影響天賦道具
+                    if (target_slot == 1) pet_data[uid].talent  = new_talent;
+                    else                  pet_data[uid].talent2 = new_talent;
                 }
-            }
-            if (success) {
-                Pet updated;
-                { std::lock_guard<std::mutex> lk(data_mutex); updated = pet_data[uid]; }
-                result_desc = "🌟 發現天賦！**" + updated.talent + "**\n" + talent_desc(updated.talent);
-                e.set_title("🌟  天賦覺醒！").set_color(0xF39C12);
+                result_desc = "🎨 " + slot_label + "改變！**" + target_cur + "** → **" + new_talent + "**\n" + talent_effect_desc(new_talent);
+                e.set_title("🎨  天賦重置！").set_color(0x3498DB);
+                success = true;
+            } else if (key == "talent_scroll") {
+                std::vector<std::string> pool = talent_pool_excluding(other_talent);
+                std::string sdesc = "## ✨ 選擇" + slot_label + "\n";
+                if (!target_cur.empty())
+                    sdesc += "目前" + slot_label + "：**" + target_cur + "**\n選擇後將覆蓋現有天賦：\n\n";
+                else
+                    sdesc += "請選擇要賦予 **" + pet_name(pet.chain, pet.stage, pet.variant) + "** 的" + slot_label + "：\n\n";
+                if (!other_talent.empty()) sdesc += "-# 已排除跟另一欄位相同的「" + other_talent + "」\n\n";
+                for (auto& t : pool) sdesc += "・**" + t + "** — " + talent_effect_desc(t) + "\n";
+                dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF3, 0x9C, 0x12));
+                ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(sdesc));
+                dpp::message sm; sm.set_flags(dpp::m_using_components_v2);
+                sm.add_component_v2(ct);
+                dpp::component row; row.set_type(dpp::cot_action_row);
+                int n = 0;
+                for (auto& t : pool) {
+                    if (n > 0 && n % 5 == 0) { sm.add_component_v2(row); row = dpp::component(); row.set_type(dpp::cot_action_row); }
+                    row.add_component(dpp::component().set_type(dpp::cot_button).set_label(t)
+                        .set_id("talent_pick_" + std::to_string(target_slot) + "_" + t + "_" + std::to_string((uint64_t)uid))
+                        .set_style(dpp::cos_primary));
+                    n++;
+                }
+                if (n > 0) sm.add_component_v2(row);
+                return sm;
             } else {
-                result_desc = "😢 這次沒有發現天賦...可以再試！";
-                e.set_title("😢  未發現天賦").set_color(0xE74C3C);
+                // talent_class: 25% random（只會在空欄位發生，且排除另一欄位的天賦）
+                success = roll(25);
+                std::string new_talent;
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    inventory_data[uid][key]--; // 天然呆不影響天賦道具
+                    if (success) {
+                        std::vector<std::string> pool = talent_pool_excluding(other_talent);
+                        int idx = std::uniform_int_distribution<int>(0, (int)pool.size()-1)(rng);
+                        new_talent = pool[idx];
+                        if (target_slot == 1) pet_data[uid].talent  = new_talent;
+                        else                  pet_data[uid].talent2 = new_talent;
+                    }
+                }
+                if (success) {
+                    result_desc = "🌟 " + slot_label + "發現天賦！**" + new_talent + "**\n" + talent_effect_desc(new_talent);
+                    e.set_title("🌟  天賦覺醒！").set_color(0xF39C12);
+                } else {
+                    result_desc = "😢 這次沒有發現天賦...可以再試！";
+                    e.set_title("😢  未發現天賦").set_color(0xE74C3C);
+                }
             }
         }
     }
@@ -2358,6 +2444,7 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
         std::string uid_s2 = std::to_string((uint64_t)uid);
         std::string pet_disp2 = pet_name(pet.chain, pet.stage, pet.variant);
         if (!pet.talent.empty()) pet_disp2 += " ✦" + pet.talent;
+        if (pet.talent2_unlocked && !pet.talent2.empty()) pet_disp2 += " ✦" + pet.talent2;
         std::string wcontent2 = "## 🏕️ 留營結束！\n**" + pet_disp2 + "** 留營回來了！\n\n";
         wcontent2 += "💰 **獎勵** +12000 碼\n✨ **經驗** +20 exp\n💼 **餘額** " + std::to_string(get_chips(uid)) + " 碼";
         wcontent2 += "\n⚠️ **新增狀態** 「**憂鬱**」（自願留營表：必定觸發，不受洗澡卡/保險影響）";
@@ -2495,6 +2582,7 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
     std::string uid_s = std::to_string((uint64_t)uid);
     std::string pet_disp = pet_name(pet.chain, pet.stage, pet.variant);
     if (!pet.talent.empty()) pet_disp += " ✦" + pet.talent;
+    if (pet.talent2_unlocked && !pet.talent2.empty()) pet_disp += " ✦" + pet.talent2;
     std::string reward_str = "+" + std::to_string(reward) + " 碼";
     if (is_supervisor)   reward_str += " 🤖（監工派出 ×0.6）";
     if (doubled_lucky)   reward_str += " 🍀（幸運雙倍！）";
