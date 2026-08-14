@@ -51,6 +51,7 @@ static void load_chips() {
             cd.free_xfer          = v.value("free_xfer",                  0);
             cd.risk_dice_day      = (time_t)v.value("risk_dice_day",  (int64_t)0);
             cd.risk_dice_uses     = v.value("risk_dice_uses",            0);
+            cd.claim_fail_streak  = v.value("claim_fail_streak",         0);
         }
     } catch (...) {}
 }
@@ -72,7 +73,8 @@ static void save_chips() {
                 {"insurance_until",    (int64_t)cd.insurance_until},
                 {"free_xfer",          cd.free_xfer},
                 {"risk_dice_day",      (int64_t)cd.risk_dice_day},
-                {"risk_dice_uses",     cd.risk_dice_uses}
+                {"risk_dice_uses",     cd.risk_dice_uses},
+                {"claim_fail_streak",  cd.claim_fail_streak}
             };
     }
     std::lock_guard<std::mutex> io_lk(io_mutex);
@@ -126,6 +128,13 @@ static int claim_rand(int lo, int hi) {
     return std::uniform_int_distribution<int>(lo, hi)(claim_rng());
 }
 
+// 答錯／逾時要鎖幾小時：基礎時數 × 連續失敗次數，上限 CLAIM_PENALTY_MAX_HRS，
+// 讓玩家每多失敗一次，鎖定時間就再延長一次，對固定重試的腳本殺傷力遞增。
+// 只要中間成功領取一次就會歸零（見 handle_claim / handle_claim_verify 的 granted 分支）。
+static int claim_penalty_hours(int fail_streak) {
+    return std::min(CLAIM_PENALTY_MAX_HRS, CLAIM_PENALTY_HOURS * std::max(1, fail_streak));
+}
+
 // 產生「點正確表情符號」的驗證題目
 static ClaimChallenge build_claim_challenge_emoji() {
     static const std::vector<std::string> POOL = {"🍎","🍌","🍇","🍊","🍉","🍓","🍒","🥝"};
@@ -164,7 +173,7 @@ static dpp::message make_claim_challenge_msg(dpp::snowflake uid, const ClaimChal
     dpp::embed e;
     e.set_title("🔒  領取驗證").set_color(0x3498DB);
     e.set_description(
-        "偵測到你上一個小時也有領取，為防止腳本自動化，" + c.prompt +
+        "為防止腳本自動化，這次領取需要驗證，" + c.prompt +
         "（" + std::to_string(secs_left) + " 秒內有效，逾時或按錯本次不會發放）：");
     dpp::message msg; msg.add_embed(e);
     dpp::component row; row.set_type(dpp::cot_action_row);
@@ -202,8 +211,8 @@ static dpp::message handle_claim(dpp::snowflake uid, bool* claimed_out = nullptr
         } else {
             int64_t last_hour = cd.last_claim / 3600;
             if (now_hour > last_hour) {
-                bool back_to_back = (cd.last_claim > 0 && now_hour == last_hour + 1);
-                if (back_to_back && claim_rand(1, 100) <= CLAIM_VERIFY_CHANCE) {
+                // 每次手動領取都有機率觸發驗證，不看是否連續整點——避免玩家/腳本靠跳過整點來規避
+                if (claim_rand(1, 100) <= CLAIM_VERIFY_CHANCE) {
                     pending = (claim_rand(0, 1) == 0) ? build_claim_challenge_emoji() : build_claim_challenge_math();
                     pending.expires_at = now + CLAIM_VERIFY_SECS;
                     pending.token      = claim_challenge_token_seq++;
@@ -212,6 +221,7 @@ static dpp::message handle_claim(dpp::snowflake uid, bool* claimed_out = nullptr
                 } else {
                     cd.chips += CLAIM_AMOUNT;
                     cd.last_claim = now;
+                    cd.claim_fail_streak = 0;
                     success = true;
                     balance = cd.chips;
                 }
@@ -229,27 +239,32 @@ static dpp::message handle_claim(dpp::snowflake uid, bool* claimed_out = nullptr
     return make_claim_msg(uid, success, balance, secs_left);
 }
 
-static dpp::message make_claim_verify_timeout_msg() {
+static dpp::message make_claim_verify_timeout_msg(int hours) {
     dpp::embed e;
     e.set_title("⌛  逾時未回應").set_color(0xE74C3C);
     e.set_description("你沒有在時限內完成驗證，這次沒有領到，接下來 **" +
-                       std::to_string(CLAIM_PENALTY_HOURS) + "** 次整點也無法領取。");
+                       std::to_string(hours) + "** 小時無法領取。");
     dpp::message msg; msg.add_embed(e); return msg;
 }
 
-// 逾時計時器共用邏輯：處罰並回傳「要編輯哪則訊息」；找不到/已被處理過就回傳 false（不編輯）
-static bool claim_verify_timeout_penalize(dpp::snowflake uid, uint64_t token, ClaimChallenge* out) {
+// 逾時計時器共用邏輯：處罰並回傳「要編輯哪則訊息」跟這次鎖了幾小時；
+// 找不到/已被處理過就回傳 false（不編輯、不處罰，代表答案已經在別處被消化掉了）
+static bool claim_verify_timeout_penalize(dpp::snowflake uid, uint64_t token, ClaimChallenge* out, int* hours_out) {
     std::lock_guard<std::mutex> lk(data_mutex);
     auto it = claim_challenges.find(uid);
     if (it == claim_challenges.end() || it->second.token != token) return false;
     if (out) *out = it->second;
-    chip_data[uid].last_claim = time(nullptr) + (time_t)CLAIM_PENALTY_HOURS * 3600;
+    auto& cd = chip_data[uid];
+    cd.claim_fail_streak++;
+    int hours = claim_penalty_hours(cd.claim_fail_streak);
+    cd.last_claim = time(nullptr) + (time_t)hours * 3600;
+    if (hours_out) *hours_out = hours;
     claim_challenges.erase(it);
     return true;
 }
 
 // 送出驗證訊息後呼叫（一般頻道訊息，!領取）：記錄訊息位置、並排一個逾時計時器，
-// 時間到了如果玩家完全沒按，視同驗證失敗一併鎖 CLAIM_PENALTY_HOURS 次整點領取。
+// 時間到了如果玩家完全沒按，視同驗證失敗一併鎖住（時數隨連續失敗次數遞增）。
 static void schedule_claim_verify_timeout(dpp::snowflake uid, dpp::snowflake ch,
                                            dpp::snowflake mid, uint64_t token) {
     {
@@ -262,11 +277,11 @@ static void schedule_claim_verify_timeout(dpp::snowflake uid, dpp::snowflake ch,
     }
     g_bot->start_timer([uid, token](dpp::timer t) {
         g_bot->stop_timer(t);
-        ClaimChallenge c;
-        if (!claim_verify_timeout_penalize(uid, token, &c)) return;
+        ClaimChallenge c; int hours = 0;
+        if (!claim_verify_timeout_penalize(uid, token, &c, &hours)) return;
         save_chips();
         if (!c.channel_id || !c.message_id) return;
-        dpp::message edit = make_claim_verify_timeout_msg();
+        dpp::message edit = make_claim_verify_timeout_msg(hours);
         edit.id = c.message_id; edit.channel_id = c.channel_id;
         g_bot->message_edit(edit);
     }, CLAIM_VERIFY_SECS);
@@ -282,11 +297,11 @@ static void schedule_claim_verify_timeout_interaction(dpp::snowflake uid, const 
     }
     g_bot->start_timer([uid, itoken, token](dpp::timer t) {
         g_bot->stop_timer(t);
-        ClaimChallenge c;
-        if (!claim_verify_timeout_penalize(uid, token, &c)) return;
+        ClaimChallenge c; int hours = 0;
+        if (!claim_verify_timeout_penalize(uid, token, &c, &hours)) return;
         save_chips();
         if (c.interaction_token.empty()) return;
-        g_bot->interaction_response_edit(itoken, make_claim_verify_timeout_msg());
+        g_bot->interaction_response_edit(itoken, make_claim_verify_timeout_msg(hours));
     }, CLAIM_VERIFY_SECS);
 }
 
@@ -295,7 +310,7 @@ static void schedule_claim_verify_timeout_interaction(dpp::snowflake uid, const 
 // granted_out：驗證是否成功並實際發放了籌碼（銀行自動還款等後續處理交給呼叫端）
 static dpp::message handle_claim_verify(dpp::snowflake uid, int idx, bool* granted_out = nullptr) {
     bool granted = false, no_record = false, wrong = false, timed_out = false;
-    int64_t balance = 0;
+    int64_t balance = 0; int penalty_hours = 0;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto it = claim_challenges.find(uid);
@@ -309,12 +324,16 @@ static dpp::message handle_claim_verify(dpp::snowflake uid, int idx, bool* grant
                 auto& cd = chip_data[uid];
                 cd.chips += CLAIM_AMOUNT;
                 cd.last_claim = now;
+                cd.claim_fail_streak = 0;
                 balance = cd.chips;
                 granted = true;
             } else {
-                // 答錯或逾時才按：這次不能領，接下來 CLAIM_PENALTY_HOURS 次整點也鎖住
+                // 答錯或逾時才按：這次不能領，接下來鎖住的時數 = 基礎時數 × 連續失敗次數
                 // （直接把 last_claim 往後推，沿用既有的整點冷卻判斷，不用額外欄位）
-                chip_data[uid].last_claim = now + (time_t)CLAIM_PENALTY_HOURS * 3600;
+                auto& cd = chip_data[uid];
+                cd.claim_fail_streak++;
+                penalty_hours = claim_penalty_hours(cd.claim_fail_streak);
+                cd.last_claim = now + (time_t)penalty_hours * 3600;
                 if (late) timed_out = true; else wrong = true;
             }
             claim_challenges.erase(it);
@@ -336,10 +355,103 @@ static dpp::message handle_claim_verify(dpp::snowflake uid, int idx, bool* grant
         e.set_title("❌  驗證失敗").set_color(0xE74C3C);
         e.set_description(
             std::string(timed_out ? "逾時沒有按" : "按錯按鈕了") +
-            "，這次沒有領到，接下來 **" + std::to_string(CLAIM_PENALTY_HOURS) + "** 次整點也無法領取。");
+            "，這次沒有領到，接下來 **" + std::to_string(penalty_hours) + "** 小時無法領取。");
     }
     dpp::message msg; msg.add_embed(e);
     return msg;
+}
+
+// ─── 小黑屋（管理員專用）：查看／解除領取驗證的鎖定 ─────────────────────────────
+
+static dpp::message make_claim_jail_msg() {
+    time_t now = time(nullptr);
+    std::vector<std::pair<dpp::snowflake, time_t>> locked; // uid, 剩餘秒數
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [uid, cd] : chip_data)
+            if (cd.last_claim > now) locked.push_back({uid, cd.last_claim - now});
+    }
+    std::sort(locked.begin(), locked.end(), [](auto& a, auto& b) { return a.second > b.second; });
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2C, 0x3E, 0x50));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content("## 🔒 小黑屋"));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    const int MAX_ROWS = 20; // 每行一個 section，避免訊息過長
+    if (locked.empty()) {
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("目前沒有人被鎖 🎉"));
+    } else {
+        int n = 0;
+        for (auto& [uid, secs] : locked) {
+            if (n >= MAX_ROWS) break;
+            int h = (int)(secs / 3600), m = (int)((secs % 3600) / 60), s = (int)(secs % 60);
+            char buf[16]; snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, s);
+            std::string text = "<@" + std::to_string((uint64_t)uid) + ">　剩餘 " + std::string(buf);
+            container.add_component_v2(dpp::component()
+                .set_type(dpp::cot_section)
+                .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
+                .set_accessory(dpp::component().set_type(dpp::cot_button)
+                    .set_label("🔓 解鎖").set_id("claimjail_unlock_" + std::to_string((uint64_t)uid))
+                    .set_style(dpp::cos_danger)));
+            n++;
+        }
+        if ((int)locked.size() > MAX_ROWS)
+            container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+                .set_content("-# 還有 " + std::to_string(locked.size() - MAX_ROWS) + " 人沒有顯示"));
+    }
+    msg.add_component_v2(container);
+
+    dpp::component nav; nav.set_type(dpp::cot_action_row);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("📋 名單").set_id("claimjail_list").set_style(dpp::cos_secondary));
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🔄 重整").set_id("claimjail_home").set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav);
+    return msg;
+}
+
+static dpp::message make_claim_jail_list_msg() {
+    std::vector<std::pair<dpp::snowflake, int>> fails;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [uid, cd] : chip_data)
+            if (cd.claim_fail_streak > 0) fails.push_back({uid, cd.claim_fail_streak});
+    }
+    std::sort(fails.begin(), fails.end(), [](auto& a, auto& b) { return a.second > b.second; });
+
+    std::string content = "## 📋 答錯／逾時次數\n";
+    if (fails.empty()) content += "目前沒有人答錯過。";
+    else for (auto& [uid, cnt] : fails)
+        content += "<@" + std::to_string((uint64_t)uid) + ">　**" + std::to_string(cnt) + "** 次\n";
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2C, 0x3E, 0x50));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
+    dpp::component nav; nav.set_type(dpp::cot_action_row);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回小黑屋").set_id("claimjail_home").set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav);
+    return msg;
+}
+
+// 解除某玩家的領取鎖定（清空鎖定時間跟連續失敗次數，等於完全赦免）
+static void claim_jail_unlock(dpp::snowflake target) {
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto& cd = chip_data[target];
+        cd.last_claim        = 0;
+        cd.claim_fail_streak = 0;
+    }
+    save_chips();
 }
 
 // ─── Weekly claim — 每週四中午12:00(UTC+8) = 週四04:00 UTC ────────────────────

@@ -232,7 +232,7 @@ int main(int argc, char* argv[]) {
                 "!臥底 遊玩成人內容","!誰是臥底 遊玩成人內容",
                 "!貓","!笑話","!轉蛋","!裝備","!怪物狩獵","!狩獵規則",
                 "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤","!探險","!猜拳","！猜拳","!強化","!股票",
-                "!公告","！公告"
+                "!公告","！公告","!小黑屋","！小黑屋"
             };
             for (auto& s : EXACT) if (content == s) return true;
             // Secret owner-only command
@@ -542,6 +542,16 @@ int main(int argc, char* argv[]) {
                     }, 30);
                 }
             });
+        }
+        // !小黑屋／！小黑屋：查看／解除領取驗證的鎖定（限管理員）
+        else if (content == "!小黑屋" || content == "！小黑屋") {
+            if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
+                dpp::message m; m.set_content("❌ 沒有權限！"); m.channel_id = ch;
+                bot.message_create(m); return;
+            }
+            dpp::message m = make_claim_jail_msg();
+            m.channel_id = ch;
+            bot.message_create(m);
         }
         // !公告／！公告：不帶參數＝查看，帶參數＝設定（限管理員/副會長）
         else if (content == "!公告" || content == "！公告" ||
@@ -953,6 +963,22 @@ int main(int argc, char* argv[]) {
                 }
             }
             ev.reply(dpp::ir_update_message, m);
+        }
+        // ── 小黑屋按鈕（限管理員）────────────────────────────────────────────────
+        else if (cid.rfind("claimjail_", 0) == 0) {
+            if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
+            }
+            if (cid == "claimjail_home") {
+                ev.reply(dpp::ir_update_message, make_claim_jail_msg());
+            } else if (cid == "claimjail_list") {
+                ev.reply(dpp::ir_update_message, make_claim_jail_list_msg());
+            } else if (cid.rfind("claimjail_unlock_", 0) == 0) {
+                dpp::snowflake target(std::stoull(cid.substr(std::string("claimjail_unlock_").size())));
+                claim_jail_unlock(target);
+                ev.reply(dpp::ir_update_message, make_claim_jail_msg());
+            }
         }
         // ── 富豪榜翻頁 ────────────────────────────────────────────────────────
         else if (cid.rfind("lb_", 0) == 0) {
@@ -2157,6 +2183,13 @@ int main(int argc, char* argv[]) {
                 ev.reply(dpp::ir_channel_message_with_source, dpp::message(set_announcement(text, dn)));
             }
         }
+        else if (cmd_name == "小黑屋") {
+            if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
+            }
+            ev.reply(dpp::ir_channel_message_with_source, make_claim_jail_msg());
+        }
         else if (cmd_name == "幫助" || cmd_name == "help") {
             ev.reply(dpp::ir_channel_message_with_source, make_help_msg(0));
         }
@@ -2654,6 +2687,8 @@ int main(int argc, char* argv[]) {
             dpp::slashcommand announce_cmd("公告", "查看／設定大廳最新更新（設定限管理員/副會長）", bot.me.id);
             announce_cmd.add_option(dpp::command_option(dpp::co_string, "內容", "留空＝查看；填寫＝設定新公告（限管理員/副會長）", false));
 
+            dpp::slashcommand claimjail_cmd("小黑屋", "查看／解除領取驗證的鎖定（限管理員）", bot.me.id);
+
             dpp::slashcommand announce_en("announcement", "View or set the lobby announcement (admin/officer to set)", bot.me.id);
             announce_en.add_option(dpp::command_option(dpp::co_string, "內容", "Leave empty to view; fill in to set (admin/officer only)", false));
 
@@ -2836,6 +2871,7 @@ int main(int argc, char* argv[]) {
                 roulette_cmd, roulette_en,
                 rps_cmd, rps_en,
                 announce_cmd, announce_en,
+                claimjail_cmd,
             }, gid);
         }
     });

@@ -85,11 +85,12 @@ struct ChipData {
     int     free_xfer          = 0; // 免手續費轉帳次數
     time_t  risk_dice_day      = 0; // 园园的風險骰子：上次使用的時間（用來判斷是否跨天）
     int     risk_dice_uses     = 0; // 當天已使用次數（上限 2，跨天重置）
+    int     claim_fail_streak  = 0; // 領取驗證連續答錯/逾時次數，每次領取成功歸零，用來延長鎖定時間
 };
 
 // ─── !領取 防腳本按鈕驗證 ───────────────────────────────────────────────────────
-// 若玩家上一個小時也有領取（連續每小時都領），有一定機率要求按鈕驗證才會真正發放，
-// 提高固定排程腳本的模擬成本。用 data_mutex 保護。
+// 每次手動領取都有 CLAIM_VERIFY_CHANCE% 機率要求按鈕驗證才會真正發放
+// （不限連續整點，避免靠跳過整點規避），提高固定排程腳本的模擬成本。用 data_mutex 保護。
 struct ClaimChallenge {
     int                      correct_idx = 0;
     std::vector<std::string> options;    // 按鈕上顯示的文字（表情符號或數字答案）
@@ -102,9 +103,10 @@ struct ClaimChallenge {
 };
 inline std::map<dpp::snowflake, ClaimChallenge> claim_challenges;
 inline std::atomic<uint64_t> claim_challenge_token_seq{1};
-static const int CLAIM_VERIFY_CHANCE = 30; // 上一個小時也有領取時，觸發驗證的機率（%）
-static const int CLAIM_VERIFY_SECS   = 60; // 驗證時限（秒）：逾時未按也會被鎖
-static const int CLAIM_PENALTY_HOURS = 2;  // 答錯／逾時：這次 + 接下來這麼多次整點都不能領
+static const int CLAIM_VERIFY_CHANCE   = 20; // 每次手動領取觸發驗證的機率（%）——不看是否連續整點，避免被規避
+static const int CLAIM_VERIFY_SECS     = 60; // 驗證時限（秒）：逾時未按也會被鎖
+static const int CLAIM_PENALTY_HOURS   = 2;  // 答錯／逾時：基礎鎖定時數，會依連續失敗次數累加
+static const int CLAIM_PENALTY_MAX_HRS = 24; // 鎖定時數上限
 
 struct BankData {
     int64_t deposited         = 0;
