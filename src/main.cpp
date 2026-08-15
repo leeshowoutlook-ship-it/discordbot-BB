@@ -3045,22 +3045,10 @@ int main(int argc, char* argv[]) {
             }
             if (!to_notify_work.empty() || !to_notify_onsen.empty()) {
                 save_pet_data();
-                for (auto nuid : to_notify_work) {
-                    g_bot->create_dm_channel(nuid, [nuid](const dpp::confirmation_callback_t& cb) {
-                        if (cb.is_error()) return;
-                        dpp::channel ch = std::get<dpp::channel>(cb.value);
-                        g_bot->message_create(dpp::message(ch.id,
-                            "🐾 你的寵物打工完成了！快輸入 `!寵物` 去領取獎勵吧！"));
-                    });
-                }
-                for (auto nuid : to_notify_onsen) {
-                    g_bot->create_dm_channel(nuid, [nuid](const dpp::confirmation_callback_t& cb) {
-                        if (cb.is_error()) return;
-                        dpp::channel ch = std::get<dpp::channel>(cb.value);
-                        g_bot->message_create(dpp::message(ch.id,
-                            "🛀 你的寵物溫泉回來了！負面狀態已全部清除，快輸入 `!寵物` 去看看牠吧！"));
-                    });
-                }
+                for (auto nuid : to_notify_work)
+                    g_bot->direct_message_create(nuid, dpp::message("🐾 你的寵物打工完成了！快輸入 `!寵物` 去領取獎勵吧！"));
+                for (auto nuid : to_notify_onsen)
+                    g_bot->direct_message_create(nuid, dpp::message("🛀 你的寵物溫泉回來了！負面狀態已全部清除，快輸入 `!寵物` 去看看牠吧！"));
             }
 
             // ── 探險完成通知（私訊）──────────────────────────────────────────
@@ -3076,14 +3064,8 @@ int main(int argc, char* argv[]) {
             }
             if (!to_notify_adv.empty()) {
                 save_adv_games();
-                for (auto nuid : to_notify_adv) {
-                    g_bot->create_dm_channel(nuid, [nuid](const dpp::confirmation_callback_t& cb) {
-                        if (cb.is_error()) return;
-                        dpp::channel ch = std::get<dpp::channel>(cb.value);
-                        g_bot->message_create(dpp::message(ch.id,
-                            "🗺️ 你的探險完成了！快輸入 `!探險` 去收取結果吧！"));
-                    });
-                }
+                for (auto nuid : to_notify_adv)
+                    g_bot->direct_message_create(nuid, dpp::message("🗺️ 你的探險完成了！快輸入 `!探險` 去收取結果吧！"));
             }
         }, 300);
       } // run_once<on_ready_once>
