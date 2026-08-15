@@ -3003,7 +3003,7 @@ int main(int argc, char* argv[]) {
                         if (s == "受傷") reward = (int64_t)(reward * 0.9);
                         if (s == "憂鬱") reward = (int64_t)(reward * 0.8);
                     }
-                    if (pet.talent == "招人喜歡") reward = (int64_t)(reward * 1.1);
+                    if (pet.talent == "招人喜歡" || (pet.talent2_unlocked && pet.talent2 == "招人喜歡")) reward = (int64_t)(reward * 1.1);
                     if (pet.is_supervisor_work) reward = (int64_t)(reward * 0.6);
                     chip_data[uid].chips += reward;
                     changed_chips = true;
@@ -3013,7 +3013,7 @@ int main(int argc, char* argv[]) {
                         pet.exp += exp_gain;
                     // 再派（監工出勤，領取時收益 ×0.6）
                     int dur_sec = task * 3600;
-                    if (pet.talent == "迅捷") dur_sec = (int)(dur_sec * 0.9);
+                    if (pet.talent == "迅捷" || (pet.talent2_unlocked && pet.talent2 == "迅捷")) dur_sec = (int)(dur_sec * 0.9);
                     for (auto& s : pet.statuses) if (s == "疲勞") { dur_sec = (int)(dur_sec * 1.3); break; }
                     pet.work_end           = now + dur_sec;
                     pet.is_supervisor_work = true;

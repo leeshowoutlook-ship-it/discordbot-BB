@@ -2551,6 +2551,7 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
 
     // 醫療保險：打工回來生病時觸發（受傷不算，但工作負面狀態都不含受傷）
     int64_t insurance_payout = 0;
+    bool supervisor_redispatched = false;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto& p = pet_data[uid];
@@ -2560,6 +2561,7 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
             else
                 p.exp += exp_gain; // stage 3: no cap
         }
+        int prev_task        = p.work_task;
         p.work_task          = 0;
         p.work_end           = 0;
         p.is_supervisor_work = false;
@@ -2574,6 +2576,17 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
             insurance_payout = 4000;
             cd.chips += insurance_payout;
             cd.insurance_until = 0;
+        }
+        // 手動領取後，若監工仍有效，立即以同任務重新派出（收益仍 ×0.6）
+        if (prev_task != 0 && prev_task != 24 && cd.supervisor_until > time(nullptr)) {
+            int dur_sec = prev_task * 3600;
+            if (p.talent == "迅捷" || (p.talent2_unlocked && p.talent2 == "迅捷"))
+                dur_sec = (int)(dur_sec * 0.9);
+            for (auto& s : p.statuses) if (s == "疲勞") { dur_sec = (int)(dur_sec * 1.3); break; }
+            p.work_task          = prev_task;
+            p.work_end           = time(nullptr) + dur_sec;
+            p.is_supervisor_work = true;
+            supervisor_redispatched = true;
         }
     }
     save_pet_data();
@@ -2595,8 +2608,9 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
     wcontent += "💼 **餘額** " + std::to_string(get_chips(uid)) + " 碼";
     if (dream_triggered)         wcontent += "\n🌙 **喜歡作夢** 🎆 籌碼翻倍！！";
     if (!new_neg_status.empty()) wcontent += "\n⚠️ **新增狀態** 「**" + new_neg_status + "**」";
-    if (insurance_payout > 0)    wcontent += "\n🏥 **醫療保險** +4000 碼 保險金理賠！效果已結束。";
-    if (bath_blocked)            wcontent += "\n🛁 **華瑄的洗澡卡** ✨ 負面狀態已被迴避！（本週剩餘次數請查收藏）";
+    if (insurance_payout > 0)      wcontent += "\n🏥 **醫療保險** +4000 碼 保險金理賠！效果已結束。";
+    if (bath_blocked)              wcontent += "\n🛁 **華瑄的洗澡卡** ✨ 負面狀態已被迴避！（本週剩餘次數請查收藏）";
+    if (supervisor_redispatched)   wcontent += "\n🤖 **監工** 已立即重新派出！（收益 ×0.6）";
     dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
     ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(wcontent));
     m.add_component_v2(ct);
