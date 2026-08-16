@@ -334,6 +334,9 @@ static dpp::message make_raid_end_msg(const RaidGame& g,
     }
     e.set_image(g.boss_image);
 
+    if (!g.log_line.empty())
+        e.add_field("📋 最後戰況", g.log_line, false);
+
     std::string reward_str;
     for (auto& [name, drops] : reward_lines)
         reward_str += "**" + name + "**：" + drops + "\n";
@@ -519,14 +522,14 @@ static std::string raid_do_boss_turn(RaidGame& g) {
                 continue;
             }
             int raw = aoe_dmg;
-            if (g.block_active) raw = (int)(raw * 0.8);
+            if (g.block_active) raw = (int)(raw * 0.7);
             int dmg = std::max(1, raw - p.def - ur_def_bonus);
             p.hp -= dmg;
             log += "\n  → " + p.display_name + " 受到 **" + std::to_string(dmg) + "** 點傷害";
             if (p.hp <= 0) { p.hp = 0; p.alive = false; log += " 💀"; }
-            if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
-                p.latus_orb_triggered = true; p.hp = p.max_hp / 2;
-                log += " 🔶（拉圖斯寶珠！回復至50%）";
+            if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 2) {
+                p.latus_orb_triggered = true; p.hp = p.max_hp * 4 / 5;
+                log += " 🔶（拉圖斯寶珠！回復至80%）";
             }
             roll_tears_heal(p);
         }
@@ -541,16 +544,16 @@ static std::string raid_do_boss_turn(RaidGame& g) {
             break;
         }
         int raw = single_dmg;
-        if (g.block_active) raw = raw / 2;
+        if (g.block_active) raw = (int)(raw * 0.4);
         int dmg = std::max(1, raw - p.def - ur_def_bonus);
         p.hp -= dmg;
         log = "🎯 **" + g.boss_name + "** 對 **" + p.display_name +
               "** 發動【集中攻擊】，造成 **" + std::to_string(dmg) + "** 點傷害！";
         if (ur_def_active) log += "\n🌟 *女神守護 ×" + std::to_string(ur_orb_count) + "：-" + std::to_string(ur_def_bonus) + " 傷害*";
         if (p.hp <= 0) { p.hp = 0; p.alive = false; log += " 💀"; }
-        if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
-            p.latus_orb_triggered = true; p.hp = p.max_hp / 2;
-            log += "\n🔶 **" + p.display_name + "** 拉圖斯寶珠發動！回復至 50% HP！";
+        if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 2) {
+            p.latus_orb_triggered = true; p.hp = p.max_hp * 4 / 5;
+            log += "\n🔶 **" + p.display_name + "** 拉圖斯寶珠發動！回復至 80% HP！";
         }
         roll_tears_heal(p);
         break;
@@ -584,9 +587,9 @@ static std::string raid_do_boss_turn(RaidGame& g) {
         log = "🌑 **" + g.boss_name + "** 發動【生命汲取】！\n  → 奪取 **" + p.display_name + "** 的生命力 **" +
               std::to_string(dmg) + "** 點（無視防禦），自身回復 **" + std::to_string(healed) + "** HP！";
         if (p.hp <= 0) { p.hp = 0; p.alive = false; log += " 💀"; }
-        if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
-            p.latus_orb_triggered = true; p.hp = p.max_hp / 2;
-            log += "\n🔶 **" + p.display_name + "** 拉圖斯寶珠發動！回復至 50% HP！";
+        if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 2) {
+            p.latus_orb_triggered = true; p.hp = p.max_hp * 4 / 5;
+            log += "\n🔶 **" + p.display_name + "** 拉圖斯寶珠發動！回復至 80% HP！";
         }
         roll_tears_heal(p);
         break;

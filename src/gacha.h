@@ -877,10 +877,10 @@ struct OrbCraftInfo { std::string type, name, effect, shard; };
 static const std::vector<OrbCraftInfo> ORB_CRAFT_LIST = {
     {"speed",      "迅捷狼王的寶珠", "單人必定先手；組隊：40%機率多行動一回合",              "orb_shard_speed"},
     {"athena",     "雅典娜的寶珠",   "單人：30%機率恢復8 HP；組隊：20%機率全體恢復5 HP",     "orb_shard_athena"},
-    {"bear",       "巨山狂熊的寶珠", "單人：防禦降低怪物下兩次攻擊60%；組隊：防禦降低傷害20%", "orb_shard_bear"},
+    {"bear",       "巨山狂熊的寶珠", "單人：防禦降低怪物下兩次攻擊60%；組隊：防禦降低範圍攻擊傷害30%／集中攻擊傷害60%", "orb_shard_bear"},
     {"viking",     "維京的寶珠",     "HP≤50% 傷害×1.4，HP≤25% 傷害×1.7（被動狂暴）",        "orb_shard_viking"},
     {"wargod",     "狂怒戰神的寶珠", "攻擊力+10",                                            "orb_shard_wargod"},
-    {"latus",      "拉圖斯的寶珠",   "HP≤20%時回復至50%（每場一次）",                        "orb_shard_latus"},
+    {"latus",      "拉圖斯的寶珠",   "HP≤50%時回復至80%（每場一次）",                        "orb_shard_latus"},
     {"darkdragon", "暗黑龍王的寶珠", "攻擊後回復造成傷害的 1/10（最多回10HP）",              "orb_shard_darkdragon"},
 };
 
