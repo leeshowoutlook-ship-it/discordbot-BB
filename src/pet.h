@@ -1814,7 +1814,7 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
     auto roll = [&](int pct) { return std::uniform_int_distribution<int>(1,100)(rng) <= pct; };
 
     // 天賦：天然呆 — 5% 機率不消耗道具
-    bool consume_item = !(pet.talent == "天然呆" && roll(5));
+    bool consume_item = !((pet.talent == "天然呆" || (pet.talent2_unlocked && pet.talent2 == "天然呆")) && roll(5));
 
     bool success = false;
     std::string result_desc;
@@ -2382,7 +2382,7 @@ static dpp::message handle_pet_work_start(dpp::snowflake uid, int task) {
     int dur = (task == 1) ? 3600 : (task == 4) ? 14400 : 28800;
     // 打工時長乘區：加總後一次套用（無條件進位），不逐一連乘。
     // 天賦：迅捷 -10%
-    double dur_delta = (pet.talent == "迅捷") ? -0.10 : 0.0;
+    double dur_delta = (pet.talent == "迅捷" || (pet.talent2_unlocked && pet.talent2 == "迅捷")) ? -0.10 : 0.0;
     // 收藏品：考拉の親筆簽名 -3%；菇菇王國高級套組 -1%
     { std::lock_guard<std::mutex> lk(data_mutex);
       auto wi = inventory_data.find(uid);
@@ -2494,13 +2494,13 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
         if (col_set_ghost_adv(uid)) reward_delta += 0.01;
     }
     // 天賦：招人喜歡 +10%
-    if (pet.talent == "招人喜歡") reward_delta += 0.10;
+    if (pet.talent == "招人喜歡" || (pet.talent2_unlocked && pet.talent2 == "招人喜歡")) reward_delta += 0.10;
 
     reward = (int64_t)std::ceil(reward * std::max(0.0, 1.0 + reward_delta));
 
     // 天賦：幸運 — 5% 雙倍報酬（機率事件，不併入乘區，套用在乘區結果之後）
     bool doubled_lucky = false;
-    if (pet.talent == "幸運" && roll_pct(5)) { reward *= 2; doubled_lucky = true; }
+    if ((pet.talent == "幸運" || (pet.talent2_unlocked && pet.talent2 == "幸運")) && roll_pct(5)) { reward *= 2; doubled_lucky = true; }
 
     // 負面狀態：憂鬱 — 有機率隨機花錢 (扣 30~60% 報酬)
     bool depress_spend = false;
@@ -2514,7 +2514,7 @@ static dpp::message handle_pet_work_claim(dpp::snowflake uid) {
 
     // 天賦：喜歡作夢 — 0.1% 翻倍現有籌碼
     bool dream_triggered = false;
-    if (pet.talent == "喜歡作夢" && std::uniform_int_distribution<int>(1,1000)(claim_rng) == 1) {
+    if ((pet.talent == "喜歡作夢" || (pet.talent2_unlocked && pet.talent2 == "喜歡作夢")) && std::uniform_int_distribution<int>(1,1000)(claim_rng) == 1) {
         int64_t cur = get_chips(uid);
         add_chips(uid, cur); // double = add same amount again
         dream_triggered = true;
