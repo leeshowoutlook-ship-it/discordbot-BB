@@ -52,6 +52,7 @@ static void load_chips() {
             cd.risk_dice_day      = (time_t)v.value("risk_dice_day",  (int64_t)0);
             cd.risk_dice_uses     = v.value("risk_dice_uses",            0);
             cd.claim_fail_streak  = v.value("claim_fail_streak",         0);
+            cd.claim_fail_total   = v.value("claim_fail_total",          0);
         }
     } catch (...) {}
 }
@@ -74,7 +75,8 @@ static void save_chips() {
                 {"free_xfer",          cd.free_xfer},
                 {"risk_dice_day",      (int64_t)cd.risk_dice_day},
                 {"risk_dice_uses",     cd.risk_dice_uses},
-                {"claim_fail_streak",  cd.claim_fail_streak}
+                {"claim_fail_streak",  cd.claim_fail_streak},
+                {"claim_fail_total",   cd.claim_fail_total}
             };
     }
     std::lock_guard<std::mutex> io_lk(io_mutex);
@@ -256,6 +258,7 @@ static bool claim_verify_timeout_penalize(dpp::snowflake uid, uint64_t token, Cl
     if (out) *out = it->second;
     auto& cd = chip_data[uid];
     cd.claim_fail_streak++;
+    cd.claim_fail_total++;
     int hours = claim_penalty_hours(cd.claim_fail_streak);
     cd.last_claim = time(nullptr) + (time_t)hours * 3600;
     if (hours_out) *hours_out = hours;
@@ -332,6 +335,7 @@ static dpp::message handle_claim_verify(dpp::snowflake uid, int idx, bool* grant
                 // （直接把 last_claim 往後推，沿用既有的整點冷卻判斷，不用額外欄位）
                 auto& cd = chip_data[uid];
                 cd.claim_fail_streak++;
+                cd.claim_fail_total++;
                 penalty_hours = claim_penalty_hours(cd.claim_fail_streak);
                 cd.last_claim = now + (time_t)penalty_hours * 3600;
                 if (late) timed_out = true; else wrong = true;
@@ -419,7 +423,7 @@ static dpp::message make_claim_jail_list_msg() {
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         for (auto& [uid, cd] : chip_data)
-            if (cd.claim_fail_streak > 0) fails.push_back({uid, cd.claim_fail_streak});
+            if (cd.claim_fail_total > 0) fails.push_back({uid, cd.claim_fail_total});
     }
     std::sort(fails.begin(), fails.end(), [](auto& a, auto& b) { return a.second > b.second; });
 
