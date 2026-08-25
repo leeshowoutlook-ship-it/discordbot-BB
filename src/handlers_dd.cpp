@@ -82,11 +82,11 @@ void handle_dd_button(const dpp::button_click_t& ev)
             if (dd_games.count(rch)) dd_games[rch].msg_id = mid;
         });
         ev.reply(dpp::ir_update_message, dpp::message("⚔️ **暗黑龍王**挑戰已開始！"));
-        g_bot->start_timer([rch](dpp::timer t) {
+        dpp::timer dd_tid = g_bot->start_timer([rch](dpp::timer t) {
             std::vector<dpp::snowflake> player_uids; bool is_practice = false;
             { std::lock_guard<std::mutex> lk(data_mutex);
-              auto it = dd_games.find(rch); if (it == dd_games.end()) return;
-              auto& dg2 = it->second; if (dg2.game_over) return;
+              auto it = dd_games.find(rch); if (it == dd_games.end()) { g_bot->stop_timer(t); return; }
+              auto& dg2 = it->second; if (dg2.game_over) { g_bot->stop_timer(t); return; }
               dg2.game_over = true; is_practice = dg2.practice_mode;
               for (auto& p : dg2.players) player_uids.push_back(p.uid);
               dd_games.erase(it);
@@ -107,6 +107,9 @@ void handle_dd_button(const dpp::button_click_t& ev)
             tm.set_content("⏱️ **暗黑龍王挑戰** 已超時，遠征失敗！");
             g_bot->message_create(tm);
         }, 1800);
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          if (dd_games.count(rch)) dd_games[rch].timer_id = dd_tid;
+        }
         return;
     }
 
@@ -247,6 +250,10 @@ void handle_dd_button(const dpp::button_click_t& ev)
                 auto& cp = dg.players[dg.current_player];
                 if (cp.has_bomb) { cp.has_bomb = false; cp.bomb_turns = 0; dg.log_line = "🙏 **" + cp.display_name + "** 向女神祈禱，炸彈解除！"; }
                 else dg.log_line = "🙏 **" + cp.display_name + "** 你誠心誠意的祈禱...";
+                if (cp.orb_key == "EQ_K_SPEED" && !cp.speed_extra_used && dd_rand(1,100) <= 40) {
+                    cp.speed_extra_used = true; dg.speed_extra_pending = true;
+                    dg.log_line += "\n⚡ **先鋒再行動！**";
+                }
                 dd_finish_turn(dg);
                 if (!dd_try_end(dg, false))
                     ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
@@ -270,11 +277,20 @@ void handle_dd_button(const dpp::button_click_t& ev)
                     for (auto& p : dg.players) {
                         if (!p.alive) continue;
                         if (p.at_altar) p.at_altar = false;
-                        int old = p.hp; p.hp = std::min(p.hp + 25, p.max_hp);
-                        if (p.hp > old) plog += "\n  → " + p.display_name + " 回復 " + std::to_string(p.hp - old) + " HP";
+                        std::string cleared;
+                        if (p.stunned_turns > 0)  { p.stunned_turns = 0;  cleared += "封鎖 "; }
+                        if (p.has_bomb)            { p.has_bomb = false; p.bomb_turns = 0; cleared += "炸彈 "; }
+                        if (p.atk_down_turns > 0)  { p.atk_down_turns = 0; cleared += "力量削弱 "; }
+                        if (p.def_down_turns > 0)  { p.def_down_turns = 0; cleared += "防禦削弱 "; }
+                        if (p.burning)             { p.burning = false;   cleared += "燃燒 "; }
+                        if (!cleared.empty()) plog += "\n  → " + p.display_name + " 負面狀態解除：" + cleared;
                     }
                 }
                 dg.log_line = plog;
+                if (cp.orb_key == "EQ_K_SPEED" && !cp.speed_extra_used && dd_rand(1,100) <= 40) {
+                    cp.speed_extra_used = true; dg.speed_extra_pending = true;
+                    dg.log_line += "\n⚡ **先鋒再行動！**";
+                }
                 dd_finish_turn(dg);
                 if (!dd_try_end(dg, false))
                     ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));

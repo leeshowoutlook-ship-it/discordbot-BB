@@ -24,7 +24,7 @@ static int dd_eff_atk(const DDPlayer& p, bool triple) {
         else if (r < 0.50) a = (int)(a * 1.4);
     }
     if (p.atk_down_turns > 0) a = a / 2;
-    if (triple) a = (int)(a * 2.5);
+    if (triple) a = (int)(a * 3);
     return a;
 }
 
@@ -80,7 +80,7 @@ static dpp::message make_dd_combat_msg(const DDGame& g) {
         boss_desc += "\n🏛️ **祭壇**　";
         for (int i = 0; i < 3; i++) boss_desc += (i < g.altar_hp) ? "❤️" : "🖤";
     } else {
-        boss_desc += "\n💥 **祭壇已毀滅！全體 ATK×2.5！**";
+        boss_desc += "\n💥 **祭壇已毀滅！全體 ATK×3！**";
     }
     e.set_description(boss_desc);
 
