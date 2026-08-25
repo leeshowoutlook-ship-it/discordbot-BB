@@ -283,7 +283,9 @@ void handle_dd_button(const dpp::button_click_t& ev)
                         if (p.atk_down_turns > 0)  { p.atk_down_turns = 0; cleared += "力量削弱 "; }
                         if (p.def_down_turns > 0)  { p.def_down_turns = 0; cleared += "防禦削弱 "; }
                         if (p.burning)             { p.burning = false;   cleared += "燃燒 "; }
-                        if (!cleared.empty()) plog += "\n  → " + p.display_name + " 負面狀態解除：" + cleared;
+                        int old = p.hp; p.hp = std::min(p.hp + 40, p.max_hp);
+                        plog += "\n  → " + p.display_name + " +HP " + std::to_string(p.hp - old);
+                        if (!cleared.empty()) plog += "　【" + cleared + "】解除";
                     }
                 }
                 dg.log_line = plog;
