@@ -745,9 +745,14 @@ int main(int argc, char* argv[]) {
                 .set_label("🧹 清除本頻道遊戲").set_id("admin_clear_channel_btn").set_style(dpp::cos_danger));
             row2.add_component(dpp::component().set_type(dpp::cot_button)
                 .set_label("🧨 清除全部遊戲").set_id("admin_clear_all_btn").set_style(dpp::cos_danger));
+            dpp::component row3; row3.set_type(dpp::cot_action_row);
+            row3.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label(g_claim_verify_enabled ? "🔒 領取驗證：開啟中" : "🔓 領取驗證：已關閉")
+                .set_id("admin_toggle_verify_btn")
+                .set_style(g_claim_verify_enabled ? dpp::cos_success : dpp::cos_secondary));
             dpp::message m;
             m.set_content("🔑 **管理員面板**\n請選擇操作：");
-            m.add_component(row); m.add_component(row2); m.channel_id = ch;
+            m.add_component(row); m.add_component(row2); m.add_component(row3); m.channel_id = ch;
             bot.message_create(m);
         }
         // !小黑屋／！小黑屋：查看／解除領取驗證的鎖定（限管理員）
@@ -1357,6 +1362,16 @@ int main(int argc, char* argv[]) {
         }
         else if (cid == "admin_clear_all_cancel") {
             ev.reply(dpp::ir_update_message, dpp::message("已取消。").set_flags(dpp::m_ephemeral));
+        }
+        else if (cid == "admin_toggle_verify_btn") {
+            if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
+            }
+            g_claim_verify_enabled = !g_claim_verify_enabled;
+            std::string state = g_claim_verify_enabled ? "🔒 **開啟**" : "🔓 **關閉**";
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("✅ 領取驗證已切換為 " + state + "。").set_flags(dpp::m_ephemeral));
         }
         // ── 富豪榜翻頁 ────────────────────────────────────────────────────────
         else if (cid.rfind("lb_", 0) == 0) {

@@ -214,7 +214,7 @@ static dpp::message handle_claim(dpp::snowflake uid, bool* claimed_out = nullptr
             int64_t last_hour = cd.last_claim / 3600;
             if (now_hour > last_hour) {
                 // 每次手動領取都有機率觸發驗證，不看是否連續整點——避免玩家/腳本靠跳過整點來規避
-                if (claim_rand(1, 100) <= CLAIM_VERIFY_CHANCE) {
+                if (g_claim_verify_enabled && claim_rand(1, 100) <= CLAIM_VERIFY_CHANCE) {
                     pending = (claim_rand(0, 1) == 0) ? build_claim_challenge_emoji() : build_claim_challenge_math();
                     pending.expires_at = now + CLAIM_VERIFY_SECS;
                     pending.token      = claim_challenge_token_seq++;

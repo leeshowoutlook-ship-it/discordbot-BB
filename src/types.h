@@ -108,6 +108,7 @@ static const int CLAIM_VERIFY_CHANCE   = 20; // 每次手動領取觸發驗證�
 static const int CLAIM_VERIFY_SECS     = 60; // 驗證時限（秒）：逾時未按也會被鎖
 static const int CLAIM_PENALTY_HOURS   = 2;  // 答錯／逾時：基礎鎖定時數，會依連續失敗次數累加
 static const int CLAIM_PENALTY_MAX_HRS = 24; // 鎖定時數上限
+inline bool g_claim_verify_enabled = true;   // 全局開關：false = 所有人領取跳過驗證
 
 struct BankData {
     int64_t deposited         = 0;
