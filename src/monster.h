@@ -270,6 +270,12 @@ static dpp::message make_combat_msg(const MonsterHuntGame& g,
         row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🛡️ 防禦")
             .set_id("hunt_block_" + uid_s).set_style(dpp::cos_secondary));
     }
+    if (g.orb_key == "EQ_K_LIFEGODDESS") {
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("💗 生命女神 (" + std::to_string(3 - g.lifegoddess_uses) + ")")
+            .set_id("hunt_heal_" + uid_s).set_style(dpp::cos_secondary)
+            .set_disabled(g.lifegoddess_uses >= 3));
+    }
     msg.add_component_v2(row);
 
     dpp::component ref_row; ref_row.set_type(dpp::cot_action_row);
@@ -288,7 +294,8 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
                             bool& win_out, int64_t& reward_out,
                             HuntDropList& drops_out,
                             bool is_block = false,
-                            bool is_battlecry = false) {
+                            bool is_battlecry = false,
+                            bool is_heal = false) {
     auto randint = [&](int a, int b) {
         return std::uniform_int_distribution<int>(a, b)(hunt_rng());
     };
@@ -310,7 +317,7 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
     // ── Player attacks ────────────────────────────────────────────────────────
     bool atk_failed = has_muscle_tense && randint(1, 100) <= 30;
     int pet_dmg = 0;
-    if (!is_block && !is_battlecry) {
+    if (!is_block && !is_battlecry && !is_heal) {
         if (!atk_failed) {
             // 維京寶珠：狂暴被動 — HP 越低傷害越高
             double base_mult = 1.0;
@@ -366,6 +373,15 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
     } else if (is_block) {
         g.atk_down_turns = 2;
         log += "🛡️ **防禦！** 怪物下兩次攻擊降低 **60%**！";
+    } else if (is_heal) {
+        g.lifegoddess_uses++;
+        int heal = std::min((int)std::ceil(g.pet_max_hp * 0.2), g.pet_max_hp - g.pet_hp);
+        if (heal > 0) {
+            g.pet_hp += heal;
+            log += "💗 **生命女神的祝福！** 回復 **" + std::to_string(heal) + "** HP！";
+        } else {
+            log += "💗 **生命女神的祝福！** HP已滿，未回復。";
+        }
     }
 
     if (g.monster_hp <= 0) {
@@ -626,6 +642,14 @@ static dpp::message make_village_combat_msg(const VillageGame& g,
             .set_label("🛡️ 防禦").set_id("village_block_" + uid_s).set_style(dpp::cos_secondary));
         msg.add_component_v2(bear_row);
     }
+    if (g.orb_key == "EQ_K_LIFEGODDESS") {
+        dpp::component heal_row; heal_row.set_type(dpp::cot_action_row);
+        heal_row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("💗 生命女神 (" + std::to_string(3 - g.lifegoddess_uses) + ")")
+            .set_id("village_heal_" + uid_s).set_style(dpp::cos_secondary)
+            .set_disabled(g.lifegoddess_uses >= 3));
+        msg.add_component_v2(heal_row);
+    }
     dpp::component ref_row; ref_row.set_type(dpp::cot_action_row);
     ref_row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🔄 刷新").set_id("village_refresh_" + uid_s).set_style(dpp::cos_secondary));
@@ -640,7 +664,8 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
                                     bool& win_out, int64_t& reward_out,
                                     int& spirits_killed_out,
                                     HuntDropList& drops_out,
-                                    bool is_block = false) {
+                                    bool is_block = false,
+                                    bool is_heal = false) {
     static const std::vector<std::string> SHARD_TYPES = {
         "orb_shard_speed","orb_shard_athena","orb_shard_bear","orb_shard_viking","orb_shard_wargod"
     };
@@ -654,7 +679,17 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
         g.bear_block_turns = 2;
         log += "🛡️ **防禦！** 怪物下兩次攻擊降低 **60%**！";
     }
-    if (!is_block) {
+    if (is_heal) {
+        g.lifegoddess_uses++;
+        int heal = std::min((int)std::ceil(g.pet_max_hp * 0.2), g.pet_max_hp - g.pet_hp);
+        if (heal > 0) {
+            g.pet_hp += heal;
+            log += "💗 **生命女神的祝福！** 回復 **" + std::to_string(heal) + "** HP！";
+        } else {
+            log += "💗 **生命女神的祝福！** HP已滿，未回復。";
+        }
+    }
+    if (!is_block && !is_heal) {
     auto& tgt = g.spirits[target_idx];
     int dmg = 0;
     // BB博物館限定：觀觀遺失的胖次 — 本場戰鬥第一次攻擊 +5 攻擊力
@@ -734,7 +769,7 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
         g.log_line = log + "\n🎉 **所有敵人被消滅！勝利！**";
         return true;
     }
-    } // end if (!is_block)
+    } // end if (!is_block && !is_heal)
 
     // All alive spirits counter-attack
     int total_atk = 0;

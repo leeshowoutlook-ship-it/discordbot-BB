@@ -331,6 +331,56 @@ void handle_hunt_button(const dpp::button_click_t& ev)
         return;
     }
 
+    // ── village_heal_{uid}: 生命女神的寶珠回血（怪物村落）──────────────────
+    if (cid.rfind("village_heal_", 0) == 0) {
+        dpp::snowflake bu(std::stoull(cid.substr(13)));
+        if (uid != bu) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 這不是你的視窗！").set_flags(dpp::m_ephemeral)); return; }
+        VillageGame vg; bool found = false;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          auto it = village_games.find(uid);
+          if (it != village_games.end()) { vg = it->second; found = true; }
+        }
+        if (!found) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 沒有進行中的村落挑戰！").set_flags(dpp::m_ephemeral)); return; }
+        if (vg.lifegoddess_uses >= 3) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 生命女神的祝福本場已用完！").set_flags(dpp::m_ephemeral)); return; }
+        vg.selected_target = -1;
+        bool vwin = false; int64_t vreward = 0; int vkilled_unused = 0;
+        HuntDropList vdrops;
+        bool vended = process_village_combat(vg, 0, 0, vwin, vreward, vkilled_unused, vdrops, false, true);
+        if (vended) {
+            int vkilled = 0;
+            for (auto& s : vg.spirits) if (s.hp <= 0) vkilled++;
+            dpp::timer vt = 0;
+            { std::lock_guard<std::mutex> lk(data_mutex); vt = vg.timer_id; village_games.erase(uid); }
+            if (vt) g_bot->stop_timer(vt);
+            bool vfirst = false;
+            if (vwin) {
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  vfirst = hunt_clear_data[uid].count(vg.group_key) == 0;
+                  hunt_clear_data[uid].insert(vg.group_key);
+                }
+                if (vfirst) { auto* gd2 = find_village_group(vg.group_key); if (gd2) vreward += gd2->first_clear_reward; }
+                add_chips(uid, vreward);
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  for (auto& [k, c] : vdrops) inventory_data[uid][k] += c;
+                }
+                save_chips(); save_hunt_clear();
+                if (!vdrops.empty()) save_inventory();
+            } else {
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto& p = pet_data[uid]; bool already = false;
+                  for (auto& s : p.statuses) if (s == "受傷") { already = true; break; }
+                  if (!already) p.statuses.push_back("受傷");
+                }
+                save_pet_data();
+            }
+            ev.reply(dpp::ir_update_message, make_village_end_msg(vwin, vg, vreward, vfirst, vdrops, dn, av, vkilled));
+        } else {
+            { std::lock_guard<std::mutex> lk(data_mutex); village_games[uid] = vg; }
+            ev.reply(dpp::ir_update_message, make_village_combat_msg(vg, dn, av));
+        }
+        return;
+    }
+
     // ── Solo hunt navigation ───────────────────────────────────────────────────
     if (cid.rfind("hunt_main_", 0) == 0) {
         dpp::snowflake bu(std::stoull(cid.substr(10)));
@@ -550,6 +600,58 @@ void handle_hunt_button(const dpp::button_click_t& ev)
                 save_chips(); save_hunt_clear();
                 if (!hunt_drops2.empty()) save_inventory();
                 ev.reply(dpp::ir_update_message, make_combat_end_msg(true, g, reward, first_clear, hunt_drops2, dn, av));
+            } else {
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto& p = pet_data[uid]; bool already = false;
+                  for (auto& s : p.statuses) if (s == "受傷") { already = true; break; }
+                  if (!already) p.statuses.push_back("受傷");
+                }
+                save_pet_data();
+                ev.reply(dpp::ir_update_message, make_combat_end_msg(false, g, 0, false, {}, dn, av));
+            }
+        } else {
+            { std::lock_guard<std::mutex> lk(data_mutex); monster_hunt_games[uid] = g; }
+            ev.reply(dpp::ir_update_message, make_combat_msg(g, dn, av));
+        }
+        return;
+    }
+
+    // ── hunt_heal_{uid}: 生命女神的寶珠回血 ─────────────────────────────────
+    if (cid.rfind("hunt_heal_", 0) == 0) {
+        dpp::snowflake bu(std::stoull(cid.substr(10)));
+        if (uid != bu) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 這不是你的視窗！").set_flags(dpp::m_ephemeral)); return; }
+
+        MonsterHuntGame g; bool found = false; std::string pet_muscle_tense;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          auto it = monster_hunt_games.find(uid);
+          if (it != monster_hunt_games.end()) { g = it->second; found = true; }
+          auto pit = pet_data.find(uid);
+          if (pit != pet_data.end())
+              for (auto& s : pit->second.statuses) if (s == "肌肉緊繃") { pet_muscle_tense = s; break; }
+        }
+        if (!found) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 沒有進行中的狩獵！").set_flags(dpp::m_ephemeral)); return; }
+        if (g.lifegoddess_uses >= 3) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 生命女神的祝福本場已用完！").set_flags(dpp::m_ephemeral)); return; }
+
+        bool win = false; int64_t reward = 0; HuntDropList hunt_drops3;
+        bool ended = process_combat(g, false, !pet_muscle_tense.empty(), win, reward, hunt_drops3, false, false, true);
+
+        if (ended) {
+            dpp::timer tid = 0;
+            { std::lock_guard<std::mutex> lk(data_mutex); tid = g.timer_id; monster_hunt_games.erase(uid); }
+            if (tid) g_bot->stop_timer(tid);
+            if (win) {
+                bool first_clear = false;
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  first_clear = hunt_clear_data[uid].count(g.monster_key) == 0;
+                  hunt_clear_data[uid].insert(g.monster_key);
+                }
+                if (first_clear) { auto* md2 = find_monster(g.monster_key); if (md2) reward += md2->first_clear_reward; }
+                add_chips(uid, reward);
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  for (auto& [k, c] : hunt_drops3) inventory_data[uid][k] += c; }
+                save_chips(); save_hunt_clear();
+                if (!hunt_drops3.empty()) save_inventory();
+                ev.reply(dpp::ir_update_message, make_combat_end_msg(true, g, reward, first_clear, hunt_drops3, dn, av));
             } else {
                 { std::lock_guard<std::mutex> lk(data_mutex);
                   auto& p = pet_data[uid]; bool already = false;

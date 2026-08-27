@@ -193,6 +193,11 @@ static dpp::message make_dd_combat_msg(const DDGame& g) {
                 row.add_component(dpp::component().set_type(dpp::cot_button)
                     .set_label("🛡️ 防禦").set_id("dd_block_" + uid_s)
                     .set_style(dpp::cos_secondary));
+            // Life Goddess heal (每場限1次)
+            if (cp.orb_key == "EQ_K_LIFEGODDESS" && !g.lifegoddess_used)
+                row.add_component(dpp::component().set_type(dpp::cot_button)
+                    .set_label("💗 生命女神").set_id("dd_heal_" + uid_s)
+                    .set_style(dpp::cos_secondary));
             row.add_component(dpp::component().set_type(dpp::cot_button)
                 .set_label("↩ 返回").set_id("dd_back_" + uid_s)
                 .set_style(dpp::cos_secondary));
@@ -599,7 +604,7 @@ static std::string dd_do_boss_turn(DDGame& g) {
                         log += "⛓️ **中頭** 【黑暗鎖鍊】→ **" + p.display_name + "** 完全閃避了攻擊！💨（隱形斗篷）";
                     } else {
                         int dmg = std::max(1, raw - dd_eff_def(p, g));
-                        if (g.block_active) dmg = std::max(1, (int)(dmg * 0.8));
+                        if (g.block_active) dmg = std::max(1, dmg / 2); // 單體攻擊，跟龍爪橫掃一樣-50%（不是AOE的-20%）
                         p.hp -= dmg;
                         log += "⛓️ **中頭** 【黑暗鎖鍊】→ **" + p.display_name + "** 受到 **" + std::to_string(dmg) + "** 傷害！";
                         if (p.hp <= 0) { p.hp = 0; p.alive = false; log += " 💀"; }
@@ -621,6 +626,7 @@ static std::string dd_do_boss_turn(DDGame& g) {
                         continue;
                     }
                     int dmg = std::max(1, raw - dd_eff_def(p, g));
+                    if (g.block_active) dmg = std::max(1, (int)(dmg * 0.8)); // AOE，漏掉的熊寶珠減傷補上
                     p.hp -= dmg;
                     p.atk_down_turns = std::max(p.atk_down_turns, 1); // 下一次 boss 回合 -ATK
                     log += "\n  → " + p.display_name + " 受到 **" + std::to_string(dmg) + "** 傷害，力量被削弱！";

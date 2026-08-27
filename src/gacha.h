@@ -108,6 +108,7 @@ static const std::vector<GachaItem> GACHA_ITEMS = {
     {"EQ_K_WARGOD",      "狂怒戰神的寶珠", "K","UR","","",10,"atk",       "", 94006},
     {"EQ_K_LATUS",       "拉圖斯的寶珠",   "K","UR","","", 0,"latus_orb", "", 94007},
     {"EQ_K_DARKDRAGON",  "暗黑龍王的寶珠", "K","UR","","", 0,"dd_orb",    "", 94008},
+    {"EQ_K_LIFEGODDESS", "生命女神的寶珠", "K","UR","","", 0,"lifegoddess","", 94009},
 };
 
 static const GachaItem* find_gacha_item(const std::string& key) {
@@ -170,6 +171,7 @@ static std::string stat_label(const GachaItem& gi) {
     if (gi.stat_type == "cry")      return "🔥 被動狂暴：HP≤50% 傷害×1.4，HP≤25% 傷害×1.7";
     if (gi.stat_type == "latus_orb") return "🔶 HP≤20% 時回復至 50%（每場一次）";
     if (gi.stat_type == "dd_orb")    return "🌑 攻擊後回復造成傷害的 1/10（最多 10 HP）";
+    if (gi.stat_type == "lifegoddess") return "💗 主動技能（放棄該回合攻擊）：單人回復自身20%最大HP，每場最多3次；組隊回復全體存活隊友各20%最大HP，每場限1次";
     return "";
 }
 
@@ -327,7 +329,7 @@ static std::mt19937& gacha_rng() {
 
 static const GachaItem& gacha_pull_one(bool star_pool) {
     // 合成限定寶珠：不進入抽取池
-    static const std::set<std::string> NOT_GACHABLE = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON"};
+    static const std::set<std::string> NOT_GACHABLE = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON","EQ_K_LIFEGODDESS"};
     static std::vector<const GachaItem*> pool_C, pool_R, pool_SR, pool_UR_eq, pool_UR_orb;
     static bool pools_built = false;
     if (!pools_built) {
@@ -370,7 +372,7 @@ static const GachaItem& gacha_pull_one(bool star_pool) {
 
 // 保底 UR：從所有可抽 UR 裝備＋寶珠中隨機一個
 static const GachaItem& gacha_pull_ur_pity() {
-    static const std::set<std::string> NOT_GACHABLE = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON"};
+    static const std::set<std::string> NOT_GACHABLE = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON","EQ_K_LIFEGODDESS"};
     static std::vector<const GachaItem*> pool_UR_all;
     static bool built = false;
     if (!built) {

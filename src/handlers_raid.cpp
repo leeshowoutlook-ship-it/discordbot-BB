@@ -50,13 +50,16 @@ void handle_raid_button(const dpp::button_click_t& ev)
             std::lock_guard<std::mutex> lk(data_mutex);
             if (raid_rooms.count(ch)) raid_rooms[ch].msg_id = mid;
         });
-        g_bot->start_timer([ch](dpp::timer t){
+        { dpp::timer troom = g_bot->start_timer([ch](dpp::timer t){
             std::lock_guard<std::mutex> lk(data_mutex);
             auto it = raid_rooms.find(ch); if (it == raid_rooms.end()) return;
             auto mid = it->second.msg_id; raid_rooms.erase(it);
             if (mid) { dpp::message m; m.id = mid; m.channel_id = ch; m.set_content("⌛ 組隊房間因逾時（10 分鐘）自動解散。"); g_bot->message_edit(m); }
             g_bot->stop_timer(t);
-        }, 600);
+          }, 600);
+          std::lock_guard<std::mutex> lk(data_mutex);
+          if (raid_rooms.count(ch)) raid_rooms[ch].timer_id = troom;
+        }
         return;
     }
 
@@ -84,13 +87,16 @@ void handle_raid_button(const dpp::button_click_t& ev)
             std::lock_guard<std::mutex> lk(data_mutex);
             if (raid_rooms.count(ch)) raid_rooms[ch].msg_id = mid;
         });
-        g_bot->start_timer([ch](dpp::timer t){
+        { dpp::timer troom = g_bot->start_timer([ch](dpp::timer t){
             std::lock_guard<std::mutex> lk(data_mutex);
             auto it = raid_rooms.find(ch); if (it == raid_rooms.end()) return;
             auto mid = it->second.msg_id; raid_rooms.erase(it);
             if (mid) { dpp::message m; m.id = mid; m.channel_id = ch; m.set_content("⌛ 組隊房間因逾時（10 分鐘）自動解散。"); g_bot->message_edit(m); }
             g_bot->stop_timer(t);
-        }, 600);
+          }, 600);
+          std::lock_guard<std::mutex> lk(data_mutex);
+          if (raid_rooms.count(ch)) raid_rooms[ch].timer_id = troom;
+        }
         return;
     }
 
@@ -117,13 +123,16 @@ void handle_raid_button(const dpp::button_click_t& ev)
             std::lock_guard<std::mutex> lk(data_mutex);
             if (raid_rooms.count(ch)) raid_rooms[ch].msg_id = mid;
         });
-        g_bot->start_timer([ch](dpp::timer t){
+        { dpp::timer troom = g_bot->start_timer([ch](dpp::timer t){
             std::lock_guard<std::mutex> lk(data_mutex);
             auto it = raid_rooms.find(ch); if (it == raid_rooms.end()) return;
             auto mid = it->second.msg_id; raid_rooms.erase(it);
             if (mid) { dpp::message m; m.id = mid; m.channel_id = ch; m.set_content("⌛ 組隊房間因逾時（10 分鐘）自動解散。"); g_bot->message_edit(m); }
             g_bot->stop_timer(t);
-        }, 600);
+          }, 600);
+          std::lock_guard<std::mutex> lk(data_mutex);
+          if (raid_rooms.count(ch)) raid_rooms[ch].timer_id = troom;
+        }
         return;
     }
 
@@ -150,13 +159,16 @@ void handle_raid_button(const dpp::button_click_t& ev)
             std::lock_guard<std::mutex> lk(data_mutex);
             if (raid_rooms.count(ch)) raid_rooms[ch].msg_id = mid;
         });
-        g_bot->start_timer([ch](dpp::timer t){
+        { dpp::timer troom = g_bot->start_timer([ch](dpp::timer t){
             std::lock_guard<std::mutex> lk(data_mutex);
             auto it = raid_rooms.find(ch); if (it == raid_rooms.end()) return;
             auto mid = it->second.msg_id; raid_rooms.erase(it);
             if (mid) { dpp::message m; m.id = mid; m.channel_id = ch; m.set_content("⌛ 組隊房間因逾時（10 分鐘）自動解散。"); g_bot->message_edit(m); }
             g_bot->stop_timer(t);
-        }, 600);
+          }, 600);
+          std::lock_guard<std::mutex> lk(data_mutex);
+          if (raid_rooms.count(ch)) raid_rooms[ch].timer_id = troom;
+        }
         return;
     }
 
@@ -179,11 +191,17 @@ void handle_raid_button(const dpp::button_click_t& ev)
     // ── rroom_dissolve_{ch} ───────────────────────────────────────────────────
     if (cid.rfind("rroom_dissolve_", 0) == 0) {
         dpp::snowflake ch(std::stoull(cid.substr(15)));
-        std::lock_guard<std::mutex> lk(data_mutex);
-        auto it = raid_rooms.find(ch);
-        if (it == raid_rooms.end()) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 找不到組隊房間！").set_flags(dpp::m_ephemeral)); return; }
-        if (uid != it->second.host_uid) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 只有開房者可以解散！").set_flags(dpp::m_ephemeral)); return; }
-        raid_rooms.erase(it);
+        dpp::timer tid = 0;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = raid_rooms.find(ch);
+            if (it == raid_rooms.end()) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 找不到組隊房間！").set_flags(dpp::m_ephemeral)); return; }
+            if (uid != it->second.host_uid) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 只有開房者可以解散！").set_flags(dpp::m_ephemeral)); return; }
+            tid = it->second.timer_id;
+            raid_rooms.erase(it);
+        }
+        // 停掉房間的 10 分鐘逾時計時器，不然之後同頻道開新房間會被這個殘留的計時器誤殺
+        if (tid) g_bot->stop_timer(tid);
         ev.reply(dpp::ir_update_message, dpp::message("🗑️ **" + dn + "** 解散了組隊房間。"));
         return;
     }
@@ -214,6 +232,8 @@ void handle_raid_button(const dpp::button_click_t& ev)
             }
             raid_rooms.erase(ch);
         }
+        // 停掉房間的 10 分鐘逾時計時器，不然之後同頻道開新房間會被這個殘留的計時器誤殺
+        if (room.timer_id) g_bot->stop_timer(room.timer_id);
 
         const RaidBoss* boss = find_raid_boss(room.boss_key);
         RaidGame g;
@@ -374,9 +394,10 @@ void handle_raid_button(const dpp::button_click_t& ev)
         return true;
     };
 
-    auto do_raid_attack = [&](int attack_type, bool is_block, bool is_cry) {
+    auto do_raid_attack = [&](int attack_type, bool is_block, bool is_cry, bool is_heal = false) {
         std::string pfx; size_t plen;
         if      (is_block)        { pfx = "raid_block_";  plen = 11; }
+        else if (is_heal)         { pfx = "raid_heal_";   plen = 10; }
         else if (is_cry)          { pfx = "raid_cry_";    plen = 9;  }
         else if (attack_type == 2){ pfx = "raid_pow_";    plen = 9;  }
         else if (attack_type == 1){ pfx = "raid_gamble_"; plen = 12; }
@@ -404,6 +425,21 @@ void handle_raid_button(const dpp::button_click_t& ev)
             if (is_block) {
                 g.block_active = true;
                 log = "🛡️ **" + g.players[g.current_player].display_name + "** 進入防禦姿態！";
+            } else if (is_heal) {
+                if (g.lifegoddess_used) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 生命女神的祝福本場已用完！").set_flags(dpp::m_ephemeral)); return; }
+                g.lifegoddess_used = true;
+                std::string healed;
+                for (auto& p : g.players) {
+                    if (!p.alive) continue;
+                    int heal = std::min((int)std::ceil(p.max_hp * 0.2), p.max_hp - p.hp);
+                    if (heal > 0) {
+                        p.hp += heal;
+                        if (!healed.empty()) healed += "、";
+                        healed += p.display_name + "(+" + std::to_string(heal) + ")";
+                    }
+                }
+                log = "💗 **" + g.players[g.current_player].display_name + "** 發動生命女神的祝福！";
+                log += healed.empty() ? "\n  → 全體HP已滿，未回復。" : ("\n  → " + healed + " 恢復 HP！");
             } else {
                 log = raid_do_player_attack(g, attack_type);
             }
@@ -446,4 +482,5 @@ void handle_raid_button(const dpp::button_click_t& ev)
     if (cid.rfind("raid_pow_", 0) == 0)    { do_raid_attack(2,false,false); return; }
     if (cid.rfind("raid_block_", 0) == 0)  { do_raid_attack(0,true,false);  return; }
     if (cid.rfind("raid_cry_", 0) == 0)    { do_raid_attack(0,false,true);  return; }
+    if (cid.rfind("raid_heal_", 0) == 0)   { do_raid_attack(0,false,false,true); return; }
 }

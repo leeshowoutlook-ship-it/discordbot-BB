@@ -9,6 +9,7 @@
 
 static const std::string STOCK_HOLDINGS_FILE = "stock_holdings.json";
 static const std::string STOCK_MARKET_FILE   = "stock_market.json";
+static const double      STOCK_FEE_RATE      = 0.02; // 買賣手續費 2%
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
@@ -411,7 +412,7 @@ static std::string do_stock_buy(dpp::snowflake uid, const std::string& key, int6
     int64_t price = 0;
     { std::lock_guard<std::mutex> lk(stock_mutex); auto it = stock_market.find(key); if (it != stock_market.end()) price = it->second.price; }
     if (price <= 0) return "❌ 目前查不到價格，請稍後再試！";
-    int64_t cost = price * qty;
+    int64_t cost = price * qty; // 買進不收手續費
     bool ok = false;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
@@ -442,7 +443,7 @@ static std::string do_stock_sell(dpp::snowflake uid, const std::string& key, int
             auto hit = pit->second.find(key);
             if (hit != pit->second.end() && hit->second.shares >= qty) {
                 int64_t gross = price * qty;
-                int64_t fee   = (int64_t)(gross * 0.03 + 0.5); // 3% 手續費，無條件進位
+                int64_t fee   = (int64_t)(gross * STOCK_FEE_RATE + 0.5); // 無條件進位
                 revenue = gross - fee;
                 hit->second.shares -= qty;
                 if (hit->second.shares == 0) hit->second.avg_cost = 0;

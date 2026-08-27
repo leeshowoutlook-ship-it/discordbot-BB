@@ -40,6 +40,8 @@ void handle_dd_button(const dpp::button_click_t& ev)
             }
             raid_rooms.erase(rch);
         }
+        // 停掉房間的 10 分鐘逾時計時器，不然之後同頻道開新房間會被這個殘留的計時器誤殺
+        if (room.timer_id) g_bot->stop_timer(room.timer_id);
 
         DDGame dg;
         dg.channel_id = room.channel_id; dg.started_at = time(nullptr); dg.bomb_cooldown = 3;
@@ -148,9 +150,26 @@ void handle_dd_button(const dpp::button_click_t& ev)
 
         if (cid.rfind("dd_refresh_", 0) == 0) {
             dpp::snowflake dch(std::stoull(cid.substr(11)));
-            std::lock_guard<std::mutex> lk(data_mutex);
-            auto it = dd_games.find(dch); if (it == dd_games.end()) return;
-            ev.reply(dpp::ir_update_message, make_dd_combat_msg(it->second)); return;
+            DDGame g; bool found = false;
+            { std::lock_guard<std::mutex> lk(data_mutex);
+              auto it = dd_games.find(dch);
+              if (it != dd_games.end()) { g = it->second; found = true; }
+            }
+            if (!found) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 這場戰鬥已經結束了！").set_flags(dpp::m_ephemeral)); return;
+            }
+            // 不是原地編輯：刪掉舊訊息，在頻道底部重新發一則新的戰鬥狀態，避免被洗上去看不到
+            ev.reply(dpp::ir_deferred_update_message, dpp::message());
+            g_bot->message_delete(ev.command.message_id, ev.command.channel_id);
+            auto newmsg = make_dd_combat_msg(g); newmsg.channel_id = dch;
+            g_bot->message_create(newmsg, [dch](const dpp::confirmation_callback_t& cb) {
+                if (cb.is_error()) return;
+                auto mid = std::get<dpp::message>(cb.value).id;
+                std::lock_guard<std::mutex> lk(data_mutex);
+                if (dd_games.count(dch)) dd_games[dch].msg_id = mid;
+            });
+            return;
         }
         if (cid.rfind("dd_target_", 0) == 0) {
             std::string rest = cid.substr(10); size_t us = rest.rfind('_'); if (us == std::string::npos) return;
@@ -199,6 +218,34 @@ void handle_dd_button(const dpp::button_click_t& ev)
                 if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
                 dg.block_active = true; dg.selected_head = -1;
                 dg.log_line = "🛡️ **" + dg.players[dg.current_player].display_name + "** 進入防禦姿態！";
+                dd_finish_turn(dg);
+                if (!dd_try_end(dg, false))
+                    ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
+            }
+            if (dd_need_pet_save) save_pet_data();
+            return;
+        }
+        if (cid.rfind("dd_heal_", 0) == 0) {
+            dpp::snowflake bu(std::stoull(cid.substr(8))); if (uid != bu) return;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto git = dd_games.find(ch); if (git == dd_games.end()) return;
+                auto& dg = git->second;
+                if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
+                if (dg.lifegoddess_used) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 生命女神的祝福本場已用完！").set_flags(dpp::m_ephemeral)); return; }
+                dg.lifegoddess_used = true; dg.selected_head = -1;
+                std::string healed;
+                for (auto& p : dg.players) {
+                    if (!p.alive) continue;
+                    int heal = std::min((int)std::ceil(p.max_hp * 0.2), p.max_hp - p.hp);
+                    if (heal > 0) {
+                        p.hp += heal;
+                        if (!healed.empty()) healed += "、";
+                        healed += p.display_name + "(+" + std::to_string(heal) + ")";
+                    }
+                }
+                dg.log_line = "💗 **" + dg.players[dg.current_player].display_name + "** 發動生命女神的祝福！";
+                dg.log_line += healed.empty() ? "\n  → 全體HP已滿，未回復。" : ("\n  → " + healed + " 恢復 HP！");
                 dd_finish_turn(dg);
                 if (!dd_try_end(dg, false))
                     ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));

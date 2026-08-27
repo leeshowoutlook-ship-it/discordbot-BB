@@ -306,6 +306,17 @@ static dpp::message make_raid_combat_msg(const RaidGame& g) {
         row1.add_component(blk_btn);
     }
 
+    // Heal button (生命女神的寶珠：組隊回血，每場限1次)
+    if (cp.orb_key == "EQ_K_LIFEGODDESS" && !g.lifegoddess_used) {
+        dpp::component heal_btn;
+        heal_btn.set_type(dpp::cot_button)
+            .set_label("生命女神")
+            .set_id("raid_heal_" + ch_s + "_" + uid_s)
+            .set_style(dpp::cos_secondary)
+            .set_emoji("💗", 0);
+        row1.add_component(heal_btn);
+    }
+
     // 維京寶珠：被動狂暴，無需按鈕
 
     msg.add_component(row1);

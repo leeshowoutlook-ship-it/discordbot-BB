@@ -490,8 +490,15 @@ static dpp::message make_virtual_shop_msg() {
     return msg;
 }
 
-static bool can_buy_virtual_cat(dpp::snowflake, const std::string&) {
-    return true;
+// 蛋可以隨時買（即使已經有寵物），多買的蛋會留在背包裡（消耗分頁可看到，能賣能丟，只是不能孵）。
+// 孵蛋工具維持原本限制：有蛋還沒孵化時才需要，避免囤一堆用不到的孵蛋工具。
+static bool can_buy_virtual_cat(dpp::snowflake uid, const std::string& cat) {
+    if (cat != "incubator") return true;
+    std::lock_guard<std::mutex> lk(data_mutex);
+    auto it = pet_data.find(uid);
+    bool has_pet_record = (it != pet_data.end());
+    bool hatched = has_pet_record && it->second.stage > 0;
+    return has_pet_record && !hatched;
 }
 
 static dpp::message make_vcat_shop_msg(dpp::snowflake uid, const std::string& cat) {
@@ -515,9 +522,8 @@ static dpp::message make_vcat_shop_msg(dpp::snowflake uid, const std::string& ca
     std::string content = "## " + title + "\n";
     if (!can_buy) {
         std::string reason;
-        if (cat == "egg")            reason = "你已擁有寵物，無法再購買蛋！";
-        else if (cat == "incubator") reason = "你的寵物已孵化，不需要孵蛋工具！";
-        else                         reason = "你的寵物已達最高階！";
+        if (cat == "incubator") reason = "你的寵物已孵化，不需要孵蛋工具！";
+        else                    reason = "你的寵物已達最高階！";
         content += "❌ " + reason + "\n\n以下商品供參考：\n";
     }
     for (auto* vi : items)

@@ -72,7 +72,7 @@ void handle_stock_button(const dpp::button_click_t& ev)
         }
         dpp::interaction_modal_response modal("stock_sell_modal_" + uid_s + "_" + key, "賣出股票");
         modal.add_component(dpp::component().set_type(dpp::cot_text)
-            .set_label("要賣幾股？（持有 " + std::to_string(shares) + " 股，或輸入 all）")
+            .set_label("要賣幾股？（持有 " + std::to_string(shares) + " 股，扣 2% 手續費，或輸入 all）")
             .set_id("qty").set_text_style(dpp::text_short)
             .set_min_length(1).set_max_length(10).set_placeholder("輸入股數或 all"));
         ev.dialog(modal); return;

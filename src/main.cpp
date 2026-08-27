@@ -162,6 +162,214 @@ static dpp::message make_trade_msg(const TradeOffer& t,
     return msg;
 }
 
+// ─── 管理員：查詢／強制中斷玩家卡住的遊戲 ───────────────────────────────────────
+// 掃過幾個比較容易卡住的長時遊戲系統（怪物狩獵、村落挑戰、探險、組隊房間/戰鬥、暗黑龍王）。
+// 不含 21點/骰子/刮刮樂/猜拳等單次互動就會結束的小遊戲——那些不太會卡住，暫時不列入。
+static dpp::message make_admin_kill_report_msg(dpp::snowflake target, const std::string& notice = "") {
+    std::string uid_s = std::to_string((uint64_t)target);
+    struct Found { std::string btn_id, desc; };
+    std::vector<Found> found;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto hit = monster_hunt_games.find(target);
+        if (hit != monster_hunt_games.end())
+            found.push_back({"adminkill_hunt_" + uid_s,
+                "🗡️ 怪物狩獵：" + hit->second.monster_name + "（" + hit->second.difficulty + "）"});
+        auto vit = village_games.find(target);
+        if (vit != village_games.end())
+            found.push_back({"adminkill_village_" + uid_s, "🏘️ 村落挑戰：" + vit->second.group_key});
+        // 探險不列入：跟寵物打工一樣是背景進行，沒有卡住的互動視窗，不需要強制中斷
+        for (auto& [rch, room] : raid_rooms) {
+            bool in_room = room.host_uid == target ||
+                std::find(room.member_uids.begin(), room.member_uids.end(), target) != room.member_uids.end();
+            if (in_room)
+                found.push_back({"adminkill_raidroom_" + uid_s + "_" + std::to_string((uint64_t)rch),
+                    "🚪 組隊房間（" + room.boss_key + "），頻道 <#" + std::to_string((uint64_t)rch) + ">"});
+        }
+        for (auto& [rch, g] : raid_games) {
+            bool in = false; for (auto& p : g.players) if (p.uid == target) { in = true; break; }
+            if (in) found.push_back({"adminkill_raid_" + uid_s + "_" + std::to_string((uint64_t)rch),
+                "⚔️ 組隊戰鬥（" + g.boss_name + "），頻道 <#" + std::to_string((uint64_t)rch) + ">"});
+        }
+        for (auto& [rch, g] : dd_games) {
+            bool in = false; for (auto& p : g.players) if (p.uid == target) { in = true; break; }
+            if (in) found.push_back({"adminkill_dd_" + uid_s + "_" + std::to_string((uint64_t)rch),
+                "🐉 暗黑龍王戰鬥，頻道 <#" + std::to_string((uint64_t)rch) + ">"});
+        }
+        // 小遊戲：單次互動很快結束，但沒有逾時清理機制，放著不理一樣會累積成沒人在用的視窗
+        if (auto ubj = user_bj.find(target); ubj != user_bj.end()) {
+            auto git = bj_games.find(ubj->second);
+            if (git != bj_games.end())
+                found.push_back({"adminkill_bj_" + uid_s, "🃏 21點，賭注 " + std::to_string(git->second.bet) + " 碼"});
+        }
+        if (auto udc = user_dice.find(target); udc != user_dice.end()) {
+            auto git = dice_games.find(udc->second);
+            if (git != dice_games.end())
+                found.push_back({"adminkill_dice_" + uid_s, "🎲 骰子，賭注 " + std::to_string(git->second.bet) + " 碼"});
+        }
+        if (auto sit = shoot_games.find(target); sit != shoot_games.end())
+            found.push_back({"adminkill_shoot_" + uid_s, "🎯 射龍門，賭注 " + std::to_string(sit->second.bet) + " 碼"});
+        if (auto rit = rocket_games.find(target); rit != rocket_games.end())
+            found.push_back({"adminkill_rocket_" + uid_s, "🚀 火箭升空，賭注 " + std::to_string(rit->second.bet) + " 碼"});
+        if (auto scit = scratch_games.find(target); scit != scratch_games.end())
+            found.push_back({"adminkill_scratch_" + uid_s, "🎫 刮刮樂，花費 " + std::to_string(scit->second.total_paid) + " 碼"});
+        if (auto git = guess_games.find(target); git != guess_games.end())
+            found.push_back({"adminkill_guess_" + uid_s, "🔢 猜數字，已猜 " + std::to_string(git->second.attempts) + " 次"});
+        for (auto& [rch, g] : rps_games) {
+            if (g.players.count(target))
+                found.push_back({"adminkill_rps_" + uid_s + "_" + std::to_string((uint64_t)rch),
+                    "✊ 猜拳，頻道 <#" + std::to_string((uint64_t)rch) + ">"});
+        }
+        for (auto& [rch, room] : roulette_rooms) {
+            if (room.p1_uid == target || room.p2_uid == target || room.invited_uid == target)
+                found.push_back({"adminkill_roulette_" + uid_s + "_" + std::to_string((uint64_t)rch),
+                    "🔫 俄羅斯輪盤，頻道 <#" + std::to_string((uint64_t)rch) + ">"});
+        }
+        for (auto& [rch, gid] : channel_onw_game) {
+            auto git = onw_games.find(gid); if (git == onw_games.end()) continue;
+            bool in = git->second.host_id == target;
+            for (auto& p : git->second.players) if (p.uid == target) { in = true; break; }
+            if (in) found.push_back({"adminkill_onw_" + uid_s + "_" + std::to_string((uint64_t)rch),
+                "🐺 一夜狼人，頻道 <#" + std::to_string((uint64_t)rch) + ">"});
+        }
+        for (auto& [rch, gid] : channel_uc_game) {
+            auto git = uc_games.find(gid); if (git == uc_games.end()) continue;
+            bool in = git->second.host_id == target;
+            for (auto& p : git->second.players) if (p.uid == target) { in = true; break; }
+            if (in) found.push_back({"adminkill_uc_" + uid_s + "_" + std::to_string((uint64_t)rch),
+                "🕵️ 誰是臥底，頻道 <#" + std::to_string((uint64_t)rch) + ">"});
+        }
+    }
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    std::string header = "## 🔍 <@" + uid_s + "> 目前的遊戲狀態";
+    if (!notice.empty()) header = "✅ " + notice + "\n\n" + header;
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(header));
+
+    dpp::message m; m.set_flags(dpp::m_using_components_v2);
+    if (found.empty()) {
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("沒有找到任何進行中的遊戲。"));
+    } else {
+        for (auto& f : found) {
+            container.add_component_v2(dpp::component()
+                .set_type(dpp::cot_section)
+                .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(f.desc))
+                .set_accessory(dpp::component().set_type(dpp::cot_button)
+                    .set_label("🛑 中斷").set_id(f.btn_id).set_style(dpp::cos_danger)));
+        }
+    }
+    m.add_component_v2(container);
+    return m;
+}
+
+// 清掉某頻道／討論串裡全部進行中的遊戲（怪物狩獵、村落挑戰、組隊房間、組隊戰鬥、暗黑龍王、
+// 21點、骰子、射龍門、火箭升空、刮刮樂、猜數字、猜拳、俄羅斯輪盤、一夜狼人、誰是臥底），回傳清了幾筆。
+// 只清「進行中的那一局」，不會動到累計勝負/籌碼盈虧等統計資料。
+// 探險不列入：跟寵物打工一樣是背景進行、沒有卡住的互動視窗，讓它繼續跑。
+static int admin_kill_channel(dpp::snowflake ch) {
+    int n = 0;
+    std::vector<dpp::timer> timers;
+    bool touched_scratch = false;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto it = monster_hunt_games.begin(); it != monster_hunt_games.end(); ) {
+            if (it->second.channel_id == ch) {
+                if (it->second.timer_id) timers.push_back(it->second.timer_id);
+                it = monster_hunt_games.erase(it); n++;
+            } else ++it;
+        }
+        for (auto it = village_games.begin(); it != village_games.end(); ) {
+            if (it->second.channel_id == ch) {
+                if (it->second.timer_id) timers.push_back(it->second.timer_id);
+                it = village_games.erase(it); n++;
+            } else ++it;
+        }
+        if (auto it = raid_rooms.find(ch); it != raid_rooms.end()) {
+            if (it->second.timer_id) timers.push_back(it->second.timer_id);
+            raid_rooms.erase(it); n++;
+        }
+        if (auto it = raid_games.find(ch); it != raid_games.end()) {
+            if (it->second.timer_id) timers.push_back(it->second.timer_id);
+            raid_games.erase(it); n++;
+        }
+        if (auto it = dd_games.find(ch); it != dd_games.end()) {
+            if (it->second.timer_id) timers.push_back(it->second.timer_id);
+            dd_games.erase(it); n++;
+        }
+        for (auto it = bj_games.begin(); it != bj_games.end(); ) {
+            if (it->second.channel_id == ch) { user_bj.erase(it->second.user_id); it = bj_games.erase(it); n++; }
+            else ++it;
+        }
+        for (auto it = dice_games.begin(); it != dice_games.end(); ) {
+            if (it->second.ch == ch) { user_dice.erase(it->second.uid); it = dice_games.erase(it); n++; }
+            else ++it;
+        }
+        for (auto it = shoot_games.begin(); it != shoot_games.end(); ) {
+            if (it->second.channel_id == ch) { it = shoot_games.erase(it); n++; } else ++it;
+        }
+        for (auto it = rocket_games.begin(); it != rocket_games.end(); ) {
+            if (it->second.channel_id == ch) { it = rocket_games.erase(it); n++; } else ++it;
+        }
+        for (auto it = scratch_games.begin(); it != scratch_games.end(); ) {
+            if (it->second.channel_id == ch) { it = scratch_games.erase(it); n++; touched_scratch = true; } else ++it;
+        }
+        for (auto it = guess_games.begin(); it != guess_games.end(); ) {
+            if (it->second.channel_id == ch) { it = guess_games.erase(it); n++; } else ++it;
+        }
+        if (rps_games.erase(ch)) n++;
+        if (auto it = roulette_rooms.find(ch); it != roulette_rooms.end()) {
+            if (it->second.timer_id) timers.push_back(it->second.timer_id);
+            roulette_rooms.erase(it); n++;
+        }
+        if (auto it = channel_onw_game.find(ch); it != channel_onw_game.end()) {
+            onw_games.erase(it->second); channel_onw_game.erase(it); n++;
+        }
+        if (auto it = channel_uc_game.find(ch); it != channel_uc_game.end()) {
+            uc_games.erase(it->second); channel_uc_game.erase(it); n++;
+        }
+    }
+    for (auto t : timers) g_bot->stop_timer(t);
+    if (touched_scratch) save_scratch_games();
+    return n;
+}
+
+// 清掉全伺服器、每個人正在進行的遊戲，回傳清了幾筆。範圍跟 admin_kill_channel 一樣，只是不限頻道。
+// 同樣只清「進行中的那一局」，不會動到累計勝負/籌碼盈虧等統計資料。
+// 探險不列入：跟寵物打工一樣是背景進行、沒有卡住的互動視窗，讓它繼續跑。
+static int admin_kill_everything() {
+    int n = 0;
+    std::vector<dpp::timer> timers;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [k, g] : monster_hunt_games) if (g.timer_id) timers.push_back(g.timer_id);
+        n += (int)monster_hunt_games.size(); monster_hunt_games.clear();
+        for (auto& [k, g] : village_games) if (g.timer_id) timers.push_back(g.timer_id);
+        n += (int)village_games.size(); village_games.clear();
+        for (auto& [k, room] : raid_rooms) if (room.timer_id) timers.push_back(room.timer_id);
+        n += (int)raid_rooms.size(); raid_rooms.clear();
+        for (auto& [k, g] : raid_games) if (g.timer_id) timers.push_back(g.timer_id);
+        n += (int)raid_games.size(); raid_games.clear();
+        for (auto& [k, g] : dd_games) if (g.timer_id) timers.push_back(g.timer_id);
+        n += (int)dd_games.size(); dd_games.clear();
+        n += (int)bj_games.size(); bj_games.clear(); user_bj.clear();
+        n += (int)dice_games.size(); dice_games.clear(); user_dice.clear();
+        n += (int)shoot_games.size(); shoot_games.clear();
+        n += (int)rocket_games.size(); rocket_games.clear();
+        n += (int)scratch_games.size(); scratch_games.clear();
+        n += (int)guess_games.size(); guess_games.clear();
+        n += (int)rps_games.size(); rps_games.clear();
+        for (auto& [k, room] : roulette_rooms) if (room.timer_id) timers.push_back(room.timer_id);
+        n += (int)roulette_rooms.size(); roulette_rooms.clear();
+        n += (int)channel_onw_game.size(); channel_onw_game.clear(); onw_games.clear();
+        n += (int)channel_uc_game.size(); channel_uc_game.clear(); uc_games.clear();
+    }
+    for (auto t : timers) g_bot->stop_timer(t);
+    save_scratch_games(); // 刮刮樂有落地存檔，清空後要記得存檔
+    return n;
+}
+
 // ─── main ─────────────────────────────────────────────────────────────────────
 
 int main(int argc, char* argv[]) {
@@ -528,20 +736,18 @@ int main(int argc, char* argv[]) {
             row.add_component(dpp::component().set_type(dpp::cot_button)
                 .set_label("💰 調整碼數").set_id("admin_chip_modal_btn").set_style(dpp::cos_primary));
             row.add_component(dpp::component().set_type(dpp::cot_button)
-                .set_label("🥚 給蛋").set_id("admin_egg_btn").set_style(dpp::cos_success));
-            row.add_component(dpp::component().set_type(dpp::cot_button)
                 .set_label("🎒 給道具").set_id("admin_item_btn").set_style(dpp::cos_secondary));
+            row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("🛑 中斷遊戲").set_id("admin_kill_btn").set_style(dpp::cos_danger));
+            dpp::component row2; row2.set_type(dpp::cot_action_row);
+            row2.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("🧹 清除本頻道遊戲").set_id("admin_clear_channel_btn").set_style(dpp::cos_danger));
+            row2.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("🧨 清除全部遊戲").set_id("admin_clear_all_btn").set_style(dpp::cos_danger));
             dpp::message m;
             m.set_content("🔑 **管理員面板**\n請選擇操作：");
-            m.add_component(row); m.channel_id = ch;
-            bot.message_create(m, [&bot, ch](const dpp::confirmation_callback_t& cb) {
-                if (!cb.is_error()) {
-                    dpp::snowflake mid = std::get<dpp::message>(cb.value).id;
-                    bot.start_timer([&bot, mid, ch](dpp::timer t) {
-                        bot.message_delete(mid, ch); bot.stop_timer(t);
-                    }, 30);
-                }
-            });
+            m.add_component(row); m.add_component(row2); m.channel_id = ch;
+            bot.message_create(m);
         }
         // !小黑屋／！小黑屋：查看／解除領取驗證的鎖定（限管理員）
         else if (content == "!小黑屋" || content == "！小黑屋") {
@@ -980,6 +1186,177 @@ int main(int argc, char* argv[]) {
                 ev.reply(dpp::ir_update_message, make_claim_jail_msg());
             }
         }
+        // ── 中斷卡住的遊戲（限管理員）────────────────────────────────────────────
+        else if (cid.rfind("adminkill_", 0) == 0) {
+            if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
+            }
+            dpp::snowflake target = 0;
+            std::string notice;
+            if (cid.rfind("adminkill_hunt_", 0) == 0) {
+                target = dpp::snowflake(std::stoull(cid.substr(std::string("adminkill_hunt_").size())));
+                dpp::timer tid = 0;
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto it = monster_hunt_games.find(target);
+                  if (it != monster_hunt_games.end()) { tid = it->second.timer_id; monster_hunt_games.erase(it); }
+                }
+                if (tid) g_bot->stop_timer(tid);
+                notice = "已中斷怪物狩獵";
+            } else if (cid.rfind("adminkill_village_", 0) == 0) {
+                target = dpp::snowflake(std::stoull(cid.substr(std::string("adminkill_village_").size())));
+                dpp::timer tid = 0;
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto it = village_games.find(target);
+                  if (it != village_games.end()) { tid = it->second.timer_id; village_games.erase(it); }
+                }
+                if (tid) g_bot->stop_timer(tid);
+                notice = "已中斷村落挑戰";
+            } else if (cid.rfind("adminkill_raidroom_", 0) == 0) {
+                std::string rest = cid.substr(std::string("adminkill_raidroom_").size());
+                size_t sep = rest.find('_'); if (sep == std::string::npos) return;
+                target = dpp::snowflake(std::stoull(rest.substr(0, sep)));
+                dpp::snowflake rch(std::stoull(rest.substr(sep + 1)));
+                dpp::timer rtid = 0;
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto it = raid_rooms.find(rch);
+                  if (it != raid_rooms.end()) { rtid = it->second.timer_id; raid_rooms.erase(it); }
+                }
+                if (rtid) g_bot->stop_timer(rtid);
+                notice = "已解散組隊房間";
+            } else if (cid.rfind("adminkill_raid_", 0) == 0) {
+                std::string rest = cid.substr(std::string("adminkill_raid_").size());
+                size_t sep = rest.find('_'); if (sep == std::string::npos) return;
+                target = dpp::snowflake(std::stoull(rest.substr(0, sep)));
+                dpp::snowflake rch(std::stoull(rest.substr(sep + 1)));
+                dpp::timer tid = 0;
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto it = raid_games.find(rch);
+                  if (it != raid_games.end()) { tid = it->second.timer_id; raid_games.erase(it); }
+                }
+                if (tid) g_bot->stop_timer(tid);
+                notice = "已中斷組隊戰鬥";
+            } else if (cid.rfind("adminkill_dd_", 0) == 0) {
+                std::string rest = cid.substr(std::string("adminkill_dd_").size());
+                size_t sep = rest.find('_'); if (sep == std::string::npos) return;
+                target = dpp::snowflake(std::stoull(rest.substr(0, sep)));
+                dpp::snowflake rch(std::stoull(rest.substr(sep + 1)));
+                dpp::timer tid = 0;
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto it = dd_games.find(rch);
+                  if (it != dd_games.end()) { tid = it->second.timer_id; dd_games.erase(it); }
+                }
+                if (tid) g_bot->stop_timer(tid);
+                notice = "已中斷暗黑龍王戰鬥";
+            } else if (cid.rfind("adminkill_bj_", 0) == 0) {
+                target = dpp::snowflake(std::stoull(cid.substr(std::string("adminkill_bj_").size())));
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto uit = user_bj.find(target);
+                  if (uit != user_bj.end()) { bj_games.erase(uit->second); user_bj.erase(uit); }
+                }
+                notice = "已中斷21點";
+            } else if (cid.rfind("adminkill_dice_", 0) == 0) {
+                target = dpp::snowflake(std::stoull(cid.substr(std::string("adminkill_dice_").size())));
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto uit = user_dice.find(target);
+                  if (uit != user_dice.end()) { dice_games.erase(uit->second); user_dice.erase(uit); }
+                }
+                notice = "已中斷骰子";
+            } else if (cid.rfind("adminkill_shoot_", 0) == 0) {
+                target = dpp::snowflake(std::stoull(cid.substr(std::string("adminkill_shoot_").size())));
+                { std::lock_guard<std::mutex> lk(data_mutex); shoot_games.erase(target); }
+                notice = "已中斷射龍門";
+            } else if (cid.rfind("adminkill_rocket_", 0) == 0) {
+                target = dpp::snowflake(std::stoull(cid.substr(std::string("adminkill_rocket_").size())));
+                { std::lock_guard<std::mutex> lk(data_mutex); rocket_games.erase(target); }
+                notice = "已中斷火箭升空";
+            } else if (cid.rfind("adminkill_scratch_", 0) == 0) {
+                target = dpp::snowflake(std::stoull(cid.substr(std::string("adminkill_scratch_").size())));
+                { std::lock_guard<std::mutex> lk(data_mutex); scratch_games.erase(target); }
+                save_scratch_games(); // 刮刮樂有落地存檔，清掉要記得存檔
+                notice = "已中斷刮刮樂";
+            } else if (cid.rfind("adminkill_guess_", 0) == 0) {
+                target = dpp::snowflake(std::stoull(cid.substr(std::string("adminkill_guess_").size())));
+                { std::lock_guard<std::mutex> lk(data_mutex); guess_games.erase(target); }
+                notice = "已中斷猜數字";
+            } else if (cid.rfind("adminkill_rps_", 0) == 0) {
+                std::string rest = cid.substr(std::string("adminkill_rps_").size());
+                size_t sep = rest.find('_'); if (sep == std::string::npos) return;
+                target = dpp::snowflake(std::stoull(rest.substr(0, sep)));
+                dpp::snowflake rch(std::stoull(rest.substr(sep + 1)));
+                { std::lock_guard<std::mutex> lk(data_mutex); rps_games.erase(rch); }
+                notice = "已中斷猜拳";
+            } else if (cid.rfind("adminkill_roulette_", 0) == 0) {
+                std::string rest = cid.substr(std::string("adminkill_roulette_").size());
+                size_t sep = rest.find('_'); if (sep == std::string::npos) return;
+                target = dpp::snowflake(std::stoull(rest.substr(0, sep)));
+                dpp::snowflake rch(std::stoull(rest.substr(sep + 1)));
+                dpp::timer tid = 0;
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto it = roulette_rooms.find(rch);
+                  if (it != roulette_rooms.end()) { tid = it->second.timer_id; roulette_rooms.erase(it); }
+                }
+                if (tid) g_bot->stop_timer(tid);
+                notice = "已中斷俄羅斯輪盤";
+            } else if (cid.rfind("adminkill_onw_", 0) == 0) {
+                std::string rest = cid.substr(std::string("adminkill_onw_").size());
+                size_t sep = rest.find('_'); if (sep == std::string::npos) return;
+                target = dpp::snowflake(std::stoull(rest.substr(0, sep)));
+                dpp::snowflake rch(std::stoull(rest.substr(sep + 1)));
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto it = channel_onw_game.find(rch);
+                  if (it != channel_onw_game.end()) { onw_games.erase(it->second); channel_onw_game.erase(it); }
+                }
+                notice = "已中斷一夜狼人";
+            } else if (cid.rfind("adminkill_uc_", 0) == 0) {
+                std::string rest = cid.substr(std::string("adminkill_uc_").size());
+                size_t sep = rest.find('_'); if (sep == std::string::npos) return;
+                target = dpp::snowflake(std::stoull(rest.substr(0, sep)));
+                dpp::snowflake rch(std::stoull(rest.substr(sep + 1)));
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto it = channel_uc_game.find(rch);
+                  if (it != channel_uc_game.end()) { uc_games.erase(it->second); channel_uc_game.erase(it); }
+                }
+                notice = "已中斷誰是臥底";
+            } else return;
+            ev.reply(dpp::ir_update_message, make_admin_kill_report_msg(target, notice));
+        }
+        // ── 清除本頻道／清除全部進行中的遊戲（限管理員）─────────────────────────
+        else if (cid == "admin_clear_channel_btn") {
+            if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
+            }
+            int n = admin_kill_channel(ev.command.channel_id);
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("✅ 已清除本頻道 **" + std::to_string(n) + "** 筆進行中的遊戲。").set_flags(dpp::m_ephemeral));
+        }
+        else if (cid == "admin_clear_all_btn") {
+            if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
+            }
+            dpp::component row; row.set_type(dpp::cot_action_row);
+            row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("✅ 確認清除全部").set_id("admin_clear_all_confirm").set_style(dpp::cos_danger));
+            row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("❌ 取消").set_id("admin_clear_all_cancel").set_style(dpp::cos_secondary));
+            dpp::message m("⚠️ 這會清除**全伺服器、每個人**正在進行的怪物狩獵／村落挑戰／組隊房間／組隊戰鬥／暗黑龍王／21點／骰子／射龍門／火箭升空／刮刮樂／猜數字／猜拳／俄羅斯輪盤／一夜狼人／誰是臥底，直接中斷、不補償，且無法復原（不會動到累計勝負等統計資料）。\n（探險不受影響，會繼續在背景進行，跟寵物打工一樣）確定嗎？");
+            m.add_component(row);
+            ev.reply(dpp::ir_channel_message_with_source, m.set_flags(dpp::m_ephemeral));
+        }
+        else if (cid == "admin_clear_all_confirm") {
+            if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
+            }
+            int n = admin_kill_everything();
+            ev.reply(dpp::ir_update_message,
+                dpp::message("✅ 已清除全伺服器 **" + std::to_string(n) + "** 筆進行中的遊戲。").set_flags(dpp::m_ephemeral));
+        }
+        else if (cid == "admin_clear_all_cancel") {
+            ev.reply(dpp::ir_update_message, dpp::message("已取消。").set_flags(dpp::m_ephemeral));
+        }
         // ── 富豪榜翻頁 ────────────────────────────────────────────────────────
         else if (cid.rfind("lb_", 0) == 0) {
             if (!page_is_mine(ev.command.message_id, uid)) {
@@ -1410,7 +1787,7 @@ int main(int argc, char* argv[]) {
             ev.reply(dpp::ir_update_message, handle_warn_detail(target));
         }
         // ── 管理員面板 Modal 觸發 ─────────────────────────────────────────────
-        else if (cid == "admin_chip_modal_btn" || cid == "admin_egg_btn" || cid == "admin_item_btn") {
+        else if (cid == "admin_chip_modal_btn" || cid == "admin_item_btn" || cid == "admin_kill_btn") {
             if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
@@ -1425,18 +1802,7 @@ int main(int argc, char* argv[]) {
                     .set_label("碼數（負數可扣除）").set_id("chip_amount")
                     .set_text_style(dpp::text_short).set_min_length(1).set_max_length(15));
                 ev.dialog(modal);
-            } else if (cid == "admin_egg_btn") {
-                dpp::interaction_modal_response modal("admin_egg_modal", "管理員給蛋");
-                modal.add_component(dpp::component().set_type(dpp::cot_text)
-                    .set_label("目標 User ID").set_id("target_uid")
-                    .set_text_style(dpp::text_short).set_min_length(1).set_max_length(20)
-                    .set_placeholder("例：457478323665240065"));
-                modal.add_component(dpp::component().set_type(dpp::cot_text)
-                    .set_label("蛋的種類").set_id("egg_chain")
-                    .set_text_style(dpp::text_short).set_min_length(1).set_max_length(10)
-                    .set_placeholder("嫩寶 / 菇菇仔 / 肥肥"));
-                ev.dialog(modal);
-            } else {
+            } else if (cid == "admin_item_btn") {
                 dpp::interaction_modal_response modal("admin_item_modal", "管理員給道具");
                 modal.add_component(dpp::component().set_type(dpp::cot_text)
                     .set_label("目標 User ID").set_id("target_uid")
@@ -1447,9 +1813,16 @@ int main(int argc, char* argv[]) {
                     .set_text_style(dpp::text_short).set_min_length(1).set_max_length(20)
                     .set_placeholder("inc_100 / grow_1 / evo_1 ..."));
                 modal.add_component(dpp::component().set_type(dpp::cot_text)
-                    .set_label("數量").set_id("item_qty")
+                    .set_label("數量（負數＝沒收）").set_id("item_qty")
                     .set_text_style(dpp::text_short).set_min_length(1).set_max_length(5)
                     .set_placeholder("1"));
+                ev.dialog(modal);
+            } else { // admin_kill_btn
+                dpp::interaction_modal_response modal("admin_kill_lookup_modal", "查詢／中斷玩家遊戲");
+                modal.add_component(dpp::component().set_type(dpp::cot_text)
+                    .set_label("目標 User ID").set_id("target_uid")
+                    .set_text_style(dpp::text_short).set_min_length(1).set_max_length(20)
+                    .set_placeholder("例：457478323665240065"));
                 ev.dialog(modal);
             }
         }
@@ -1906,7 +2279,7 @@ int main(int argc, char* argv[]) {
             handle_stock_modal(ev); return;
         }
 
-        if (cid != "admin_chips_modal" && cid != "admin_egg_modal" && cid != "admin_item_modal") return;
+        if (cid != "admin_chips_modal" && cid != "admin_item_modal" && cid != "admin_kill_lookup_modal") return;
         if (cfg.notify_user_id.empty() || std::to_string(issuer) != cfg.notify_user_id) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
@@ -1957,33 +2330,8 @@ int main(int argc, char* argv[]) {
                     "** 碼！\n目前餘額：**" + std::to_string(get_chips(target_uid)) + "** 碼。"
                 ).set_flags(dpp::m_ephemeral));
 
-        } else if (cid == "admin_egg_modal") {
-            // fields: [target_uid, chain_name]
-            if (fields.size() < 2) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 請填寫蛋的種類！").set_flags(dpp::m_ephemeral)); return;
-            }
-            const std::string& chain = fields[1];
-            if (chain != "嫩寶" && chain != "菇菇仔" && chain != "肥肥" && chain != "小企鵝") {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 蛋的種類必須是：嫩寶 / 菇菇仔 / 肥肥 / 小企鵝").set_flags(dpp::m_ephemeral)); return;
-            }
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                if (pet_data.count(target_uid) && pet_data[target_uid].stage >= 0 && !pet_data[target_uid].chain.empty()) {
-                    ev.reply(dpp::ir_channel_message_with_source,
-                        dpp::message("❌ 該玩家已經有寵物了！").set_flags(dpp::m_ephemeral)); return;
-                }
-                Pet p; p.chain = chain; p.stage = 0;
-                pet_data[target_uid] = p;
-            }
-            save_pet_data();
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("✅ 已給予 <@" + std::to_string((uint64_t)target_uid) +
-                    "> 一顆 **" + chain + "的蛋**！").set_flags(dpp::m_ephemeral));
-
         } else if (cid == "admin_item_modal") {
-            // fields: [target_uid, item_key_or_id, qty]
+            // fields: [target_uid, item_key_or_id, qty]（qty 負數＝沒收）
             if (fields.size() < 3) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 請填寫道具代碼和數量！").set_flags(dpp::m_ephemeral)); return;
@@ -2001,18 +2349,27 @@ int main(int argc, char* argv[]) {
             const std::string& key = vi->key;
             int qty = 1;
             try { qty = std::stoi(fields[2]); } catch (...) {}
-            if (qty <= 0 || qty > 999) {
+            if (qty == 0 || qty < -999 || qty > 999) {
                 ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 數量必須在 1~999 之間！").set_flags(dpp::m_ephemeral)); return;
+                    dpp::message("❌ 數量必須在 -999~999 之間（不可為 0，負數＝沒收）！").set_flags(dpp::m_ephemeral)); return;
             }
+            int64_t actual = 0;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
-                inventory_data[target_uid][key] += qty;
+                auto& cur = inventory_data[target_uid][key];
+                int64_t before = cur;
+                cur += qty;
+                if (cur < 0) cur = 0; // 沒收上限就是玩家現有的數量，不會扣成負的
+                actual = cur - before;
             }
             save_inventory();
+            std::string verb = actual >= 0 ? "給予" : "沒收";
             ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("✅ 已給予 <@" + std::to_string((uint64_t)target_uid) +
-                    "> **" + vi->name + "** × " + std::to_string(qty) + "！").set_flags(dpp::m_ephemeral));
+                dpp::message("✅ 已" + verb + " <@" + std::to_string((uint64_t)target_uid) +
+                    "> **" + vi->name + "** × " + std::to_string(std::abs(actual)) + "！").set_flags(dpp::m_ephemeral));
+
+        } else if (cid == "admin_kill_lookup_modal") {
+            ev.reply(dpp::ir_channel_message_with_source, make_admin_kill_report_msg(target_uid));
         }
     });
 

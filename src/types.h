@@ -217,6 +217,7 @@ struct VillageGame {
     bool        latus_orb_triggered = false;
     int         bear_block_turns = 0;
     bool        underwear_first_atk_used = false; // 觀觀遺失的胖次：本場首次攻擊 +5 ATK 是否已用掉
+    int         lifegoddess_uses = 0; // 生命女神的寶珠：單人回血已使用次數（上限3）
 };
 
 // ─── Adventure ────────────────────────────────────────────────────────────────
@@ -274,6 +275,7 @@ struct MonsterHuntGame {
     int            atk_down_turns    = 0;  // wargod orb: turns of 60% monster ATK reduction remaining
     bool           latus_orb_triggered = false;
     bool           underwear_first_atk_used = false; // 觀觀遺失的胖次：本場首次攻擊 +5 ATK 是否已用掉
+    int            lifegoddess_uses = 0; // 生命女神的寶珠：單人回血已使用次數（上限3）
 };
 
 // ─── Raid system ─────────────────────────────────────────────────────────────
@@ -306,6 +308,8 @@ struct RaidRoom {
     std::map<dpp::snowflake, std::string> member_avatars;
     time_t                 created_at = 0;
     bool                   practice_mode = false;
+    dpp::timer             timer_id   = 0; // 10 分鐘逾時計時器；房間提早解散/開戰時要記得停掉，
+                                            // 不然頻道換了新房間後，舊計時器到期還是會誤殺新房間
 };
 
 struct RaidGame {
@@ -337,6 +341,7 @@ struct RaidGame {
     bool                        game_over      = false;
     bool                        victory        = false;
     bool                        practice_mode  = false;
+    bool                        lifegoddess_used = false; // 生命女神的寶珠：組隊回血是否已使用（每場限1次）
 };
 
 // ─── 暗黑龍王 ─────────────────────────────────────────────────────────────────
@@ -399,6 +404,7 @@ struct DDGame {
     std::string               log_line;
     time_t                    started_at     = 0;
     dpp::timer                timer_id       = 0;
+    bool                      lifegoddess_used = false; // 生命女神的寶珠：組隊回血是否已使用（每場限1次）
 };
 
 // ─── Dice game ────────────────────────────────────────────────────────────────
@@ -906,6 +912,7 @@ static inline std::string orb_baseline_icon(const std::string& orb_key) {
     if (orb_key == "EQ_K_VIKING") return "⚔️";
     if (orb_key == "EQ_K_WARGOD") return "💢";
     if (orb_key == "EQ_K_LATUS")  return "🔶";
+    if (orb_key == "EQ_K_LIFEGODDESS") return "💗";
     return "";
 }
 

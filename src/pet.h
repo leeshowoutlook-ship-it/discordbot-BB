@@ -1335,11 +1335,12 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
 
-    // Gather virtual items (excluding eggs / collectibles / "其他" 分頁的道具)
+    // Gather virtual items（排除蒐藏品／「其他」分頁的道具；蛋要顯示——已有寵物時買到的多餘蛋
+    // 才有地方看得到，is_disabled() 下面會處理「已有寵物就不能孵」的灰階邏輯）
     struct ItemEntry { std::string key; int count; };
     std::vector<ItemEntry> entries;
     for (auto& vi : VIRTUAL_ITEMS) {
-        if (vi.category == "egg" || vi.category == "collectible") continue;
+        if (vi.category == "collectible") continue;
         if (bag_item_is_other(vi)) continue;
         auto it = inv.find(vi.key);
         if (it != inv.end() && it->second > 0)
@@ -1538,7 +1539,6 @@ static dpp::message make_bag_sell_items_msg(dpp::snowflake uid) {
     struct ItemEntry { std::string key; int count; };
     std::vector<ItemEntry> entries;
     for (auto& vi : VIRTUAL_ITEMS) {
-        if (vi.category == "egg") continue;
         auto it = inv.find(vi.key);
         if (it != inv.end() && it->second > 0)
             entries.push_back({vi.key, it->second});
@@ -2217,7 +2217,6 @@ static dpp::message make_pet_discard_mode_msg(dpp::snowflake uid) {
     struct ItemEntry { std::string key; int count; };
     std::vector<ItemEntry> entries;
     for (auto& vi : VIRTUAL_ITEMS) {
-        if (vi.category == "egg") continue;
         auto it = inv.find(vi.key);
         if (it != inv.end() && it->second > 0)
             entries.push_back({vi.key, it->second});
