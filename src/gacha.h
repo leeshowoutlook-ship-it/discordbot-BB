@@ -97,6 +97,12 @@ static const std::vector<GachaItem> GACHA_ITEMS = {
     {"EQ_S_C_R",  "一般的衝鋒之靴","S","R", "C","衝鋒", 5,"hp", "",  93031},
     {"EQ_S_C_SR", "血斬萬人之靴",  "S","SR","C","衝鋒",10,"hp", IMG_SR_S_C, 93032},
     {"EQ_S_C_UR", "撼天震地之靴",  "S","UR","C","衝鋒",20,"hp", IMG_UR_S_C, 93033},
+    // ── 江湖套裝 (D) ─────────────────────────────────────────────────────────
+    // 合成限定（不可抽取）：只有 UR 一階，不進轉蛋池／星星池，取得方式另外設計
+    {"EQ_W_D_UR", "佚名俠客之刃",  "W","UR","D","江湖", 6,"atk","",  94104},
+    {"EQ_G_D_UR", "佚名俠客之拳套","G","UR","D","江湖", 4,"atk","",  94113},
+    {"EQ_C_D_UR", "佚名俠客之袍",  "C","UR","D","江湖",30,"hp", "",  94124},
+    {"EQ_S_D_UR", "佚名俠客之靴",  "S","UR","D","江湖",20,"hp", "",  94133},
     // ── 靈魂寶珠 (K) ─────────────────────────────────────────────────────────
     // 可抽取
     {"EQ_K_UR",    "無名女神的寶珠",  "K","UR","","", 5,"def",  "", 94001},
@@ -196,6 +202,26 @@ static void save_gacha_pity() {
     atomic_write("gacha_pity.json", j.dump(2));
 }
 
+// 俠客之路池保底計數器（獨立於一般池計算）
+static void load_gacha_hero_pity() {
+    std::ifstream f("gacha_hero_pity.json");
+    if (!f) return;
+    nlohmann::json j; f >> j;
+    std::lock_guard<std::mutex> lk(data_mutex);
+    for (auto& [k, v] : j.items())
+        gacha_hero_pity_data[std::stoull(k)] = v.get<int>();
+}
+
+static void save_gacha_hero_pity() {
+    nlohmann::json j;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [uid, cnt] : gacha_hero_pity_data)
+            j[std::to_string(uid)] = cnt;
+    }
+    atomic_write("gacha_hero_pity.json", j.dump(2));
+}
+
 // ─── Persistence ─────────────────────────────────────────────────────────────
 
 static const std::string EQUIPPED_FILE   = "equipped.json";
@@ -264,7 +290,7 @@ static void load_hunt_clear() {
 
 // ─── Pet stats (base + equipment) ────────────────────────────────────────────
 
-struct PetStats { int hp = 0; int atk = 0; int def = 0; };
+struct PetStats { int hp = 0; int atk = 0; int def = 0; int crit_pct = 0; };
 
 // Count set pieces from equipped items (W/G/C/S slots only; K has no set)
 static std::map<std::string,int> calc_set_count(const PlayerEquipment& eq) {
@@ -307,6 +333,7 @@ static PetStats calc_pet_stats(dpp::snowflake uid, const Pet& pet) {
     int a = sc.count("A") ? sc["A"] : 0;
     int b = sc.count("B") ? sc["B"] : 0;
     int c = sc.count("C") ? sc["C"] : 0;
+    int d = sc.count("D") ? sc["D"] : 0;
     // 堅韌 (A): 2件 → +2 DEF; 4件 → +5 DEF（不累積）
     if (a >= 4) s.def += 5;
     else if (a >= 2) s.def += 2;
@@ -316,6 +343,9 @@ static PetStats calc_pet_stats(dpp::snowflake uid, const Pet& pet) {
     // 衝鋒 (C): 2件 → +2 ATK; 4件 → +5 ATK（不累積）
     if (c >= 4) s.atk += 5;
     else if (c >= 2) s.atk += 2;
+    // 江湖 (D): 2件 → 8% 爆擊率（爆擊造成雙倍傷害）; 4件 → 15% 爆擊率（不累積）
+    if (d >= 4) s.crit_pct += 15;
+    else if (d >= 2) s.crit_pct += 8;
 
     return s;
 }
@@ -329,7 +359,7 @@ static std::mt19937& gacha_rng() {
 
 static const GachaItem& gacha_pull_one(bool star_pool) {
     // 合成限定寶珠：不進入抽取池
-    static const std::set<std::string> NOT_GACHABLE = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON","EQ_K_LIFEGODDESS"};
+    static const std::set<std::string> NOT_GACHABLE = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON","EQ_K_LIFEGODDESS","EQ_W_D_UR","EQ_G_D_UR","EQ_C_D_UR","EQ_S_D_UR"};
     static std::vector<const GachaItem*> pool_C, pool_R, pool_SR, pool_UR_eq, pool_UR_orb;
     static bool pools_built = false;
     if (!pools_built) {
@@ -372,7 +402,7 @@ static const GachaItem& gacha_pull_one(bool star_pool) {
 
 // 保底 UR：從所有可抽 UR 裝備＋寶珠中隨機一個
 static const GachaItem& gacha_pull_ur_pity() {
-    static const std::set<std::string> NOT_GACHABLE = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON","EQ_K_LIFEGODDESS"};
+    static const std::set<std::string> NOT_GACHABLE = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON","EQ_K_LIFEGODDESS","EQ_W_D_UR","EQ_G_D_UR","EQ_C_D_UR","EQ_S_D_UR"};
     static std::vector<const GachaItem*> pool_UR_all;
     static bool built = false;
     if (!built) {
@@ -383,6 +413,81 @@ static const GachaItem& gacha_pull_ur_pity() {
     }
     int idx2 = std::uniform_int_distribution<int>(0, (int)pool_UR_all.size()-1)(gacha_rng());
     return *pool_UR_all[idx2];
+}
+
+// ─── 俠客之路：專屬池，UR 格內保留給江湖套裝＋生命女神寶珠 ──────────────────
+// C 68% / R 20% / SR 10% / UR 2%
+// UR 內：江湖套裝(4件) 各17.5%（合計70%＝總池1.4%）／生命女神寶珠 10%（總池0.2%）／
+//        其餘一般UR 20%（總池0.4%，寶珠10%／裝備90%比照一般池）
+static const GachaItem& gacha_pull_hero() {
+    static const std::set<std::string> CRAFT_ONLY = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON"};
+    static std::vector<const GachaItem*> pool_C, pool_R, pool_SR, pool_UR_eq, pool_UR_orb, pool_D;
+    static const GachaItem* lifegoddess_gi = nullptr;
+    static bool built = false;
+    if (!built) {
+        for (auto& gi : GACHA_ITEMS) {
+            if (gi.set_tag == "D") { pool_D.push_back(&gi); continue; }
+            if (gi.key == "EQ_K_LIFEGODDESS") { lifegoddess_gi = &gi; continue; }
+            if (CRAFT_ONLY.count(gi.key)) continue;
+            if      (gi.rarity == "C")  pool_C.push_back(&gi);
+            else if (gi.rarity == "R")  pool_R.push_back(&gi);
+            else if (gi.rarity == "SR") pool_SR.push_back(&gi);
+            else if (gi.rarity == "UR") {
+                if (gi.slot == "K") pool_UR_orb.push_back(&gi);
+                else                pool_UR_eq.push_back(&gi);
+            }
+        }
+        built = true;
+    }
+
+    int roll = std::uniform_int_distribution<int>(1, 10000)(gacha_rng()); // basis points（萬分位）
+    if (roll <= 6800) return *pool_C[std::uniform_int_distribution<int>(0, (int)pool_C.size()-1)(gacha_rng())];
+    if (roll <= 8800) return *pool_R[std::uniform_int_distribution<int>(0, (int)pool_R.size()-1)(gacha_rng())];
+    if (roll <= 9800) return *pool_SR[std::uniform_int_distribution<int>(0, (int)pool_SR.size()-1)(gacha_rng())];
+
+    // UR 格（roll 9801-10000，2%）：內部再抽一次決定落點
+    int sub = std::uniform_int_distribution<int>(1, 10000)(gacha_rng());
+    if (sub <= 7000 && pool_D.size() >= 4) {
+        int didx = (sub - 1) / 1750; // 0~3，各1750（17.5%）
+        return *pool_D[std::min(didx, (int)pool_D.size()-1)];
+    }
+    if (sub <= 8000 && lifegoddess_gi) return *lifegoddess_gi;
+    // 其餘 20%：一般UR池，寶珠10%／裝備90%
+    int orb_roll = std::uniform_int_distribution<int>(1, 10)(gacha_rng());
+    if (orb_roll == 1 && !pool_UR_orb.empty())
+        return *pool_UR_orb[std::uniform_int_distribution<int>(0, (int)pool_UR_orb.size()-1)(gacha_rng())];
+    return *pool_UR_eq[std::uniform_int_distribution<int>(0, (int)pool_UR_eq.size()-1)(gacha_rng())];
+}
+
+// 保底 UR（俠客之路專屬，獨立於一般池計算）：每 200 抽必出一個 UR，
+// 落點機率沿用該池 UR 格內部比例（江湖套裝70%／生命女神寶珠10%／一般UR20%）
+static const GachaItem& gacha_pull_hero_ur_pity() {
+    static const std::set<std::string> CRAFT_ONLY = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON"};
+    static std::vector<const GachaItem*> pool_UR_eq2, pool_UR_orb2, pool_D2;
+    static const GachaItem* lifegoddess_gi2 = nullptr;
+    static bool built2 = false;
+    if (!built2) {
+        for (auto& gi : GACHA_ITEMS) {
+            if (gi.set_tag == "D") { pool_D2.push_back(&gi); continue; }
+            if (gi.key == "EQ_K_LIFEGODDESS") { lifegoddess_gi2 = &gi; continue; }
+            if (CRAFT_ONLY.count(gi.key)) continue;
+            if (gi.rarity == "UR") {
+                if (gi.slot == "K") pool_UR_orb2.push_back(&gi);
+                else                pool_UR_eq2.push_back(&gi);
+            }
+        }
+        built2 = true;
+    }
+    int sub = std::uniform_int_distribution<int>(1, 10000)(gacha_rng());
+    if (sub <= 7000 && pool_D2.size() >= 4) {
+        int didx = (sub - 1) / 1750;
+        return *pool_D2[std::min(didx, (int)pool_D2.size()-1)];
+    }
+    if (sub <= 8000 && lifegoddess_gi2) return *lifegoddess_gi2;
+    int orb_roll = std::uniform_int_distribution<int>(1, 10)(gacha_rng());
+    if (orb_roll == 1 && !pool_UR_orb2.empty())
+        return *pool_UR_orb2[std::uniform_int_distribution<int>(0, (int)pool_UR_orb2.size()-1)(gacha_rng())];
+    return *pool_UR_eq2[std::uniform_int_distribution<int>(0, (int)pool_UR_eq2.size()-1)(gacha_rng())];
 }
 
 // ─── Main gacha lobby message ─────────────────────────────────────────────────
@@ -410,6 +515,10 @@ static dpp::message make_gacha_main_msg(dpp::snowflake uid,
     e.add_field("⭐ 群星閃耀之時",
         "每抽 **1 顆星星**（目前持有：" + std::to_string(stars) + " 顆）\n"
         "機率：💜SR 80% ｜ ✨UR 20%", false);
+    e.add_field("🗡️ 俠客之路",
+        "每抽 **200 籌碼**\n機率：⬜C 68% ｜ 🔵R 20% ｜ 💜SR 10% ｜ ✨UR 2%\n"
+        "UR 中：🗡️江湖套裝 各0.35%（共1.4%）｜ 💗生命女神寶珠 0.2% ｜ 其餘一般UR 0.4%\n"
+        "🔮 每 **200 抽**保底出 UR（獨立計算，跟一般池分開算）", false);
     dpp::embed_footer footer;
     footer.text = "👤 " + display_name;
     if (!avatar_url.empty()) footer.icon_url = avatar_url;
@@ -424,13 +533,15 @@ static dpp::message make_gacha_main_msg(dpp::snowflake uid,
     };
     mk("🎲 一般池",       "gacha_banner_normal_" + uid_s, dpp::cos_primary);
     mk("⭐ 群星閃耀之時", "gacha_banner_star_"   + uid_s, dpp::cos_success);
+    mk("🗡️ 俠客之路",    "gacha_banner_hero_"   + uid_s, dpp::cos_danger);
     msg.add_component(row);
     return msg;
 }
 
 // ─── Banner detail + pull message ────────────────────────────────────────────
 
-static dpp::message make_gacha_banner_msg(dpp::snowflake uid, bool star_pool,
+// pool_type: 0=一般池, 1=群星閃耀之時, 2=俠客之路
+static dpp::message make_gacha_banner_msg(dpp::snowflake uid, int pool_type,
                                           const std::string& display_name,
                                           const std::string& avatar_url) {
     std::string uid_s = std::to_string((uint64_t)uid);
@@ -446,11 +557,26 @@ static dpp::message make_gacha_banner_msg(dpp::snowflake uid, bool star_pool,
     }
 
     dpp::embed e;
-    if (star_pool) {
+    if (pool_type == 1) {
         e.set_title("⭐  群星閃耀之時").set_color(0xF1C40F);
         e.set_description("高機率獲得稀有裝備！\n機率：💜SR **80%** ｜ ✨UR **20%**");
         e.add_field("⭐ 持有星星", std::to_string(stars) + " 顆", true);
         e.add_field("💰 餘額",     std::to_string(chips) + " 碼", true);
+    } else if (pool_type == 2) {
+        int hero_pity = 0;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = gacha_hero_pity_data.find((uint64_t)uid);
+            if (it != gacha_hero_pity_data.end()) hero_pity = it->second;
+        }
+        e.set_title("🗡️  俠客之路").set_color(0xE74C3C);
+        e.set_description("機率：⬜C **68%** ｜ 🔵R **20%** ｜ 💜SR **10%** ｜ ✨UR **2%**\n"
+                          "✨UR 中：🗡️江湖套裝 各 **0.35%**（合計1.4%）｜ 💗生命女神寶珠 **0.2%** ｜ 其餘一般UR **0.4%**\n"
+                          "每 **200 抽**保底出 UR（獨立計算）！");
+        e.add_field("💰 餘額",      std::to_string(chips) + " 碼", true);
+        e.add_field("🎟️ 1連費用",   "200 碼", true);
+        e.add_field("🎟️ 10連費用", "2000 碼", true);
+        e.add_field("🔮 保底進度",  std::to_string(hero_pity) + " / 200", true);
     } else {
         int pity = 0;
         {
@@ -474,17 +600,21 @@ static dpp::message make_gacha_banner_msg(dpp::snowflake uid, bool star_pool,
 
     dpp::message msg; msg.add_embed(e);
     dpp::component row; row.set_type(dpp::cot_action_row);
-    std::string pfx = star_pool ? "gacha_star_" : "gacha_norm_";
+    std::string pfx = pool_type == 1 ? "gacha_star_" : pool_type == 2 ? "gacha_hero_" : "gacha_norm_";
+    dpp::component_style sty = pool_type == 1 ? dpp::cos_success : pool_type == 2 ? dpp::cos_danger : dpp::cos_primary;
     auto mk = [&](const std::string& lbl, const std::string& id, bool dis = false) {
         dpp::component b;
         b.set_type(dpp::cot_button).set_label(lbl).set_id(id)
-         .set_style(star_pool ? dpp::cos_success : dpp::cos_primary)
+         .set_style(sty)
          .set_disabled(dis);
         row.add_component(b);
     };
-    if (star_pool) {
+    if (pool_type == 1) {
         mk("⭐ 1連（1顆）",  pfx + "1_"  + uid_s, stars < 1);
         mk("⭐ 10連（10顆）",pfx + "10_" + uid_s, stars < 10);
+    } else if (pool_type == 2) {
+        mk("🗡️ 1連（200碼）",   pfx + "1_"  + uid_s, chips < 200);
+        mk("🗡️ 10連（2000碼）",pfx + "10_" + uid_s, chips < 2000);
     } else {
         mk("🎲 1連（50碼）",  pfx + "1_"  + uid_s, chips < 50);
         mk("🎲 10連（500碼）",pfx + "10_" + uid_s, chips < 500);
@@ -499,9 +629,10 @@ static dpp::message make_gacha_banner_msg(dpp::snowflake uid, bool star_pool,
 
 // ─── Pull result message ──────────────────────────────────────────────────────
 
+// pool_type: 0=一般池, 1=群星閃耀之時, 2=俠客之路
 static dpp::message make_gacha_result_msg(dpp::snowflake uid,
                                           const std::vector<const GachaItem*>& pulls,
-                                          bool star_pool,
+                                          int pool_type,
                                           const std::string& display_name,
                                           const std::string& avatar_url,
                                           int pity_after = -1,
@@ -546,6 +677,11 @@ static dpp::message make_gacha_result_msg(dpp::snowflake uid,
     dpp::message msg; msg.add_embed(e);
 
     // Row 1: 再抽十次 (only after 10-pull) + 返回轉蛋機
+    std::string pfx    = pool_type == 1 ? "gacha_star_"        : pool_type == 2 ? "gacha_hero_"        : "gacha_norm_";
+    std::string bpfx   = pool_type == 1 ? "gacha_banner_star_" : pool_type == 2 ? "gacha_banner_hero_"  : "gacha_banner_normal_";
+    dpp::component_style sty = pool_type == 1 ? dpp::cos_success : pool_type == 2 ? dpp::cos_danger : dpp::cos_primary;
+    std::string ten_lbl  = pool_type == 1 ? "⭐ 再抽十次（10顆）" : pool_type == 2 ? "🗡️ 再抽十次（2000碼）" : "🎲 再抽十次（500碼）";
+    std::string again_lbl= pool_type == 1 ? "⭐ 繼續抽（星星池）" : pool_type == 2 ? "🗡️ 繼續抽（俠客之路）" : "🎲 繼續抽（一般池）";
     if (pulls.size() == 10) {
         int64_t chips2 = 0; int stars2 = 0;
         {
@@ -554,13 +690,14 @@ static dpp::message make_gacha_result_msg(dpp::snowflake uid,
             if (inventory_data.count(uid) && inventory_data.at(uid).count("star_unknown"))
                 stars2 = inventory_data.at(uid).at("star_unknown");
         }
+        bool disabled = pool_type == 1 ? (stars2 < 10) : pool_type == 2 ? (chips2 < 2000) : (chips2 < 500);
         dpp::component row10; row10.set_type(dpp::cot_action_row);
         dpp::component ten;
         ten.set_type(dpp::cot_button)
-           .set_label(star_pool ? "⭐ 再抽十次（10顆）" : "🎲 再抽十次（500碼）")
-           .set_id(star_pool ? ("gacha_star_10_" + uid_s) : ("gacha_norm_10_" + uid_s))
-           .set_style(star_pool ? dpp::cos_success : dpp::cos_primary)
-           .set_disabled(star_pool ? stars2 < 10 : chips2 < 500);
+           .set_label(ten_lbl)
+           .set_id(pfx + "10_" + uid_s)
+           .set_style(sty)
+           .set_disabled(disabled);
         dpp::component back10;
         back10.set_type(dpp::cot_button).set_label("↩ 返回轉蛋機")
               .set_id("gacha_main_" + uid_s).set_style(dpp::cos_secondary);
@@ -570,9 +707,9 @@ static dpp::message make_gacha_result_msg(dpp::snowflake uid,
         dpp::component row; row.set_type(dpp::cot_action_row);
         dpp::component again, back_main;
         again.set_type(dpp::cot_button)
-             .set_label(star_pool ? "⭐ 繼續抽（星星池）" : "🎲 繼續抽（一般池）")
-             .set_id(star_pool ? ("gacha_banner_star_" + uid_s) : ("gacha_banner_normal_" + uid_s))
-             .set_style(star_pool ? dpp::cos_success : dpp::cos_primary);
+             .set_label(again_lbl)
+             .set_id(bpfx + uid_s)
+             .set_style(sty);
         back_main.set_type(dpp::cot_button).set_label("↩ 返回轉蛋機")
                  .set_id("gacha_main_" + uid_s).set_style(dpp::cos_secondary);
         row.add_component(again); row.add_component(back_main);
@@ -610,6 +747,7 @@ static dpp::message make_equip_msg(dpp::snowflake uid, const Pet& pet,
     int a = sc.count("A") ? sc["A"] : 0;
     int b = sc.count("B") ? sc["B"] : 0;
     int c = sc.count("C") ? sc["C"] : 0;
+    int d = sc.count("D") ? sc["D"] : 0;
     auto tick = [](bool on) { return std::string(on ? "✅" : "⬜"); };
 
     std::string content = "## 🗡️ 裝備總覽\n";
@@ -620,7 +758,9 @@ static dpp::message make_equip_msg(dpp::snowflake uid, const Pet& pet,
     content += "💎 **靈魂寶珠** " + eq_line(eq.orb) + "\n\n";
     content += "⚔️ **總攻擊力** " + std::to_string(stats.atk) + "　";
     content += "❤️ **總生命值** " + std::to_string(stats.hp) + "　";
-    content += "🛡️ **總防禦力** " + std::to_string(stats.def) + "\n\n";
+    content += "🛡️ **總防禦力** " + std::to_string(stats.def);
+    if (stats.crit_pct > 0) content += "　🗡️ **爆擊率** " + std::to_string(stats.crit_pct) + "%";
+    content += "\n\n";
     content += "**✨ 套裝效果**\n";
     content += "**堅韌** (" + std::to_string(a) + "/4)  "
               + tick(a>=2) + " 2件：防禦力 +2　"
@@ -631,6 +771,9 @@ static dpp::message make_equip_msg(dpp::snowflake uid, const Pet& pet,
     content += "**衝鋒** (" + std::to_string(c) + "/4)  "
               + tick(c>=2) + " 2件：攻擊力 +2　"
               + tick(c>=4) + " 4件：攻擊力 +5\n";
+    content += "**江湖** (" + std::to_string(d) + "/4)  "
+              + tick(d>=2) + " 2件：爆擊率 8%　"
+              + tick(d>=4) + " 4件：爆擊率 15%\n";
     content += "\n-# 👤 " + display_name;
 
     dpp::component container;
@@ -788,6 +931,7 @@ static dpp::message make_equipdex_main_msg(dpp::snowflake uid) {
     menu.add_select_option(dpp::select_option("⚔️ 堅韌套裝","A","2件+2防禦 / 4件+5防禦"));
     menu.add_select_option(dpp::select_option("🌿 生命套裝","B","2件+10生命 / 4件+25生命"));
     menu.add_select_option(dpp::select_option("💥 衝鋒套裝","C","2件+2攻擊力 / 4件+5攻擊力"));
+    menu.add_select_option(dpp::select_option("🗡️ 江湖套裝","D","2件8%爆擊率 / 4件15%爆擊率（爆擊雙倍傷害）"));
     menu.add_select_option(dpp::select_option("💎 靈魂寶珠","K","獨立UR單品"));
     row.add_component(menu); msg.add_component(row);
     return msg;
@@ -796,15 +940,16 @@ static dpp::message make_equipdex_main_msg(dpp::snowflake uid) {
 static dpp::message make_equipdex_set_msg(dpp::snowflake uid, const std::string& set_tag) {
     std::string uid_s = std::to_string((uint64_t)uid);
     static const std::map<std::string,std::string> SET_NAMES = {
-        {"A","堅韌"},{"B","生命"},{"C","衝鋒"},{"K","靈魂寶珠"}
+        {"A","堅韌"},{"B","生命"},{"C","衝鋒"},{"D","江湖"},{"K","靈魂寶珠"}
     };
     static const std::map<std::string,uint32_t> SET_COLORS = {
-        {"A",0xE74C3C},{"B",0x2ECC71},{"C",0x3498DB},{"K",0xFFD700}
+        {"A",0xE74C3C},{"B",0x2ECC71},{"C",0x3498DB},{"D",0x8E44AD},{"K",0xFFD700}
     };
     static const std::map<std::string,std::string> SET_BONUS = {
         {"A","2件效果：🛡️ 防禦力 +2\n4件效果：🛡️ 防禦力 +5"},
         {"B","2件效果：❤️ 生命 +10\n4件效果：❤️ 生命 +25（累積 +35）"},
         {"C","2件效果：⚔️ 攻擊力 +2\n4件效果：⚔️ 攻擊力 +5（累積 +7）"},
+        {"D","2件效果：🗡️ 爆擊率 8%（爆擊造成雙倍傷害）\n4件效果：🗡️ 爆擊率 15%（不累積）"},
         {"K","獨立 UR 單品，不計入套裝計數"}
     };
     std::string set_name = SET_NAMES.count(set_tag) ? SET_NAMES.at(set_tag) : set_tag;
@@ -868,6 +1013,7 @@ static dpp::message make_equipdex_set_msg(dpp::snowflake uid, const std::string&
     menu.add_select_option(dpp::select_option("⚔️ 堅韌套裝","A","2件+2防禦 / 4件+5防禦"));
     menu.add_select_option(dpp::select_option("🌿 生命套裝","B","2件+10生命 / 4件+25生命"));
     menu.add_select_option(dpp::select_option("💥 衝鋒套裝","C","2件+2攻擊力 / 4件+5攻擊力"));
+    menu.add_select_option(dpp::select_option("🗡️ 江湖套裝","D","2件8%爆擊率 / 4件15%爆擊率（爆擊雙倍傷害）"));
     menu.add_select_option(dpp::select_option("💎 靈魂寶珠","K","獨立UR單品"));
     row.add_component(menu); msg.add_component(row);
     return msg;

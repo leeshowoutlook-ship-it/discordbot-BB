@@ -337,12 +337,17 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         cp.underwear_first_atk_used = true;
     }
 
+    // 江湖套裝：爆擊率機率造成雙倍傷害
+    bool is_crit = cp.crit_pct > 0 && dd_rand(1, 100) <= cp.crit_pct;
+    if (is_crit) vk_log += " 🗡️**爆擊！**（雙倍傷害）";
+
     int raw = 0;
     int atk_dmg = 0;
     if (attack_type == 2) {
         // 強攻
         raw = (int)(eff_atk * 2.0);
         int dmg = std::max(1, raw - h.def);
+        if (is_crit) dmg *= 2;
         atk_dmg = dmg;
         h.hp -= dmg;
         log = "💥 **" + cp.display_name + "** 強攻 **" + h.name + "**，造成 **" + std::to_string(dmg) + "** 傷害！" + vk_log;
@@ -353,6 +358,7 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         char buf[8]; snprintf(buf, sizeof(buf), "%.1f", mult);
         raw = (int)(eff_atk * mult);
         int dmg = std::max(1, raw - h.def);
+        if (is_crit) dmg *= 2;
         atk_dmg = dmg;
         h.hp -= dmg;
         log = "🎲 **" + cp.display_name + "** 耗費氣力（×" + std::string(buf) + "）攻擊 **" + h.name + "**，造成 **" + std::to_string(dmg) + "** 傷害！" + vk_log;
@@ -360,6 +366,7 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         // 普通攻擊
         raw = eff_atk;
         int dmg = std::max(1, raw - h.def);
+        if (is_crit) dmg *= 2;
         atk_dmg = dmg;
         h.hp -= dmg;
         log = "⚔️ **" + cp.display_name + "** 攻擊 **" + h.name + "**，造成 **" + std::to_string(dmg) + "** 傷害！" + vk_log;

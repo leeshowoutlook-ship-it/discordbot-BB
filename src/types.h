@@ -208,6 +208,7 @@ struct VillageGame {
     int  pet_max_hp = 0;
     int  pet_atk    = 0;
     int  pet_def    = 0;
+    int  pet_crit   = 0; // 江湖套裝：爆擊率%
     int  turn           = 1;
     int  selected_target = -1;
     time_t started_at = 0;
@@ -265,6 +266,7 @@ struct MonsterHuntGame {
     int            pet_max_hp     = 0;
     int            pet_atk        = 0;
     int            pet_def        = 0;
+    int            pet_crit       = 0; // 江湖套裝：爆擊率%
     bool           player_first   = true;
     int            turn            = 1;
     time_t         started_at     = 0;
@@ -288,6 +290,7 @@ struct RaidPlayer {
     int            max_hp     = 0;
     int            atk        = 0;
     int            def        = 0;
+    int            crit_pct   = 0; // 江湖套裝：爆擊率%
     std::string    orb_key;          // equipped orb
     bool           alive          = true;
     int            stunned_turns  = 0;     // turns remaining stunned (boss skill)
@@ -367,6 +370,7 @@ struct DDPlayer {
     int max_hp   = 0;
     int atk      = 0;
     int def      = 0;
+    int crit_pct = 0; // 江湖套裝：爆擊率%
     std::string  orb_key;
     bool         alive          = true;
     bool         at_altar       = false;
@@ -563,6 +567,7 @@ inline std::atomic<uint64_t>                    purchase_counter{1};
 inline std::map<dpp::snowflake, Pet>            pet_data;
 inline std::map<dpp::snowflake, std::map<std::string,int>> inventory_data;
 inline std::map<uint64_t, int>                              gacha_pity_data; // 一般池保底計數器
+inline std::map<uint64_t, int>                              gacha_hero_pity_data; // 俠客之路池保底計數器（獨立計算）
 inline std::map<dpp::snowflake, ShootGame>      shoot_games;
 inline std::map<dpp::snowflake, ShootStats>     shoot_stats_data;
 inline std::map<dpp::snowflake, RocketGame>     rocket_games;

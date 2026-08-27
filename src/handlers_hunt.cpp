@@ -126,7 +126,7 @@ void handle_hunt_button(const dpp::button_click_t& ev)
         vg.group_key = gdp->key;
         vg.spirits   = build_village_spirits(*gdp);
         vg.pet_hp = ps.hp; vg.pet_max_hp = ps.hp;
-        vg.pet_atk = ps.atk; vg.pet_def = ps.def;
+        vg.pet_atk = ps.atk; vg.pet_def = ps.def; vg.pet_crit = ps.crit_pct;
         vg.started_at = time(nullptr);
         { std::lock_guard<std::mutex> lk(data_mutex);
           vg.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : "";
@@ -449,6 +449,7 @@ void handle_hunt_button(const dpp::button_click_t& ev)
         g.pet_max_hp     = ps.hp;
         g.pet_atk        = ps.atk;
         g.pet_def        = ps.def;
+        g.pet_crit       = ps.crit_pct;
         g.started_at     = time(nullptr);
         { std::lock_guard<std::mutex> lk(data_mutex);
           g.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : "";

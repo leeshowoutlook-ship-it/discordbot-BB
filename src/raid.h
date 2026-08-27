@@ -662,7 +662,11 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
 
     g.round_first_action = false;
 
-    std::string extra_log = vk_log + underwear_log;
+    // 江湖套裝：爆擊率機率造成雙倍傷害
+    bool is_crit = cp.crit_pct > 0 && raid_rand(1, 100) <= cp.crit_pct;
+    std::string crit_log = is_crit ? " 🗡️**爆擊！**（雙倍傷害）" : "";
+
+    std::string extra_log = vk_log + underwear_log + crit_log;
     std::string log;
     int atk_dmg = 0;
 
@@ -670,6 +674,7 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
         // 強攻：固定 2.0× 傷害，下回合跳過
         int raw = (int)(base_atk * 2.0 * vk_mult);
         int dmg = std::max(1, raw - g.boss_def);
+        if (is_crit) dmg *= 2;
         atk_dmg = dmg;
         g.boss_hp -= dmg;
         log = "💥 **" + cp.display_name + "** 強攻 Boss，造成 **" + std::to_string(dmg) + "** 點傷害！" + extra_log;
@@ -679,6 +684,7 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
         char gm_buf[8]; snprintf(gm_buf, sizeof(gm_buf), "%.1f", gamble_mult);
         int raw = (int)(base_atk * gamble_mult * vk_mult);
         int dmg = std::max(1, raw - g.boss_def);
+        if (is_crit) dmg *= 2;
         atk_dmg = dmg;
         g.boss_hp -= dmg;
         log = "🎲 **" + cp.display_name + "** 耗費氣力攻擊（×" + std::string(gm_buf) + "），造成 **" + std::to_string(dmg) + "** 點傷害！" + extra_log;
@@ -686,6 +692,7 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
         // 普通攻擊：1.0×
         int raw = (int)(base_atk * vk_mult);
         int dmg = std::max(1, raw - g.boss_def);
+        if (is_crit) dmg *= 2;
         atk_dmg = dmg;
         g.boss_hp -= dmg;
         log = "⚔️ **" + cp.display_name + "** 攻擊 Boss，造成 **" + std::to_string(dmg) + "** 點傷害！" + extra_log;

@@ -258,7 +258,7 @@ void handle_raid_button(const dpp::button_click_t& ev)
             RaidPlayer p;
             p.uid = muid; p.display_name = room.member_names.count(muid) ? room.member_names.at(muid) : "?";
             p.avatar_url = room.member_avatars.count(muid) ? room.member_avatars.at(muid) : "";
-            p.hp = ps.hp; p.max_hp = ps.hp; p.atk = ps.atk; p.def = ps.def;
+            p.hp = ps.hp; p.max_hp = ps.hp; p.atk = ps.atk; p.def = ps.def; p.crit_pct = ps.crit_pct;
             p.orb_key = orb_key; p.alive = true;
             if (orb_key == "EQ_K_UR" && room.member_uids.size() > 1) {
                 auto* ur_gi = find_gacha_item("EQ_K_UR"); if (ur_gi) p.def = std::max(0, p.def - ur_gi->stat_val);

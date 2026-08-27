@@ -61,9 +61,11 @@ void handle_shop_button(const dpp::button_click_t& ev)
         if (cid.rfind("gacha_main_", 0) == 0) {
             ev.reply(dpp::ir_update_message, make_gacha_main_msg(uid, dn, av));
         } else if (cid.rfind("gacha_banner_normal_", 0) == 0) {
-            ev.reply(dpp::ir_update_message, make_gacha_banner_msg(uid, false, dn, av));
+            ev.reply(dpp::ir_update_message, make_gacha_banner_msg(uid, 0, dn, av));
         } else if (cid.rfind("gacha_banner_star_", 0) == 0) {
-            ev.reply(dpp::ir_update_message, make_gacha_banner_msg(uid, true, dn, av));
+            ev.reply(dpp::ir_update_message, make_gacha_banner_msg(uid, 1, dn, av));
+        } else if (cid.rfind("gacha_banner_hero_", 0) == 0) {
+            ev.reply(dpp::ir_update_message, make_gacha_banner_msg(uid, 2, dn, av));
         } else if (cid.rfind("gacha_norm_", 0) == 0) {
             std::string mid = cid.substr(11);
             size_t sep = mid.find('_');
@@ -89,7 +91,7 @@ void handle_shop_button(const dpp::button_click_t& ev)
             }
             if (pity_fired) pulls.push_back(&gacha_pull_ur_pity());
             save_chips(); save_inventory(); save_gacha_pity();
-            ev.reply(dpp::ir_update_message, make_gacha_result_msg(uid, pulls, false, dn, av, pity_after, pity_fired));
+            ev.reply(dpp::ir_update_message, make_gacha_result_msg(uid, pulls, 0, dn, av, pity_after, pity_fired));
         } else if (cid.rfind("gacha_star_", 0) == 0) {
             std::string mid = cid.substr(11);
             size_t sep = mid.find('_');
@@ -114,7 +116,33 @@ void handle_shop_button(const dpp::button_click_t& ev)
             std::vector<const GachaItem*> pulls;
             for (int i = 0; i < count; i++) pulls.push_back(&gacha_pull_one(true));
             save_inventory();
-            ev.reply(dpp::ir_update_message, make_gacha_result_msg(uid, pulls, true, dn, av));
+            ev.reply(dpp::ir_update_message, make_gacha_result_msg(uid, pulls, 1, dn, av));
+        } else if (cid.rfind("gacha_hero_", 0) == 0) {
+            std::string mid = cid.substr(11);
+            size_t sep = mid.find('_');
+            int count = std::stoi(mid.substr(0, sep));
+            int cost = count * 200;
+            if (get_chips(uid) < cost) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 籌碼不足！需要 " + std::to_string(cost) + " 碼").set_flags(dpp::m_ephemeral)); return;
+            }
+            add_chips(uid, -(int64_t)cost);
+            std::vector<const GachaItem*> pulls;
+            for (int i = 0; i < count; i++) pulls.push_back(&gacha_pull_hero());
+
+            int hero_pity_after = 0; bool hero_pity_fired = false;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                gacha_hero_pity_data[(uint64_t)uid] += count;
+                if (gacha_hero_pity_data[(uint64_t)uid] >= 200) {
+                    gacha_hero_pity_data[(uint64_t)uid] -= 200;
+                    hero_pity_fired = true;
+                }
+                hero_pity_after = gacha_hero_pity_data[(uint64_t)uid];
+            }
+            if (hero_pity_fired) pulls.push_back(&gacha_pull_hero_ur_pity());
+            save_chips(); save_inventory(); save_gacha_hero_pity();
+            ev.reply(dpp::ir_update_message, make_gacha_result_msg(uid, pulls, 2, dn, av, hero_pity_after, hero_pity_fired));
         }
         return;
     }

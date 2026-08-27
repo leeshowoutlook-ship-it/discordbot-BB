@@ -402,6 +402,7 @@ int main(int argc, char* argv[]) {
     load_adv_games();
     load_dogbook();
     load_gacha_pity();
+    load_gacha_hero_pity();
     load_uc_stats();
     load_guess_stats();
     load_roulettestats();
