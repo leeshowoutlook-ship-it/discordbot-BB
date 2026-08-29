@@ -1505,100 +1505,48 @@ int main(int argc, char* argv[]) {
                 dpp::message("✅ 領取驗證已切換為 " + state + "。").set_flags(dpp::m_ephemeral));
         }
         // ── 簽到系統按鈕 ──────────────────────────────────────────────────────
-        // si_btn：任何人點擊「我要簽到」
+        // si_btn：任何人點擊「我要簽到」→ 直接簽到
         else if (cid == "si_btn") {
-            bool session_active, already_in;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                session_active = g_signin.active;
-                already_in = g_signin.signed_in.count(uid) > 0;
-            }
-            if (!session_active) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 目前沒有進行中的簽到！").set_flags(dpp::m_ephemeral));
-                return;
-            }
-            if (already_in) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("✅ 你已完成簽到！").set_flags(dpp::m_ephemeral));
-                return;
-            }
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                if (!g_signin.not_signed.count(uid)) {
-                    ev.reply(dpp::ir_channel_message_with_source,
-                        dpp::message("❌ 你不在這次簽到名單中！（簽到開始後才加入伺服器）").set_flags(dpp::m_ephemeral));
-                    return;
-                }
-            }
-            ev.reply(dpp::ir_channel_message_with_source, make_si_verify_msg(uid));
-        }
-        // si_v_{uid}_{clicked}_{correct}：驗證按鈕回應
-        else if (cid.rfind("si_v_", 0) == 0) {
-            std::string rest = cid.substr(5);
-            // 解析 uid_s_clicked_correct
-            auto p1 = rest.find('_');
-            auto p2 = rest.rfind('_');
-            if (p1 == std::string::npos || p2 == std::string::npos || p1 == p2) return;
-            dpp::snowflake btn_uid(std::stoull(rest.substr(0, p1)));
-            if (uid != btn_uid) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 這不是你的驗證！").set_flags(dpp::m_ephemeral));
-                return;
-            }
-            int clicked = std::stoi(rest.substr(p1 + 1, p2 - p1 - 1));
-            int correct = std::stoi(rest.substr(p2 + 1));
-            if (clicked != correct) {
-                ev.reply(dpp::ir_update_message,
-                    dpp::message().set_flags(dpp::m_ephemeral)
-                        .set_content("❌ 驗證失敗！請重新點擊「我要簽到」再試一次。"));
-                return;
-            }
-            // 驗證通過 → 移入已簽到
             std::string display_name;
             bool was_unsigned = false;
-            bool found_in_not_signed = false;
             bool session_still_active = false;
-            dpp::snowflake si_ch = 0;
-            dpp::snowflake si_mid = 0;
+            dpp::snowflake si_ch = 0, si_mid = 0;
             dpp::message updated_main;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 session_still_active = g_signin.active;
                 auto it = g_signin.not_signed.find(uid);
                 if (it != g_signin.not_signed.end()) {
-                    found_in_not_signed = true;
                     display_name = it->second;
                     if (session_still_active) {
                         g_signin.signed_in[uid] = display_name;
                         g_signin.not_signed.erase(it);
                         was_unsigned = true;
+                        updated_main = make_si_status_msg();
                     }
                 } else {
-                    // 已簽到或不在名單中
-                    display_name = g_signin.signed_in.count(uid) ? g_signin.signed_in[uid] : "你";
+                    display_name = g_signin.signed_in.count(uid) ? g_signin.signed_in[uid] : "";
                 }
                 si_ch  = g_signin.channel_id;
                 si_mid = g_signin.message_id;
-                if (was_unsigned)
-                    updated_main = make_si_status_msg();
             }
             if (!was_unsigned) {
-                // 截止後才送出 or 已完成簽到（重複點擊）
-                std::string msg_text = (!session_still_active && found_in_not_signed)
-                    ? "❌ 簽到已截止，無法完成簽到！"
-                    : "✅ 你已完成簽到！";
-                ev.reply(dpp::ir_update_message,
-                    dpp::message().set_flags(dpp::m_ephemeral).set_content(msg_text));
+                std::string msg;
+                if (!session_still_active)
+                    msg = "❌ 簽到已結束！";
+                else if (!display_name.empty())
+                    msg = "✅ 你已完成簽到！";
+                else
+                    msg = "❌ 你不在這次簽到名單中！（簽到開始後才加入伺服器）";
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message(msg).set_flags(dpp::m_ephemeral));
                 return;
             }
-            updated_main.id = si_mid;
-            updated_main.channel_id = si_ch;
-            ev.reply(dpp::ir_update_message,
-                dpp::message().set_flags(dpp::m_ephemeral)
-                    .set_content("✅ 簽到成功！歡迎 **" + display_name + "**！"));
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("✅ 簽到成功！歡迎 **" + display_name + "**！").set_flags(dpp::m_ephemeral));
             if (si_mid != 0) {
                 save_signin();
+                updated_main.id = si_mid; updated_main.channel_id = si_ch;
                 bot.message_edit(updated_main);
             }
         }
