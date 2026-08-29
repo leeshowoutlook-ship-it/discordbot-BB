@@ -92,8 +92,7 @@ static time_t parse_si_deadline(const std::string& s) {
 
 static std::string si_deadline_str() {
     if (g_signin.deadline == 0) return "";
-    return "\n⏰ 截止時間：**<t:" + std::to_string((int64_t)g_signin.deadline) + ":t>**（<t:"
-         + std::to_string((int64_t)g_signin.deadline) + ":R>）";
+    return "\n⏰ 截止時間：**<t:" + std::to_string((int64_t)g_signin.deadline) + ":t>**";
 }
 
 // ─── 主簽到訊息 ───────────────────────────────────────────────────────────────
