@@ -187,7 +187,7 @@ static dpp::message make_dd_combat_msg(const DDGame& g) {
                     .set_label("🛡️ 防禦").set_id("dd_block_" + uid_s)
                     .set_style(dpp::cos_secondary));
             // Life Goddess heal (每場限1次)
-            if (cp.orb_key == "EQ_K_LIFEGODDESS" && !g.lifegoddess_used)
+            if (cp.orb_key == "EQ_K_LIFEGODDESS" && !g.lifegoddess_used_by.count(cp.uid))
                 row.add_component(dpp::component().set_type(dpp::cot_button)
                     .set_label("💗 生命女神").set_id("dd_heal_" + uid_s)
                     .set_style(dpp::cos_secondary));

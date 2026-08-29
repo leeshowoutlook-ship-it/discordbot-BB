@@ -121,6 +121,8 @@ void handle_dd_button(const dpp::button_click_t& ev)
         auto dd_try_end = [&](DDGame& dg, bool need_lock) -> bool {
             if (!dg.game_over) return false;
             g_bot->stop_timer(dg.timer_id);
+            // 先 ack，避免 Discord 3 秒 timeout（save_chips/save_inventory 爭 io_mutex 可能耗時）
+            ev.reply(dpp::ir_deferred_update_message, dpp::message());
             if (dg.victory) {
                 std::vector<std::pair<std::string,std::string>> rewards;
                 if (!dg.practice_mode) {
@@ -135,8 +137,8 @@ void handle_dd_button(const dpp::button_click_t& ev)
                     else           { do_reward(); }
                     save_chips(); save_inventory();
                 }
-                auto emsg = make_dd_end_msg(dg, rewards); emsg.channel_id = ch;
-                dd_games.erase(ch); ev.reply(dpp::ir_update_message, emsg); return true;
+                auto emsg = make_dd_end_msg(dg, rewards);
+                dd_games.erase(ch); ev.edit_original_response(emsg); return true;
             }
             if (!dg.practice_mode) {
                 for (auto& p : dg.players) {
@@ -146,8 +148,8 @@ void handle_dd_button(const dpp::button_click_t& ev)
                 }
                 dd_need_pet_save = true; // 鎖釋放後由 caller save
             }
-            auto emsg = make_dd_end_msg(dg, {}); emsg.channel_id = ch;
-            dd_games.erase(ch); ev.reply(dpp::ir_update_message, emsg); return true;
+            auto emsg = make_dd_end_msg(dg, {});
+            dd_games.erase(ch); ev.edit_original_response(emsg); return true;
         };
 
         if (cid.rfind("dd_refresh_", 0) == 0) {
@@ -234,8 +236,8 @@ void handle_dd_button(const dpp::button_click_t& ev)
                 auto git = dd_games.find(ch); if (git == dd_games.end()) return;
                 auto& dg = git->second;
                 if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
-                if (dg.lifegoddess_used) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 生命女神的祝福本場已用完！").set_flags(dpp::m_ephemeral)); return; }
-                dg.lifegoddess_used = true; dg.selected_head = -1;
+                if (dg.lifegoddess_used_by.count(uid)) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你這場已使用過生命女神的祝福！").set_flags(dpp::m_ephemeral)); return; }
+                dg.lifegoddess_used_by.insert(uid); dg.selected_head = -1;
                 std::string healed;
                 for (auto& p : dg.players) {
                     if (!p.alive) continue;

@@ -307,7 +307,7 @@ static dpp::message make_raid_combat_msg(const RaidGame& g) {
     }
 
     // Heal button (生命女神的寶珠：組隊回血，每場限1次)
-    if (cp.orb_key == "EQ_K_LIFEGODDESS" && !g.lifegoddess_used) {
+    if (cp.orb_key == "EQ_K_LIFEGODDESS" && !g.lifegoddess_used_by.count(cp.uid)) {
         dpp::component heal_btn;
         heal_btn.set_type(dpp::cot_button)
             .set_label("生命女神")

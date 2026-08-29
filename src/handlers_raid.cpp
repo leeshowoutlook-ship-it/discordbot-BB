@@ -426,8 +426,8 @@ void handle_raid_button(const dpp::button_click_t& ev)
                 g.block_active = true;
                 log = "🛡️ **" + g.players[g.current_player].display_name + "** 進入防禦姿態！";
             } else if (is_heal) {
-                if (g.lifegoddess_used) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 生命女神的祝福本場已用完！").set_flags(dpp::m_ephemeral)); return; }
-                g.lifegoddess_used = true;
+                if (g.lifegoddess_used_by.count(uid)) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你這場已使用過生命女神的祝福！").set_flags(dpp::m_ephemeral)); return; }
+                g.lifegoddess_used_by.insert(uid);
                 std::string healed;
                 for (auto& p : g.players) {
                     if (!p.alive) continue;

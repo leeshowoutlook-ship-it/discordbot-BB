@@ -3569,7 +3569,6 @@ int main(int argc, char* argv[]) {
             rps_en.add_option(dpp::command_option(dpp::co_integer, "籌碼", "Bet amount", true));
 
             bot.guild_bulk_command_create({
-                dpp::slashcommand("ping",      "測試機器人是否在線",            bot.me.id),
                 dpp::slashcommand("王團報名",  "王團報名",                      bot.me.id),
                 dpp::slashcommand("王團紀錄",  "查看王團報名紀錄",              bot.me.id),
                 dpp::slashcommand("幫助",      "查看所有指令說明",              bot.me.id),
@@ -3579,6 +3578,7 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("富豪榜",    "查看全伺服器籌碼排行榜",        bot.me.id),
                 dpp::slashcommand("商店",      "瀏覽並購買道具",                bot.me.id),
                 dpp::slashcommand("記帳",      "查看購買記帳本（管理員）",      bot.me.id),
+                // ledger / signin English aliases removed to stay under 100 command limit
                 dpp::slashcommand("警告榜單",  "查看警告次數排行榜",            bot.me.id),
                 dpp::slashcommand("大廳",      "進入大廳（寵物/背包/裝備/商店）",bot.me.id),
                 dpp::slashcommand("寵物",      "查看你的寵物狀態",              bot.me.id),
@@ -3599,11 +3599,9 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("pet",       "View your pet status",          bot.me.id),
                 dpp::slashcommand("bag",       "View backpack and use items",   bot.me.id),
                 dpp::slashcommand("petdex",    "View pet evolution chart",      bot.me.id),
-                dpp::slashcommand("ledger",    "View purchase log (admin)",     bot.me.id),
                 dpp::slashcommand("warnboard", "View warning leaderboard",      bot.me.id),
                 dpp::slashcommand("werewolf",  "Start a werewolf game",         bot.me.id),
                 dpp::slashcommand("一夜狼人",  "開始一夜終極狼人遊戲",            bot.me.id),
-                dpp::slashcommand("臥底",      "開始誰是臥底遊戲",                bot.me.id),
                 dpp::slashcommand("誰是臥底",  "開始誰是臥底遊戲",                bot.me.id),
                 dpp::slashcommand("bank",      "Deposit/borrow/repay chips",    bot.me.id),
                 dpp::slashcommand("raid",      "Sign up for raid",              bot.me.id),
@@ -3654,15 +3652,8 @@ int main(int argc, char* argv[]) {
                     c.add_option(dpp::command_option(dpp::co_string, "截止時間", "例：22:30、30m、1h（選填）", false));
                     return c;
                 }(),
-                [&]() {
-                    dpp::slashcommand c("signin", "Start attendance check", bot.me.id);
-                    c.add_option(dpp::command_option(dpp::co_string, "deadline", "e.g. 22:30, 30m, 1h (optional)", false));
-                    return c;
-                }(),
                 dpp::slashcommand("簽到名單",  "查看簽到名單（副會長/會長/管理員）", bot.me.id),
-                dpp::slashcommand("signinlist","View attendance list",              bot.me.id),
                 dpp::slashcommand("結束簽到",  "強制結束目前的簽到（副會長/會長/管理員）", bot.me.id),
-                dpp::slashcommand("endsignin", "Force end the current attendance",  bot.me.id),
             }, gid);
         }
     });
