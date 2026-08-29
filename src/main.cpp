@@ -444,7 +444,7 @@ int main(int argc, char* argv[]) {
                 "!貓","!笑話","!轉蛋","!裝備","!怪物狩獵","!狩獵規則",
                 "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤","!探險","!猜拳","！猜拳","!強化","!股票",
                 "!公告","！公告","!小黑屋","！小黑屋",
-                "!簽到","！簽到","!簽到名單","！簽到名單"
+                "!簽到","！簽到","!簽到名單","！簽到名單","!結束簽到","！結束簽到"
             };
             for (auto& s : EXACT) if (content == s) return true;
             // Secret owner-only command
@@ -885,6 +885,33 @@ int main(int argc, char* argv[]) {
             }
             msg.channel_id = ch;
             bot.message_create(msg);
+        }
+        // !結束簽到 / ！結束簽到：強制中斷目前簽到（副會長/會長/管理員）
+        else if (content == "!結束簽到" || content == "！結束簽到") {
+            if (!si_perm(uid, ev.msg.member.get_roles())) {
+                dpp::message m; m.set_content("❌ 只有副會長、會長或管理員才能結束簽到！"); m.channel_id = ch;
+                bot.message_create(m); return;
+            }
+            dpp::snowflake m_id = 0, m_ch = 0;
+            dpp::message closed;
+            bool had_session = false;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                if (!g_signin.active && g_signin.signed_in.empty() && g_signin.not_signed.empty()) {
+                    dpp::message m; m.set_content("❌ 目前沒有進行中的簽到！"); m.channel_id = ch;
+                    bot.message_create(m); return;
+                }
+                had_session = true;
+                if (g_signin.timer_id != 0) { bot.stop_timer(g_signin.timer_id); g_signin.timer_id = 0; }
+                g_signin.active = false;
+                m_id = g_signin.message_id;
+                m_ch = g_signin.channel_id;
+                closed = make_si_closed_msg();
+            }
+            save_signin();
+            if (m_id != 0) { closed.id = m_id; closed.channel_id = m_ch; bot.message_edit(closed); }
+            dpp::message conf; conf.set_content("✅ 簽到已強制結束。"); conf.channel_id = ch;
+            bot.message_create(conf);
         }
         // ── 骰子/射/火箭/卷軸/刮刮樂/猜數字 → handlers_games.cpp ───────────
         else if (content.rfind("!骰子", 0) == 0 ||
@@ -2967,6 +2994,31 @@ int main(int argc, char* argv[]) {
             }
             ev.reply(dpp::ir_channel_message_with_source, msg);
         }
+        else if (cmd_name == "結束簽到" || cmd_name == "endsignin") {
+            if (!si_perm(ev.command)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 只有副會長、會長或管理員才能結束簽到！").set_flags(dpp::m_ephemeral));
+                return;
+            }
+            dpp::snowflake m_id = 0, m_ch = 0;
+            dpp::message closed;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                if (!g_signin.active && g_signin.signed_in.empty() && g_signin.not_signed.empty()) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("❌ 目前沒有進行中的簽到！").set_flags(dpp::m_ephemeral));
+                    return;
+                }
+                if (g_signin.timer_id != 0) { bot.stop_timer(g_signin.timer_id); g_signin.timer_id = 0; }
+                g_signin.active = false;
+                m_id = g_signin.message_id;
+                m_ch = g_signin.channel_id;
+                closed = make_si_closed_msg();
+            }
+            save_signin();
+            if (m_id != 0) { closed.id = m_id; closed.channel_id = m_ch; bot.message_edit(closed); }
+            ev.reply(dpp::ir_channel_message_with_source, dpp::message("✅ 簽到已強制結束。"));
+        }
         else if (cmd_name == "幫助" || cmd_name == "help") {
             ev.reply(dpp::ir_channel_message_with_source, make_help_msg(0));
         }
@@ -3659,8 +3711,10 @@ int main(int argc, char* argv[]) {
                     c.add_option(dpp::command_option(dpp::co_string, "deadline", "e.g. 22:30, 30m, 1h (optional)", false));
                     return c;
                 }(),
-                dpp::slashcommand("簽到名單", "查看簽到名單（副會長/會長/管理員）", bot.me.id),
+                dpp::slashcommand("簽到名單",  "查看簽到名單（副會長/會長/管理員）", bot.me.id),
                 dpp::slashcommand("signinlist","View attendance list",              bot.me.id),
+                dpp::slashcommand("結束簽到",  "強制結束目前的簽到（副會長/會長/管理員）", bot.me.id),
+                dpp::slashcommand("endsignin", "Force end the current attendance",  bot.me.id),
             }, gid);
         }
     });
