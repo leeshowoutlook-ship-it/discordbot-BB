@@ -421,7 +421,7 @@ struct DDGame {
     std::string               log_line;
     time_t                    started_at     = 0;
     dpp::timer                timer_id       = 0;
-    bool                      lifegoddess_used = false; // 生命女神的寶珠：組隊回血是否已使用（每場限1次）
+    std::set<dpp::snowflake>  lifegoddess_used_by;      // 生命女神的寶珠：各玩家是否已使用（每人每場限1次）
 };
 
 // ─── Dice game ────────────────────────────────────────────────────────────────
