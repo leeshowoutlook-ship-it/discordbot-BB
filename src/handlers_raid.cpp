@@ -484,3 +484,7 @@ void handle_raid_button(const dpp::button_click_t& ev)
     if (cid.rfind("raid_cry_", 0) == 0)    { do_raid_attack(0,false,true);  return; }
     if (cid.rfind("raid_heal_", 0) == 0)   { do_raid_attack(0,false,false,true); return; }
 }
+
+std::string give_latus_chest_reward(dpp::snowflake uid) {
+    return raid_give_rewards(uid, "");
+}

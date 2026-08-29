@@ -124,13 +124,15 @@ void handle_dd_button(const dpp::button_click_t& ev)
             if (dg.victory) {
                 std::vector<std::pair<std::string,std::string>> rewards;
                 if (!dg.practice_mode) {
-                    { std::lock_guard<std::mutex> lk2(data_mutex);
-                      for (auto& p : dg.players)
-                          if (inventory_data.count(p.uid) && inventory_data[p.uid].count("weekly_hunt_scroll") && inventory_data[p.uid].at("weekly_hunt_scroll") > 0)
-                              inventory_data[p.uid]["weekly_hunt_scroll"]--;
-                    }
-                    if (need_lock) { std::lock_guard<std::mutex> lk2(data_mutex); for (auto& p : dg.players) rewards.push_back({p.display_name, dd_give_rewards_one(p.uid)}); }
-                    else           { for (auto& p : dg.players) rewards.push_back({p.display_name, dd_give_rewards_one(p.uid)}); }
+                    // 狩獵卷扣除與獎勵發放必須在同一個鎖區塊內，避免按鈕 handler 持鎖時重複加鎖（死鎖）
+                    auto do_reward = [&]() {
+                        for (auto& p : dg.players)
+                            if (inventory_data.count(p.uid) && inventory_data[p.uid].count("weekly_hunt_scroll") && inventory_data[p.uid].at("weekly_hunt_scroll") > 0)
+                                inventory_data[p.uid]["weekly_hunt_scroll"]--;
+                        for (auto& p : dg.players) rewards.push_back({p.display_name, dd_give_rewards_one(p.uid)});
+                    };
+                    if (need_lock) { std::lock_guard<std::mutex> lk2(data_mutex); do_reward(); }
+                    else           { do_reward(); }
                     save_chips(); save_inventory();
                 }
                 auto emsg = make_dd_end_msg(dg, rewards); emsg.channel_id = ch;
@@ -348,4 +350,9 @@ void handle_dd_button(const dpp::button_click_t& ev)
             return;
         }
     }
+}
+
+std::string give_darkdragon_chest_reward(dpp::snowflake uid) {
+    // 呼叫前必須已持有 data_mutex
+    return dd_give_rewards_one(uid);
 }

@@ -57,3 +57,9 @@ void handle_adv_modal(const dpp::form_submit_t&  ev);
 // ─── Stock market ─────────────────────────────────────────────────────────────
 void handle_stock_button(const dpp::button_click_t& ev);
 void handle_stock_modal (const dpp::form_submit_t&  ev);
+
+// ─── Chest reward helpers（實作在各自的 cpp）──────────────────────────────────
+// 呼叫前不可持有 data_mutex（內部自行加鎖）
+std::string give_latus_chest_reward(dpp::snowflake uid);
+// 呼叫前必須已持有 data_mutex
+std::string give_darkdragon_chest_reward(dpp::snowflake uid);

@@ -110,6 +110,18 @@ static const int CLAIM_PENALTY_HOURS   = 2;  // 答錯／逾時：基礎鎖定�
 static const int CLAIM_PENALTY_MAX_HRS = 24; // 鎖定時數上限
 inline bool g_claim_verify_enabled = true;   // 全局開關：false = 所有人領取跳過驗證
 
+struct SignInSession {
+    bool active = false;
+    dpp::snowflake guild_id    = 0;
+    dpp::snowflake channel_id  = 0;
+    dpp::snowflake message_id  = 0;
+    time_t deadline  = 0;       // Unix timestamp；0 = 無截止時間
+    dpp::timer timer_id = 0;    // 截止時間自動結束 timer handle
+    std::map<dpp::snowflake, std::string> signed_in;   // uid -> display_name
+    std::map<dpp::snowflake, std::string> not_signed;  // uid -> display_name
+};
+inline SignInSession g_signin;
+
 struct BankData {
     int64_t deposited         = 0;
     int64_t deposit_time      = 0;  // legacy, kept for JSON compat

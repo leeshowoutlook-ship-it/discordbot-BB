@@ -15,16 +15,9 @@ static int dd_rand(int lo, int hi) {
 
 // ─── Player stat helpers ──────────────────────────────────────────────────────
 
-static int dd_eff_atk(const DDPlayer& p, bool triple) {
+static int dd_eff_atk(const DDPlayer& p) {
     int a = p.atk;
-    // 維京：狂暴被動
-    if (p.orb_key == "EQ_K_VIKING" && p.max_hp > 0) {
-        double r = (double)p.hp / p.max_hp;
-        if (r < 0.25)      a = (int)(a * 1.7);
-        else if (r < 0.50) a = (int)(a * 1.4);
-    }
     if (p.atk_down_turns > 0) a = a / 2;
-    if (triple) a = (int)(a * 3);
     return a;
 }
 
@@ -80,7 +73,7 @@ static dpp::message make_dd_combat_msg(const DDGame& g) {
         boss_desc += "\n🏛️ **祭壇**　";
         for (int i = 0; i < 3; i++) boss_desc += (i < g.altar_hp) ? "❤️" : "🖤";
     } else {
-        boss_desc += "\n💥 **祭壇已毀滅！全體 ATK×3！**";
+        boss_desc += "\n💥 **祭壇已毀滅！全體 ATK+200%！**";
     }
     e.set_description(boss_desc);
 
@@ -315,17 +308,19 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
     if (head_idx < 0 || head_idx >= 3 || !g.heads[head_idx].alive)
         return "❌ 無效目標";
     auto& h = g.heads[head_idx];
-    int eff_atk = dd_eff_atk(cp, g.atk_triple);
+    int eff_atk = dd_eff_atk(cp);
     g.round_first_action = false;
     std::string log;
 
-    // Viking log
+    // 加算攻擊加成：維京 + 祭壇毀滅
+    double atk_bonus = 0.0;
     std::string vk_log;
     if (cp.orb_key == "EQ_K_VIKING" && cp.max_hp > 0) {
         double r = (double)cp.hp / cp.max_hp;
-        if (r < 0.25)      vk_log = " 🔥狂暴×1.7";
-        else if (r < 0.50) vk_log = " ⚡憤怒×1.4";
+        if (r < 0.25)      { atk_bonus += 0.7; vk_log = " 🔥狂暴+70%"; }
+        else if (r < 0.50) { atk_bonus += 0.4; vk_log = " ⚡憤怒+40%"; }
     }
+    if (g.atk_triple) atk_bonus += 2.0;
     // BB博物館限定：觀觀遺失的胖次 — 本場戰鬥第一次攻擊 +5 攻擊力
     // 呼叫前必須持有 data_mutex（dd_do_attack 只會在呼叫端已鎖的情況下被呼叫，自己再鎖會死鎖）
     if (!cp.underwear_first_atk_used) {
@@ -344,29 +339,29 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
     int raw = 0;
     int atk_dmg = 0;
     if (attack_type == 2) {
-        // 強攻
-        raw = (int)(eff_atk * 2.0);
+        // 強攻：加算 +100%
+        raw = (int)(eff_atk * (2.0 + atk_bonus));
+        if (is_crit) raw *= 2;
         int dmg = std::max(1, raw - h.def);
-        if (is_crit) dmg *= 2;
         atk_dmg = dmg;
         h.hp -= dmg;
         log = "💥 **" + cp.display_name + "** 強攻 **" + h.name + "**，造成 **" + std::to_string(dmg) + "** 傷害！" + vk_log;
         cp.power_skip = true;
     } else if (attack_type == 1) {
-        // 耗費氣力
+        // 耗費氣力：隨機倍率與其他加成加算
         double mult = 0.1 + dd_rand(0, 190) / 100.0;
         char buf[8]; snprintf(buf, sizeof(buf), "%.1f", mult);
-        raw = (int)(eff_atk * mult);
+        raw = (int)(eff_atk * (mult + atk_bonus));
+        if (is_crit) raw *= 2;
         int dmg = std::max(1, raw - h.def);
-        if (is_crit) dmg *= 2;
         atk_dmg = dmg;
         h.hp -= dmg;
         log = "🎲 **" + cp.display_name + "** 耗費氣力（×" + std::string(buf) + "）攻擊 **" + h.name + "**，造成 **" + std::to_string(dmg) + "** 傷害！" + vk_log;
     } else {
-        // 普通攻擊
-        raw = eff_atk;
+        // 普通攻擊：加算加成
+        raw = (int)(eff_atk * (1.0 + atk_bonus));
+        if (is_crit) raw *= 2;
         int dmg = std::max(1, raw - h.def);
-        if (is_crit) dmg *= 2;
         atk_dmg = dmg;
         h.hp -= dmg;
         log = "⚔️ **" + cp.display_name + "** 攻擊 **" + h.name + "**，造成 **" + std::to_string(dmg) + "** 傷害！" + vk_log;

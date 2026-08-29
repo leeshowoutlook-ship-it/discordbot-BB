@@ -319,12 +319,12 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
     int pet_dmg = 0;
     if (!is_block && !is_battlecry && !is_heal) {
         if (!atk_failed) {
-            // 維京寶珠：狂暴被動 — HP 越低傷害越高
-            double base_mult = 1.0;
+            // 維京寶珠：狂暴被動 — HP 越低傷害越高（加算）
+            double viking_bonus = 0.0;
             if (g.orb_key == "EQ_K_VIKING" && g.pet_max_hp > 0) {
                 double hp_r = (double)g.pet_hp / g.pet_max_hp;
-                if (hp_r < 0.25)      { base_mult = 1.7; log += "🔥 **狂暴爆發**！×1.7\n"; }
-                else if (hp_r < 0.50) { base_mult = 1.4; log += "⚡ **憤怒之力**！×1.4\n"; }
+                if (hp_r < 0.25)      { viking_bonus = 0.7; log += "🔥 **狂暴爆發**！+70%\n"; }
+                else if (hp_r < 0.50) { viking_bonus = 0.4; log += "⚡ **憤怒之力**！+40%\n"; }
             }
             // BB博物館限定：觀觀遺失的胖次 — 本場戰鬥第一次攻擊 +5 攻擊力
             int effective_pet_atk = g.pet_atk;
@@ -337,15 +337,18 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
                 }
                 g.underwear_first_atk_used = true;
             }
+            // 江湖套裝：爆擊率機率造成雙倍傷害（先乘進 raw，再減防）
+            bool is_crit = g.pet_crit > 0 && randint(1, 100) <= g.pet_crit;
             if (power_attack) {
-                double mult = base_mult * (0.1 + std::uniform_real_distribution<double>(0.0, 1.9)(hunt_rng()));
-                pet_dmg = std::max(0, (int)(effective_pet_atk * mult) - g.monster_def);
+                double mult = 0.1 + std::uniform_real_distribution<double>(0.0, 1.9)(hunt_rng());
+                int raw = (int)(effective_pet_atk * (mult + viking_bonus));
+                if (is_crit) raw *= 2;
+                pet_dmg = std::max(0, raw - g.monster_def);
             } else {
-                pet_dmg = std::max(0, (int)(effective_pet_atk * base_mult) - g.monster_def);
+                int raw = (int)(effective_pet_atk * (1.0 + viking_bonus));
+                if (is_crit) raw *= 2;
+                pet_dmg = std::max(0, raw - g.monster_def);
             }
-            // 江湖套裝：爆擊率機率造成雙倍傷害
-            bool is_crit = g.pet_crit > 0 && pet_dmg > 0 && randint(1, 100) <= g.pet_crit;
-            if (is_crit) pet_dmg *= 2;
             if (power_attack) log += "💥 氣力攻擊對 **" + g.monster_name + "** 造成 **" + std::to_string(pet_dmg) + "** 傷害！";
             else              log += "⚔️ 攻擊對 **" + g.monster_name + "** 造成 **" + std::to_string(pet_dmg) + "** 傷害！";
             if (is_crit) log += " 🗡️**爆擊！**（雙倍傷害）";
@@ -366,7 +369,7 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
                   has_staff = wi != inventory_data.end() && wi->second.count("col_golden_staff") && wi->second.at("col_golden_staff") > 0;
                 }
                 if (has_staff && randint(1, 100) <= 1) {
-                    int extra_dmg = std::max(0, (int)(effective_pet_atk * base_mult) - g.monster_def);
+                    int extra_dmg = std::max(0, (int)(effective_pet_atk * (1.0 + viking_bonus)) - g.monster_def);
                     g.monster_hp -= extra_dmg;
                     log += "\n🥢 **金箍棒**！額外多打一下，追加 **" + std::to_string(extra_dmg) + "** 傷害！";
                 }
@@ -707,19 +710,22 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
         }
         g.underwear_first_atk_used = true;
     }
+    // 江湖套裝：爆擊率機率造成雙倍傷害（先乘進 raw，再減防）
+    bool is_crit = g.pet_crit > 0 && randint(1, 100) <= g.pet_crit;
     if (attack_type == 1) {
         // 氣力攻擊：隨機 0.1~2.0× 有效傷害
-        int base = std::max(0, effective_pet_atk - tgt.def);
         double mult = 0.1 + randint(0, 190) / 100.0;
-        dmg = std::max(1, (int)(base * mult));
+        int raw = (int)(effective_pet_atk * mult);
+        if (is_crit) raw *= 2;
+        dmg = std::max(1, raw - tgt.def);
         char buf[8]; snprintf(buf, sizeof(buf), "%.1f", mult);
         log += "🎲 氣力攻擊（×" + std::string(buf) + "）";
     } else {
-        dmg = std::max(0, effective_pet_atk - tgt.def);
+        int raw = effective_pet_atk;
+        if (is_crit) raw *= 2;
+        dmg = std::max(0, raw - tgt.def);
     }
-    // 江湖套裝：爆擊率機率造成雙倍傷害
-    bool is_crit = g.pet_crit > 0 && dmg > 0 && randint(1, 100) <= g.pet_crit;
-    if (is_crit) { dmg *= 2; log += (log.empty() ? "" : " ") + std::string("🗡️**爆擊！**（雙倍傷害）"); }
+    if (is_crit) log += (log.empty() ? "" : " ") + std::string("🗡️**爆擊！**（雙倍傷害）");
     tgt.hp = std::max(0, tgt.hp - dmg);
     // 暗黑龍王寶珠：攻擊後回復傷害的 1/10（最多 10 HP）
     if (g.orb_key == "EQ_K_DARKDRAGON" && dmg > 0) {

@@ -343,8 +343,8 @@ static PetStats calc_pet_stats(dpp::snowflake uid, const Pet& pet) {
     // 衝鋒 (C): 2件 → +2 ATK; 4件 → +5 ATK（不累積）
     if (c >= 4) s.atk += 5;
     else if (c >= 2) s.atk += 2;
-    // 江湖 (D): 2件 → 8% 爆擊率（爆擊造成雙倍傷害）; 4件 → 15% 爆擊率（不累積）
-    if (d >= 4) s.crit_pct += 15;
+    // 江湖 (D): 2件 → 8% 爆擊率（爆擊造成雙倍傷害）; 4件 → 20% 爆擊率（不累積）
+    if (d >= 4) s.crit_pct += 20;
     else if (d >= 2) s.crit_pct += 8;
 
     return s;
@@ -773,7 +773,7 @@ static dpp::message make_equip_msg(dpp::snowflake uid, const Pet& pet,
               + tick(c>=4) + " 4件：攻擊力 +5\n";
     content += "**江湖** (" + std::to_string(d) + "/4)  "
               + tick(d>=2) + " 2件：爆擊率 8%　"
-              + tick(d>=4) + " 4件：爆擊率 15%\n";
+              + tick(d>=4) + " 4件：爆擊率 20%\n";
     content += "\n-# 👤 " + display_name;
 
     dpp::component container;
@@ -931,7 +931,7 @@ static dpp::message make_equipdex_main_msg(dpp::snowflake uid) {
     menu.add_select_option(dpp::select_option("⚔️ 堅韌套裝","A","2件+2防禦 / 4件+5防禦"));
     menu.add_select_option(dpp::select_option("🌿 生命套裝","B","2件+10生命 / 4件+25生命"));
     menu.add_select_option(dpp::select_option("💥 衝鋒套裝","C","2件+2攻擊力 / 4件+5攻擊力"));
-    menu.add_select_option(dpp::select_option("🗡️ 江湖套裝","D","2件8%爆擊率 / 4件15%爆擊率（爆擊雙倍傷害）"));
+    menu.add_select_option(dpp::select_option("🗡️ 江湖套裝","D","2件8%爆擊率 / 4件20%爆擊率（爆擊雙倍傷害）"));
     menu.add_select_option(dpp::select_option("💎 靈魂寶珠","K","獨立UR單品"));
     row.add_component(menu); msg.add_component(row);
     return msg;
@@ -949,7 +949,7 @@ static dpp::message make_equipdex_set_msg(dpp::snowflake uid, const std::string&
         {"A","2件效果：🛡️ 防禦力 +2\n4件效果：🛡️ 防禦力 +5"},
         {"B","2件效果：❤️ 生命 +10\n4件效果：❤️ 生命 +25（累積 +35）"},
         {"C","2件效果：⚔️ 攻擊力 +2\n4件效果：⚔️ 攻擊力 +5（累積 +7）"},
-        {"D","2件效果：🗡️ 爆擊率 8%（爆擊造成雙倍傷害）\n4件效果：🗡️ 爆擊率 15%（不累積）"},
+        {"D","2件效果：🗡️ 爆擊率 8%（爆擊造成雙倍傷害）\n4件效果：🗡️ 爆擊率 20%（不累積）"},
         {"K","獨立 UR 單品，不計入套裝計數"}
     };
     std::string set_name = SET_NAMES.count(set_tag) ? SET_NAMES.at(set_tag) : set_tag;
@@ -1013,7 +1013,7 @@ static dpp::message make_equipdex_set_msg(dpp::snowflake uid, const std::string&
     menu.add_select_option(dpp::select_option("⚔️ 堅韌套裝","A","2件+2防禦 / 4件+5防禦"));
     menu.add_select_option(dpp::select_option("🌿 生命套裝","B","2件+10生命 / 4件+25生命"));
     menu.add_select_option(dpp::select_option("💥 衝鋒套裝","C","2件+2攻擊力 / 4件+5攻擊力"));
-    menu.add_select_option(dpp::select_option("🗡️ 江湖套裝","D","2件8%爆擊率 / 4件15%爆擊率（爆擊雙倍傷害）"));
+    menu.add_select_option(dpp::select_option("🗡️ 江湖套裝","D","2件8%爆擊率 / 4件20%爆擊率（爆擊雙倍傷害）"));
     menu.add_select_option(dpp::select_option("💎 靈魂寶珠","K","獨立UR單品"));
     row.add_component(menu); msg.add_component(row);
     return msg;

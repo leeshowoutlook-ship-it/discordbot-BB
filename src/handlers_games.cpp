@@ -209,12 +209,19 @@ void handle_games_button(const dpp::button_click_t& ev)
         if (sep == std::string::npos) return;
         uint64_t gid = std::stoull(rest.substr(0, sep));
         int choice   = std::stoi(rest.substr(sep + 1));
-        dpp::message res = handle_dice_pick(gid, choice, uid);
-        if (res.embeds.empty()) {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
+        // 快速驗證（不含 I/O），避免 defer 後無法送 ephemeral
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = dice_games.find(gid);
+            if (it == dice_games.end() || it->second.uid != uid) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
+            }
         }
-        ev.reply(dpp::ir_update_message, res);
+        // 先 ack 避免 3 秒 timeout，再執行含存檔的結算
+        ev.reply(dpp::ir_deferred_update_message, dpp::message());
+        dpp::message res = handle_dice_pick(gid, choice, uid);
+        if (!res.embeds.empty()) ev.edit_original_response(res);
         return;
     }
 
@@ -323,8 +330,9 @@ void handle_games_button(const dpp::button_click_t& ev)
             if (game_over) guess_games.erase(it);
         }
         if (game_over) {
+            ev.reply(dpp::ir_deferred_update_message, dpp::message());
             save_guess_stats();
-            ev.reply(dpp::ir_update_message, make_guess_result_msg(snap, won));
+            ev.edit_original_response(make_guess_result_msg(snap, won));
         } else {
             ev.reply(dpp::ir_update_message, make_guess_msg(snap));
         }
@@ -347,8 +355,9 @@ void handle_games_button(const dpp::button_click_t& ev)
                 dpp::message("❌ 找不到進行中的遊戲！").set_flags(dpp::m_ephemeral)); return;
         }
         { std::lock_guard<std::mutex> lk(data_mutex); guess_stats_data[(uint64_t)uid].games++; }
+        ev.reply(dpp::ir_deferred_update_message, dpp::message());
         save_guess_stats();
-        ev.reply(dpp::ir_update_message, make_guess_result_msg(snap, false));
+        ev.edit_original_response(make_guess_result_msg(snap, false));
         return;
     }
     if (cid.rfind("guess_again_", 0) == 0) {
@@ -449,13 +458,22 @@ void handle_games_button(const dpp::button_click_t& ev)
                 }
             });
         } else {
+            // 快速驗證
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                if (!shoot_games.count(uid)) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("⚠️ 找不到進行中的遊戲！").set_flags(dpp::m_ephemeral)); return;
+                }
+            }
+            // 先 ack，再做含存檔的結算
+            ev.reply(dpp::ir_deferred_update_message, dpp::message());
             ShootGame sg;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 auto it = shoot_games.find(uid);
                 if (it == shoot_games.end()) {
-                    ev.reply(dpp::ir_channel_message_with_source,
-                        dpp::message("⚠️ 找不到進行中的遊戲！").set_flags(dpp::m_ephemeral)); return;
+                    ev.edit_original_response(dpp::message("⚠️ 找不到進行中的遊戲！")); return;
                 }
                 sg = it->second;
                 shoot_games.erase(it);
@@ -469,7 +487,7 @@ void handle_games_button(const dpp::button_click_t& ev)
                 else if (cid.rfind("shoot_dn_", 0) == 0) direction = -1;
                 result = make_shoot_result_msg(sg, direction);
             }
-            ev.reply(dpp::ir_update_message, result);
+            ev.edit_original_response(result);
         }
         return;
     }
@@ -510,21 +528,22 @@ void handle_games_button(const dpp::button_click_t& ev)
                 }
                 rg = it->second;
             }
-            if (cid.rfind("rocket_cash_", 0) == 0) {
+            bool cash    = cid.rfind("rocket_cash_", 0) == 0;
+            if (!cash) rg.presses++;  // 提現不算按次
+            bool explode = !cash && rk_explodes();
+            bool moon    = !cash && !explode && rg.presses >= 10;
+            bool end_game = cash || explode || moon;
+            if (end_game) {
+                ev.reply(dpp::ir_deferred_update_message, dpp::message());
                 { std::lock_guard<std::mutex> lk(data_mutex); rocket_games.erase(uid); }
-                ev.reply(dpp::ir_update_message, make_rocket_cash_msg(rg));
+                dpp::message result;
+                if (cash)         result = make_rocket_cash_msg(rg);
+                else if (explode) result = make_rocket_explode_msg(rg);
+                else              result = make_rocket_moon_msg(rg);
+                ev.edit_original_response(result);
             } else {
-                rg.presses++;
-                if (rk_explodes()) {
-                    { std::lock_guard<std::mutex> lk(data_mutex); rocket_games.erase(uid); }
-                    ev.reply(dpp::ir_update_message, make_rocket_explode_msg(rg));
-                } else if (rg.presses >= 10) {
-                    { std::lock_guard<std::mutex> lk(data_mutex); rocket_games.erase(uid); }
-                    ev.reply(dpp::ir_update_message, make_rocket_moon_msg(rg));
-                } else {
-                    { std::lock_guard<std::mutex> lk(data_mutex); rocket_games[uid] = rg; }
-                    ev.reply(dpp::ir_update_message, make_rocket_play_msg(rg));
-                }
+                { std::lock_guard<std::mutex> lk(data_mutex); rocket_games[uid] = rg; }
+                ev.reply(dpp::ir_update_message, make_rocket_play_msg(rg));
             }
         }
         return;

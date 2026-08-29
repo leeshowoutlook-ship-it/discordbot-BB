@@ -2,6 +2,7 @@
 #include "chips.h"
 #include "gacha.h"
 #include "announcement.h"
+#include "handler_decls.h"
 #include <random>
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -63,6 +64,8 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"orb_ticket",         "寶珠池專屬兌換卷",  0, "special", "使用後從所有寶珠（含稀有合成限定）中隨機獲得一顆，補償專用，不可交易", 97001},
     {"game_cancel",        "這局不算",          0, "special", "輸掉任何小遊戲後可按下「這局不算！！」取消該局並退還下注籌碼。已停止發放，持有者仍可使用。", 97002},
     {"half_refund",        "對不起我錯了",      0, "special", "輸掉任何小遊戲後可按下「對不起我錯了！！」返還一半輸掉的籌碼。組隊遠征（拉圖斯/暗黑龍王）極低機率掉落。", 97003},
+    {"latus_chest",      "拉圖斯寶箱",        0, "special", "使用後立即獲得一次組隊遠征（拉圖斯）通關等同獎勵，無需消耗狩獵卷。", 97004},
+    {"darkdragon_chest", "龍王寶箱",           0, "special", "使用後立即獲得一次龍王遠征通關等同獎勵，無需消耗狩獵卷。",           97005},
     // ── Recovery items ────────────────────────────────────────────────────────
     {"recover_depress", "抗憂鬱藥物",  2000, "recovery", "解除負面狀態「憂鬱」",                      81001},
     {"recover_injury",  "高級傷藥",    2000, "recovery", "解除負面狀態「受傷」",                      81002},
@@ -1716,6 +1719,34 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
         for (auto& n : got_names) desc += "💎 獲得了 **✨UR " + n + "**！\n";
         dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xFF, 0xD7, 0x00));
         ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(desc));
+        m.add_component_v2(ct); return m;
+    }
+
+    // 拉圖斯寶箱：等同一次組隊遠征（拉圖斯）通關獎勵
+    if (vi && key == "latus_chest") {
+        if (item_count <= 0) return err("道具數量不足！");
+        { std::lock_guard<std::mutex> lk(data_mutex); inventory_data[uid]["latus_chest"]--; }
+        std::string reward_str = give_latus_chest_reward(uid); // 內部自行加鎖，呼叫前不可持鎖
+        save_chips(); save_inventory();
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 🐉 拉圖斯寶箱\n✅ 打開寶箱！獲得：\n" + reward_str));
+        m.add_component_v2(ct); return m;
+    }
+
+    // 龍王寶箱：等同一次龍王遠征通關獎勵
+    if (vi && key == "darkdragon_chest") {
+        if (item_count <= 0) return err("道具數量不足！");
+        std::string reward_str;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            inventory_data[uid]["darkdragon_chest"]--;
+            reward_str = give_darkdragon_chest_reward(uid); // 必須在持鎖狀態下呼叫
+        }
+        save_chips(); save_inventory();
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2C, 0x2C, 0x54));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 🌑 龍王寶箱\n✅ 打開寶箱！獲得：\n" + reward_str));
         m.add_component_v2(ct); return m;
     }
 

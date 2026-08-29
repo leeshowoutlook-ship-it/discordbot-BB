@@ -161,10 +161,11 @@ void handle_bj_button(const dpp::button_click_t& ev)
                     dpp::message("❌ 這不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
             }
         }
+        // 先 ack 避免 Discord 3 秒 timeout（存檔 I/O 可能耗時）
+        ev.reply(dpp::ir_deferred_update_message, dpp::message());
         dpp::message updated = handle_bj_button(action, gid, uid);
         if (updated.embeds.empty()) {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("⚠️ 遊戲不存在。").set_flags(dpp::m_ephemeral)); return;
+            ev.edit_original_response(dpp::message("⚠️ 遊戲不存在。")); return;
         }
         {
             std::lock_guard<std::mutex> lk(data_mutex);
@@ -174,7 +175,7 @@ void handle_bj_button(const dpp::button_click_t& ev)
                 bj_games.erase(it);
             }
         }
-        ev.reply(dpp::ir_update_message, updated);
+        ev.edit_original_response(updated);
     }
 }
 

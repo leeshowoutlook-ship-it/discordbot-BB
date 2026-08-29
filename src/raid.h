@@ -651,13 +651,13 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
         cp.underwear_first_atk_used = true;
     }
 
-    // 維京寶珠：狂暴被動 — HP 越低傷害越高
-    double vk_mult = 1.0;
+    // 維京寶珠：狂暴被動 — HP 越低傷害越高（加算）
+    double atk_bonus = 0.0;
     std::string vk_log;
     if (cp.orb_key == "EQ_K_VIKING" && cp.max_hp > 0) {
         double hp_r = (double)cp.hp / cp.max_hp;
-        if (hp_r < 0.25)      { vk_mult = 1.7; vk_log = " 🔥（狂暴×1.7）"; }
-        else if (hp_r < 0.50) { vk_mult = 1.4; vk_log = " ⚡（憤怒×1.4）"; }
+        if (hp_r < 0.25)      { atk_bonus = 0.7; vk_log = " 🔥（狂暴+70%）"; }
+        else if (hp_r < 0.50) { atk_bonus = 0.4; vk_log = " ⚡（憤怒+40%）"; }
     }
 
     g.round_first_action = false;
@@ -671,28 +671,28 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
     int atk_dmg = 0;
 
     if (attack_type == 2) {
-        // 強攻：固定 2.0× 傷害，下回合跳過
-        int raw = (int)(base_atk * 2.0 * vk_mult);
+        // 強攻：加算 +100%，下回合跳過
+        int raw = (int)(base_atk * (2.0 + atk_bonus));
+        if (is_crit) raw *= 2;
         int dmg = std::max(1, raw - g.boss_def);
-        if (is_crit) dmg *= 2;
         atk_dmg = dmg;
         g.boss_hp -= dmg;
         log = "💥 **" + cp.display_name + "** 強攻 Boss，造成 **" + std::to_string(dmg) + "** 點傷害！" + extra_log;
     } else if (attack_type == 1) {
-        // 耗費氣力：隨機 0.1~2.0× 傷害，不跳回合
+        // 耗費氣力：隨機倍率與其他加成加算
         double gamble_mult = 0.1 + raid_rand(0, 190) / 100.0;
         char gm_buf[8]; snprintf(gm_buf, sizeof(gm_buf), "%.1f", gamble_mult);
-        int raw = (int)(base_atk * gamble_mult * vk_mult);
+        int raw = (int)(base_atk * (gamble_mult + atk_bonus));
+        if (is_crit) raw *= 2;
         int dmg = std::max(1, raw - g.boss_def);
-        if (is_crit) dmg *= 2;
         atk_dmg = dmg;
         g.boss_hp -= dmg;
         log = "🎲 **" + cp.display_name + "** 耗費氣力攻擊（×" + std::string(gm_buf) + "），造成 **" + std::to_string(dmg) + "** 點傷害！" + extra_log;
     } else {
-        // 普通攻擊：1.0×
-        int raw = (int)(base_atk * vk_mult);
+        // 普通攻擊：加算加成
+        int raw = (int)(base_atk * (1.0 + atk_bonus));
+        if (is_crit) raw *= 2;
         int dmg = std::max(1, raw - g.boss_def);
-        if (is_crit) dmg *= 2;
         atk_dmg = dmg;
         g.boss_hp -= dmg;
         log = "⚔️ **" + cp.display_name + "** 攻擊 Boss，造成 **" + std::to_string(dmg) + "** 點傷害！" + extra_log;
@@ -713,7 +713,7 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
         auto wi = inventory_data.find(cp.uid);
         bool has_staff = wi != inventory_data.end() && wi->second.count("col_golden_staff") && wi->second.at("col_golden_staff") > 0;
         if (has_staff && raid_rand(1, 100) <= 1) {
-            int raw = (int)(base_atk * vk_mult);
+            int raw = (int)(base_atk * (1.0 + atk_bonus));
             int extra_dmg = std::max(1, raw - g.boss_def);
             g.boss_hp -= extra_dmg;
             log += "\n🥢 **金箍棒**！額外多打一下，追加 **" + std::to_string(extra_dmg) + "** 傷害！";
