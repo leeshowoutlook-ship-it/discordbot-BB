@@ -253,8 +253,12 @@ static dpp::message make_si_unchecked_msg(int page) {
         dpp::component row; row.set_type(dpp::cot_action_row);
         for (int col = 0; col < 5 && (row_start + col) < end; col++) {
             auto& [tuid, name] = members[row_start + col];
-            std::string label = name;
-            if (label.size() > 10) label = label.substr(0, 9) + "…";
+            std::string label;
+            if (name.rfind("<@", 0) == 0) {
+                label = "#" + std::to_string(row_start + col + 1);
+            } else {
+                label = name.size() > 10 ? name.substr(0, 9) + "…" : name;
+            }
             row.add_component(dpp::component().set_type(dpp::cot_button)
                 .set_label("踢 " + label)
                 .set_id("si_kick_" + std::to_string((uint64_t)tuid) + "_" + page_s)

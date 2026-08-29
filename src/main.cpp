@@ -823,9 +823,14 @@ int main(int argc, char* argv[]) {
                     for (auto& [muid, gm] : gmap) {
                         const dpp::user* user = dpp::find_user(muid);
                         if (user && user->is_bot()) continue;
-                        std::string name = gm.get_nickname().empty()
-                            ? (user ? user->username : std::to_string((uint64_t)muid))
-                            : gm.get_nickname();
+                        std::string name;
+                        if (!gm.get_nickname().empty()) {
+                            name = gm.get_nickname();
+                        } else if (user) {
+                            name = user->global_name.empty() ? user->username : user->global_name;
+                        } else {
+                            name = "<@" + std::to_string((uint64_t)muid) + ">";
+                        }
                         g_signin.not_signed[muid] = name;
                     }
                     total = (int)g_signin.not_signed.size();
@@ -2896,9 +2901,14 @@ int main(int argc, char* argv[]) {
                     for (auto& [muid, gm] : gmap) {
                         const dpp::user* user = dpp::find_user(muid);
                         if (user && user->is_bot()) continue;
-                        std::string name = gm.get_nickname().empty()
-                            ? (user ? user->username : std::to_string((uint64_t)muid))
-                            : gm.get_nickname();
+                        std::string name;
+                        if (!gm.get_nickname().empty()) {
+                            name = gm.get_nickname();
+                        } else if (user) {
+                            name = user->global_name.empty() ? user->username : user->global_name;
+                        } else {
+                            name = "<@" + std::to_string((uint64_t)muid) + ">";
+                        }
                         g_signin.not_signed[muid] = name;
                     }
                     total = (int)g_signin.not_signed.size();
