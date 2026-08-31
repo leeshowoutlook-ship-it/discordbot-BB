@@ -11,6 +11,11 @@ static const std::string STOCK_HOLDINGS_FILE = "stock_holdings.json";
 static const std::string STOCK_MARKET_FILE   = "stock_market.json";
 static const double      STOCK_FEE_RATE      = 0.02; // 買賣手續費 2%
 
+// UTC+8 day number，用來判斷手動股票是否跨天（跨天要重置每日漲跌幅限制的開盤價基準）
+static int64_t stock_utc8_day_number() {
+    return ((int64_t)time(nullptr) + 8 * 3600) / 86400;
+}
+
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
 static void save_stock_holdings() {
@@ -54,9 +59,11 @@ static void save_stock_market() {
         std::lock_guard<std::mutex> lk(stock_mutex);
         for (auto& [key, s] : stock_market)
             j[key] = {
-                {"price",       s.price},
-                {"prev_close",  s.prev_close},
-                {"last_update", (int64_t)s.last_update},
+                {"price",          s.price},
+                {"prev_close",     s.prev_close},
+                {"last_update",    (int64_t)s.last_update},
+                {"day_open_price", s.day_open_price},
+                {"day_number",     s.day_number},
             };
     }
     std::lock_guard<std::mutex> io_lk(io_mutex);
@@ -70,7 +77,7 @@ static void load_stock_market() {
         for (auto& d : STOCK_DEFS) {
             StockInfo s;
             s.key = d.key; s.name = d.name; s.ticker = d.ticker;
-            if (d.key == "stock_mood") s.price = 1000;
+            if (d.key == "stock_mood" || d.key == "stock_catbro" || d.key == "stock_purse") s.price = 1000;
             stock_market[d.key] = s;
         }
     }
@@ -82,9 +89,11 @@ static void load_stock_market() {
         for (auto& [key, v] : j.items()) {
             auto it = stock_market.find(key);
             if (it == stock_market.end()) continue;
-            it->second.price       = v.value("price",       it->second.price);
-            it->second.prev_close  = v.value("prev_close",  (int64_t)0);
-            it->second.last_update = (time_t)v.value("last_update", (int64_t)0);
+            it->second.price          = v.value("price",       it->second.price);
+            it->second.prev_close     = v.value("prev_close",  (int64_t)0);
+            it->second.last_update    = (time_t)v.value("last_update", (int64_t)0);
+            it->second.day_open_price = v.value("day_open_price", (int64_t)0);
+            it->second.day_number     = v.value("day_number",     (int64_t)0);
         }
     } catch (...) {}
 }
@@ -320,7 +329,10 @@ static dpp::message make_stock_detail_msg(dpp::snowflake uid, const std::string&
         content += "　均價 " + std::to_string(avg_cost) + " 碼　損益 " + (pnl >= 0 ? "+" : "") + std::to_string(pnl) + " 碼";
     }
     content += "\n💼 錢包：**" + std::to_string(chips) + "** 碼";
-    if (key == "stock_mood") content += "\n\n*價格由 LeeShoW 心情決定，漲跌純看心情，僅供娛樂。*";
+    if (def && def->ticker.empty()) {
+        content += "\n\n*「" + def->name + "」漲跌純看心情，僅供娛樂。*";
+        if (def->daily_cap_pct > 0) content += "\n*單日最大漲跌幅限制 ±" + std::to_string(def->daily_cap_pct) + "%。*";
+    }
     content += "\n\n-# 👤 " + (dn.empty() ? uid_s : dn);
 
     dpp::component container;
@@ -347,9 +359,12 @@ static dpp::message make_stock_detail_msg(dpp::snowflake uid, const std::string&
         .set_label("↩ 返回股市").set_id("stock_home_" + uid_s).set_style(dpp::cos_secondary));
     nav.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📋 持股").set_id("stock_holders_" + uid_s + "_" + key).set_style(dpp::cos_secondary));
-    if (key == "stock_mood" && !cfg.notify_user_id.empty() && std::to_string((uint64_t)uid) == cfg.notify_user_id) {
-        nav.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("🎛️ 調整心情").set_id("stock_mood_set_" + uid_s).set_style(dpp::cos_primary));
+    if (def && def->ticker.empty()) {
+        std::string required_uid = def->controller_uid.empty() ? cfg.notify_user_id : def->controller_uid;
+        if (!required_uid.empty() && uid_s == required_uid) {
+            nav.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("🎛️ 調整心情").set_id("stock_manual_set_" + uid_s + "_" + key).set_style(dpp::cos_primary));
+        }
     }
     msg.add_component_v2(nav);
     return msg;

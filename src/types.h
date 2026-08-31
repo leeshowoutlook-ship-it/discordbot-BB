@@ -222,6 +222,7 @@ struct VillageGame {
     int  pet_atk    = 0;
     int  pet_def    = 0;
     int  pet_crit   = 0; // 江湖套裝：爆擊率%
+    int  pet_hermes_atk_pct = 100; int pet_hermes_double_pct = 0; int pet_hermes_crit_dmg_pct = 0; // 赫耳墨斯套裝
     int  turn           = 1;
     int  selected_target = -1;
     time_t started_at = 0;
@@ -280,6 +281,7 @@ struct MonsterHuntGame {
     int            pet_atk        = 0;
     int            pet_def        = 0;
     int            pet_crit       = 0; // 江湖套裝：爆擊率%
+    int            pet_hermes_atk_pct = 100; int pet_hermes_double_pct = 0; int pet_hermes_crit_dmg_pct = 0; // 赫耳墨斯套裝
     bool           player_first   = true;
     int            turn            = 1;
     time_t         started_at     = 0;
@@ -304,6 +306,7 @@ struct RaidPlayer {
     int            atk        = 0;
     int            def        = 0;
     int            crit_pct   = 0; // 江湖套裝：爆擊率%
+    int            hermes_atk_pct = 100; int hermes_double_pct = 0; int hermes_crit_dmg_pct = 0; // 赫耳墨斯套裝
     std::string    orb_key;          // equipped orb
     bool           alive          = true;
     int            stunned_turns  = 0;     // turns remaining stunned (boss skill)
@@ -384,6 +387,7 @@ struct DDPlayer {
     int atk      = 0;
     int def      = 0;
     int crit_pct = 0; // 江湖套裝：爆擊率%
+    int hermes_atk_pct = 100; int hermes_double_pct = 0; int hermes_crit_dmg_pct = 0; // 赫耳墨斯套裝
     std::string  orb_key;
     bool         alive          = true;
     bool         at_altar       = false;
@@ -581,6 +585,7 @@ inline std::map<dpp::snowflake, Pet>            pet_data;
 inline std::map<dpp::snowflake, std::map<std::string,int>> inventory_data;
 inline std::map<uint64_t, int>                              gacha_pity_data; // 一般池保底計數器
 inline std::map<uint64_t, int>                              gacha_hero_pity_data; // 俠客之路池保底計數器（獨立計算）
+inline std::map<uint64_t, int>                              gacha_mystery_pity_data; // 神秘轉蛋池保底計數器（獨立計算，尚未開放）
 inline std::map<dpp::snowflake, ShootGame>      shoot_games;
 inline std::map<dpp::snowflake, ShootStats>     shoot_stats_data;
 inline std::map<dpp::snowflake, RocketGame>     rocket_games;
@@ -953,6 +958,8 @@ struct StockInfo {
     time_t      last_update = 0;
     bool        fetch_ok    = true; // 上次抓取是否成功（心情股恆為 true）
     std::vector<int64_t> history; // 走勢圖用的近期收盤價（僅存於記憶體，不落地存檔，重啟後重新累積即可）
+    int64_t     day_open_price = 0; // 當日開盤價，僅供有每日漲跌幅限制的手動股票使用（例如貓哥的心情）
+    int64_t     day_number     = 0; // 上次更新對應的 UTC+8 day number，跨天時重置 day_open_price
 };
 inline std::map<std::string, StockInfo> stock_market;   // key -> 目前市場資訊
 inline std::mutex                       stock_mutex;    // 保護 stock_market（跟 data_mutex 分開，避免跟遊戲邏輯互相卡）
@@ -963,20 +970,28 @@ struct StockHolding {
 };
 inline std::map<dpp::snowflake, std::map<std::string, StockHolding>> player_stocks; // uid -> key -> holding（用 data_mutex 保護，跟其他玩家資料一致）
 
-// 5支股票的靜態定義（純資料，跟抓價/UI邏輯分開放，讓 adventure.h 的背包特殊分頁也能直接引用）
-struct StockDef { std::string key, name, ticker, emoji, desc; int item_id = 0; };
+// 股票的靜態定義（純資料，跟抓價/UI邏輯分開放，讓 adventure.h 的背包特殊分頁也能直接引用）
+struct StockDef {
+    std::string key, name, ticker, emoji, desc;
+    int         item_id = 0;
+    std::string controller_uid = ""; // 手動股票專用：可調整價格的使用者ID字串。空="" 代表使用 cfg.notify_user_id（機器人擁有者）
+    int         daily_cap_pct  = 0;  // 手動股票專用：單日最大漲跌幅百分比，0=無限制
+};
 static const std::vector<StockDef> STOCK_DEFS = {
+    // ── 第一頁前三個：心情股（手動，無API）────────────────────────────────────
+    {"stock_mood",  "LeeShoW的心情",      "",        "😶", "價格全憑 LeeShoW 心情決定，僅供娛樂。", 98005}, // ticker="" 代表不接 API，價格由管理員手動調整
+    {"stock_catbro","貓哥的心情",      "",        "😶", "價格全憑貓哥心情決定，但每天最多只能浮動5%，僅供娛樂。", 98011,
+        "604244623124070423", 5}, // ticker="" 不接API；只有這個使用者能調整；單日漲跌幅限制5%
+    {"stock_purse", "皮包的心情",      "",        "😶", "價格全憑皮包心情決定，但每天最多只能浮動5%，僅供娛樂。", 98012,
+        "353567910285017090", 5}, // ticker="" 不接API；只有這個使用者能調整；單日漲跌幅限制5%
     {"stock_0050",  "元大台灣50 (0050)", "0050.TW", "📈", "追蹤台灣市值前50大企業的ETF，波動較穩健。", 98001},
     {"stock_tsmc",  "台積電 (2330)",      "2330.TW", "🏭", "台灣護國神山，全球晶圓代工龍頭。", 98002},
+    // ── 第二頁 ───────────────────────────────────────────────────────────────
     {"stock_yageo", "國巨 (2327)",        "2327.TW", "🔧", "被動元件大廠，波動較大。", 98003},
     {"stock_btc",   "比特幣",             "BTC-USD", "₿",  "去中心化加密貨幣，價格波動劇烈。", 98004},
-    {"stock_mood",  "LeeShoW的心情",      "",        "😶", "價格全憑 LeeShoW 心情決定，僅供娛樂。", 98005}, // ticker="" 代表不接 API，價格由管理員手動調整
-    // ── 第二頁：高波動美股 ───────────────────────────────────────────────────────
-    {"stock_tsla",  "Tesla",          "TSLA",    "🚗", "馬斯克的電動車帝國，推文一出股價暴震。", 98006},
     {"stock_nvda",  "NVIDIA",         "NVDA",    "🖥️", "AI晶片霸主，近年漲幅驚人，波動劇烈。", 98007},
     {"stock_mstr",  "MicroStrategy",  "MSTR",    "💾", "全倉押比特幣的公司，波動比 BTC 還激烈。", 98008},
     {"stock_ntdo",  "任天堂",          "7974.T",  "🎮", "日本遊戲巨頭，Switch 系列創造者（日圓計價）。", 98009},
-    {"stock_coin",  "Coinbase",       "COIN",    "🏦", "最大加密貨幣交易所，跟加密市場同漲同跌。", 98010},
 };
 static const StockDef* find_stock_def(const std::string& key) {
     for (auto& d : STOCK_DEFS) if (d.key == key) return &d;

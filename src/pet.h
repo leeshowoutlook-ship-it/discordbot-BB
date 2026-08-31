@@ -696,6 +696,8 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
         .set_label("🏦 銀行").set_id("wallet_bank_" + uid_s).set_style(dpp::cos_secondary));
     row3.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📊 股票").set_id("stock_home_" + uid_s).set_style(dpp::cos_secondary));
+    row3.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🎰 轉蛋").set_id("gacha_main_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row3);
 
     return msg;

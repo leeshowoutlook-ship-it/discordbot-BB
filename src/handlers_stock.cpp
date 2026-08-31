@@ -85,16 +85,22 @@ void handle_stock_button(const dpp::button_click_t& ev)
         ev.reply(dpp::ir_update_message, make_stock_holders_msg(uid, key)); return;
     }
 
-    if (cid == "stock_mood_set_" + uid_s) {
-        if (cfg.notify_user_id.empty() || uid_s != cfg.notify_user_id) {
+    if (cid.rfind("stock_manual_set_" + uid_s + "_", 0) == 0) {
+        std::string key = cid.substr(std::string("stock_manual_set_" + uid_s + "_").size());
+        const StockDef* def = find_stock_def(key);
+        if (!def) return;
+        std::string required_uid = def->controller_uid.empty() ? cfg.notify_user_id : def->controller_uid;
+        if (required_uid.empty() || uid_s != required_uid) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
         }
         int64_t cur = 0;
-        { std::lock_guard<std::mutex> lk(stock_mutex); auto it = stock_market.find("stock_mood"); if (it != stock_market.end()) cur = it->second.price; }
-        dpp::interaction_modal_response modal("stock_mood_modal_" + uid_s, "調整 LeeShoW 的心情");
+        { std::lock_guard<std::mutex> lk(stock_mutex); auto it = stock_market.find(key); if (it != stock_market.end()) cur = it->second.price; }
+        dpp::interaction_modal_response modal("stock_manual_modal_" + uid_s + "_" + key, "調整 " + def->name);
+        std::string label = "新價格（目前 " + std::to_string(cur) + " 碼）";
+        if (def->daily_cap_pct > 0) label = "新價格（目前 " + std::to_string(cur) + " 碼，單日限漲跌±" + std::to_string(def->daily_cap_pct) + "%）";
         modal.add_component(dpp::component().set_type(dpp::cot_text)
-            .set_label("新價格（目前 " + std::to_string(cur) + " 碼）")
+            .set_label(label)
             .set_id("price").set_text_style(dpp::text_short)
             .set_min_length(1).set_max_length(10).set_placeholder("輸入新的股價"));
         ev.dialog(modal); return;
@@ -151,30 +157,51 @@ void handle_stock_modal(const dpp::form_submit_t& ev)
         ev.reply(dpp::ir_update_message, make_stock_detail_msg(uid, key, dn, av, notice)); return;
     }
 
-    if (cid == "stock_mood_modal_" + uid_s) {
-        if (cfg.notify_user_id.empty() || uid_s != cfg.notify_user_id) {
+    if (cid.rfind("stock_manual_modal_" + uid_s + "_", 0) == 0) {
+        std::string key = cid.substr(std::string("stock_manual_modal_" + uid_s + "_").size());
+        const StockDef* def = find_stock_def(key);
+        if (!def) return;
+        std::string required_uid = def->controller_uid.empty() ? cfg.notify_user_id : def->controller_uid;
+        if (required_uid.empty() || uid_s != required_uid) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
         }
         int64_t new_price = 0;
         try { new_price = std::stoll(get_input()); } catch (...) {}
         std::string notice;
+        bool changed = false;
         if (new_price <= 0) {
             notice = "❌ 價格需為正整數！";
         } else {
-            { std::lock_guard<std::mutex> lk(stock_mutex);
-              auto& s = stock_market["stock_mood"];
-              if (s.price > 0) {
-                  s.history.push_back(s.price);
-                  if (s.history.size() > 30) s.history.erase(s.history.begin());
-              }
-              s.prev_close = s.price;
-              s.price = new_price;
-              s.last_update = time(nullptr);
+            std::lock_guard<std::mutex> lk(stock_mutex);
+            auto& s = stock_market[key];
+            // 每日漲跌幅限制：跨天先重置當日開盤價基準，再檢查新價格是否落在允許範圍內
+            if (def->daily_cap_pct > 0) {
+                int64_t today = stock_utc8_day_number();
+                if (s.day_number != today || s.day_open_price <= 0) {
+                    s.day_number = today;
+                    s.day_open_price = (s.price > 0) ? s.price : new_price;
+                }
+                int64_t lo = s.day_open_price * (100 - def->daily_cap_pct) / 100;
+                int64_t hi = s.day_open_price * (100 + def->daily_cap_pct) / 100;
+                if (new_price < lo || new_price > hi) {
+                    notice = "❌ 超過單日漲跌幅限制！今日開盤 **" + std::to_string(s.day_open_price) +
+                              "** 碼，允許範圍 **" + std::to_string(lo) + " ~ " + std::to_string(hi) + "** 碼。";
+                }
             }
-            save_stock_market();
-            notice = "✅ 已調整心情股價為 **" + std::to_string(new_price) + "** 碼！";
+            if (notice.empty()) {
+                if (s.price > 0) {
+                    s.history.push_back(s.price);
+                    if (s.history.size() > 30) s.history.erase(s.history.begin());
+                }
+                s.prev_close = s.price;
+                s.price = new_price;
+                s.last_update = time(nullptr);
+                notice = "✅ 已調整 **" + def->name + "** 股價為 **" + std::to_string(new_price) + "** 碼！";
+                changed = true;
+            }
         }
-        ev.reply(dpp::ir_update_message, make_stock_detail_msg(uid, "stock_mood", dn, av, notice)); return;
+        if (changed) save_stock_market();
+        ev.reply(dpp::ir_update_message, make_stock_detail_msg(uid, key, dn, av, notice)); return;
     }
 }

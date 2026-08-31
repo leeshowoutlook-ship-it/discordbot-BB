@@ -66,6 +66,8 @@ void handle_shop_button(const dpp::button_click_t& ev)
             ev.reply(dpp::ir_update_message, make_gacha_banner_msg(uid, 1, dn, av));
         } else if (cid.rfind("gacha_banner_hero_", 0) == 0) {
             ev.reply(dpp::ir_update_message, make_gacha_banner_msg(uid, 2, dn, av));
+        } else if (cid.rfind("gacha_banner_mystery_", 0) == 0) {
+            ev.reply(dpp::ir_update_message, make_gacha_banner_msg(uid, 3, dn, av));
         } else if (cid.rfind("gacha_norm_", 0) == 0) {
             std::string mid = cid.substr(11);
             size_t sep = mid.find('_');
@@ -143,6 +145,11 @@ void handle_shop_button(const dpp::button_click_t& ev)
             if (hero_pity_fired) pulls.push_back(&gacha_pull_hero_ur_pity());
             save_chips(); save_inventory(); save_gacha_hero_pity();
             ev.reply(dpp::ir_update_message, make_gacha_result_msg(uid, pulls, 2, dn, av, hero_pity_after, hero_pity_fired));
+        } else if (cid.rfind("gacha_mystery_", 0) == 0) {
+            // 天選之子尚未開放：主頁面按鈕是 disabled，正常流程進不來這裡；
+            // 保留防呆，萬一有人直接偽造互動也直接擋掉，不會真的扣款/抽卡
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("🔒 天選之子尚未開放！敬請期待。").set_flags(dpp::m_ephemeral));
         }
         return;
     }

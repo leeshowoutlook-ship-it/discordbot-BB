@@ -662,19 +662,33 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
 
     g.round_first_action = false;
 
-    // 江湖套裝：爆擊率機率造成雙倍傷害
-    bool is_crit = cp.crit_pct > 0 && raid_rand(1, 100) <= cp.crit_pct;
-    std::string crit_log = is_crit ? " 🗡️**爆擊！**（雙倍傷害）" : "";
-
-    std::string extra_log = vk_log + underwear_log + crit_log;
+    std::string extra_log = vk_log + underwear_log;
     std::string log;
     int atk_dmg = 0;
 
+    // 赫耳墨斯套裝＋江湖套裝：把「raw_base（尚未套用爆擊/赫耳墨斯）」拆成1或2下獨立結算，
+    // 每下各自骰爆擊、各自扣防禦，赫耳墨斯的攻擊力-40%是套用在最終raw上的獨立乘區，
+    // 不併入 atk_bonus 那個加算池，避免跟維京/祭壇之類的大加成疊乘爆炸
+    auto resolve_hits = [&](int raw_base) -> int {
+        int hits = 1;
+        if (cp.hermes_double_pct > 0 && raid_rand(1, 100) <= cp.hermes_double_pct) hits = 2;
+        int total = 0;
+        for (int i = 0; i < hits; i++) {
+            int raw = raw_base;
+            if (cp.hermes_atk_pct != 100) raw = raw * cp.hermes_atk_pct / 100;
+            bool crit_i = cp.crit_pct > 0 && raid_rand(1, 100) <= cp.crit_pct;
+            if (crit_i) raw = raw * (200 + cp.hermes_crit_dmg_pct) / 100;
+            total += std::max(1, raw - g.boss_def);
+            if (crit_i) extra_log += " 🗡️**爆擊！**";
+        }
+        if (hits == 2) extra_log += " ⚡**赫耳墨斯雙擊！**";
+        return total;
+    };
+
     if (attack_type == 2) {
         // 強攻：加算 +100%，下回合跳過
-        int raw = (int)(base_atk * (2.0 + atk_bonus));
-        if (is_crit) raw *= 2;
-        int dmg = std::max(1, raw - g.boss_def);
+        int raw_base = (int)(base_atk * (2.0 + atk_bonus));
+        int dmg = resolve_hits(raw_base);
         atk_dmg = dmg;
         g.boss_hp -= dmg;
         log = "💥 **" + cp.display_name + "** 強攻 Boss，造成 **" + std::to_string(dmg) + "** 點傷害！" + extra_log;
@@ -682,17 +696,15 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
         // 耗費氣力：隨機倍率與其他加成加算
         double gamble_mult = 0.1 + raid_rand(0, 190) / 100.0;
         char gm_buf[8]; snprintf(gm_buf, sizeof(gm_buf), "%.1f", gamble_mult);
-        int raw = (int)(base_atk * (gamble_mult + atk_bonus));
-        if (is_crit) raw *= 2;
-        int dmg = std::max(1, raw - g.boss_def);
+        int raw_base = (int)(base_atk * (gamble_mult + atk_bonus));
+        int dmg = resolve_hits(raw_base);
         atk_dmg = dmg;
         g.boss_hp -= dmg;
         log = "🎲 **" + cp.display_name + "** 耗費氣力攻擊（×" + std::string(gm_buf) + "），造成 **" + std::to_string(dmg) + "** 點傷害！" + extra_log;
     } else {
         // 普通攻擊：加算加成
-        int raw = (int)(base_atk * (1.0 + atk_bonus));
-        if (is_crit) raw *= 2;
-        int dmg = std::max(1, raw - g.boss_def);
+        int raw_base = (int)(base_atk * (1.0 + atk_bonus));
+        int dmg = resolve_hits(raw_base);
         atk_dmg = dmg;
         g.boss_hp -= dmg;
         log = "⚔️ **" + cp.display_name + "** 攻擊 Boss，造成 **" + std::to_string(dmg) + "** 點傷害！" + extra_log;

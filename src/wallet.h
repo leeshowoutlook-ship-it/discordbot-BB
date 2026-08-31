@@ -88,6 +88,8 @@ static dpp::message make_wallet_home_msg(dpp::snowflake uid) {
         .set_label("📊 遊戲統計").set_id("wallet_games_" + sid).set_style(dpp::cos_secondary));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏦 銀行").set_id("wallet_bank_" + sid).set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏠 大廳").set_id("lobby_main_" + sid).set_style(dpp::cos_secondary));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);

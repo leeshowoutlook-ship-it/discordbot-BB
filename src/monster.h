@@ -177,6 +177,11 @@ static dpp::message make_hunt_main_msg(dpp::snowflake uid, const Pet& pet,
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("⚔️ 組隊遠征").set_id("hunt_team_" + uid_s).set_style(dpp::cos_success));
     msg.add_component_v2(row2);
+
+    dpp::component nav; nav.set_type(dpp::cot_action_row);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav);
     return msg;
 }
 
@@ -337,21 +342,36 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
                 }
                 g.underwear_first_atk_used = true;
             }
-            // 江湖套裝：爆擊率機率造成雙倍傷害（先乘進 raw，再減防）
-            bool is_crit = g.pet_crit > 0 && randint(1, 100) <= g.pet_crit;
+            // 赫耳墨斯套裝＋江湖套裝：raw_base（尚未套用爆擊/赫耳墨斯）拆成1或2下獨立結算，
+            // 每下各自骰爆擊、各自扣防禦。赫耳墨斯的攻擊力-40%是套用在最終raw上的獨立乘區，
+            // 不併入 viking_bonus 加算池，不會被維京疊乘放大
+            std::string hermes_log;
+            auto resolve_hits = [&](int raw_base) -> int {
+                int hits = 1;
+                if (g.pet_hermes_double_pct > 0 && randint(1, 100) <= g.pet_hermes_double_pct) hits = 2;
+                int total = 0;
+                for (int i = 0; i < hits; i++) {
+                    int raw = raw_base;
+                    if (g.pet_hermes_atk_pct != 100) raw = raw * g.pet_hermes_atk_pct / 100;
+                    bool crit_i = g.pet_crit > 0 && randint(1, 100) <= g.pet_crit;
+                    if (crit_i) raw = raw * (200 + g.pet_hermes_crit_dmg_pct) / 100;
+                    total += std::max(0, raw - g.monster_def);
+                    if (crit_i) hermes_log += " 🗡️**爆擊！**";
+                }
+                if (hits == 2) hermes_log += " ⚡**赫耳墨斯雙擊！**";
+                return total;
+            };
             if (power_attack) {
                 double mult = 0.1 + std::uniform_real_distribution<double>(0.0, 1.9)(hunt_rng());
-                int raw = (int)(effective_pet_atk * (mult + viking_bonus));
-                if (is_crit) raw *= 2;
-                pet_dmg = std::max(0, raw - g.monster_def);
+                int raw_base = (int)(effective_pet_atk * (mult + viking_bonus));
+                pet_dmg = resolve_hits(raw_base);
             } else {
-                int raw = (int)(effective_pet_atk * (1.0 + viking_bonus));
-                if (is_crit) raw *= 2;
-                pet_dmg = std::max(0, raw - g.monster_def);
+                int raw_base = (int)(effective_pet_atk * (1.0 + viking_bonus));
+                pet_dmg = resolve_hits(raw_base);
             }
             if (power_attack) log += "💥 氣力攻擊對 **" + g.monster_name + "** 造成 **" + std::to_string(pet_dmg) + "** 傷害！";
             else              log += "⚔️ 攻擊對 **" + g.monster_name + "** 造成 **" + std::to_string(pet_dmg) + "** 傷害！";
-            if (is_crit) log += " 🗡️**爆擊！**（雙倍傷害）";
+            log += hermes_log;
             g.monster_hp -= pet_dmg;
             // 暗黑龍王寶珠：攻擊後回復傷害的 1/10（最多 10 HP）
             if (g.orb_key == "EQ_K_DARKDRAGON" && pet_dmg > 0) {
@@ -710,22 +730,35 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
         }
         g.underwear_first_atk_used = true;
     }
-    // 江湖套裝：爆擊率機率造成雙倍傷害（先乘進 raw，再減防）
-    bool is_crit = g.pet_crit > 0 && randint(1, 100) <= g.pet_crit;
+    // 赫耳墨斯套裝＋江湖套裝：raw_base（尚未套用爆擊/赫耳墨斯）拆成1或2下獨立結算
+    std::string hermes_log;
+    auto resolve_hits = [&](int raw_base) -> int {
+        int hits = 1;
+        if (g.pet_hermes_double_pct > 0 && randint(1, 100) <= g.pet_hermes_double_pct) hits = 2;
+        int total = 0;
+        for (int i = 0; i < hits; i++) {
+            int raw = raw_base;
+            if (g.pet_hermes_atk_pct != 100) raw = raw * g.pet_hermes_atk_pct / 100;
+            bool crit_i = g.pet_crit > 0 && randint(1, 100) <= g.pet_crit;
+            if (crit_i) raw = raw * (200 + g.pet_hermes_crit_dmg_pct) / 100;
+            total += std::max(0, raw - tgt.def);
+            if (crit_i) hermes_log += " 🗡️**爆擊！**";
+        }
+        if (hits == 2) hermes_log += " ⚡**赫耳墨斯雙擊！**";
+        return total;
+    };
     if (attack_type == 1) {
         // 氣力攻擊：隨機 0.1~2.0× 有效傷害
         double mult = 0.1 + randint(0, 190) / 100.0;
-        int raw = (int)(effective_pet_atk * mult);
-        if (is_crit) raw *= 2;
-        dmg = std::max(1, raw - tgt.def);
+        int raw_base = (int)(effective_pet_atk * mult);
+        dmg = resolve_hits(raw_base);
         char buf[8]; snprintf(buf, sizeof(buf), "%.1f", mult);
         log += "🎲 氣力攻擊（×" + std::string(buf) + "）";
     } else {
-        int raw = effective_pet_atk;
-        if (is_crit) raw *= 2;
-        dmg = std::max(0, raw - tgt.def);
+        int raw_base = effective_pet_atk;
+        dmg = resolve_hits(raw_base);
     }
-    if (is_crit) log += (log.empty() ? "" : " ") + std::string("🗡️**爆擊！**（雙倍傷害）");
+    if (!hermes_log.empty()) log += (log.empty() ? "" : " ") + hermes_log;
     tgt.hp = std::max(0, tgt.hp - dmg);
     // 暗黑龍王寶珠：攻擊後回復傷害的 1/10（最多 10 HP）
     if (g.orb_key == "EQ_K_DARKDRAGON" && dmg > 0) {

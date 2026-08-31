@@ -332,17 +332,30 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         cp.underwear_first_atk_used = true;
     }
 
-    // 江湖套裝：爆擊率機率造成雙倍傷害
-    bool is_crit = cp.crit_pct > 0 && dd_rand(1, 100) <= cp.crit_pct;
-    if (is_crit) vk_log += " 🗡️**爆擊！**（雙倍傷害）";
+    // 赫耳墨斯套裝＋江湖套裝：raw_base（尚未套用爆擊/赫耳墨斯）拆成1或2下獨立結算，
+    // 每下各自骰爆擊、各自扣防禦。赫耳墨斯的攻擊力-40%是套用在最終raw上的獨立乘區，
+    // 不併入 atk_bonus 加算池，不會被維京/祭壇的大加成疊乘放大
+    auto resolve_hits = [&](int raw_base) -> int {
+        int hits = 1;
+        if (cp.hermes_double_pct > 0 && dd_rand(1, 100) <= cp.hermes_double_pct) hits = 2;
+        int total = 0;
+        for (int i = 0; i < hits; i++) {
+            int raw = raw_base;
+            if (cp.hermes_atk_pct != 100) raw = raw * cp.hermes_atk_pct / 100;
+            bool crit_i = cp.crit_pct > 0 && dd_rand(1, 100) <= cp.crit_pct;
+            if (crit_i) raw = raw * (200 + cp.hermes_crit_dmg_pct) / 100;
+            total += std::max(1, raw - h.def);
+            if (crit_i) vk_log += " 🗡️**爆擊！**";
+        }
+        if (hits == 2) vk_log += " ⚡**赫耳墨斯雙擊！**";
+        return total;
+    };
 
-    int raw = 0;
     int atk_dmg = 0;
     if (attack_type == 2) {
         // 強攻：加算 +100%
-        raw = (int)(eff_atk * (2.0 + atk_bonus));
-        if (is_crit) raw *= 2;
-        int dmg = std::max(1, raw - h.def);
+        int raw_base = (int)(eff_atk * (2.0 + atk_bonus));
+        int dmg = resolve_hits(raw_base);
         atk_dmg = dmg;
         h.hp -= dmg;
         log = "💥 **" + cp.display_name + "** 強攻 **" + h.name + "**，造成 **" + std::to_string(dmg) + "** 傷害！" + vk_log;
@@ -351,17 +364,15 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         // 耗費氣力：隨機倍率與其他加成加算
         double mult = 0.1 + dd_rand(0, 190) / 100.0;
         char buf[8]; snprintf(buf, sizeof(buf), "%.1f", mult);
-        raw = (int)(eff_atk * (mult + atk_bonus));
-        if (is_crit) raw *= 2;
-        int dmg = std::max(1, raw - h.def);
+        int raw_base = (int)(eff_atk * (mult + atk_bonus));
+        int dmg = resolve_hits(raw_base);
         atk_dmg = dmg;
         h.hp -= dmg;
         log = "🎲 **" + cp.display_name + "** 耗費氣力（×" + std::string(buf) + "）攻擊 **" + h.name + "**，造成 **" + std::to_string(dmg) + "** 傷害！" + vk_log;
     } else {
         // 普通攻擊：加算加成
-        raw = (int)(eff_atk * (1.0 + atk_bonus));
-        if (is_crit) raw *= 2;
-        int dmg = std::max(1, raw - h.def);
+        int raw_base = (int)(eff_atk * (1.0 + atk_bonus));
+        int dmg = resolve_hits(raw_base);
         atk_dmg = dmg;
         h.hp -= dmg;
         log = "⚔️ **" + cp.display_name + "** 攻擊 **" + h.name + "**，造成 **" + std::to_string(dmg) + "** 傷害！" + vk_log;
