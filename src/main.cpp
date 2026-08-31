@@ -167,6 +167,31 @@ static dpp::message make_trade_msg(const TradeOffer& t,
 // ─── 管理員：查詢／強制中斷玩家卡住的遊戲 ───────────────────────────────────────
 // 掃過幾個比較容易卡住的長時遊戲系統（怪物狩獵、村落挑戰、探險、組隊房間/戰鬥、暗黑龍王）。
 // 不含 21點/骰子/刮刮樂/猜拳等單次互動就會結束的小遊戲——那些不太會卡住，暫時不列入。
+static dpp::message make_admin_panel_msg(dpp::snowflake channel_id = 0) {
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("💰 調整碼數").set_id("admin_chip_modal_btn").set_style(dpp::cos_primary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🎒 給道具").set_id("admin_item_btn").set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🛑 中斷遊戲").set_id("admin_kill_btn").set_style(dpp::cos_danger));
+    dpp::component row2; row2.set_type(dpp::cot_action_row);
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🧹 清除本頻道遊戲").set_id("admin_clear_channel_btn").set_style(dpp::cos_danger));
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🧨 清除全部遊戲").set_id("admin_clear_all_btn").set_style(dpp::cos_danger));
+    dpp::component row3; row3.set_type(dpp::cot_action_row);
+    row3.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label(g_claim_verify_enabled ? "🔒 領取驗證：開啟中" : "🔓 領取驗證：已關閉")
+        .set_id("admin_toggle_verify_btn")
+        .set_style(g_claim_verify_enabled ? dpp::cos_success : dpp::cos_secondary));
+    dpp::message m;
+    m.set_content("🔑 **管理員面板**\n請選擇操作：");
+    m.add_component(row); m.add_component(row2); m.add_component(row3);
+    if ((uint64_t)channel_id != 0) m.channel_id = channel_id;
+    return m;
+}
+
 static dpp::message make_admin_kill_report_msg(dpp::snowflake target, const std::string& notice = "") {
     std::string uid_s = std::to_string((uint64_t)target);
     struct Found { std::string btn_id, desc; };
@@ -741,27 +766,7 @@ int main(int argc, char* argv[]) {
                 dpp::message m; m.set_content("❌ 沒有權限！"); m.channel_id = ch;
                 bot.message_create(m); return;
             }
-            dpp::component row; row.set_type(dpp::cot_action_row);
-            row.add_component(dpp::component().set_type(dpp::cot_button)
-                .set_label("💰 調整碼數").set_id("admin_chip_modal_btn").set_style(dpp::cos_primary));
-            row.add_component(dpp::component().set_type(dpp::cot_button)
-                .set_label("🎒 給道具").set_id("admin_item_btn").set_style(dpp::cos_secondary));
-            row.add_component(dpp::component().set_type(dpp::cot_button)
-                .set_label("🛑 中斷遊戲").set_id("admin_kill_btn").set_style(dpp::cos_danger));
-            dpp::component row2; row2.set_type(dpp::cot_action_row);
-            row2.add_component(dpp::component().set_type(dpp::cot_button)
-                .set_label("🧹 清除本頻道遊戲").set_id("admin_clear_channel_btn").set_style(dpp::cos_danger));
-            row2.add_component(dpp::component().set_type(dpp::cot_button)
-                .set_label("🧨 清除全部遊戲").set_id("admin_clear_all_btn").set_style(dpp::cos_danger));
-            dpp::component row3; row3.set_type(dpp::cot_action_row);
-            row3.add_component(dpp::component().set_type(dpp::cot_button)
-                .set_label(g_claim_verify_enabled ? "🔒 領取驗證：開啟中" : "🔓 領取驗證：已關閉")
-                .set_id("admin_toggle_verify_btn")
-                .set_style(g_claim_verify_enabled ? dpp::cos_success : dpp::cos_secondary));
-            dpp::message m;
-            m.set_content("🔑 **管理員面板**\n請選擇操作：");
-            m.add_component(row); m.add_component(row2); m.add_component(row3); m.channel_id = ch;
-            bot.message_create(m);
+            bot.message_create(make_admin_panel_msg(ch));
         }
         // !小黑屋／！小黑屋：查看／解除領取驗證的鎖定（限管理員）
         else if (content == "!小黑屋" || content == "！小黑屋") {
@@ -1505,9 +1510,7 @@ int main(int argc, char* argv[]) {
                     dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
             }
             g_claim_verify_enabled = !g_claim_verify_enabled;
-            std::string state = g_claim_verify_enabled ? "🔒 **開啟**" : "🔓 **關閉**";
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("✅ 領取驗證已切換為 " + state + "。").set_flags(dpp::m_ephemeral));
+            ev.reply(dpp::ir_update_message, make_admin_panel_msg());
         }
         // ── 簽到系統按鈕 ──────────────────────────────────────────────────────
         // si_btn：任何人點擊「我要簽到」→ 直接簽到
