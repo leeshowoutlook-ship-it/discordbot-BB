@@ -1,16 +1,20 @@
 # 機密 — 絕對不能 commit
 .env
+build/Release/.env
 
-# 玩家資料
-data/
-
-# C++ 建置產物
-build/
+# C++ 建置產物（忽略編譯中間檔，保留 exe 和資料）
+build/CMakeFiles/
+build/dcbot.vcxproj*
+build/*.cmake
+build/Makefile
+build/Release/*.obj
+build/Release/*.lib
+build/Release/*.exp
+build/Release/*.pdb
+build/Release/*.ilk
 out/
 *.o
 *.obj
-*.exe
-*.dll
 *.pdb
 
 # vcpkg / CMake
