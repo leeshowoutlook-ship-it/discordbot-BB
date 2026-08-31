@@ -155,6 +155,12 @@ struct DiceStats {
     int64_t profit = 0;
 };
 
+struct EuRouletteStats {
+    int     wins   = 0;
+    int     losses = 0;
+    int64_t profit = 0;
+};
+
 // ─── Shop purchase record ─────────────────────────────────────────────────────
 
 struct PurchaseRecord {
@@ -440,6 +446,23 @@ struct DiceGame {
     std::string    display_name;
 };
 
+// ─── 轉盤 ─────────────────────────────────────────────────────────────────
+
+struct EuRouletteGame {
+    uint64_t       id;
+    dpp::snowflake uid;
+    dpp::snowflake ch;
+    dpp::snowflake msg_id = 0;
+    int64_t        bet;
+    std::string    bet_type;    // "red"|"black"|"odd"|"even"|"low"|"high"|"number"
+    int            bet_number = -1; // 0~36，只有 bet_type=="number" 時有效
+    int            result     = -1; // 開獎結果（下注確認當下就決定，動畫只是揭曉過程）
+    int            spin_frame = 0;  // 目前跑到第幾格動畫
+    dpp::timer     timer_id   = 0;
+    std::string    avatar_url;
+    std::string    display_name;
+};
+
 // ─── Blackjack ────────────────────────────────────────────────────────────────
 
 struct BJCard {
@@ -579,6 +602,10 @@ inline std::atomic<uint64_t>                    transfer_counter{1};
 inline std::map<uint64_t, DiceGame>             dice_games;
 inline std::map<dpp::snowflake, uint64_t>       user_dice;
 inline std::atomic<uint64_t>                    dice_counter{1};
+inline std::map<uint64_t, EuRouletteGame>       euroulette_games;
+inline std::map<dpp::snowflake, uint64_t>       user_euroulette;
+inline std::atomic<uint64_t>                    euroulette_counter{1};
+inline std::map<dpp::snowflake, EuRouletteStats> euroulette_stats_data;
 inline std::vector<PurchaseRecord>              purchase_records;
 inline std::atomic<uint64_t>                    purchase_counter{1};
 inline std::map<dpp::snowflake, Pet>            pet_data;

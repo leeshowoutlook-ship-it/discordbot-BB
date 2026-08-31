@@ -318,6 +318,12 @@ static dpp::message make_scratch_play_msg(const ScratchGame& g) {
         msg.add_component(ar4);
     }
 
+    // Row 5: 刷新（只有本人能按，會刪掉舊訊息並在頻道底部重發一則新的）
+    dpp::component ar5; ar5.set_type(dpp::cot_action_row);
+    ar5.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🔄 刷新").set_id("sc9_refresh_" + sid).set_style(dpp::cos_secondary));
+    msg.add_component(ar5);
+
     return msg;
 }
 

@@ -15,6 +15,7 @@
 #include "rocket.h"
 #include "scroll.h"
 #include "scratch.h"
+#include "roulette_eu.h"
 #include "wallet.h"
 #include "bank.h"
 // raid.h, darkdragon.h, undercover.h → moved to handlers_raid.cpp / handlers_uc.cpp
@@ -387,6 +388,7 @@ int main(int argc, char* argv[]) {
     load_shootstats();
     load_rocketstats();
     load_scratchstats();
+    load_euroulettestats();
     load_wolf_player_stats();
     load_onw_stats();
     load_bj_games();
@@ -410,6 +412,7 @@ int main(int argc, char* argv[]) {
     load_roulettestats();
     load_rps_stats();
     load_scratch_games();
+    load_euroulette_games();
     load_stock_market();
     load_stock_holdings();
     load_announcement();
@@ -453,7 +456,7 @@ int main(int argc, char* argv[]) {
                 std::to_string(uid) == cfg.notify_user_id) return true;
             // Prefix-match commands (with args)
             static const std::vector<std::string> PREFIX = {
-                "!21 ","!骰子 ","!射 ","!火箭 ","!刮 ","!猜 ",
+                "!21 ","!骰子 ","!射 ","!火箭 ","!刮 ","!猜 ","!轉 ",
                 "!幸運頻道 ","!警告 ","!轉帳 ","!交易 ","!卷軸使用 ","!輪盤 ","!猜拳 ","！猜拳 ",
                 "!公告 ","！公告 ",
                 "!簽到 ","！簽到 ",
@@ -461,7 +464,7 @@ int main(int argc, char* argv[]) {
             for (auto& s : PREFIX) if (content.rfind(s, 0) == 0) return true;
             // standalone (no args)
             if (content == "!21" || content == "!骰子" || content == "!射" ||
-                content == "!火箭" || content == "!刮" || content == "!猜" ||
+                content == "!火箭" || content == "!刮" || content == "!猜" || content == "!轉" ||
                 content == "!幸運頻道" || content == "!警告" || content == "!轉帳" ||
                 content == "!交易" || content == "!卷軸使用") return true;
             return false;
@@ -920,6 +923,7 @@ int main(int argc, char* argv[]) {
                  (content.rfind("!火箭", 0) == 0 && (content.size() == 7 || content[7] == ' ')) ||
                  (content.rfind("!卷軸使用", 0) == 0 && (content.size() == 13 || content[13] == ' ')) ||
                  (content.rfind("!刮", 0) == 0 && (content.size() == 4 || content[4] == ' ')) ||
+                 (content.rfind("!轉", 0) == 0 && (content.size() == 4 || content[4] == ' ')) ||
                  ((content.rfind("!猜", 0) == 0 || content.rfind("！猜", 0) == 0)
                   && content.rfind("!猜拳", 0) != 0 && content.rfind("！猜拳", 0) != 0)) {
             handle_games_message(ev, content, uid, ch); return;
@@ -2207,7 +2211,8 @@ int main(int argc, char* argv[]) {
         // ── 遊戲按鈕 (骰子/猜數字/射/火箭/卷軸/刮刮樂) → handlers_games.cpp ─
         else if (cid.rfind("dc_", 0) == 0 || cid.rfind("guess_", 0) == 0 ||
                  cid.rfind("shoot_", 0) == 0 || cid.rfind("rocket_", 0) == 0 ||
-                 cid.rfind("scroll_", 0) == 0 || cid.rfind("sc9_", 0) == 0) {
+                 cid.rfind("scroll_", 0) == 0 || cid.rfind("sc9_", 0) == 0 ||
+                 cid.rfind("er_", 0) == 0) {
             handle_games_button(ev); return;
         }
         // ── 錢包分頁按鈕 ──────────────────────────────────────────────────────
@@ -3098,7 +3103,8 @@ int main(int argc, char* argv[]) {
         else if (cmd_name == "射" || cmd_name == "inbetween" ||
                  cmd_name == "火箭" || cmd_name == "rocket" ||
                  cmd_name == "刮刮樂" || cmd_name == "scratch" ||
-                 cmd_name == "骰子" || cmd_name == "dice") {
+                 cmd_name == "骰子" || cmd_name == "dice" ||
+                 cmd_name == "轉" || cmd_name == "spin") {
             handle_games_slash(ev, cmd_name, uid, ch); return;
         }
         // ── 21點 slash → handlers_bj.cpp ─────────────────────────────────────
@@ -3515,6 +3521,12 @@ int main(int argc, char* argv[]) {
             dpp::slashcommand scratch_en("scratch", "Scratch Card — reveal squares for multipliers, avoid bombs!", bot.me.id);
             scratch_en.add_option(dpp::command_option(dpp::co_string, "籌碼", "Bet amount (number or ALL)", true));
 
+            dpp::slashcommand euroulette_cmd("轉", "迷你輪盤 — 押紅/黑/黃，轉動揭曉結果，撞炸彈全輸！", bot.me.id);
+            euroulette_cmd.add_option(dpp::command_option(dpp::co_string, "籌碼", "下注碼數（數字 或 ALL）", true));
+
+            dpp::slashcommand euroulette_en("spin", "Mini Roulette — bet red/black/yellow, spin to reveal the result!", bot.me.id);
+            euroulette_en.add_option(dpp::command_option(dpp::co_string, "籌碼", "Bet amount (number or ALL)", true));
+
             // English aliases with parameters
             dpp::slashcommand warn_en("warn", "Warn a member", bot.me.id);
             warn_en.add_option(dpp::command_option(dpp::co_user,   "對象", "Target member", true))
@@ -3641,6 +3653,7 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("guess",     "Guess the 4-digit number (1A2B)",bot.me.id),
                 bj, draw, warn_cmd, lucky, transfer, dice_cmd, shoot_cmd, shoot_en,
                 rocket_cmd, rocket_en, scratch_cmd, scratch_en,
+                euroulette_cmd, euroulette_en,
                 warn_en, lucky_en, transfer_en, trade_cmd, trade_en,
                 scroll_cmd, scroll_en,
                 dice_en, bj_en, draw_en,

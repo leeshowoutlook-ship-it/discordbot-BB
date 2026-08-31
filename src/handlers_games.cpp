@@ -5,6 +5,7 @@
 #include "shoot.h"
 #include "rocket.h"
 #include "scratch.h"
+#include "roulette_eu.h"
 #include "scroll.h"
 #include "guess.h"
 #include "handler_decls.h"
@@ -161,6 +162,40 @@ void handle_games_message(const dpp::message_create_t& ev,
         }
         start_cmd(*g_bot, uid, ch, handle_scratch_start(uid, ch, bet,
             ev.msg.author.get_avatar_url(), ev.msg.member.get_nickname()), ev.msg.id);
+        return;
+    }
+
+    // !轉 <碼|ALL>（迷你輪盤）
+    if (content.rfind("!轉", 0) == 0 && (content.size() == 4 || content[4] == ' ')) {
+        size_t sp = content.find(' ');
+        std::string rest = (sp != std::string::npos) ? content.substr(sp + 1) : "";
+        std::string rest_lo = rest;
+        for (auto& c2 : rest_lo) c2 = (char)std::tolower((unsigned char)c2);
+        bool is_all = (rest_lo == "all");
+        int64_t bet = is_all ? get_chips(uid) : (rest.empty() ? 0 : std::atoll(rest.c_str()));
+        if (!cfg.allin_thread_id.empty() && std::to_string((uint64_t)ch) == cfg.allin_thread_id) {
+            bet = get_chips(uid);
+            if (bet < 5000) {
+                dpp::message m; m.set_content("❌ 此房間需持有至少 **5,000** 碼才能 ALLIN！");
+                m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
+            }
+        } else {
+            if (bet <= 0) {
+                dpp::message m; m.set_content("用法：`!轉 <籌碼量>`  例：`!轉 100` 或 `!轉 ALL`");
+                m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
+            }
+            if (!cfg.min_bet_thread_id.empty() && std::to_string((uint64_t)ch) == cfg.min_bet_thread_id && bet < 1000) {
+                dpp::message m; m.set_content("❌ 此討論串最低下注為 **1,000** 碼！");
+                m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
+            }
+        }
+        if (get_chips(uid) < bet) {
+            dpp::embed e; e.set_title("❌  籌碼不足").set_color(0xE74C3C);
+            dpp::message m; m.add_embed(e); m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
+        }
+        dpp::message m = start_euroulette(uid, ch, bet,
+            ev.msg.author.get_avatar_url(), ev.msg.member.get_nickname());
+        m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m);
         return;
     }
 
@@ -412,6 +447,61 @@ void handle_games_button(const dpp::button_click_t& ev)
                 dpp::message("❌ 籌碼不足 " + std::to_string(bet) + " 碼！").set_flags(dpp::m_ephemeral)); return;
         }
         ev.reply(dpp::ir_channel_message_with_source, start_dice(uid, ev.command.channel_id, bet,
+            user.get_avatar_url(), user.username));
+        return;
+    }
+
+    // ── 轉盤：選押注類型 ─────────────────────────────────────────────────
+    if (cid.rfind("er_pick_", 0) == 0) {
+        std::string rest = cid.substr(8);
+        size_t sep = rest.rfind('_');
+        if (sep == std::string::npos) return;
+        uint64_t gid = std::stoull(rest.substr(0, sep));
+        std::string type = rest.substr(sep + 1);
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = euroulette_games.find(gid);
+            if (it == euroulette_games.end() || it->second.uid != uid) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
+            }
+            if (!it->second.bet_type.empty()) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("⚠️ 已經下注過了，輪盤轉動中！").set_flags(dpp::m_ephemeral)); return;
+            }
+            it->second.bet_type = type; // 在鎖裡先佔位，避免連點兩顆按鈕各自啟動一個計時器
+        }
+        ev.reply(dpp::ir_deferred_update_message, dpp::message());
+        eu_confirm_bet_and_spin(gid, type, -1, ev.command.message_id);
+        EuRouletteGame g0; bool found0 = false;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          auto it = euroulette_games.find(gid);
+          if (it != euroulette_games.end()) { g0 = it->second; found0 = true; }
+        }
+        if (found0) ev.edit_original_response(make_euroulette_spin_frame_msg(g0, eu_roll()));
+        return;
+    }
+
+    // ── 轉盤：再來一局／雙倍 ─────────────────────────────────────────────
+    if (cid.rfind("er_again_", 0) == 0) {
+        std::string rest = cid.substr(9);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake orig_uid(std::stoull(rest.substr(0, sep)));
+        int64_t bet = std::stoll(rest.substr(sep + 1));
+        if (uid != orig_uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
+        }
+        if (!cfg.allin_thread_id.empty() && std::to_string((uint64_t)ev.command.channel_id) == cfg.allin_thread_id) {
+            bet = get_chips(uid);
+            if (bet < 5000) { ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 此房間需持有至少 **5,000** 碼才能 ALLIN！").set_flags(dpp::m_ephemeral)); return; }
+        } else if (get_chips(uid) < bet) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 籌碼不足 " + std::to_string(bet) + " 碼！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_channel_message_with_source, start_euroulette(uid, ev.command.channel_id, bet,
             user.get_avatar_url(), user.username));
         return;
     }
@@ -676,6 +766,21 @@ void handle_games_button(const dpp::button_click_t& ev)
                     save_scratch_games();
                     ev.reply(dpp::ir_update_message, make_scratch_play_msg(g));
                 }
+            } else if (cid.rfind("sc9_refresh_", 0) == 0) {
+                // 不是原地編輯：刪掉舊訊息，在頻道底部重新發一則新的刮刮樂視窗
+                dpp::snowflake ch = ev.command.channel_id;
+                dpp::snowflake old_msg_id = ev.command.message_id;
+                ev.reply(dpp::ir_deferred_update_message, dpp::message());
+                g_bot->message_delete(old_msg_id, ch);
+                auto freshmsg = make_scratch_play_msg(g); freshmsg.channel_id = ch;
+                g_bot->message_create(freshmsg, [uid, ch, old_msg_id](const dpp::confirmation_callback_t& cb) {
+                    if (cb.is_error()) return;
+                    auto mid = std::get<dpp::message>(cb.value).id;
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    msg_owner.erase(old_msg_id);
+                    msg_owner[mid] = uid;
+                    user_active_msg[uid] = {mid, ch};
+                });
             }
         }
         return;
@@ -750,6 +855,7 @@ void handle_games_modal(const dpp::form_submit_t& ev)
         }
         return;
     }
+
 }
 
 // ─── Games slash handler (射/火箭/刮刮樂/骰子) ──────────────────────────────
@@ -825,5 +931,15 @@ void handle_games_slash(const dpp::slashcommand_t& ev,
         }
         ev.reply(dpp::ir_channel_message_with_source, start_dice(uid, ch, bet,
             user.get_avatar_url(), user.username));
+    }
+    else if (cmd_name == "轉" || cmd_name == "spin") {
+        int64_t bet = get_bet();
+        if (!check_allin_min(bet, "用法：`/轉 籌碼:100` 或 `/轉 籌碼:ALL`")) return;
+        if (get_chips(uid) < bet) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 籌碼不足").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_channel_message_with_source, start_euroulette(uid, ch, bet,
+            user.get_avatar_url(), ev.command.member.get_nickname()));
     }
 }

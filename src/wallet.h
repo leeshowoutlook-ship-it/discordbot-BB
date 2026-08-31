@@ -206,6 +206,23 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
         content += "**🎴 刮刮樂** 尚無紀錄\n";
     }
 
+    // 轉盤
+    int er_w = 0, er_l = 0; int64_t er_profit_v = 0;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = euroulette_stats_data.find(uid);
+        if (it != euroulette_stats_data.end()) {
+            er_w = it->second.wins; er_l = it->second.losses; er_profit_v = it->second.profit;
+        }
+    }
+    int er_total = er_w + er_l;
+    if (er_total > 0) {
+        content += "**🎡 轉盤** 中獎/未中 **" + std::to_string(er_w) + "/" + std::to_string(er_l) + "**"
+            + "　勝率 **" + fmt_rate(er_w, er_total) + "**　盈虧 **" + fmt_profit(er_profit_v) + "**\n";
+    } else {
+        content += "**🎡 轉盤** 尚無紀錄\n";
+    }
+
     // 一夜狼人
     int onw_w = 0, onw_v = 0, onw_t = 0, onw_ww = 0, onw_vw = 0, onw_tw = 0;
     {

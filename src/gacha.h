@@ -531,18 +531,20 @@ static const GachaItem& gacha_pull_hero_ur_pity() {
 }
 
 // ─── 天選之子：尚未開放，先做好完整機制（含保底）。UR 格內：俠客之心（爆擊率+40%的寶珠）
-//     取代生命女神寶珠，其餘份額平分給池子限定的江湖套裝（4件UR裝備）───────────
-// UR 內部：江湖套裝 各18.75%（合計75%＝總池1.5%）／俠客之心 5%（總池0.1%）／
+//     取代生命女神寶珠，其餘份額平分給池子限定的赫耳墨斯套裝（4件UR裝備）。
+//     江湖套裝改回只出現在俠客之路，天選之子不再出江湖套裝 ─────────────────────
+// UR 內部：赫耳墨斯套裝 各18.75%（合計75%＝總池1.5%）／俠客之心 5%（總池0.1%）／
 //         其餘一般UR 20%（總池0.4%，寶珠10%／裝備90%比照一般池）
 static const GachaItem& gacha_pull_mystery() {
     static const std::set<std::string> CRAFT_ONLY = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON"};
-    static std::vector<const GachaItem*> pool_C, pool_R, pool_SR, pool_UR_eq, pool_UR_orb, pool_D;
+    static std::vector<const GachaItem*> pool_C, pool_R, pool_SR, pool_UR_eq, pool_UR_orb, pool_E;
     static const GachaItem* heroheart_gi = nullptr;
     static bool built = false;
     if (!built) {
         for (auto& gi : GACHA_ITEMS) {
-            if (gi.set_tag == "D") { pool_D.push_back(&gi); continue; }
+            if (gi.set_tag == "E") { pool_E.push_back(&gi); continue; }
             if (gi.key == "EQ_K_HEROHEART") { heroheart_gi = &gi; continue; }
+            if (gi.set_tag == "D") continue; // 江湖套裝改回俠客之路專屬，天選之子不出
             if (gi.key == "EQ_K_LIFEGODDESS") continue; // 不在天選之子池出現，改由俠客之心佔用該格
             if (CRAFT_ONLY.count(gi.key)) continue;
             if      (gi.rarity == "C")  pool_C.push_back(&gi);
@@ -562,9 +564,9 @@ static const GachaItem& gacha_pull_mystery() {
     if (roll <= 9800) return *pool_SR[std::uniform_int_distribution<int>(0, (int)pool_SR.size()-1)(gacha_rng())];
 
     int sub = std::uniform_int_distribution<int>(1, 10000)(gacha_rng());
-    if (sub <= 7500 && pool_D.size() >= 4) {
+    if (sub <= 7500 && pool_E.size() >= 4) {
         int didx = (sub - 1) / 1875; // 0~3，各1875（18.75%）
-        return *pool_D[std::min(didx, (int)pool_D.size()-1)];
+        return *pool_E[std::min(didx, (int)pool_E.size()-1)];
     }
     if (sub <= 8000 && heroheart_gi) return *heroheart_gi;
     int orb_roll = std::uniform_int_distribution<int>(1, 10)(gacha_rng());
@@ -575,13 +577,14 @@ static const GachaItem& gacha_pull_mystery() {
 
 static const GachaItem& gacha_pull_mystery_ur_pity() {
     static const std::set<std::string> CRAFT_ONLY = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON"};
-    static std::vector<const GachaItem*> pool_UR_eq2, pool_UR_orb2, pool_D2;
+    static std::vector<const GachaItem*> pool_UR_eq2, pool_UR_orb2, pool_E2;
     static const GachaItem* heroheart_gi2 = nullptr;
     static bool built2 = false;
     if (!built2) {
         for (auto& gi : GACHA_ITEMS) {
-            if (gi.set_tag == "D") { pool_D2.push_back(&gi); continue; }
+            if (gi.set_tag == "E") { pool_E2.push_back(&gi); continue; }
             if (gi.key == "EQ_K_HEROHEART") { heroheart_gi2 = &gi; continue; }
+            if (gi.set_tag == "D") continue;
             if (gi.key == "EQ_K_LIFEGODDESS") continue;
             if (CRAFT_ONLY.count(gi.key)) continue;
             if (gi.rarity == "UR") {
@@ -592,9 +595,9 @@ static const GachaItem& gacha_pull_mystery_ur_pity() {
         built2 = true;
     }
     int sub = std::uniform_int_distribution<int>(1, 10000)(gacha_rng());
-    if (sub <= 7500 && pool_D2.size() >= 4) {
+    if (sub <= 7500 && pool_E2.size() >= 4) {
         int didx = (sub - 1) / 1875;
-        return *pool_D2[std::min(didx, (int)pool_D2.size()-1)];
+        return *pool_E2[std::min(didx, (int)pool_E2.size()-1)];
     }
     if (sub <= 8000 && heroheart_gi2) return *heroheart_gi2;
     int orb_roll = std::uniform_int_distribution<int>(1, 10)(gacha_rng());
@@ -634,7 +637,7 @@ static dpp::message make_gacha_main_msg(dpp::snowflake uid,
         "🔮 每 **200 抽**保底出 UR（獨立計算，跟一般池分開算）", false);
     e.add_field("🔒 天選之子（即將推出）",
         "尚未開放，200 籌碼／抽\n機率：⬜C 68% ｜ 🔵R 20% ｜ 💜SR 10% ｜ ✨UR 2%\n"
-        "UR 中：🗡️江湖套裝 各0.375%（共1.5%）｜ 🗡️俠客之心 0.1% ｜ 其餘一般UR 0.4%\n"
+        "UR 中：⚡赫耳墨斯套裝 各0.375%（共1.5%）｜ 🗡️俠客之心 0.1% ｜ 其餘一般UR 0.4%\n"
         "正式上線前會再調整。", false);
     dpp::embed_footer footer;
     footer.text = "👤 " + display_name;
@@ -710,7 +713,7 @@ static dpp::message make_gacha_banner_msg(dpp::snowflake uid, int pool_type,
         e.set_title("🔒  天選之子（尚未開放）").set_color(0x95A5A6);
         e.set_description("尚未正式開放：\n"
                           "機率：⬜C **68%** ｜ 🔵R **20%** ｜ 💜SR **10%** ｜ ✨UR **2%**\n"
-                          "✨UR 中：🗡️江湖套裝 各 **0.375%**（合計1.5%）｜ 🗡️俠客之心 **0.1%** ｜ 其餘一般UR **0.4%**\n"
+                          "✨UR 中：⚡赫耳墨斯套裝 各 **0.375%**（合計1.5%）｜ 🗡️俠客之心 **0.1%** ｜ 其餘一般UR **0.4%**\n"
                           "每 **200 抽**保底出 UR（獨立計算）！");
         e.add_field("💰 餘額",      std::to_string(chips) + " 碼", true);
         e.add_field("🎟️ 1連費用",   "200 碼", true);
