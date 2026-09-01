@@ -2,7 +2,7 @@
 .env
 build/Release/.env
 
-# C++ 建置產物（忽略編譯中間檔，保留 exe 和資料）
+# C++ 建置產物（全部忽略，只保留 JSON 玩家資料）
 build/CMakeFiles/
 build/dcbot.vcxproj*
 build/*.cmake
@@ -12,6 +12,8 @@ build/Release/*.lib
 build/Release/*.exp
 build/Release/*.pdb
 build/Release/*.ilk
+build/Release/*.exe
+build/Release/*.dll
 out/
 *.o
 *.obj
