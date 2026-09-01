@@ -1,0 +1,16 @@
+Detecting compiler hash for triplet x64-windows...
+Compiler found: C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+The following packages are already installed:
+    dpp:x64-windows@10.1.5
+  * nlohmann-json:x64-windows@3.12.0#2
+  * openssl:x64-windows@3.6.3
+  * opus:x64-windows@1.5.2#1
+  * vcpkg-cmake:x64-windows@2024-04-23
+  * vcpkg-cmake-config:x64-windows@2026-07-21
+  * vcpkg-cmake-get-vars:x64-windows@2025-05-29
+  * zlib:x64-windows@1.3.2#1
+dpp provides CMake targets:
+    find_package(dpp CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE dpp::dpp)
+
+All requested installations completed successfully in: 865 us
