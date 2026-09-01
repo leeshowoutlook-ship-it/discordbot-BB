@@ -1,16 +1,8 @@
-[Wed Sep  2 00:05:22 2026] DEBUG: Cluster: 1000 of 1000 session starts remaining
-[Wed Sep  2 00:05:22 2026] INFO: Auto Shard: Bot requires 1 shard
-[Wed Sep  2 00:05:22 2026] DEBUG: Starting with 1 shards...
-[Wed Sep  2 00:05:23 2026] DEBUG: Connecting new session...
-[Wed Sep  2 00:05:24 2026] INFO: Shard id 0 (1/1) ready!
-[Wed Sep  2 00:05:24 2026] DEBUG: Resume URL for session af23da1dfb31df7b460396b9a58e548f is wss://gateway-us-east1-d.discord.gg (host: gateway-us-east1-d.discord.gg)
+[Wed Sep  2 02:13:18 2026] DEBUG: Cluster: 999 of 1000 session starts remaining
+[Wed Sep  2 02:13:18 2026] INFO: Auto Shard: Bot requires 1 shard
+[Wed Sep  2 02:13:18 2026] DEBUG: Starting with 1 shards...
+[Wed Sep  2 02:13:18 2026] DEBUG: Connecting new session...
+[Wed Sep  2 02:13:19 2026] INFO: Shard id 0 (1/1) ready!
+[Wed Sep  2 02:13:19 2026] DEBUG: Resume URL for session f9e2ef767909ebee4157f17212257b43 is wss://gateway-us-east1-d.discord.gg (host: gateway-us-east1-d.discord.gg)
 Bot 已上線：分類帽
-[Wed Sep  2 00:05:27 2026] DEBUG: Shards started.
-[Wed Sep  2 00:26:22 2026] ERROR: Error: 10062: Unknown interaction
-[Wed Sep  2 00:33:49 2026] ERROR: Error: 10062: Unknown interaction
-[Wed Sep  2 00:40:48 2026] ERROR: Error: 10062: Unknown interaction
-[Wed Sep  2 01:36:01 2026] DEBUG: Receiving exception: Reconnection requested, closing session af23da1dfb31df7b460396b9a58e548f
-[Wed Sep  2 01:36:01 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
-[Wed Sep  2 01:36:07 2026] INFO: Reconnecting shard 0
-[Wed Sep  2 01:36:08 2026] DEBUG: Resuming session af23da1dfb31df7b460396b9a58e548f with seq=4426
-[Wed Sep  2 01:36:08 2026] DEBUG: Successfully resumed session id af23da1dfb31df7b460396b9a58e548f
+[Wed Sep  2 02:13:23 2026] DEBUG: Shards started.

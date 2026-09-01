@@ -1,0 +1,240 @@
+{
+  "1036953796007448606": {
+    "clothes": "EQ_C_D_UR",
+    "glove": "EQ_G_D_UR",
+    "orb": "EQ_K_WARGOD",
+    "shoes": "EQ_S_D_UR",
+    "weapon": "EQ_W_D_UR"
+  },
+  "1115212853289427004": {
+    "clothes": "EQ_C_A_UR",
+    "glove": "EQ_G_A_UR",
+    "orb": "EQ_K_UR",
+    "shoes": "EQ_S_A_UR",
+    "weapon": "EQ_W_A_UR"
+  },
+  "1280168492255154230": {
+    "clothes": "EQ_C_A_SR",
+    "glove": "EQ_G_B_SR",
+    "orb": "",
+    "shoes": "EQ_S_A_R",
+    "weapon": "EQ_W_C_UR"
+  },
+  "1367598479110836335": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_WARGOD",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
+  },
+  "1376473181724082227": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_UR",
+    "shoes": "EQ_S_A_SR",
+    "weapon": "EQ_W_A_UR"
+  },
+  "1376834202275676170": {
+    "clothes": "EQ_C_A_UR",
+    "glove": "EQ_G_A_UR",
+    "orb": "EQ_K_UR",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_B_UR"
+  },
+  "1390285382381338627": {
+    "clothes": "EQ_C_A_UR",
+    "glove": "EQ_G_A_UR",
+    "orb": "EQ_K_UR",
+    "shoes": "EQ_S_A_UR",
+    "weapon": "EQ_W_A_UR"
+  },
+  "1393804953516118066": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_WARGOD",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
+  },
+  "1420806787535474840": {
+    "clothes": "EQ_C_C_SR",
+    "glove": "EQ_G_C_SR",
+    "orb": "",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_B_SR"
+  },
+  "308970166287466497": {
+    "clothes": "EQ_C_B_UR",
+    "glove": "EQ_G_B_UR",
+    "orb": "EQ_K_UR",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_B_UR"
+  },
+  "353567910285017090": {
+    "clothes": "EQ_C_A_UR",
+    "glove": "EQ_G_A_UR",
+    "orb": "EQ_K_SPEED",
+    "shoes": "EQ_S_A_UR",
+    "weapon": "EQ_W_A_UR"
+  },
+  "457478323665240065": {
+    "clothes": "EQ_C_B_UR",
+    "glove": "EQ_G_B_UR",
+    "orb": "EQ_K_LIFEGODDESS",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_B_UR"
+  },
+  "470149299934593024": {
+    "clothes": "EQ_C_C_SR",
+    "glove": "EQ_G_A_UR",
+    "orb": "",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_C_UR"
+  },
+  "502887336531591168": {
+    "clothes": "EQ_C_B_UR",
+    "glove": "EQ_G_B_UR",
+    "orb": "EQ_K_LIFEGODDESS",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_B_UR"
+  },
+  "519124245150957578": {
+    "clothes": "EQ_C_B_UR",
+    "glove": "EQ_G_B_UR",
+    "orb": "EQ_K_SPEED",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_B_UR"
+  },
+  "558513044632895509": {
+    "clothes": "EQ_C_A_UR",
+    "glove": "EQ_G_A_UR",
+    "orb": "EQ_K_UR",
+    "shoes": "EQ_S_A_UR",
+    "weapon": "EQ_W_A_UR"
+  },
+  "559287346131107861": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_SR",
+    "orb": "",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
+  },
+  "560474152755134464": {
+    "clothes": "EQ_C_B_UR",
+    "glove": "EQ_G_A_UR",
+    "orb": "EQ_K_UR",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_C_UR"
+  },
+  "592404587248615458": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_WARGOD",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
+  },
+  "592685139717390346": {
+    "clothes": "EQ_C_A_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_SPEED",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_A_UR"
+  },
+  "604244623124070423": {
+    "clothes": "EQ_C_C_C",
+    "glove": "",
+    "orb": "",
+    "shoes": "",
+    "weapon": ""
+  },
+  "610001650089721886": {
+    "clothes": "EQ_C_C_SR",
+    "glove": "EQ_G_B_UR",
+    "orb": "",
+    "shoes": "EQ_S_A_SR",
+    "weapon": "EQ_W_A_R"
+  },
+  "615252599268179998": {
+    "clothes": "EQ_C_B_SR",
+    "glove": "EQ_G_A_UR",
+    "orb": "EQ_K_SPEED",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_B_SR"
+  },
+  "651090037102084096": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_VIKING",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_B_UR"
+  },
+  "679878467097329719": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_BEAR",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
+  },
+  "724983832788598805": {
+    "clothes": "EQ_C_A_UR",
+    "glove": "EQ_G_A_UR",
+    "orb": "EQ_K_ATHENA",
+    "shoes": "EQ_S_A_UR",
+    "weapon": "EQ_W_A_UR"
+  },
+  "811232678590152790": {
+    "clothes": "EQ_C_B_UR",
+    "glove": "EQ_G_B_UR",
+    "orb": "EQ_K_WARGOD",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_B_UR"
+  },
+  "832619316042137630": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_UR",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
+  },
+  "843071419671904308": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_A_UR",
+    "orb": "EQ_K_WARGOD",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_A_UR"
+  },
+  "850359830404661258": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_VIKING",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
+  },
+  "856481432581701643": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_VIKING",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
+  },
+  "876757185152028692": {
+    "clothes": "EQ_C_B_UR",
+    "glove": "EQ_G_B_UR",
+    "orb": "EQ_K_UR",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_B_UR"
+  },
+  "959450115007975444": {
+    "clothes": "EQ_C_A_SR",
+    "glove": "EQ_G_A_SR",
+    "orb": "",
+    "shoes": "EQ_S_A_SR",
+    "weapon": "EQ_W_A_SR"
+  },
+  "978574913306755084": {
+    "clothes": "EQ_C_B_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_SPEED",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_C_UR"
+  }
+}

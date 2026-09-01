@@ -1,0 +1,52 @@
+{
+  "stock_0050": {
+    "last_update": 1788286399,
+    "prev_close": 108,
+    "price": 108
+  },
+  "stock_btc": {
+    "last_update": 1788286399,
+    "prev_close": 77419,
+    "price": 77177
+  },
+  "stock_coin": {
+    "last_update": 1788286399,
+    "prev_close": 177,
+    "price": 176
+  },
+  "stock_mood": {
+    "last_update": 1788143667,
+    "prev_close": 1000,
+    "price": 995
+  },
+  "stock_mstr": {
+    "last_update": 1788286399,
+    "prev_close": 126,
+    "price": 125
+  },
+  "stock_ntdo": {
+    "last_update": 1788286399,
+    "prev_close": 9103,
+    "price": 9103
+  },
+  "stock_nvda": {
+    "last_update": 1788286399,
+    "prev_close": 218,
+    "price": 218
+  },
+  "stock_tsla": {
+    "last_update": 1788286399,
+    "prev_close": 357,
+    "price": 355
+  },
+  "stock_tsmc": {
+    "last_update": 1788286399,
+    "prev_close": 2440,
+    "price": 2440
+  },
+  "stock_yageo": {
+    "last_update": 1788286399,
+    "prev_close": 568,
+    "price": 568
+  }
+}
