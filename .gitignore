@@ -14,6 +14,8 @@ build/Release/*.pdb
 build/Release/*.ilk
 build/Release/*.exe
 build/Release/*.dll
+build/**/*.pch
+*.pch
 out/
 *.o
 *.obj
