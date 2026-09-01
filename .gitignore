@@ -5,6 +5,13 @@ build/Release/.env
 # C++ 建置產物（全部忽略，只保留 JSON 玩家資料）
 build/CMakeFiles/
 build/dcbot.vcxproj*
+build/ALL_BUILD.vcxproj*
+build/ZERO_CHECK.vcxproj*
+build/CMakeCache.txt
+build/dcbot.sln
+build/dcbot.dir/
+build/vcpkg-manifest-install.log
+build/x64/
 build/*.cmake
 build/Makefile
 build/Release/*.obj
