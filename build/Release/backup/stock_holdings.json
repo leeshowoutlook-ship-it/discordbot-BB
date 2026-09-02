@@ -1,0 +1,124 @@
+{
+  "1036953796007448606": {
+    "stock_nvda": {
+      "avg_cost": 224,
+      "shares": 20
+    },
+    "stock_tsmc": {
+      "avg_cost": 2390,
+      "shares": 300
+    },
+    "stock_yageo": {
+      "avg_cost": 657,
+      "shares": 150
+    }
+  },
+  "1115212853289427004": {
+    "stock_mood": {
+      "avg_cost": 919,
+      "shares": 2
+    }
+  },
+  "1390285382381338627": {
+    "stock_tsmc": {
+      "avg_cost": 2400,
+      "shares": 4
+    }
+  },
+  "1434039274742747230": {
+    "stock_mood": {
+      "avg_cost": 1060,
+      "shares": 2
+    }
+  },
+  "479900597013708802": {
+    "stock_mood": {
+      "avg_cost": 860,
+      "shares": 3
+    },
+    "stock_mstr": {
+      "avg_cost": 127,
+      "shares": 30
+    }
+  },
+  "559287346131107861": {
+    "stock_0050": {
+      "avg_cost": 103,
+      "shares": 500
+    },
+    "stock_mstr": {
+      "avg_cost": 98,
+      "shares": 300
+    }
+  },
+  "592404587248615458": {
+    "stock_0050": {
+      "avg_cost": 103,
+      "shares": 50
+    },
+    "stock_mstr": {
+      "avg_cost": 101,
+      "shares": 60
+    },
+    "stock_nvda": {
+      "avg_cost": 208,
+      "shares": 30
+    }
+  },
+  "604244623124070423": {
+    "stock_btc": {
+      "avg_cost": 77589,
+      "shares": 3
+    },
+    "stock_purse": {
+      "avg_cost": 963,
+      "shares": 10
+    }
+  },
+  "651090037102084096": {
+    "stock_0050": {
+      "avg_cost": 105,
+      "shares": 200
+    }
+  },
+  "843071419671904308": {
+    "stock_0050": {
+      "avg_cost": 103,
+      "shares": 20
+    },
+    "stock_mood": {
+      "avg_cost": 979,
+      "shares": 17
+    }
+  },
+  "856481432581701643": {
+    "stock_0050": {
+      "avg_cost": 104,
+      "shares": 496
+    },
+    "stock_mood": {
+      "avg_cost": 866,
+      "shares": 60
+    },
+    "stock_tsmc": {
+      "avg_cost": 2380,
+      "shares": 21
+    }
+  },
+  "959450115007975444": {
+    "stock_mood": {
+      "avg_cost": 1049,
+      "shares": 10
+    },
+    "stock_tsmc": {
+      "avg_cost": 2407,
+      "shares": 225
+    }
+  },
+  "978574913306755084": {
+    "stock_yageo": {
+      "avg_cost": 612,
+      "shares": 5
+    }
+  }
+}

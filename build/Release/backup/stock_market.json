@@ -1,0 +1,72 @@
+{
+  "stock_0050": {
+    "day_number": 0,
+    "day_open_price": 0,
+    "last_update": 1788364897,
+    "prev_close": 107,
+    "price": 107
+  },
+  "stock_btc": {
+    "day_number": 0,
+    "day_open_price": 0,
+    "last_update": 1788364897,
+    "prev_close": 77205,
+    "price": 77203
+  },
+  "stock_catbro": {
+    "day_number": 20698,
+    "day_open_price": 1000,
+    "last_update": 1788331730,
+    "prev_close": 998,
+    "price": 950
+  },
+  "stock_mood": {
+    "day_number": 0,
+    "day_open_price": 0,
+    "last_update": 1788143667,
+    "prev_close": 1000,
+    "price": 995
+  },
+  "stock_mstr": {
+    "day_number": 0,
+    "day_open_price": 0,
+    "last_update": 1788364897,
+    "prev_close": 122,
+    "price": 122
+  },
+  "stock_ntdo": {
+    "day_number": 0,
+    "day_open_price": 0,
+    "last_update": 1788364897,
+    "prev_close": 8821,
+    "price": 8821
+  },
+  "stock_nvda": {
+    "day_number": 0,
+    "day_open_price": 0,
+    "last_update": 1788364897,
+    "prev_close": 227,
+    "price": 228
+  },
+  "stock_purse": {
+    "day_number": 20698,
+    "day_open_price": 1000,
+    "last_update": 1788324005,
+    "prev_close": 977,
+    "price": 963
+  },
+  "stock_tsmc": {
+    "day_number": 0,
+    "day_open_price": 0,
+    "last_update": 1788364897,
+    "prev_close": 2385,
+    "price": 2385
+  },
+  "stock_yageo": {
+    "day_number": 0,
+    "day_open_price": 0,
+    "last_update": 1788364897,
+    "prev_close": 540,
+    "price": 540
+  }
+}

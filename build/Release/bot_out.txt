@@ -1,8 +1,0 @@
-[Wed Sep  2 02:13:18 2026] DEBUG: Cluster: 999 of 1000 session starts remaining
-[Wed Sep  2 02:13:18 2026] INFO: Auto Shard: Bot requires 1 shard
-[Wed Sep  2 02:13:18 2026] DEBUG: Starting with 1 shards...
-[Wed Sep  2 02:13:18 2026] DEBUG: Connecting new session...
-[Wed Sep  2 02:13:19 2026] INFO: Shard id 0 (1/1) ready!
-[Wed Sep  2 02:13:19 2026] DEBUG: Resume URL for session f9e2ef767909ebee4157f17212257b43 is wss://gateway-us-east1-d.discord.gg (host: gateway-us-east1-d.discord.gg)
-Bot 已上線：分類帽
-[Wed Sep  2 02:13:23 2026] DEBUG: Shards started.
