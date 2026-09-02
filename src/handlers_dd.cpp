@@ -18,28 +18,37 @@ void handle_dd_button(const dpp::button_click_t& ev)
     if (cid.rfind("rroom_start_", 0) == 0) {
         dpp::snowflake rch(std::stoull(cid.substr(12)));
         RaidRoom room;
+        int check = 0; // 0=ok 1=not_found 2=not_host 3=need_2 4=missing_scroll
+        std::string missing_name;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto it = raid_rooms.find(rch);
-            if (it == raid_rooms.end()) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 找不到組隊房間！").set_flags(dpp::m_ephemeral)); return; }
-            room = it->second;
-            if (uid != room.host_uid) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 只有開房者可以開始戰鬥！").set_flags(dpp::m_ephemeral)); return; }
-            if ((int)room.member_uids.size() < 2) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 需要至少 2 名成員才可開始！").set_flags(dpp::m_ephemeral)); return; }
-            if (!room.practice_mode) {
-                for (auto& muid : room.member_uids) {
-                    int cnt = 0;
-                    auto iit = inventory_data.find(muid);
-                    if (iit != inventory_data.end() && iit->second.count("weekly_hunt_scroll"))
-                        cnt = iit->second.at("weekly_hunt_scroll");
-                    if (cnt <= 0) {
-                        std::string nm = room.member_names.count(muid) ? room.member_names.at(muid) : "某成員";
-                        ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ **" + nm + "** 沒有每週怪物狩獵卷，無法開始！").set_flags(dpp::m_ephemeral));
-                        return;
+            if (it == raid_rooms.end()) { check = 1; }
+            else {
+                room = it->second;
+                if (uid != room.host_uid) check = 2;
+                else if ((int)room.member_uids.size() < 2) check = 3;
+                else if (!room.practice_mode) {
+                    for (auto& muid : room.member_uids) {
+                        int cnt = 0;
+                        auto iit = inventory_data.find(muid);
+                        if (iit != inventory_data.end() && iit->second.count("weekly_hunt_scroll"))
+                            cnt = iit->second.at("weekly_hunt_scroll");
+                        if (cnt <= 0) {
+                            missing_name = room.member_names.count(muid) ? room.member_names.at(muid) : "某成員";
+                            check = 4;
+                            break;
+                        }
                     }
                 }
+                if (check == 0) raid_rooms.erase(rch);
             }
-            raid_rooms.erase(rch);
         }
+        // reply（網路呼叫）全部移到鎖外，避免持有 data_mutex 期間卡住其他人的操作
+        if (check == 1) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 找不到組隊房間！").set_flags(dpp::m_ephemeral)); return; }
+        if (check == 2) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 只有開房者可以開始戰鬥！").set_flags(dpp::m_ephemeral)); return; }
+        if (check == 3) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 需要至少 2 名成員才可開始！").set_flags(dpp::m_ephemeral)); return; }
+        if (check == 4) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ **" + missing_name + "** 沒有每週怪物狩獵卷，無法開始！").set_flags(dpp::m_ephemeral)); return; }
         // 停掉房間的 10 分鐘逾時計時器，不然之後同頻道開新房間會被這個殘留的計時器誤殺
         if (room.timer_id) g_bot->stop_timer(room.timer_id);
 

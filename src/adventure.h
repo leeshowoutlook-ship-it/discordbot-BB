@@ -415,6 +415,7 @@ static void save_adv_games() {
                 {"notify_on_finish", g.notify_on_finish},
                 {"finish_notified",  g.finish_notified},
                 {"star_boost",       g.star_boost},
+                {"ch",               (uint64_t)g.ch},
             };
         }
     }
@@ -445,6 +446,7 @@ static void load_adv_games() {
             g.notify_on_finish = v.value("notify_on_finish", false);
             g.finish_notified  = v.value("finish_notified",  false);
             g.star_boost       = v.value("star_boost",       false);
+            g.ch               = (uint64_t)v.value("ch",    (uint64_t)0);
             adv_games[g.uid] = g;
         }
     } catch (...) {}
@@ -1718,6 +1720,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         if (setup.funds > 0) { add_chips(uid, -setup.funds); save_chips(); }
         AdventureGame g;
         g.uid = uid; g.region_key = setup.region_key;
+        g.ch  = ev.command.channel_id;
         g.duration_hours = setup.duration_hours; g.funds = setup.funds;
         g.pet_along = (setup.partner == 1);
         g.pet_stage = pet_stage;

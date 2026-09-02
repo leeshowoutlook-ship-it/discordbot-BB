@@ -202,11 +202,18 @@ void handle_games_message(const dpp::message_create_t& ev,
     // !猜（排除 !猜拳）
     if ((content.rfind("!猜", 0) == 0 || content.rfind("！猜", 0) == 0)
          && content.rfind("!猜拳", 0) != 0 && content.rfind("！猜拳", 0) != 0) {
+        bool auto_cleared = false;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             if (guess_games.count(uid)) {
-                dpp::message m; m.set_content("❌ 你已有進行中的猜數字遊戲！");
-                m.channel_id = ch; g_bot->message_create(m); return;
+                if (guess_games[uid].msg_id == 0) {
+                    // 上局訊息未成功送出（msg_id 為 0），自動清除讓玩家重新開始
+                    guess_games.erase(uid);
+                    auto_cleared = true;
+                } else {
+                    dpp::message m; m.set_content("❌ 你已有進行中的猜數字遊戲！");
+                    m.channel_id = ch; g_bot->message_create(m); return;
+                }
             }
             GuessGame g;
             g.uid = uid; g.channel_id = ch;
@@ -216,13 +223,23 @@ void handle_games_message(const dpp::message_create_t& ev,
                              ? ev.msg.author.username : ev.msg.member.get_nickname();
             guess_games[uid] = g;
         }
+        if (auto_cleared) {
+            dpp::message notice;
+            notice.set_content("⚠️ 偵測到上局遊戲訊息未成功送出，已自動清除，重新開始一局。");
+            notice.channel_id = ch; g_bot->message_create(notice);
+        }
         GuessGame snap; { std::lock_guard<std::mutex> lk(data_mutex); snap = guess_games[uid]; }
         auto msg = make_guess_msg(snap); msg.channel_id = ch;
-        g_bot->message_create(msg, [uid](const dpp::confirmation_callback_t& cb) {
+        g_bot->message_create(msg, [uid, ch](const dpp::confirmation_callback_t& cb) {
             if (!cb.is_error()) {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 if (guess_games.count(uid))
                     guess_games[uid].msg_id = std::get<dpp::message>(cb.value).id;
+            } else {
+                // 訊息發送失敗，清除 state 讓玩家可重試
+                { std::lock_guard<std::mutex> lk(data_mutex); guess_games.erase(uid); }
+                dpp::message err; err.set_content("❌ 遊戲訊息發送失敗，請重新輸入指令。");
+                err.channel_id = ch; g_bot->message_create(err);
             }
         });
         return;
@@ -244,16 +261,7 @@ void handle_games_button(const dpp::button_click_t& ev)
         if (sep == std::string::npos) return;
         uint64_t gid = std::stoull(rest.substr(0, sep));
         int choice   = std::stoi(rest.substr(sep + 1));
-        // 快速驗證（不含 I/O），避免 defer 後無法送 ephemeral
-        {
-            std::lock_guard<std::mutex> lk(data_mutex);
-            auto it = dice_games.find(gid);
-            if (it == dice_games.end() || it->second.uid != uid) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
-            }
-        }
-        // 先 ack 避免 3 秒 timeout，再執行含存檔的結算
+        // ACK 先行，避免 mutex 等待超過 3 秒
         ev.reply(dpp::ir_deferred_update_message, dpp::message());
         dpp::message res = handle_dice_pick(gid, choice, uid);
         if (!res.embeds.empty()) ev.edit_original_response(res);
@@ -473,12 +481,6 @@ void handle_games_button(const dpp::button_click_t& ev)
         }
         ev.reply(dpp::ir_deferred_update_message, dpp::message());
         eu_confirm_bet_and_spin(gid, type, -1, ev.command.message_id);
-        EuRouletteGame g0; bool found0 = false;
-        { std::lock_guard<std::mutex> lk(data_mutex);
-          auto it = euroulette_games.find(gid);
-          if (it != euroulette_games.end()) { g0 = it->second; found0 = true; }
-        }
-        if (found0) ev.edit_original_response(make_euroulette_spin_frame_msg(g0, eu_roll()));
         return;
     }
 
@@ -548,15 +550,7 @@ void handle_games_button(const dpp::button_click_t& ev)
                 }
             });
         } else {
-            // 快速驗證
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                if (!shoot_games.count(uid)) {
-                    ev.reply(dpp::ir_channel_message_with_source,
-                        dpp::message("⚠️ 找不到進行中的遊戲！").set_flags(dpp::m_ephemeral)); return;
-                }
-            }
-            // 先 ack，再做含存檔的結算
+            // ACK 先行，避免 mutex 等待超過 3 秒
             ev.reply(dpp::ir_deferred_update_message, dpp::message());
             ShootGame sg;
             {
@@ -608,23 +602,23 @@ void handle_games_button(const dpp::button_click_t& ev)
                 handle_rocket_start(uid, ev.command.channel_id, bet,
                     user.get_avatar_url(), ev.command.member.get_nickname()));
         } else {
+            // ACK 先行，避免 mutex 等待超過 3 秒
+            ev.reply(dpp::ir_deferred_update_message, dpp::message());
             RocketGame rg;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 auto it = rocket_games.find(uid);
                 if (it == rocket_games.end()) {
-                    ev.reply(dpp::ir_channel_message_with_source,
-                        dpp::message("⚠️ 找不到進行中的遊戲！").set_flags(dpp::m_ephemeral)); return;
+                    ev.edit_original_response(dpp::message("⚠️ 找不到進行中的遊戲！")); return;
                 }
                 rg = it->second;
             }
             bool cash    = cid.rfind("rocket_cash_", 0) == 0;
-            if (!cash) rg.presses++;  // 提現不算按次
+            if (!cash) rg.presses++;
             bool explode = !cash && rk_explodes();
             bool moon    = !cash && !explode && rg.presses >= 10;
             bool end_game = cash || explode || moon;
             if (end_game) {
-                ev.reply(dpp::ir_deferred_update_message, dpp::message());
                 { std::lock_guard<std::mutex> lk(data_mutex); rocket_games.erase(uid); }
                 dpp::message result;
                 if (cash)         result = make_rocket_cash_msg(rg);
@@ -633,7 +627,7 @@ void handle_games_button(const dpp::button_click_t& ev)
                 ev.edit_original_response(result);
             } else {
                 { std::lock_guard<std::mutex> lk(data_mutex); rocket_games[uid] = rg; }
-                ev.reply(dpp::ir_update_message, make_rocket_play_msg(rg));
+                ev.edit_original_response(make_rocket_play_msg(rg));
             }
         }
         return;

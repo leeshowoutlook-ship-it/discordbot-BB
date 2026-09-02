@@ -149,17 +149,21 @@ void handle_bj_button(const dpp::button_click_t& ev)
         if (p1 == std::string::npos) return;
         std::string action = cid.substr(3, p1 - 3);
         uint64_t gid = std::stoull(cid.substr(p1 + 1));
+        int check = 0; // 0=ok 1=not_found 2=not_owner
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto it = bj_games.find(gid);
-            if (it == bj_games.end()) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("⚠️ 遊戲已結束。").set_flags(dpp::m_ephemeral)); return;
-            }
-            if (it->second.user_id != uid) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 這不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
-            }
+            if (it == bj_games.end()) check = 1;
+            else if (it->second.user_id != uid) check = 2;
+        }
+        // reply（網路呼叫）移到鎖外，避免持有 data_mutex 期間卡住其他人的操作
+        if (check == 1) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("⚠️ 遊戲已結束。").set_flags(dpp::m_ephemeral)); return;
+        }
+        if (check == 2) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
         }
         // 先 ack 避免 Discord 3 秒 timeout（存檔 I/O 可能耗時）
         ev.reply(dpp::ir_deferred_update_message, dpp::message());

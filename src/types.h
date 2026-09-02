@@ -256,17 +256,18 @@ struct AdventureSetup {
 
 struct AdventureGame {
     dpp::snowflake uid;
+    dpp::snowflake ch        = 0;  // 出發頻道，DM 失敗時用來 fallback 通知
     std::string region_key;
     int     duration_hours = 0;
     int64_t funds          = 0;
     bool    pet_along      = false;
-    int     pet_stage      = 0; // 出發時同行寵物的階段（0=未帶寵物，鎖定出發當下的階段避免中途進化影響已算好的探索度）
-    std::string pet_talent1, pet_talent2; // 出發時同行寵物的天賦（同樣鎖定出發當下，避免中途改天賦影響結果）
+    int     pet_stage      = 0;
+    std::string pet_talent1, pet_talent2;
     time_t  start_time     = 0;
     time_t  end_time       = 0;
-    bool    notify_on_finish = false; // 探險完成時私訊通知
-    bool    finish_notified  = false; // 是否已發送過完成通知（防重複）
-    bool    star_boost       = false; // 投入星星：防空包彈 + 探索度+10
+    bool    notify_on_finish = false;
+    bool    finish_notified  = false;
+    bool    star_boost       = false;
 };
 
 // ─── Monster hunt active game ─────────────────────────────────────────────────
@@ -457,8 +458,9 @@ struct EuRouletteGame {
     std::string    bet_type;    // "red"|"black"|"odd"|"even"|"low"|"high"|"number"
     int            bet_number = -1; // 0~36，只有 bet_type=="number" 時有效
     int            result     = -1; // 開獎結果（下注確認當下就決定，動畫只是揭曉過程）
-    int            spin_frame = 0;  // 目前跑到第幾格動畫
-    dpp::timer     timer_id   = 0;
+    int            spin_frame    = 0;  // 目前跑到第幾格動畫
+    int            last_display  = -1; // 上一幀顯示的格子，確保每幀不重複
+    dpp::timer     timer_id      = 0;
     std::string    avatar_url;
     std::string    display_name;
 };

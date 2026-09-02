@@ -3894,21 +3894,32 @@ int main(int argc, char* argv[]) {
                     g_bot->direct_message_create(nuid, dpp::message("🛀 你的寵物溫泉回來了！負面狀態已全部清除，快輸入 `!寵物` 去看看牠吧！"));
             }
 
-            // ── 探險完成通知（私訊）──────────────────────────────────────────
-            std::vector<dpp::snowflake> to_notify_adv;
+            // ── 探險完成通知（私訊，失敗時 fallback 至頻道）───────────────
+            std::vector<std::pair<dpp::snowflake, dpp::snowflake>> to_notify_adv; // (uid, ch)
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 for (auto& [auid, g] : adv_games) {
                     if (!g.notify_on_finish || g.finish_notified) continue;
                     if (g.end_time > now) continue;
                     g.finish_notified = true;
-                    to_notify_adv.push_back(auid);
+                    to_notify_adv.push_back({auid, g.ch});
                 }
             }
             if (!to_notify_adv.empty()) {
                 save_adv_games();
-                for (auto nuid : to_notify_adv)
-                    g_bot->direct_message_create(nuid, dpp::message("🗺️ 你的探險完成了！快輸入 `!探險` 去收取結果吧！"));
+                for (auto [nuid, nch] : to_notify_adv) {
+                    g_bot->direct_message_create(nuid,
+                        dpp::message("🗺️ 你的探險完成了！快輸入 `!探險` 去收取結果吧！"),
+                        [nuid, nch](const dpp::confirmation_callback_t& cb) {
+                            if (cb.is_error() && nch != 0) {
+                                dpp::message m;
+                                m.set_content("<@" + std::to_string((uint64_t)nuid) +
+                                    "> 🗺️ 你的探險完成了！快輸入 `!探險` 去收取結果吧！");
+                                m.channel_id = nch;
+                                g_bot->message_create(m);
+                            }
+                        });
+                }
             }
         }, 300);
       } // run_once<on_ready_once>

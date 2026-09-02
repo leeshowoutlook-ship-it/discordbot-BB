@@ -279,7 +279,16 @@ static void eu_start_spin(uint64_t gid) {
               auto it = euroulette_games.find(gid);
               if (it != euroulette_games.end()) it->second.spin_frame = g.spin_frame;
             }
-            int display_slot = eu_roll();
+            int display_slot;
+            if (g.spin_frame == EUROULETTE_SPIN_FRAMES - 1) {
+                display_slot = g.result;
+            } else {
+                do { display_slot = eu_roll(); } while (display_slot == g.last_display);
+            }
+            { std::lock_guard<std::mutex> lk2(data_mutex);
+              auto it2 = euroulette_games.find(gid);
+              if (it2 != euroulette_games.end()) it2->second.last_display = display_slot;
+            }
             auto fmsg = make_euroulette_spin_frame_msg(g, display_slot);
             fmsg.id = g.msg_id; fmsg.channel_id = g.ch;
             g_bot->message_edit(fmsg);

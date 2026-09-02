@@ -59,7 +59,9 @@ void handle_shop_button(const dpp::button_click_t& ev)
         std::string av = user.get_avatar_url();
 
         if (cid.rfind("gacha_main_", 0) == 0) {
-            ev.reply(dpp::ir_update_message, make_gacha_main_msg(uid, dn, av));
+            bool src_v2 = (ev.command.msg.flags & dpp::m_using_components_v2) != 0;
+            ev.reply(src_v2 ? dpp::ir_channel_message_with_source : dpp::ir_update_message,
+                     make_gacha_main_msg(uid, dn, av));
         } else if (cid.rfind("gacha_banner_normal_", 0) == 0) {
             ev.reply(dpp::ir_update_message, make_gacha_banner_msg(uid, 0, dn, av));
         } else if (cid.rfind("gacha_banner_star_", 0) == 0) {
