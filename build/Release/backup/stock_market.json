@@ -2,23 +2,23 @@
   "stock_0050": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788364897,
-    "prev_close": 107,
-    "price": 107
+    "last_update": 1788476589,
+    "prev_close": 106,
+    "price": 106
   },
   "stock_btc": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788364897,
-    "prev_close": 77205,
-    "price": 77203
+    "last_update": 1788476589,
+    "prev_close": 81214,
+    "price": 81148
   },
   "stock_catbro": {
-    "day_number": 20698,
-    "day_open_price": 1000,
-    "last_update": 1788331730,
-    "prev_close": 998,
-    "price": 950
+    "day_number": 20700,
+    "day_open_price": 910,
+    "last_update": 1788453583,
+    "prev_close": 864,
+    "price": 911
   },
   "stock_mood": {
     "day_number": 0,
@@ -30,43 +30,43 @@
   "stock_mstr": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788364897,
-    "prev_close": 122,
-    "price": 122
+    "last_update": 1788476589,
+    "prev_close": 145,
+    "price": 145
   },
   "stock_ntdo": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788364897,
-    "prev_close": 8821,
-    "price": 8821
+    "last_update": 1788476589,
+    "prev_close": 8855,
+    "price": 8855
   },
   "stock_nvda": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788364897,
-    "prev_close": 227,
+    "last_update": 1788476589,
+    "prev_close": 228,
     "price": 228
   },
   "stock_purse": {
-    "day_number": 20698,
-    "day_open_price": 1000,
-    "last_update": 1788324005,
-    "prev_close": 977,
-    "price": 963
+    "day_number": 20699,
+    "day_open_price": 963,
+    "last_update": 1788396454,
+    "prev_close": 957,
+    "price": 960
   },
   "stock_tsmc": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788364897,
-    "prev_close": 2385,
-    "price": 2385
+    "last_update": 1788476589,
+    "prev_close": 2390,
+    "price": 2390
   },
   "stock_yageo": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788364897,
-    "prev_close": 540,
-    "price": 540
+    "last_update": 1788476589,
+    "prev_close": 511,
+    "price": 511
   }
 }

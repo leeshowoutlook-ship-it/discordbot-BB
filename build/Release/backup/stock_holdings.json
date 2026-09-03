@@ -17,6 +17,20 @@
     "stock_mood": {
       "avg_cost": 919,
       "shares": 2
+    },
+    "stock_purse": {
+      "avg_cost": 960,
+      "shares": 5
+    }
+  },
+  "1376834202275676170": {
+    "stock_0050": {
+      "avg_cost": 107,
+      "shares": 50
+    },
+    "stock_catbro": {
+      "avg_cost": 903,
+      "shares": 30
     }
   },
   "1390285382381338627": {
@@ -56,23 +70,31 @@
       "avg_cost": 103,
       "shares": 50
     },
+    "stock_catbro": {
+      "avg_cost": 903,
+      "shares": 20
+    },
     "stock_mstr": {
       "avg_cost": 101,
       "shares": 60
     },
-    "stock_nvda": {
-      "avg_cost": 208,
-      "shares": 30
+    "stock_purse": {
+      "avg_cost": 963,
+      "shares": 20
     }
   },
   "604244623124070423": {
-    "stock_btc": {
-      "avg_cost": 77589,
-      "shares": 3
+    "stock_ntdo": {
+      "avg_cost": 8855,
+      "shares": 4
     },
     "stock_purse": {
       "avg_cost": 963,
       "shares": 10
+    },
+    "stock_yageo": {
+      "avg_cost": 511,
+      "shares": 400
     }
   },
   "651090037102084096": {
