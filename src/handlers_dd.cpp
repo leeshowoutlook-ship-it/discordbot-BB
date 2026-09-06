@@ -128,6 +128,8 @@ void handle_dd_button(const dpp::button_click_t& ev)
     // ── dd_* combat buttons ───────────────────────────────────────────────────
     if (cid.rfind("dd_", 0) == 0) {
         bool dd_need_pet_save = false;
+        bool dd_need_reward_save = false; // 勝利獎勵：save_chips/save_inventory 內部也會鎖 data_mutex，
+                                           // 若在持鎖狀態下呼叫會死鎖，故延後到鎖釋放後由 caller 存檔
         auto dd_try_end = [&](DDGame& dg, bool need_lock) -> bool {
             if (!dg.game_over) return false;
             g_bot->stop_timer(dg.timer_id);
@@ -145,7 +147,7 @@ void handle_dd_button(const dpp::button_click_t& ev)
                     };
                     if (need_lock) { std::lock_guard<std::mutex> lk2(data_mutex); do_reward(); }
                     else           { do_reward(); }
-                    save_chips(); save_inventory();
+                    dd_need_reward_save = true; // 鎖釋放後由 caller 呼叫 save_chips/save_inventory
                 }
                 auto emsg = make_dd_end_msg(dg, rewards);
                 dd_games.erase(ch); ev.edit_original_response(emsg); return true;
@@ -221,6 +223,7 @@ void handle_dd_button(const dpp::button_click_t& ev)
                 }
             }
             if (dd_need_pet_save) save_pet_data();
+            if (dd_need_reward_save) { save_chips(); save_inventory(); }
             return;
         }
         if (cid.rfind("dd_block_", 0) == 0) {
@@ -237,6 +240,7 @@ void handle_dd_button(const dpp::button_click_t& ev)
                     ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
             }
             if (dd_need_pet_save) save_pet_data();
+            if (dd_need_reward_save) { save_chips(); save_inventory(); }
             return;
         }
         if (cid.rfind("dd_heal_", 0) == 0) {
@@ -265,6 +269,7 @@ void handle_dd_button(const dpp::button_click_t& ev)
                     ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
             }
             if (dd_need_pet_save) save_pet_data();
+            if (dd_need_reward_save) { save_chips(); save_inventory(); }
             return;
         }
         if (cid.rfind("dd_altar_", 0) == 0) {
@@ -283,6 +288,7 @@ void handle_dd_button(const dpp::button_click_t& ev)
                     ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
             }
             if (dd_need_pet_save) save_pet_data();
+            if (dd_need_reward_save) { save_chips(); save_inventory(); }
             return;
         }
         if (cid.rfind("dd_pool_", 0) == 0) {
@@ -299,6 +305,7 @@ void handle_dd_button(const dpp::button_click_t& ev)
                     ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
             }
             if (dd_need_pet_save) save_pet_data();
+            if (dd_need_reward_save) { save_chips(); save_inventory(); }
             return;
         }
         if (cid.rfind("dd_pray_", 0) == 0) {
@@ -320,6 +327,7 @@ void handle_dd_button(const dpp::button_click_t& ev)
                     ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
             }
             if (dd_need_pet_save) save_pet_data();
+            if (dd_need_reward_save) { save_chips(); save_inventory(); }
             return;
         }
         if (cid.rfind("dd_demolish_", 0) == 0) {
@@ -359,6 +367,7 @@ void handle_dd_button(const dpp::button_click_t& ev)
                     ev.reply(dpp::ir_update_message, make_dd_combat_msg(dg));
             }
             if (dd_need_pet_save) save_pet_data();
+            if (dd_need_reward_save) { save_chips(); save_inventory(); }
             return;
         }
     }

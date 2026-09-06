@@ -29,8 +29,8 @@
       "shares": 50
     },
     "stock_catbro": {
-      "avg_cost": 903,
-      "shares": 30
+      "avg_cost": 888,
+      "shares": 50
     }
   },
   "1390285382381338627": {
@@ -85,16 +85,12 @@
   },
   "604244623124070423": {
     "stock_ntdo": {
-      "avg_cost": 8855,
-      "shares": 4
+      "avg_cost": 8849,
+      "shares": 28
     },
     "stock_purse": {
       "avg_cost": 963,
       "shares": 10
-    },
-    "stock_yageo": {
-      "avg_cost": 511,
-      "shares": 400
     }
   },
   "651090037102084096": {
