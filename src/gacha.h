@@ -468,6 +468,8 @@ static const GachaItem& gacha_pull_hero() {
         for (auto& gi : GACHA_ITEMS) {
             if (gi.set_tag == "D") { pool_D.push_back(&gi); continue; }
             if (gi.key == "EQ_K_LIFEGODDESS") { lifegoddess_gi = &gi; continue; }
+            if (gi.set_tag == "E") continue; // 天選之子套裝改回專屬，俠客之路不出
+            if (gi.key == "EQ_K_HEROHEART") continue; // 俠客之心同理，俠客之路不出
             if (CRAFT_ONLY.count(gi.key)) continue;
             if      (gi.rarity == "C")  pool_C.push_back(&gi);
             else if (gi.rarity == "R")  pool_R.push_back(&gi);
@@ -510,6 +512,8 @@ static const GachaItem& gacha_pull_hero_ur_pity() {
         for (auto& gi : GACHA_ITEMS) {
             if (gi.set_tag == "D") { pool_D2.push_back(&gi); continue; }
             if (gi.key == "EQ_K_LIFEGODDESS") { lifegoddess_gi2 = &gi; continue; }
+            if (gi.set_tag == "E") continue; // 天選之子套裝改回專屬，俠客之路不出
+            if (gi.key == "EQ_K_HEROHEART") continue; // 俠客之心同理，俠客之路不出
             if (CRAFT_ONLY.count(gi.key)) continue;
             if (gi.rarity == "UR") {
                 if (gi.slot == "K") pool_UR_orb2.push_back(&gi);
