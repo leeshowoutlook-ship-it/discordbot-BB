@@ -79,6 +79,7 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"orb_shard_wargod",      "狂怒戰神的寶珠碎片", 0, "shard", "10 個可合成「狂怒戰神的寶珠」，裝備後攻擊力+10",                              95005},
     {"orb_shard_latus",      "拉圖斯的寶珠碎片",   0, "shard", "10 個可合成「拉圖斯的寶珠」，HP≤50%時回復至80%（每場一次）",               95006},
     {"orb_shard_darkdragon", "暗黑龍王的寶珠碎片", 0, "shard", "10 個可合成「暗黑龍王的寶珠」，攻擊後回復造成傷害的 1/10（最多回10HP）", 95007},
+    {"oracle_fragment", "神諭殘片", 0, "shard", "神名解放專用素材。組隊遠征拉圖斯掉落（40%，1~5片）／暗黑龍王掉落（65%，3~7片）。原本寶珠 ×1 + 本素材 ×20 可在「神名解放」解放出真名版", 95008},
     // ── 特權道具 ─────────────────────────────────────────────────────────────
     {"vip_daily",            "尊爵VIP（每日）",  8000, "privilege", "使用後 24 小時內，每小時自動為你領取籌碼", 99001},
     {"pet_supervisor_daily", "寵物監工（每日）", 1000, "privilege", "使用後 24 小時內，寵物打工結束 10 分鐘後若未領取，自動以 0.6 倍收益再次出勤", 99002},
@@ -698,6 +699,8 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
         .set_label("📊 股票").set_id("stock_home_" + uid_s).set_style(dpp::cos_secondary));
     row3.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🎰 轉蛋").set_id("gacha_main_" + uid_s).set_style(dpp::cos_secondary));
+    row3.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🍁 養成").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row3);
 
     return msg;
@@ -1111,11 +1114,11 @@ static dpp::message make_bag_equip_msg(dpp::snowflake uid) {
 
     auto is_equipped = [&](const std::string& key) {
         return key == cur_eq.weapon || key == cur_eq.glove || key == cur_eq.clothes
-            || key == cur_eq.shoes  || key == cur_eq.orb;
+            || key == cur_eq.shoes  || key == cur_eq.orb   || key == cur_eq.ring;
     };
 
     static const std::map<std::string,std::string> SLOT_LABEL = {
-        {"W","⚔️ 武器"}, {"G","🧤 手套"}, {"C","👘 套服"}, {"S","👟 鞋子"}, {"K","💎 靈魂寶珠"}
+        {"W","⚔️ 武器"}, {"G","🧤 手套"}, {"C","👘 套服"}, {"S","👟 鞋子"}, {"K","💎 靈魂寶珠"}, {"R","💍 戒指"}
     };
 
     // Collect EQ_ entries, sorted by rarity desc then slot
@@ -1128,7 +1131,7 @@ static dpp::message make_bag_equip_msg(dpp::snowflake uid) {
         }
     }
     std::sort(eq_entries.begin(), eq_entries.end(), [](const EqEntry& a, const EqEntry& b) {
-        static const std::map<std::string,int> SLOT_ORD = {{"W",0},{"G",1},{"C",2},{"S",3},{"K",4}};
+        static const std::map<std::string,int> SLOT_ORD = {{"W",0},{"G",1},{"C",2},{"S",3},{"K",4},{"R",5}};
         int sa = SLOT_ORD.count(a.slot) ? SLOT_ORD.at(a.slot) : 9;
         int sb = SLOT_ORD.count(b.slot) ? SLOT_ORD.at(b.slot) : 9;
         if (sa != sb) return sa < sb;
@@ -1217,7 +1220,7 @@ static dpp::message make_bag_sell_equip_msg(dpp::snowflake uid) {
 
     auto is_equipped = [&](const std::string& key) {
         return key == cur_eq.weapon || key == cur_eq.glove || key == cur_eq.clothes
-            || key == cur_eq.shoes  || key == cur_eq.orb;
+            || key == cur_eq.shoes  || key == cur_eq.orb   || key == cur_eq.ring;
     };
 
     struct EqEntry { std::string key; int count; std::string rarity; std::string slot; };
@@ -1228,7 +1231,7 @@ static dpp::message make_bag_sell_equip_msg(dpp::snowflake uid) {
             if (gi) eq_entries.push_back({k, cnt, gi->rarity, gi->slot});
         }
     }
-    static const std::map<std::string,int> SLOT_ORDER  = {{"W",0},{"G",1},{"C",2},{"S",3},{"K",4}};
+    static const std::map<std::string,int> SLOT_ORDER  = {{"W",0},{"G",1},{"C",2},{"S",3},{"K",4},{"R",5}};
     static const std::map<std::string,int> RARITY_ORDER = {{"UR",0},{"SR",1},{"R",2},{"C",3}};
     std::sort(eq_entries.begin(), eq_entries.end(), [](const EqEntry& a, const EqEntry& b) {
         int sa = SLOT_ORDER.count(a.slot) ? SLOT_ORDER.at(a.slot) : 9;

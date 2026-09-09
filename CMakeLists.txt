@@ -20,6 +20,7 @@ add_executable(dcbot
     src/handlers_games.cpp
     src/handlers_adv.cpp
     src/handlers_stock.cpp
+    src/handlers_maple.cpp
 )
 target_link_libraries(dcbot PRIVATE dpp::dpp nlohmann_json::nlohmann_json)
 

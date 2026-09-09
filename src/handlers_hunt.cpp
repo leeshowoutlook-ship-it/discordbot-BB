@@ -131,11 +131,34 @@ void handle_hunt_button(const dpp::button_click_t& ev)
         vg.started_at = time(nullptr);
         { std::lock_guard<std::mutex> lk(data_mutex);
           vg.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : "";
+          vg.ring_key = equipped_data.count(uid) ? equipped_data[uid].ring : "";
           apply_pet_basic_set_bonus(uid, pet2, vg.pet_atk, vg.pet_hp, vg.pet_max_hp, vg.pet_def);
           vg.pet_atk += col_pet_atk_bonus(uid);
           vg.pet_def += col_pet_def_bonus(uid);
           int hp_bonus = col_pet_hp_bonus(uid);
           vg.pet_hp += hp_bonus; vg.pet_max_hp += hp_bonus;
+        }
+        // 迅捷狼王／狼王加爾姆：必定先手；否則 75% 先手，25% 怪物免費先攻一次
+        vg.player_first = (vg.orb_key == "EQ_K_SPEED" || vg.orb_key == "EQ_K_SPEED_TRUE") ||
+                           std::uniform_int_distribution<int>(0,3)(hunt_rng()) < 3;
+        if (!vg.player_first) {
+            int total_atk = 0;
+            for (auto& s : vg.spirits) if (s.hp > 0) total_atk += s.atk;
+            int mon_dmg = std::max(0, total_atk - vg.pet_def);
+            vg.pet_hp -= mon_dmg;
+            vg.log_line = "👹 怪物先手！合計造成 **" + std::to_string(mon_dmg) + "** 傷害！";
+            if (vg.pet_hp <= 0) {
+                vg.pet_hp = 0;
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  auto& p = pet_data[uid]; bool already = false;
+                  for (auto& s : p.statuses) if (s == "受傷") { already = true; break; }
+                  bool has_clock_ring = equipped_data.count(uid) && equipped_data[uid].ring == "EQ_R_CLOCK";
+                  if (!already && !has_clock_ring) p.statuses.push_back("受傷");
+                }
+                save_pet_data();
+                ev.reply(dpp::ir_update_message, make_village_end_msg(false, vg, 0, false, {}, dn, av, 0));
+                return;
+            }
         }
         vg.msg_id = ev.command.message_id;
         dpp::timer vtid = g_bot->start_timer([uid](dpp::timer) {
@@ -148,7 +171,8 @@ void handle_hunt_button(const dpp::button_click_t& ev)
             { std::lock_guard<std::mutex> lk(data_mutex);
               auto& p = pet_data[uid]; bool already = false;
               for (auto& s : p.statuses) if (s == "受傷") { already = true; break; }
-              if (!already) p.statuses.push_back("受傷");
+              bool has_clock_ring = equipped_data.count(uid) && equipped_data[uid].ring == "EQ_R_CLOCK";
+              if (!already && !has_clock_ring) p.statuses.push_back("受傷");
             }
             save_pet_data();
             if ((uint64_t)tg.msg_id != 0) {
@@ -245,7 +269,8 @@ void handle_hunt_button(const dpp::button_click_t& ev)
                 { std::lock_guard<std::mutex> lk(data_mutex);
                   auto& p = pet_data[uid]; bool already = false;
                   for (auto& s : p.statuses) if (s == "受傷") { already = true; break; }
-                  if (!already) p.statuses.push_back("受傷");
+                  bool has_clock_ring = equipped_data.count(uid) && equipped_data[uid].ring == "EQ_R_CLOCK";
+              if (!already && !has_clock_ring) p.statuses.push_back("受傷");
                 }
                 save_pet_data();
             }
@@ -320,7 +345,8 @@ void handle_hunt_button(const dpp::button_click_t& ev)
                 { std::lock_guard<std::mutex> lk(data_mutex);
                   auto& p = pet_data[uid]; bool already = false;
                   for (auto& s : p.statuses) if (s == "受傷") { already = true; break; }
-                  if (!already) p.statuses.push_back("受傷");
+                  bool has_clock_ring = equipped_data.count(uid) && equipped_data[uid].ring == "EQ_R_CLOCK";
+              if (!already && !has_clock_ring) p.statuses.push_back("受傷");
                 }
                 save_pet_data();
             }
@@ -342,7 +368,7 @@ void handle_hunt_button(const dpp::button_click_t& ev)
           if (it != village_games.end()) { vg = it->second; found = true; }
         }
         if (!found) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 沒有進行中的村落挑戰！").set_flags(dpp::m_ephemeral)); return; }
-        if (vg.lifegoddess_uses >= 3) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 生命女神的祝福本場已用完！").set_flags(dpp::m_ephemeral)); return; }
+        if (vg.lifegoddess_uses >= (vg.orb_key == "EQ_K_LIFEGODDESS_TRUE" ? 4 : 3)) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 生命女神的祝福本場已用完！").set_flags(dpp::m_ephemeral)); return; }
         vg.selected_target = -1;
         bool vwin = false; int64_t vreward = 0; int vkilled_unused = 0;
         HuntDropList vdrops;
@@ -370,7 +396,8 @@ void handle_hunt_button(const dpp::button_click_t& ev)
                 { std::lock_guard<std::mutex> lk(data_mutex);
                   auto& p = pet_data[uid]; bool already = false;
                   for (auto& s : p.statuses) if (s == "受傷") { already = true; break; }
-                  if (!already) p.statuses.push_back("受傷");
+                  bool has_clock_ring = equipped_data.count(uid) && equipped_data[uid].ring == "EQ_R_CLOCK";
+              if (!already && !has_clock_ring) p.statuses.push_back("受傷");
                 }
                 save_pet_data();
             }
@@ -455,13 +482,14 @@ void handle_hunt_button(const dpp::button_click_t& ev)
         g.started_at     = time(nullptr);
         { std::lock_guard<std::mutex> lk(data_mutex);
           g.orb_key = equipped_data.count(uid) ? equipped_data[uid].orb : "";
+          g.ring_key = equipped_data.count(uid) ? equipped_data[uid].ring : "";
           apply_pet_basic_set_bonus(uid, pet2, g.pet_atk, g.pet_hp, g.pet_max_hp, g.pet_def);
           g.pet_atk += col_pet_atk_bonus(uid);
           g.pet_def += col_pet_def_bonus(uid);
           int hp_bonus = col_pet_hp_bonus(uid);
           g.pet_hp += hp_bonus; g.pet_max_hp += hp_bonus;
         }
-        g.player_first = (g.orb_key == "EQ_K_SPEED") ||
+        g.player_first = (g.orb_key == "EQ_K_SPEED" || g.orb_key == "EQ_K_SPEED_TRUE") ||
                          std::uniform_int_distribution<int>(0,3)(hunt_rng()) < 3;
 
         { std::lock_guard<std::mutex> lk(data_mutex);
@@ -476,7 +504,8 @@ void handle_hunt_button(const dpp::button_click_t& ev)
                 { std::lock_guard<std::mutex> lk(data_mutex);
                   auto& p = pet_data[uid]; bool already = false;
                   for (auto& s : p.statuses) if (s == "受傷") { already = true; break; }
-                  if (!already) p.statuses.push_back("受傷");
+                  bool has_clock_ring = equipped_data.count(uid) && equipped_data[uid].ring == "EQ_R_CLOCK";
+              if (!already && !has_clock_ring) p.statuses.push_back("受傷");
                 }
                 save_pet_data();
                 ev.reply(dpp::ir_update_message, make_combat_end_msg(false, g, 0, false, {}, dn, av));
@@ -499,7 +528,8 @@ void handle_hunt_button(const dpp::button_click_t& ev)
             { std::lock_guard<std::mutex> lk(data_mutex);
               auto& p = pet_data[uid]; bool already = false;
               for (auto& s : p.statuses) if (s == "受傷") { already = true; break; }
-              if (!already) p.statuses.push_back("受傷");
+              bool has_clock_ring = equipped_data.count(uid) && equipped_data[uid].ring == "EQ_R_CLOCK";
+              if (!already && !has_clock_ring) p.statuses.push_back("受傷");
             }
             save_pet_data();
             if (tg.msg_id && tg.channel_id) {
@@ -554,7 +584,8 @@ void handle_hunt_button(const dpp::button_click_t& ev)
                 { std::lock_guard<std::mutex> lk(data_mutex);
                   auto& p = pet_data[uid]; bool already = false;
                   for (auto& s : p.statuses) if (s == "受傷") { already = true; break; }
-                  if (!already) p.statuses.push_back("受傷");
+                  bool has_clock_ring = equipped_data.count(uid) && equipped_data[uid].ring == "EQ_R_CLOCK";
+              if (!already && !has_clock_ring) p.statuses.push_back("受傷");
                 }
                 save_pet_data();
                 ev.reply(dpp::ir_update_message, make_combat_end_msg(false, g, 0, false, {}, dn, av));
@@ -607,7 +638,8 @@ void handle_hunt_button(const dpp::button_click_t& ev)
                 { std::lock_guard<std::mutex> lk(data_mutex);
                   auto& p = pet_data[uid]; bool already = false;
                   for (auto& s : p.statuses) if (s == "受傷") { already = true; break; }
-                  if (!already) p.statuses.push_back("受傷");
+                  bool has_clock_ring = equipped_data.count(uid) && equipped_data[uid].ring == "EQ_R_CLOCK";
+              if (!already && !has_clock_ring) p.statuses.push_back("受傷");
                 }
                 save_pet_data();
                 ev.reply(dpp::ir_update_message, make_combat_end_msg(false, g, 0, false, {}, dn, av));
@@ -633,7 +665,7 @@ void handle_hunt_button(const dpp::button_click_t& ev)
               for (auto& s : pit->second.statuses) if (s == "肌肉緊繃") { pet_muscle_tense = s; break; }
         }
         if (!found) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 沒有進行中的狩獵！").set_flags(dpp::m_ephemeral)); return; }
-        if (g.lifegoddess_uses >= 3) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 生命女神的祝福本場已用完！").set_flags(dpp::m_ephemeral)); return; }
+        if (g.lifegoddess_uses >= (g.orb_key == "EQ_K_LIFEGODDESS_TRUE" ? 4 : 3)) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 生命女神的祝福本場已用完！").set_flags(dpp::m_ephemeral)); return; }
 
         bool win = false; int64_t reward = 0; HuntDropList hunt_drops3;
         bool ended = process_combat(g, false, !pet_muscle_tense.empty(), win, reward, hunt_drops3, false, false, true);
@@ -659,7 +691,8 @@ void handle_hunt_button(const dpp::button_click_t& ev)
                 { std::lock_guard<std::mutex> lk(data_mutex);
                   auto& p = pet_data[uid]; bool already = false;
                   for (auto& s : p.statuses) if (s == "受傷") { already = true; break; }
-                  if (!already) p.statuses.push_back("受傷");
+                  bool has_clock_ring = equipped_data.count(uid) && equipped_data[uid].ring == "EQ_R_CLOCK";
+              if (!already && !has_clock_ring) p.statuses.push_back("受傷");
                 }
                 save_pet_data();
                 ev.reply(dpp::ir_update_message, make_combat_end_msg(false, g, 0, false, {}, dn, av));

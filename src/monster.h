@@ -254,6 +254,10 @@ static dpp::message make_combat_msg(const MonsterHuntGame& g,
         double r = (g.pet_max_hp > 0) ? (double)g.pet_hp / g.pet_max_hp : 1.0;
         if (r < 0.25)      content += "🔥 **狂暴爆發！** 傷害 ×1.7（HP≤25%）\n";
         else if (r < 0.50) content += "⚡ **憤怒之力！** 傷害 ×1.4（HP≤50%）\n";
+    } else if (g.orb_key == "EQ_K_VIKING_TRUE") {
+        double r = (g.pet_max_hp > 0) ? (double)g.pet_hp / g.pet_max_hp : 1.0;
+        if (r < 0.25)      content += "🔥 **狂暴爆發！** 傷害 ×2.0（HP≤25%）\n";
+        else if (r < 0.50) content += "⚡ **憤怒之力！** 傷害 ×1.6（HP≤50%）\n";
     }
     if (!g.log_line.empty()) content += "\n📋 " + g.log_line;
     content += "\n\n-# 👤 " + display_name + "　|　限時 10 分鐘";
@@ -271,15 +275,16 @@ static dpp::message make_combat_msg(const MonsterHuntGame& g,
         .set_id("hunt_atk_" + uid_s).set_style(dpp::cos_primary));
     row.add_component(dpp::component().set_type(dpp::cot_button).set_label("💥 耗費氣力的攻擊")
         .set_id("hunt_pow_" + uid_s).set_style(dpp::cos_danger));
-    if (g.orb_key == "EQ_K_BEAR") {
+    if (g.orb_key == "EQ_K_BEAR" || g.orb_key == "EQ_K_BEAR_TRUE") {
         row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🛡️ 防禦")
             .set_id("hunt_block_" + uid_s).set_style(dpp::cos_secondary));
     }
-    if (g.orb_key == "EQ_K_LIFEGODDESS") {
+    if (g.orb_key == "EQ_K_LIFEGODDESS" || g.orb_key == "EQ_K_LIFEGODDESS_TRUE") {
+        int max_uses = (g.orb_key == "EQ_K_LIFEGODDESS_TRUE") ? 4 : 3;
         row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("💗 生命女神 (" + std::to_string(3 - g.lifegoddess_uses) + ")")
+            .set_label("💗 生命女神 (" + std::to_string(max_uses - g.lifegoddess_uses) + ")")
             .set_id("hunt_heal_" + uid_s).set_style(dpp::cos_secondary)
-            .set_disabled(g.lifegoddess_uses >= 3));
+            .set_disabled(g.lifegoddess_uses >= max_uses));
     }
     msg.add_component_v2(row);
 
@@ -324,12 +329,21 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
     int pet_dmg = 0;
     if (!is_block && !is_battlecry && !is_heal) {
         if (!atk_failed) {
-            // 維京寶珠：狂暴被動 — HP 越低傷害越高（加算）
+            // 維京寶珠：狂暴被動 — HP 越低傷害越高（加算）；真名維京王拉格納：+60%/+100%
             double viking_bonus = 0.0;
             if (g.orb_key == "EQ_K_VIKING" && g.pet_max_hp > 0) {
                 double hp_r = (double)g.pet_hp / g.pet_max_hp;
                 if (hp_r < 0.25)      { viking_bonus = 0.7; log += "🔥 **狂暴爆發**！+70%\n"; }
                 else if (hp_r < 0.50) { viking_bonus = 0.4; log += "⚡ **憤怒之力**！+40%\n"; }
+            } else if (g.orb_key == "EQ_K_VIKING_TRUE" && g.pet_max_hp > 0) {
+                double hp_r = (double)g.pet_hp / g.pet_max_hp;
+                if (hp_r < 0.25)      { viking_bonus = 1.0; log += "🔥 **狂暴爆發**！+100%\n"; }
+                else if (hp_r < 0.50) { viking_bonus = 0.6; log += "⚡ **憤怒之力**！+60%\n"; }
+            }
+            // 龍血戒：一進入戰鬥即持續狂暴（無HP門檻），攻擊力+100%（加算），代價是受到傷害+50%（在受擊處理）
+            if (g.ring_key == "EQ_R_DRAGONBLOOD") {
+                viking_bonus += 1.0;
+                log += "🩸 **龍血戒狂暴**！+100%\n";
             }
             // BB博物館限定：觀觀遺失的胖次 — 本場戰鬥第一次攻擊 +5 攻擊力
             int effective_pet_atk = g.pet_atk;
@@ -345,33 +359,38 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
             // 赫耳墨斯套裝＋江湖套裝：raw_base（尚未套用爆擊/赫耳墨斯）拆成1或2下獨立結算，
             // 每下各自骰爆擊、各自扣防禦。赫耳墨斯的攻擊力-40%是套用在最終raw上的獨立乘區，
             // 不併入 viking_bonus 加算池，不會被維京疊乘放大
-            std::string hermes_log;
-            auto resolve_hits = [&](int raw_base) -> int {
+            auto resolve_hits = [&](int raw_base) -> std::vector<std::pair<int,bool>> {
                 int hits = 1;
                 if (g.pet_hermes_double_pct > 0 && randint(1, 100) <= g.pet_hermes_double_pct) hits = 2;
-                int total = 0;
+                std::vector<std::pair<int,bool>> results;
                 for (int i = 0; i < hits; i++) {
                     int raw = raw_base;
                     if (g.pet_hermes_atk_pct != 100) raw = raw * g.pet_hermes_atk_pct / 100;
                     bool crit_i = g.pet_crit > 0 && randint(1, 100) <= g.pet_crit;
                     if (crit_i) raw = raw * (200 + g.pet_hermes_crit_dmg_pct) / 100;
-                    total += std::max(0, raw - g.monster_def);
-                    if (crit_i) hermes_log += " 🗡️**爆擊！**";
+                    results.push_back({std::max(0, raw - g.monster_def), crit_i});
                 }
-                if (hits == 2) hermes_log += " ⚡**赫耳墨斯雙擊！**";
-                return total;
+                return results;
             };
+            std::vector<std::pair<int,bool>> hit_results;
             if (power_attack) {
                 double mult = 0.1 + std::uniform_real_distribution<double>(0.0, 1.9)(hunt_rng());
                 int raw_base = (int)(effective_pet_atk * (mult + viking_bonus));
-                pet_dmg = resolve_hits(raw_base);
+                hit_results = resolve_hits(raw_base);
             } else {
                 int raw_base = (int)(effective_pet_atk * (1.0 + viking_bonus));
-                pet_dmg = resolve_hits(raw_base);
+                hit_results = resolve_hits(raw_base);
             }
-            if (power_attack) log += "💥 氣力攻擊對 **" + g.monster_name + "** 造成 **" + std::to_string(pet_dmg) + "** 傷害！";
-            else              log += "⚔️ 攻擊對 **" + g.monster_name + "** 造成 **" + std::to_string(pet_dmg) + "** 傷害！";
-            log += hermes_log;
+            pet_dmg = 0;
+            for (size_t i = 0; i < hit_results.size(); i++) {
+                int d = hit_results[i].first; pet_dmg += d;
+                std::string tag = hit_results.size() == 2 ? (i == 0 ? "（第一擊）" : "（第二擊）") : "";
+                if (i > 0) log += "\n";
+                if (power_attack) log += "💥 氣力攻擊對 **" + g.monster_name + "** 造成 **" + std::to_string(d) + "** 傷害" + tag + "！";
+                else              log += "⚔️ 攻擊對 **" + g.monster_name + "** 造成 **" + std::to_string(d) + "** 傷害" + tag + "！";
+                if (hit_results[i].second) log += " 🗡️**爆擊！**";
+            }
+            if (hit_results.size() == 2) log += "\n⚡**赫耳墨斯雙擊！**";
             g.monster_hp -= pet_dmg;
             // 暗黑龍王寶珠：攻擊後回復傷害的 1/10（最多 10 HP）
             if (g.orb_key == "EQ_K_DARKDRAGON" && pet_dmg > 0) {
@@ -399,10 +418,12 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
         }
     } else if (is_block) {
         g.atk_down_turns = 2;
-        log += "🛡️ **防禦！** 怪物下兩次攻擊降低 **60%**！";
+        g.atk_down_pct = (g.orb_key == "EQ_K_BEAR_TRUE") ? 75 : 60;
+        log += "🛡️ **防禦！** 怪物下兩次攻擊降低 **" + std::to_string(g.atk_down_pct) + "%**！";
     } else if (is_heal) {
         g.lifegoddess_uses++;
-        int heal = std::min((int)std::ceil(g.pet_max_hp * 0.2), g.pet_max_hp - g.pet_hp);
+        double heal_pct = (g.orb_key == "EQ_K_LIFEGODDESS_TRUE") ? 0.25 : 0.2;
+        int heal = std::min((int)std::ceil(g.pet_max_hp * heal_pct), g.pet_max_hp - g.pet_hp);
         if (heal > 0) {
             g.pet_hp += heal;
             log += "💗 **生命女神的祝福！** 回復 **" + std::to_string(heal) + "** HP！";
@@ -446,7 +467,7 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
     int effective_mon_atk = g.monster_atk;
     bool debuff_active = g.atk_down_turns > 0;
     if (debuff_active) {
-        effective_mon_atk = (int)(effective_mon_atk * 0.4); // 60% reduction
+        effective_mon_atk = (int)(effective_mon_atk * (100 - g.atk_down_pct) / 100.0); // 巨山狂熊60%／真名熊王貝奧武夫75%
         g.atk_down_turns--;
     }
     // BB博物館限定：Sian的隱形斗篷 — 1% 機率完全閃避怪物攻擊
@@ -458,12 +479,15 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
             dodged = (randint(1, 100) <= 1);
     }
     int mon_dmg = dodged ? 0 : std::max(0, effective_mon_atk - g.pet_def);
+    bool dragonblood_berserk = (!dodged && g.ring_key == "EQ_R_DRAGONBLOOD");
+    if (dragonblood_berserk) mon_dmg = (int)(mon_dmg * 1.5);
     g.pet_hp -= mon_dmg;
     if (dodged) {
         log += "　💨 **完全閃避了怪物攻擊！**（隱形斗篷）";
     } else {
         log += "　👹 **" + g.monster_name + "** 反擊造成 **" + std::to_string(mon_dmg) + "** 傷害！";
-        if (debuff_active) log += "（削弱-60%）";
+        if (debuff_active) log += "（削弱-" + std::to_string(g.atk_down_pct) + "%）";
+        if (dragonblood_berserk) log += "（龍血戒狂暴：受到傷害+50%）";
         // 綠水靈洞窟限定：貓哥的眼淚 — 受到傷害時 5% 機率恢復 5 點血量
         if (g.pet_hp > 0) {
             bool has_tears = false;
@@ -629,6 +653,15 @@ static dpp::message make_village_combat_msg(const VillageGame& g,
     content += "\n**🐾 你的寵物**\n";
     content += "❤️ " + hp_bar(g.pet_hp, g.pet_max_hp) + "\n";
     content += "⚔️ 攻擊力 " + std::to_string(g.pet_atk) + "　🛡️ 防禦力 " + std::to_string(g.pet_def) + "\n";
+    if (g.orb_key == "EQ_K_VIKING") {
+        double r = (g.pet_max_hp > 0) ? (double)g.pet_hp / g.pet_max_hp : 1.0;
+        if (r < 0.25)      content += "🔥 **狂暴爆發！** 傷害 ×1.7（HP≤25%）\n";
+        else if (r < 0.50) content += "⚡ **憤怒之力！** 傷害 ×1.4（HP≤50%）\n";
+    } else if (g.orb_key == "EQ_K_VIKING_TRUE") {
+        double r = (g.pet_max_hp > 0) ? (double)g.pet_hp / g.pet_max_hp : 1.0;
+        if (r < 0.25)      content += "🔥 **狂暴爆發！** 傷害 ×2.0（HP≤25%）\n";
+        else if (r < 0.50) content += "⚡ **憤怒之力！** 傷害 ×1.6（HP≤50%）\n";
+    }
     if (!g.log_line.empty()) content += "\n📋 " + g.log_line;
     content += "\n\n-# 👤 " + display_name + "　|　限時 10 分鐘";
 
@@ -663,18 +696,19 @@ static dpp::message make_village_combat_msg(const VillageGame& g,
         msg.add_component_v2(exec_row);
     }
 
-    if (g.orb_key == "EQ_K_BEAR") {
+    if (g.orb_key == "EQ_K_BEAR" || g.orb_key == "EQ_K_BEAR_TRUE") {
         dpp::component bear_row; bear_row.set_type(dpp::cot_action_row);
         bear_row.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🛡️ 防禦").set_id("village_block_" + uid_s).set_style(dpp::cos_secondary));
         msg.add_component_v2(bear_row);
     }
-    if (g.orb_key == "EQ_K_LIFEGODDESS") {
+    if (g.orb_key == "EQ_K_LIFEGODDESS" || g.orb_key == "EQ_K_LIFEGODDESS_TRUE") {
+        int max_uses = (g.orb_key == "EQ_K_LIFEGODDESS_TRUE") ? 4 : 3;
         dpp::component heal_row; heal_row.set_type(dpp::cot_action_row);
         heal_row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("💗 生命女神 (" + std::to_string(3 - g.lifegoddess_uses) + ")")
+            .set_label("💗 生命女神 (" + std::to_string(max_uses - g.lifegoddess_uses) + ")")
             .set_id("village_heal_" + uid_s).set_style(dpp::cos_secondary)
-            .set_disabled(g.lifegoddess_uses >= 3));
+            .set_disabled(g.lifegoddess_uses >= max_uses));
         msg.add_component_v2(heal_row);
     }
     dpp::component ref_row; ref_row.set_type(dpp::cot_action_row);
@@ -704,11 +738,13 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
     // Player attacks chosen spirit (skipped when blocking)
     if (is_block) {
         g.bear_block_turns = 2;
-        log += "🛡️ **防禦！** 怪物下兩次攻擊降低 **60%**！";
+        g.bear_block_pct = (g.orb_key == "EQ_K_BEAR_TRUE") ? 75 : 60;
+        log += "🛡️ **防禦！** 怪物下兩次攻擊降低 **" + std::to_string(g.bear_block_pct) + "%**！";
     }
     if (is_heal) {
         g.lifegoddess_uses++;
-        int heal = std::min((int)std::ceil(g.pet_max_hp * 0.2), g.pet_max_hp - g.pet_hp);
+        double heal_pct = (g.orb_key == "EQ_K_LIFEGODDESS_TRUE") ? 0.25 : 0.2;
+        int heal = std::min((int)std::ceil(g.pet_max_hp * heal_pct), g.pet_max_hp - g.pet_hp);
         if (heal > 0) {
             g.pet_hp += heal;
             log += "💗 **生命女神的祝福！** 回復 **" + std::to_string(heal) + "** HP！";
@@ -730,35 +766,56 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
         }
         g.underwear_first_atk_used = true;
     }
+    // 維京寶珠：狂暴被動 — HP 越低傷害越高（加算）；真名維京王拉格納：+60%/+100%
+    double ring_bonus = 0.0;
+    if (g.orb_key == "EQ_K_VIKING" && g.pet_max_hp > 0) {
+        double hp_r = (double)g.pet_hp / g.pet_max_hp;
+        if (hp_r < 0.25)      { ring_bonus += 0.7; log += "🔥 **狂暴爆發**！+70% "; }
+        else if (hp_r < 0.50) { ring_bonus += 0.4; log += "⚡ **憤怒之力**！+40% "; }
+    } else if (g.orb_key == "EQ_K_VIKING_TRUE" && g.pet_max_hp > 0) {
+        double hp_r = (double)g.pet_hp / g.pet_max_hp;
+        if (hp_r < 0.25)      { ring_bonus += 1.0; log += "🔥 **狂暴爆發**！+100% "; }
+        else if (hp_r < 0.50) { ring_bonus += 0.6; log += "⚡ **憤怒之力**！+60% "; }
+    }
+    // 龍血戒：一進入戰鬥即持續狂暴（無HP門檻），攻擊力+100%（加算），代價是受到傷害+50%（在受擊處理）
+    if (g.ring_key == "EQ_R_DRAGONBLOOD") {
+        ring_bonus += 1.0;
+        log += "🩸 **龍血戒狂暴**！+100% ";
+    }
     // 赫耳墨斯套裝＋江湖套裝：raw_base（尚未套用爆擊/赫耳墨斯）拆成1或2下獨立結算
-    std::string hermes_log;
-    auto resolve_hits = [&](int raw_base) -> int {
+    auto resolve_hits = [&](int raw_base) -> std::vector<std::pair<int,bool>> {
         int hits = 1;
         if (g.pet_hermes_double_pct > 0 && randint(1, 100) <= g.pet_hermes_double_pct) hits = 2;
-        int total = 0;
+        std::vector<std::pair<int,bool>> results;
         for (int i = 0; i < hits; i++) {
             int raw = raw_base;
             if (g.pet_hermes_atk_pct != 100) raw = raw * g.pet_hermes_atk_pct / 100;
             bool crit_i = g.pet_crit > 0 && randint(1, 100) <= g.pet_crit;
             if (crit_i) raw = raw * (200 + g.pet_hermes_crit_dmg_pct) / 100;
-            total += std::max(0, raw - tgt.def);
-            if (crit_i) hermes_log += " 🗡️**爆擊！**";
+            results.push_back({std::max(0, raw - tgt.def), crit_i});
         }
-        if (hits == 2) hermes_log += " ⚡**赫耳墨斯雙擊！**";
-        return total;
+        return results;
     };
+    std::vector<std::pair<int,bool>> hit_results;
     if (attack_type == 1) {
         // 氣力攻擊：隨機 0.1~2.0× 有效傷害
         double mult = 0.1 + randint(0, 190) / 100.0;
-        int raw_base = (int)(effective_pet_atk * mult);
-        dmg = resolve_hits(raw_base);
+        int raw_base = (int)(effective_pet_atk * (mult + ring_bonus));
+        hit_results = resolve_hits(raw_base);
         char buf[8]; snprintf(buf, sizeof(buf), "%.1f", mult);
         log += "🎲 氣力攻擊（×" + std::string(buf) + "）";
     } else {
-        int raw_base = effective_pet_atk;
-        dmg = resolve_hits(raw_base);
+        int raw_base = (int)(effective_pet_atk * (1.0 + ring_bonus));
+        hit_results = resolve_hits(raw_base);
     }
-    if (!hermes_log.empty()) log += (log.empty() ? "" : " ") + hermes_log;
+    dmg = 0;
+    for (size_t i = 0; i < hit_results.size(); i++) {
+        int d = hit_results[i].first; dmg += d;
+        if (!log.empty()) log += "\n";
+        std::string tag = hit_results.size() == 2 ? (i == 0 ? "第一擊 " : "第二擊 ") : "";
+        log += "⚔️ " + tag + "造成 **" + std::to_string(d) + "** 傷害" + (hit_results[i].second ? "　🗡️**爆擊！**" : "");
+    }
+    if (hit_results.size() == 2) log += "\n⚡**赫耳墨斯雙擊！**";
     tgt.hp = std::max(0, tgt.hp - dmg);
     // 暗黑龍王寶珠：攻擊後回復傷害的 1/10（最多 10 HP）
     if (g.orb_key == "EQ_K_DARKDRAGON" && dmg > 0) {
@@ -821,7 +878,7 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
     int total_atk = 0;
     for (auto& s : g.spirits) if (s.hp > 0) total_atk += s.atk;
     bool block_active = g.bear_block_turns > 0;
-    int effective_atk = block_active ? (int)(total_atk * 0.4) : total_atk;
+    int effective_atk = block_active ? (int)(total_atk * (100 - g.bear_block_pct) / 100.0) : total_atk;
     if (block_active) g.bear_block_turns--;
     // BB博物館限定：Sian的隱形斗篷 — 1% 機率完全閃避怪物攻擊
     bool dodged = false;
@@ -832,12 +889,15 @@ static bool process_village_combat(VillageGame& g, int target_idx, int attack_ty
             dodged = (randint(1, 100) <= 1);
     }
     int mon_dmg = dodged ? 0 : std::max(0, effective_atk - g.pet_def);
+    bool dragonblood_berserk = (!dodged && g.ring_key == "EQ_R_DRAGONBLOOD");
+    if (dragonblood_berserk) mon_dmg = (int)(mon_dmg * 1.5);
     g.pet_hp = std::max(0, g.pet_hp - mon_dmg);
     if (dodged) {
         log += "　💨 **全體攻擊被完全閃避了！**（隱形斗篷）";
     } else {
         log += "　👹 全體反擊 **" + std::to_string(mon_dmg) + "** 傷害（合計 " + std::to_string(total_atk) + "-防 " + std::to_string(g.pet_def) + "）";
-        if (block_active) log += "（削弱-60%）";
+        if (block_active) log += "（削弱-" + std::to_string(g.bear_block_pct) + "%）";
+        if (dragonblood_berserk) log += "（龍血戒狂暴：受到傷害+50%）";
         // 綠水靈洞窟限定：貓哥的眼淚 — 受到傷害時 5% 機率恢復 5 點血量
         if (g.pet_hp > 0) {
             bool has_tears = false;

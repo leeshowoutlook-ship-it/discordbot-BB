@@ -205,6 +205,7 @@ struct PlayerEquipment {
     std::string clothes;
     std::string shoes;
     std::string orb;
+    std::string ring;     // 戒指：獨立欄位，不計入套裝計數（比照 orb）
 };
 
 // ─── Village game ─────────────────────────────────────────────────────────────
@@ -235,10 +236,13 @@ struct VillageGame {
     dpp::timer timer_id = 0;
     std::string log_line;
     std::string orb_key;
+    std::string ring_key;
     bool        latus_orb_triggered = false;
     int         bear_block_turns = 0;
     bool        underwear_first_atk_used = false; // 觀觀遺失的胖次：本場首次攻擊 +5 ATK 是否已用掉
-    int         lifegoddess_uses = 0; // 生命女神的寶珠：單人回血已使用次數（上限3）
+    int         lifegoddess_uses = 0; // 生命女神的寶珠：單人回血已使用次數（上限3或4，真名版）
+    int         bear_block_pct = 60; // 巨山狂熊觸發時的減傷%（真名熊王貝奧武夫為75）
+    bool        player_first = true; // 迅捷狼王／狼王加爾姆：是否本場先手
 };
 
 // ─── Adventure ────────────────────────────────────────────────────────────────
@@ -295,11 +299,44 @@ struct MonsterHuntGame {
     dpp::timer     timer_id       = 0;
     std::string    log_line;
     std::string    orb_key;
+    std::string    ring_key;
     bool           battlecry_pending = false;
-    int            atk_down_turns    = 0;  // wargod orb: turns of 60% monster ATK reduction remaining
+    int            atk_down_turns    = 0;  // 巨山狂熊觸發時剩餘的怪物ATK削弱回合數
+    int            atk_down_pct      = 60; // 巨山狂熊觸發時的削弱%（真名熊王貝奧武夫為75）
     bool           latus_orb_triggered = false;
     bool           underwear_first_atk_used = false; // 觀觀遺失的胖次：本場首次攻擊 +5 ATK 是否已用掉
     int            lifegoddess_uses = 0; // 生命女神的寶珠：單人回血已使用次數（上限3）
+};
+
+// ─── 楓之谷世界（養成系統）────────────────────────────────────────────────────
+
+struct MapleCharacter {
+    dpp::snowflake uid;
+    int            level  = 1;
+    int64_t        exp    = 0;
+    int64_t        coins  = 0;   // 瘋幣，楓之谷世界專屬貨幣
+    int            def    = 5;
+    int            max_hp = 50;
+    // 能力值：基礎各4點，每升一級可自由分配5點
+    int            str_stat = 4;
+    int            dex_stat = 4;
+    int            int_stat = 4;
+    int            luk_stat = 4;
+    bool           ap_reset_used = false; // 重新配點限一次
+    std::string    job = "beginner";      // beginner/warrior/mage/thief/archer/pirate/二轉職業key
+    // 裝備欄位（攻擊力來自武器等裝備加總，未裝備武器時為0）
+    std::string    eq_weapon  = "wooden_sword"; // 預設裝備新手木劍
+    std::string    eq_earring;
+    std::string    eq_helmet;
+    std::string    eq_glove;
+    std::string    eq_clothes;
+    std::string    eq_shoes;
+    double         weapon_mastery = 0.10; // 熟練度，預設10%，攻擊力下限公式用
+    std::map<std::string,int> skill_levels; // 技能key -> 已投入等級
+    std::string    adv_region;      // 目前冒險中的區域key，空字串＝沒有在冒險
+    time_t         adv_started_at = 0;
+    int64_t        monsters_defeated = 0;
+    time_t         created_at = 0;
 };
 
 // ─── Raid system ─────────────────────────────────────────────────────────────
@@ -315,6 +352,8 @@ struct RaidPlayer {
     int            crit_pct   = 0; // 江湖套裝：爆擊率%
     int            hermes_atk_pct = 100; int hermes_double_pct = 0; int hermes_crit_dmg_pct = 0; // 赫耳墨斯套裝
     std::string    orb_key;          // equipped orb
+    std::string    ring_key;         // equipped ring
+    bool           clock_ring_used = false; // 鐘錶戒：本場是否已觸發過（每場限1次）
     bool           alive          = true;
     int            stunned_turns  = 0;     // turns remaining stunned (boss skill)
     bool           power_skip     = false; // skip next turn after using 強攻
@@ -353,6 +392,7 @@ struct RaidGame {
     int                         round          = 1;
     bool                        boss_turn      = false; // true = boss acts next
     bool                        block_active        = false;  // 防禦 used this round
+    bool                        block_is_true       = false;  // 防禦是否由真名熊王貝奧武夫觸發（減傷比例較高）
     bool                        round_first_action  = true;   // 先鋒：每輪第一個出手
     bool                        speed_extra_pending = false;  // 迅捷：extra turn queued
     bool                        last_boss_aoe       = false;  // 防連續 AOE 保護
@@ -396,6 +436,8 @@ struct DDPlayer {
     int crit_pct = 0; // 江湖套裝：爆擊率%
     int hermes_atk_pct = 100; int hermes_double_pct = 0; int hermes_crit_dmg_pct = 0; // 赫耳墨斯套裝
     std::string  orb_key;
+    std::string  ring_key;         // equipped ring
+    bool         clock_ring_used = false; // 鐘錶戒：本場是否已觸發過（每場限1次）
     bool         alive          = true;
     bool         at_altar       = false;
     int          stunned_turns  = 0;
@@ -425,6 +467,7 @@ struct DDGame {
     bool                      victory        = false;
     bool                      practice_mode  = false;
     bool                      block_active   = false;
+    bool                      block_is_true  = false; // 防禦是否由真名熊王貝奧武夫觸發（減傷比例較高）
     bool                      round_first_action = true;
     bool                      speed_extra_pending = false;
     int                       bomb_cooldown  = 4;    // 中頭投彈冷卻（4~5回合）
@@ -463,6 +506,26 @@ struct EuRouletteGame {
     dpp::timer     timer_id      = 0;
     std::string    avatar_url;
     std::string    display_name;
+};
+
+// 迷你輪盤：多人模式（多人押注同一局，籌碼自訂）
+struct EuRouletteMultiPlayer {
+    dpp::snowflake uid;
+    std::string    display_name;
+    std::string    avatar_url;
+    int64_t        bet      = 0;
+    std::string    bet_type; // 空字串＝尚未選色，開獎時視為棄權（不退還）
+};
+struct EuRouletteMultiGame {
+    uint64_t       id;
+    dpp::snowflake host_uid;
+    dpp::snowflake ch;
+    dpp::snowflake msg_id = 0;
+    std::vector<EuRouletteMultiPlayer> players;
+    int            result       = -1; // -1＝尚未開獎（房間開放中）
+    int            spin_frame   = 0;
+    int            last_display = -1;
+    dpp::timer     timer_id     = 0;
 };
 
 // ─── Blackjack ────────────────────────────────────────────────────────────────
@@ -608,6 +671,9 @@ inline std::map<uint64_t, EuRouletteGame>       euroulette_games;
 inline std::map<dpp::snowflake, uint64_t>       user_euroulette;
 inline std::atomic<uint64_t>                    euroulette_counter{1};
 inline std::map<dpp::snowflake, EuRouletteStats> euroulette_stats_data;
+inline std::map<uint64_t, EuRouletteMultiGame>  euroulette_multi_games;
+inline std::atomic<uint64_t>                    euroulette_multi_counter{1};
+inline std::map<dpp::snowflake, MapleCharacter> maple_data;
 inline std::vector<PurchaseRecord>              purchase_records;
 inline std::atomic<uint64_t>                    purchase_counter{1};
 inline std::map<dpp::snowflake, Pet>            pet_data;
@@ -965,6 +1031,11 @@ static inline std::string orb_baseline_icon(const std::string& orb_key) {
     if (orb_key == "EQ_K_WARGOD") return "💢";
     if (orb_key == "EQ_K_LATUS")  return "🔶";
     if (orb_key == "EQ_K_LIFEGODDESS") return "💗";
+    if (orb_key == "EQ_K_UR_TRUE")          return "⚖️";
+    if (orb_key == "EQ_K_SPEED_TRUE")       return "🐺✨";
+    if (orb_key == "EQ_K_VIKING_TRUE")      return "🪓";
+    if (orb_key == "EQ_K_BEAR_TRUE")        return "🐻✨";
+    if (orb_key == "EQ_K_LIFEGODDESS_TRUE") return "💗✨";
     return "";
 }
 

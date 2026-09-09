@@ -58,10 +58,11 @@ void handle_dd_button(const dpp::button_click_t& ev)
         dg.heads[1] = DDHead{"中頭", 650, 650, 30, 3};
         dg.heads[2] = DDHead{"右頭", 450, 450, 24, 10};
         for (auto& muid : room.member_uids) {
-            Pet pet2; PetStats ps; std::string orb_key;
+            Pet pet2; PetStats ps; std::string orb_key; std::string ring_key;
             { std::lock_guard<std::mutex> lk(data_mutex);
               auto pit = pet_data.find(muid); if (pit != pet_data.end()) pet2 = pit->second;
-              auto eit = equipped_data.find(muid); if (eit != equipped_data.end()) orb_key = eit->second.orb;
+              auto eit = equipped_data.find(muid);
+              if (eit != equipped_data.end()) { orb_key = eit->second.orb; ring_key = eit->second.ring; }
             }
             ps = calc_pet_stats(muid, pet2);
             { std::lock_guard<std::mutex> lk(data_mutex);
@@ -76,9 +77,9 @@ void handle_dd_button(const dpp::button_click_t& ev)
             p.avatar_url = room.member_avatars.count(muid) ? room.member_avatars.at(muid) : "";
             p.hp = ps.hp; p.max_hp = ps.hp; p.atk = ps.atk; p.def = ps.def; p.crit_pct = ps.crit_pct;
             p.hermes_atk_pct = ps.hermes_atk_pct; p.hermes_double_pct = ps.hermes_double_pct; p.hermes_crit_dmg_pct = ps.hermes_crit_dmg_pct;
-            p.orb_key = orb_key; p.alive = true;
-            if (orb_key == "EQ_K_UR" && room.member_uids.size() > 1) {
-                auto* ur_gi = find_gacha_item("EQ_K_UR"); if (ur_gi) p.def = std::max(0, p.def - ur_gi->stat_val);
+            p.orb_key = orb_key; p.ring_key = ring_key; p.alive = true;
+            if ((orb_key == "EQ_K_UR" || orb_key == "EQ_K_UR_TRUE") && room.member_uids.size() > 1) {
+                auto* ur_gi = find_gacha_item(orb_key); if (ur_gi) p.def = std::max(0, p.def - ur_gi->stat_val);
             }
             dg.players.push_back(p);
         }
@@ -234,6 +235,7 @@ void handle_dd_button(const dpp::button_click_t& ev)
                 auto& dg = git->second;
                 if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
                 dg.block_active = true; dg.selected_head = -1;
+                dg.block_is_true = (dg.players[dg.current_player].orb_key == "EQ_K_BEAR_TRUE");
                 dg.log_line = "🛡️ **" + dg.players[dg.current_player].display_name + "** 進入防禦姿態！";
                 dd_finish_turn(dg);
                 if (!dd_try_end(dg, false))
@@ -252,10 +254,11 @@ void handle_dd_button(const dpp::button_click_t& ev)
                 if (dg.game_over || dg.boss_turn || dg.players[dg.current_player].uid != uid) return;
                 if (dg.lifegoddess_used_by.count(uid)) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你這場已使用過生命女神的祝福！").set_flags(dpp::m_ephemeral)); return; }
                 dg.lifegoddess_used_by.insert(uid); dg.selected_head = -1;
+                double heal_pct = (dg.players[dg.current_player].orb_key == "EQ_K_LIFEGODDESS_TRUE") ? 0.25 : 0.2;
                 std::string healed;
                 for (auto& p : dg.players) {
                     if (!p.alive) continue;
-                    int heal = std::min((int)std::ceil(p.max_hp * 0.2), p.max_hp - p.hp);
+                    int heal = std::min((int)std::ceil(p.max_hp * heal_pct), p.max_hp - p.hp);
                     if (heal > 0) {
                         p.hp += heal;
                         if (!healed.empty()) healed += "、";
@@ -318,7 +321,8 @@ void handle_dd_button(const dpp::button_click_t& ev)
                 auto& cp = dg.players[dg.current_player];
                 if (cp.has_bomb) { cp.has_bomb = false; cp.bomb_turns = 0; dg.log_line = "🙏 **" + cp.display_name + "** 向女神祈禱，炸彈解除！"; }
                 else dg.log_line = "🙏 **" + cp.display_name + "** 你誠心誠意的祈禱...";
-                if (cp.orb_key == "EQ_K_SPEED" && !cp.speed_extra_used && dd_rand(1,100) <= 40) {
+                if ((cp.orb_key == "EQ_K_SPEED" || cp.orb_key == "EQ_K_SPEED_TRUE") && !cp.speed_extra_used &&
+                    dd_rand(1,100) <= (cp.orb_key == "EQ_K_SPEED_TRUE" ? 55 : 40)) {
                     cp.speed_extra_used = true; dg.speed_extra_pending = true;
                     dg.log_line += "\n⚡ **先鋒再行動！**";
                 }
@@ -358,7 +362,8 @@ void handle_dd_button(const dpp::button_click_t& ev)
                     }
                 }
                 dg.log_line = plog;
-                if (cp.orb_key == "EQ_K_SPEED" && !cp.speed_extra_used && dd_rand(1,100) <= 40) {
+                if ((cp.orb_key == "EQ_K_SPEED" || cp.orb_key == "EQ_K_SPEED_TRUE") && !cp.speed_extra_used &&
+                    dd_rand(1,100) <= (cp.orb_key == "EQ_K_SPEED_TRUE" ? 55 : 40)) {
                     cp.speed_extra_used = true; dg.speed_extra_pending = true;
                     dg.log_line += "\n⚡ **先鋒再行動！**";
                 }

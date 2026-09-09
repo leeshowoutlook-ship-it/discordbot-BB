@@ -438,6 +438,8 @@ int main(int argc, char* argv[]) {
     load_rps_stats();
     load_scratch_games();
     load_euroulette_games();
+    load_euroulette_multi_games();
+    load_maple_all_data();
     load_stock_market();
     load_stock_holdings();
     load_announcement();
@@ -470,7 +472,7 @@ int main(int argc, char* argv[]) {
                 "!一夜狼人","!一夜狼人規則","!狼人殺規則",
                 "!臥底","!誰是臥底",
                 "!臥底 遊玩成人內容","!誰是臥底 遊玩成人內容",
-                "!貓","!笑話","!轉蛋","!裝備","!怪物狩獵","!狩獵規則",
+                "!貓","!笑話","!轉蛋","!裝備","!怪物狩獵","!狩獵規則","!養成",
                 "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤","!探險","!猜拳","！猜拳","!強化","!股票",
                 "!公告","！公告","!小黑屋","！小黑屋",
                 "!簽到","！簽到","!簽到名單","！簽到名單","!結束簽到","！結束簽到"
@@ -1136,6 +1138,10 @@ int main(int argc, char* argv[]) {
         // ── 怪物狩獵 → handlers_hunt.cpp
         else if (content == "!怪物狩獵" || content == "!狩獵規則") {
             handle_hunt_message(ev, content, uid, ch); return;
+        }
+        // ── 楓之谷世界養成 → handlers_maple.cpp
+        else if (content == "!養成") {
+            handle_maple_message(ev, content, uid, ch); return;
         }
         else if (content == "!道具圖鑑") {
             dpp::message m = make_itemdex_main_msg(uid);
@@ -1815,6 +1821,10 @@ int main(int argc, char* argv[]) {
         else if (cid.rfind("hunt_", 0) == 0 || cid.rfind("village_", 0) == 0) {
             handle_hunt_button(ev); return;
         }
+        // ── 楓之谷世界養成按鈕 → handlers_maple.cpp ───────────────────────────
+        else if (cid.rfind("maple_", 0) == 0) {
+            handle_maple_button(ev); return;
+        }
         // ── 21點按鈕 → handlers_bj.cpp ──────────────────────────────────────
         else if (cid.rfind("bj_", 0) == 0) {
             handle_bj_button(ev); return;
@@ -1935,6 +1945,43 @@ int main(int argc, char* argv[]) {
             save_inventory();
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("✅ 合成成功！獲得 **" + ci.name + "** ×1！\n"
+                             "前往 `!裝備` → 靈魂寶珠欄位裝備它。").set_flags(dpp::m_ephemeral));
+        }
+        // ── 神名解放 ──────────────────────────────────────────────────────────
+        else if (cid.rfind("craft_awaken_", 0) == 0) {
+            std::string rest = cid.substr(13);
+            size_t s1 = rest.find('_');
+            if (s1 == std::string::npos) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 無效解放請求").set_flags(dpp::m_ephemeral)); return; }
+            std::string awaken_type = rest.substr(0, s1);
+            dpp::snowflake bu(std::stoull(rest.substr(s1 + 1)));
+            if (uid != bu) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 這不是你的視窗！").set_flags(dpp::m_ephemeral)); return;
+            }
+            const AwakenInfo* ai = nullptr;
+            for (auto& a : AWAKEN_LIST) if (a.type == awaken_type) { ai = &a; break; }
+            if (!ai) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 未知解放類型").set_flags(dpp::m_ephemeral)); return; }
+            bool ok = false;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto& inv = inventory_data[uid];
+                if (inv.count(ai->base_key) && inv[ai->base_key] >= 1 &&
+                    inv.count("oracle_fragment") && inv["oracle_fragment"] >= AWAKEN_MATERIAL_NEED) {
+                    inv[ai->base_key] -= 1;
+                    if (inv[ai->base_key] == 0) inv.erase(ai->base_key);
+                    inv["oracle_fragment"] -= AWAKEN_MATERIAL_NEED;
+                    if (inv["oracle_fragment"] == 0) inv.erase("oracle_fragment");
+                    inv[ai->true_key]++;
+                    ok = true;
+                }
+            }
+            if (!ok) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 材料不足！需要「" + ai->base_name + "」×1 ＋「神諭殘片」×" + std::to_string(AWAKEN_MATERIAL_NEED) + "。").set_flags(dpp::m_ephemeral)); return;
+            }
+            save_inventory();
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("✨ 神名解放成功！**" + ai->base_name + "** 解放為 **" + ai->true_name + "** ×1！\n"
                              "前往 `!裝備` → 靈魂寶珠欄位裝備它。").set_flags(dpp::m_ephemeral));
         }
         else if (cid.rfind("craft_bb_wig_", 0) == 0 || cid.rfind("craft_bb_undies_", 0) == 0) {
@@ -2554,8 +2601,8 @@ int main(int argc, char* argv[]) {
             return;
         }
 
-        // 猜數字 modal → handlers_games.cpp
-        if (cid.rfind("guess_modal_", 0) == 0) {
+        // 猜數字／多人輪盤加入下注 modal → handlers_games.cpp
+        if (cid.rfind("guess_modal_", 0) == 0 || cid.rfind("er_mjoin_modal_", 0) == 0) {
             handle_games_modal(ev); return;
         }
 
@@ -2742,6 +2789,19 @@ int main(int argc, char* argv[]) {
                 return;
             }
             ev.reply(dpp::ir_update_message, make_equipdex_set_msg(uid, ev.values[0]));
+        }
+        // ── 一般收藏地區下拉選單 → adventure.h ─────────────────────────────────
+        else if (cid.rfind("adv_col_sel_", 0) == 0) {
+            if (ev.values.empty()) return;
+            dpp::snowflake bu(std::stoull(cid.substr(12)));
+            if (uid != bu) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 這不是你的視窗！").set_flags(dpp::m_ephemeral));
+                return;
+            }
+            int page = std::stoi(ev.values[0]);
+            std::string dn = ev.command.member.get_nickname().empty() ? user.username : ev.command.member.get_nickname();
+            ev.reply(dpp::ir_update_message, make_normal_col_msg(uid, dn, user.get_avatar_url(), page));
         }
         // ── 輪盤賭 select → handlers_roulette.cpp ─────────────────────────────
         else if (cid.rfind("rl_ch_sel_", 0) == 0) {
@@ -3335,6 +3395,10 @@ int main(int argc, char* argv[]) {
                  cmd_name == "狩獵規則" || cmd_name == "huntrules") {
             handle_hunt_slash(ev, cmd_name, uid, ch); return;
         }
+        // ── 楓之谷世界養成 slash → handlers_maple.cpp ────────────────────────
+        else if (cmd_name == "養成" || cmd_name == "growth") {
+            handle_maple_slash(ev, cmd_name, uid, ch); return;
+        }
         else if (cmd_name == "裝備" || cmd_name == "equip") {
             Pet pet2;
             { std::lock_guard<std::mutex> lk(data_mutex);
@@ -3626,6 +3690,8 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("craft",     "Craft orbs from shards (×10)",  bot.me.id),
                 dpp::slashcommand("怪物狩獵",  "開始怪物狩獵",                  bot.me.id),
                 dpp::slashcommand("hunt",      "Start monster hunt",             bot.me.id),
+                dpp::slashcommand("養成",      "開啟楓之谷世界養成系統",          bot.me.id),
+                dpp::slashcommand("growth",    "Open Maple Valley growth system",bot.me.id),
                 dpp::slashcommand("狩獵規則",  "查看怪物狩獵規則說明",          bot.me.id),
                 dpp::slashcommand("huntrules", "View monster hunt rules",        bot.me.id),
                 dpp::slashcommand("裝備",      "查看並管理裝備",                 bot.me.id),

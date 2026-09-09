@@ -58,6 +58,12 @@ void handle_adv_modal(const dpp::form_submit_t&  ev);
 void handle_stock_button(const dpp::button_click_t& ev);
 void handle_stock_modal (const dpp::form_submit_t&  ev);
 
+// ─── Maple Valley（楓之谷世界養成系統）────────────────────────────────────────
+void handle_maple_message(const dpp::message_create_t& ev, const std::string& content, dpp::snowflake uid, dpp::snowflake ch);
+void handle_maple_button (const dpp::button_click_t& ev);
+void handle_maple_slash  (const dpp::slashcommand_t& ev, const std::string& cmd_name, dpp::snowflake uid, dpp::snowflake ch);
+void load_maple_all_data(); // 啟動時呼叫，載入角色資料與進行中的戰鬥
+
 // ─── Chest reward helpers（實作在各自的 cpp）──────────────────────────────────
 // 呼叫前不可持有 data_mutex（內部自行加鎖）
 std::string give_latus_chest_reward(dpp::snowflake uid);

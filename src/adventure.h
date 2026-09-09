@@ -619,6 +619,18 @@ static dpp::message make_normal_col_msg(dpp::snowflake uid,
     msg.set_flags(dpp::m_using_components_v2);
     msg.add_component_v2(container);
 
+    dpp::component sel_row; sel_row.set_type(dpp::cot_action_row);
+    dpp::component sel_menu;
+    sel_menu.set_type(dpp::cot_selectmenu).set_id("adv_col_sel_" + uid_s)
+        .set_placeholder("選擇要查看的地區");
+    for (int i = 0; i < (int)COL_DISPLAY_REGIONS.size(); i++) {
+        auto& r = COL_DISPLAY_REGIONS[i];
+        sel_menu.add_select_option(dpp::select_option(r.emoji + " " + r.name, std::to_string(i + 1))
+            .set_default(i + 1 == page));
+    }
+    sel_row.add_component(sel_menu);
+    msg.add_component_v2(sel_row);
+
     dpp::component nav; nav.set_type(dpp::cot_action_row);
     nav.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("◀").set_id("adv_col_normal_" + uid_s + "_" + std::to_string(page - 1))

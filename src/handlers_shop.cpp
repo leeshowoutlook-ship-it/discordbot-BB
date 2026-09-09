@@ -122,7 +122,12 @@ void handle_shop_button(const dpp::button_click_t& ev)
             save_inventory();
             ev.reply(dpp::ir_update_message, make_gacha_result_msg(uid, pulls, 1, dn, av));
         } else if (cid.rfind("gacha_hero_", 0) == 0) {
-            std::string mid = cid.substr(11);
+            // 俠客之路暫停開放：主頁面按鈕是 disabled，正常流程進不來這裡；
+            // 保留防呆，萬一有人直接偽造互動也直接擋掉，不會真的扣款/抽卡
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("🔒 俠客之路暫停開放！敬請期待。").set_flags(dpp::m_ephemeral));
+        } else if (cid.rfind("gacha_mystery_", 0) == 0) {
+            std::string mid = cid.substr(14);
             size_t sep = mid.find('_');
             int count = std::stoi(mid.substr(0, sep));
             int cost = count * 200;
@@ -132,26 +137,21 @@ void handle_shop_button(const dpp::button_click_t& ev)
             }
             add_chips(uid, -(int64_t)cost);
             std::vector<const GachaItem*> pulls;
-            for (int i = 0; i < count; i++) pulls.push_back(&gacha_pull_hero());
+            for (int i = 0; i < count; i++) pulls.push_back(&gacha_pull_mystery());
 
-            int hero_pity_after = 0; bool hero_pity_fired = false;
+            int mystery_pity_after = 0; bool mystery_pity_fired = false;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
-                gacha_hero_pity_data[(uint64_t)uid] += count;
-                if (gacha_hero_pity_data[(uint64_t)uid] >= 200) {
-                    gacha_hero_pity_data[(uint64_t)uid] -= 200;
-                    hero_pity_fired = true;
+                gacha_mystery_pity_data[(uint64_t)uid] += count;
+                if (gacha_mystery_pity_data[(uint64_t)uid] >= 200) {
+                    gacha_mystery_pity_data[(uint64_t)uid] -= 200;
+                    mystery_pity_fired = true;
                 }
-                hero_pity_after = gacha_hero_pity_data[(uint64_t)uid];
+                mystery_pity_after = gacha_mystery_pity_data[(uint64_t)uid];
             }
-            if (hero_pity_fired) pulls.push_back(&gacha_pull_hero_ur_pity());
-            save_chips(); save_inventory(); save_gacha_hero_pity();
-            ev.reply(dpp::ir_update_message, make_gacha_result_msg(uid, pulls, 2, dn, av, hero_pity_after, hero_pity_fired));
-        } else if (cid.rfind("gacha_mystery_", 0) == 0) {
-            // 天選之子尚未開放：主頁面按鈕是 disabled，正常流程進不來這裡；
-            // 保留防呆，萬一有人直接偽造互動也直接擋掉，不會真的扣款/抽卡
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("🔒 天選之子尚未開放！敬請期待。").set_flags(dpp::m_ephemeral));
+            if (mystery_pity_fired) pulls.push_back(&gacha_pull_mystery_ur_pity());
+            save_chips(); save_inventory(); save_gacha_mystery_pity();
+            ev.reply(dpp::ir_update_message, make_gacha_result_msg(uid, pulls, 3, dn, av, mystery_pity_after, mystery_pity_fired));
         }
         return;
     }
@@ -197,6 +197,7 @@ void handle_shop_button(const dpp::button_click_t& ev)
                     else if (gi->slot == "C") eq.clothes = eq_key;
                     else if (gi->slot == "S") eq.shoes   = eq_key;
                     else if (gi->slot == "K") eq.orb     = eq_key;
+                    else if (gi->slot == "R") eq.ring    = eq_key;
                 }
             }
             if (!has_item) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 背包中沒有此裝備！").set_flags(dpp::m_ephemeral)); return; }
@@ -216,6 +217,7 @@ void handle_shop_button(const dpp::button_click_t& ev)
                 else if (slot == "C") eq.clothes = "";
                 else if (slot == "S") eq.shoes   = "";
                 else if (slot == "K") eq.orb     = "";
+                else if (slot == "R") eq.ring    = "";
             }
             save_equipped();
             ev.reply(dpp::ir_update_message, make_equip_slot_msg(uid, slot, dn, av));
@@ -287,7 +289,8 @@ void handle_shop_button(const dpp::button_click_t& ev)
                 auto& eq  = equipped_data[uid];
                 int cnt = inv.count(eq_key) ? inv[eq_key] : 0;
                 bool is_eq = (eq_key == eq.weapon || eq_key == eq.glove ||
-                              eq_key == eq.clothes || eq_key == eq.shoes || eq_key == eq.orb);
+                              eq_key == eq.clothes || eq_key == eq.shoes || eq_key == eq.orb ||
+                              eq_key == eq.ring);
                 int sellable = cnt - (is_eq ? 1 : 0);
                 if (sellable > 0) {
                     inv[eq_key]--;
@@ -337,7 +340,8 @@ void handle_shop_button(const dpp::button_click_t& ev)
                     auto* gi = find_gacha_item(k);
                     if (!gi || gi->rarity != rarity) continue;
                     bool is_eq = (k == eq.weapon || k == eq.glove ||
-                                  k == eq.clothes || k == eq.shoes || k == eq.orb);
+                                  k == eq.clothes || k == eq.shoes || k == eq.orb ||
+                                  k == eq.ring);
                     int sellable = cnt - (is_eq ? 1 : 0);
                     if (sellable > 0) {
                         total += (int64_t)sellable * price;

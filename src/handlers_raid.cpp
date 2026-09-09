@@ -242,10 +242,11 @@ void handle_raid_button(const dpp::button_click_t& ev)
         g.boss_atk = boss->atk; g.boss_def = boss->def;
         g.started_at = time(nullptr); g.round = 1; g.boss_turn = false;
         for (auto& muid : room.member_uids) {
-            Pet pet2; PetStats ps; std::string orb_key;
+            Pet pet2; PetStats ps; std::string orb_key; std::string ring_key;
             { std::lock_guard<std::mutex> lk(data_mutex);
               auto pit = pet_data.find(muid); if (pit != pet_data.end()) pet2 = pit->second;
-              auto eit = equipped_data.find(muid); if (eit != equipped_data.end()) orb_key = eit->second.orb;
+              auto eit = equipped_data.find(muid);
+              if (eit != equipped_data.end()) { orb_key = eit->second.orb; ring_key = eit->second.ring; }
             }
             ps = calc_pet_stats(muid, pet2);
             { std::lock_guard<std::mutex> lk(data_mutex);
@@ -260,9 +261,9 @@ void handle_raid_button(const dpp::button_click_t& ev)
             p.avatar_url = room.member_avatars.count(muid) ? room.member_avatars.at(muid) : "";
             p.hp = ps.hp; p.max_hp = ps.hp; p.atk = ps.atk; p.def = ps.def; p.crit_pct = ps.crit_pct;
             p.hermes_atk_pct = ps.hermes_atk_pct; p.hermes_double_pct = ps.hermes_double_pct; p.hermes_crit_dmg_pct = ps.hermes_crit_dmg_pct;
-            p.orb_key = orb_key; p.alive = true;
-            if (orb_key == "EQ_K_UR" && room.member_uids.size() > 1) {
-                auto* ur_gi = find_gacha_item("EQ_K_UR"); if (ur_gi) p.def = std::max(0, p.def - ur_gi->stat_val);
+            p.orb_key = orb_key; p.ring_key = ring_key; p.alive = true;
+            if ((orb_key == "EQ_K_UR" || orb_key == "EQ_K_UR_TRUE") && room.member_uids.size() > 1) {
+                auto* ur_gi = find_gacha_item(orb_key); if (ur_gi) p.def = std::max(0, p.def - ur_gi->stat_val);
             }
             g.players.push_back(p);
         }
@@ -365,7 +366,7 @@ void handle_raid_button(const dpp::button_click_t& ev)
                       if (inventory_data.count(p.uid) && inventory_data[p.uid].count("weekly_hunt_scroll") && inventory_data[p.uid].at("weekly_hunt_scroll") > 0)
                           inventory_data[p.uid]["weekly_hunt_scroll"]--;
                 }
-                for (auto& p : cryt_snap.players) reward_lines.push_back({p.display_name, raid_give_rewards(p.uid, p.display_name)});
+                for (auto& p : cryt_snap.players) reward_lines.push_back({p.display_name, raid_give_rewards(p.uid, p.display_name, cryt_snap.boss_key)});
                 save_chips(); save_inventory();
             }
             if (!cryt_snap.victory && !cryt_snap.practice_mode) {
@@ -425,14 +426,16 @@ void handle_raid_button(const dpp::button_click_t& ev)
             std::string log;
             if (is_block) {
                 g.block_active = true;
+                g.block_is_true = (g.players[g.current_player].orb_key == "EQ_K_BEAR_TRUE");
                 log = "🛡️ **" + g.players[g.current_player].display_name + "** 進入防禦姿態！";
             } else if (is_heal) {
                 if (g.lifegoddess_used_by.count(uid)) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你這場已使用過生命女神的祝福！").set_flags(dpp::m_ephemeral)); return; }
                 g.lifegoddess_used_by.insert(uid);
+                double heal_pct = (g.players[g.current_player].orb_key == "EQ_K_LIFEGODDESS_TRUE") ? 0.25 : 0.2;
                 std::string healed;
                 for (auto& p : g.players) {
                     if (!p.alive) continue;
-                    int heal = std::min((int)std::ceil(p.max_hp * 0.2), p.max_hp - p.hp);
+                    int heal = std::min((int)std::ceil(p.max_hp * heal_pct), p.max_hp - p.hp);
                     if (heal > 0) {
                         p.hp += heal;
                         if (!healed.empty()) healed += "、";
@@ -458,7 +461,7 @@ void handle_raid_button(const dpp::button_click_t& ev)
                       if (inventory_data.count(p.uid) && inventory_data[p.uid].count("weekly_hunt_scroll") && inventory_data[p.uid].at("weekly_hunt_scroll") > 0)
                           inventory_data[p.uid]["weekly_hunt_scroll"]--;
                 }
-                for (auto& p : g_snap.players) reward_lines.push_back({p.display_name, raid_give_rewards(p.uid, p.display_name)});
+                for (auto& p : g_snap.players) reward_lines.push_back({p.display_name, raid_give_rewards(p.uid, p.display_name, g_snap.boss_key)});
                 save_chips(); save_inventory();
             }
             if (!victory && !g_snap.practice_mode) {
@@ -487,5 +490,5 @@ void handle_raid_button(const dpp::button_click_t& ev)
 }
 
 std::string give_latus_chest_reward(dpp::snowflake uid) {
-    return raid_give_rewards(uid, "");
+    return raid_give_rewards(uid, "", "latus");
 }

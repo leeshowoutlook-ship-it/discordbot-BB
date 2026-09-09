@@ -24,8 +24,11 @@ static int dd_eff_atk(const DDPlayer& p) {
 static int dd_eff_def(const DDPlayer& p, const DDGame& g) {
     int d = p.def;
     if (p.def_down_turns > 0) d = std::max(0, d - 4);
-    // 無名女神寶珠：每有一名存活玩家裝備 UR，全體 +2 DEF
-    for (auto& tp : g.players) if (tp.alive && tp.orb_key == "EQ_K_UR") d += 2;
+    // 無名女神寶珠：每有一名存活玩家裝備 UR，全體 +2 DEF；真名秩序女神緹米斯：+4 DEF
+    for (auto& tp : g.players) if (tp.alive) {
+        if (tp.orb_key == "EQ_K_UR") d += 2;
+        else if (tp.orb_key == "EQ_K_UR_TRUE") d += 4;
+    }
     return d;
 }
 
@@ -100,6 +103,11 @@ static dpp::message make_dd_combat_msg(const DDGame& g) {
                     double r = (double)p.hp / p.max_hp;
                     if (r < 0.25)      pline += " 💥狂暴×1.7";
                     else if (r < 0.50) pline += " 🌀憤怒×1.4";
+                    else               pline += " " + orb_baseline_icon(p.orb_key);
+                } else if (p.orb_key == "EQ_K_VIKING_TRUE" && p.max_hp > 0) {
+                    double r = (double)p.hp / p.max_hp;
+                    if (r < 0.25)      pline += " 💥狂暴×2.0";
+                    else if (r < 0.50) pline += " 🌀憤怒×1.6";
                     else               pline += " " + orb_baseline_icon(p.orb_key);
                 } else if (p.orb_key == "EQ_K_LATUS") {
                     pline += p.latus_orb_triggered ? " ✨拉圖斯(已觸發)" : " " + orb_baseline_icon(p.orb_key);
@@ -179,15 +187,13 @@ static dpp::message make_dd_combat_msg(const DDGame& g) {
                 .set_label("💥 強攻（×2.0，跳回合）")
                 .set_id("dd_pow_" + uid_s)
                 .set_style(dpp::cos_danger));
-            // Bear block
-            bool has_bear = false;
-            for (auto& p : g.players) if (p.orb_key == "EQ_K_BEAR" && p.alive) { has_bear = true; break; }
-            if (has_bear && cp.orb_key == "EQ_K_BEAR")
+            // Bear block（巨山狂熊寶珠／真名熊王貝奧武夫）
+            if (cp.orb_key == "EQ_K_BEAR" || cp.orb_key == "EQ_K_BEAR_TRUE")
                 row.add_component(dpp::component().set_type(dpp::cot_button)
                     .set_label("🛡️ 防禦").set_id("dd_block_" + uid_s)
                     .set_style(dpp::cos_secondary));
             // Life Goddess heal (每場限1次)
-            if (cp.orb_key == "EQ_K_LIFEGODDESS" && !g.lifegoddess_used_by.count(cp.uid))
+            if ((cp.orb_key == "EQ_K_LIFEGODDESS" || cp.orb_key == "EQ_K_LIFEGODDESS_TRUE") && !g.lifegoddess_used_by.count(cp.uid))
                 row.add_component(dpp::component().set_type(dpp::cot_button)
                     .set_label("💗 生命女神").set_id("dd_heal_" + uid_s)
                     .set_style(dpp::cos_secondary));
@@ -269,6 +275,7 @@ static void dd_advance_turn(DDGame& g) {
     } else {
         g.round++;
         g.block_active = false;
+        g.block_is_true = false;
         g.round_first_action = true;
         g.boss_turn = false;
         for (auto& p : g.players) p.speed_extra_used = false;
@@ -319,6 +326,15 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         double r = (double)cp.hp / cp.max_hp;
         if (r < 0.25)      { atk_bonus += 0.7; vk_log = " 🔥狂暴+70%"; }
         else if (r < 0.50) { atk_bonus += 0.4; vk_log = " ⚡憤怒+40%"; }
+    } else if (cp.orb_key == "EQ_K_VIKING_TRUE" && cp.max_hp > 0) {
+        double r = (double)cp.hp / cp.max_hp;
+        if (r < 0.25)      { atk_bonus += 1.0; vk_log = " 🔥狂暴+100%"; }
+        else if (r < 0.50) { atk_bonus += 0.6; vk_log = " ⚡憤怒+60%"; }
+    }
+    // 龍血戒：一進入戰鬥即持續狂暴（無HP門檻），攻擊力+100%（加算，跟維京同一個池），代價是受到傷害+50%（在受擊處理）
+    if (cp.ring_key == "EQ_R_DRAGONBLOOD") {
+        atk_bonus += 1.0;
+        vk_log += " 🩸（龍血戒狂暴+100%）";
     }
     if (g.atk_triple) atk_bonus += 2.0;
     // BB博物館限定：觀觀遺失的胖次 — 本場戰鬥第一次攻擊 +5 攻擊力
@@ -335,47 +351,57 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
     // 赫耳墨斯套裝＋江湖套裝：raw_base（尚未套用爆擊/赫耳墨斯）拆成1或2下獨立結算，
     // 每下各自骰爆擊、各自扣防禦。赫耳墨斯的攻擊力-40%是套用在最終raw上的獨立乘區，
     // 不併入 atk_bonus 加算池，不會被維京/祭壇的大加成疊乘放大
-    auto resolve_hits = [&](int raw_base) -> int {
+    auto resolve_hits = [&](int raw_base) -> std::vector<std::pair<int,bool>> {
         int hits = 1;
         if (cp.hermes_double_pct > 0 && dd_rand(1, 100) <= cp.hermes_double_pct) hits = 2;
-        int total = 0;
+        std::vector<std::pair<int,bool>> results;
         for (int i = 0; i < hits; i++) {
             int raw = raw_base;
             if (cp.hermes_atk_pct != 100) raw = raw * cp.hermes_atk_pct / 100;
             bool crit_i = cp.crit_pct > 0 && dd_rand(1, 100) <= cp.crit_pct;
             if (crit_i) raw = raw * (200 + cp.hermes_crit_dmg_pct) / 100;
-            total += std::max(1, raw - h.def);
-            if (crit_i) vk_log += " 🗡️**爆擊！**";
+            results.push_back({std::max(1, raw - h.def), crit_i});
         }
-        if (hits == 2) vk_log += " ⚡**赫耳墨斯雙擊！**";
-        return total;
+        return results;
+    };
+    auto build_atk_log = [&](const std::string& verb, const std::vector<std::pair<int,bool>>& hits) -> std::string {
+        std::string l;
+        for (size_t i = 0; i < hits.size(); i++) {
+            int d = hits[i].first;
+            std::string tag = hits.size() == 2 ? (i == 0 ? "（第一擊）" : "（第二擊）") : "";
+            if (i > 0) l += "\n";
+            l += verb + "，造成 **" + std::to_string(d) + "** 傷害" + tag + "！";
+            if (hits[i].second) l += " 🗡️**爆擊！**";
+        }
+        if (hits.size() == 2) l += "\n⚡**赫耳墨斯雙擊！**";
+        return l;
     };
 
     int atk_dmg = 0;
     if (attack_type == 2) {
         // 強攻：加算 +100%
         int raw_base = (int)(eff_atk * (2.0 + atk_bonus));
-        int dmg = resolve_hits(raw_base);
-        atk_dmg = dmg;
-        h.hp -= dmg;
-        log = "💥 **" + cp.display_name + "** 強攻 **" + h.name + "**，造成 **" + std::to_string(dmg) + "** 傷害！" + vk_log;
+        auto hits = resolve_hits(raw_base);
+        atk_dmg = 0; for (auto& hh : hits) atk_dmg += hh.first;
+        h.hp -= atk_dmg;
+        log = build_atk_log("💥 **" + cp.display_name + "** 強攻 **" + h.name + "**", hits) + vk_log;
         cp.power_skip = true;
     } else if (attack_type == 1) {
         // 耗費氣力：隨機倍率與其他加成加算
         double mult = 0.1 + dd_rand(0, 190) / 100.0;
         char buf[8]; snprintf(buf, sizeof(buf), "%.1f", mult);
         int raw_base = (int)(eff_atk * (mult + atk_bonus));
-        int dmg = resolve_hits(raw_base);
-        atk_dmg = dmg;
-        h.hp -= dmg;
-        log = "🎲 **" + cp.display_name + "** 耗費氣力（×" + std::string(buf) + "）攻擊 **" + h.name + "**，造成 **" + std::to_string(dmg) + "** 傷害！" + vk_log;
+        auto hits = resolve_hits(raw_base);
+        atk_dmg = 0; for (auto& hh : hits) atk_dmg += hh.first;
+        h.hp -= atk_dmg;
+        log = build_atk_log("🎲 **" + cp.display_name + "** 耗費氣力（×" + std::string(buf) + "）攻擊 **" + h.name + "**", hits) + vk_log;
     } else {
         // 普通攻擊：加算加成
         int raw_base = (int)(eff_atk * (1.0 + atk_bonus));
-        int dmg = resolve_hits(raw_base);
-        atk_dmg = dmg;
-        h.hp -= dmg;
-        log = "⚔️ **" + cp.display_name + "** 攻擊 **" + h.name + "**，造成 **" + std::to_string(dmg) + "** 傷害！" + vk_log;
+        auto hits = resolve_hits(raw_base);
+        atk_dmg = 0; for (auto& hh : hits) atk_dmg += hh.first;
+        h.hp -= atk_dmg;
+        log = build_atk_log("⚔️ **" + cp.display_name + "** 攻擊 **" + h.name + "**", hits) + vk_log;
     }
 
     if (h.hp <= 0) {
@@ -409,9 +435,10 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
     for (auto& hh : g.heads) if (hh.alive) { all_dead = false; break; }
     if (all_dead) { g.victory = true; g.game_over = true; }
 
-    // 迅捷
-    if (!g.game_over && cp.orb_key == "EQ_K_SPEED" && !cp.speed_extra_used) {
-        if (dd_rand(1,100) <= 40) {
+    // 迅捷寶珠：40%；真名狼王加爾姆：55%
+    if (!g.game_over && (cp.orb_key == "EQ_K_SPEED" || cp.orb_key == "EQ_K_SPEED_TRUE") && !cp.speed_extra_used) {
+        int speed_pct = (cp.orb_key == "EQ_K_SPEED_TRUE") ? 55 : 40;
+        if (dd_rand(1,100) <= speed_pct) {
             cp.speed_extra_used = true;
             g.speed_extra_pending = true;
             log += "\n⚡ **先鋒再行動！**";
@@ -444,19 +471,40 @@ static std::string dd_do_boss_turn(DDGame& g) {
             if (heal > 0) { p.hp += heal; log += "\n  → " + p.display_name + " 💧（貓哥的眼淚：恢復" + std::to_string(heal) + "HP）"; }
         }
     };
+    // 龍血戒／鐘錶戒：套用在最終傷害上。龍血戒一進入戰鬥即持續狂暴，受到傷害+50%；
+    // 鐘錶戒在會致命的一擊時全滿血復活、ATK永久減半，每場限1次。
+    // 回傳 {調整後的最終傷害, 是否被鐘錶戒救回}；呼叫後 p.hp/p.alive 已經處理完畢
+    auto apply_rings = [&](DDPlayer& p, int dmg) -> std::pair<int,bool> {
+        bool berserk = (p.ring_key == "EQ_R_DRAGONBLOOD");
+        if (berserk) dmg = (int)(dmg * 1.5);
+        bool lethal = dmg >= p.hp;
+        if (lethal && p.ring_key == "EQ_R_CLOCK" && !p.clock_ring_used) {
+            p.clock_ring_used = true;
+            p.hp = p.max_hp;
+            p.atk = std::max(1, p.atk / 2);
+            return {dmg, true};
+        }
+        p.hp -= dmg;
+        if (p.hp <= 0) { p.hp = 0; p.alive = false; }
+        return {dmg, false};
+    };
 
     // 1. Apply burning damage
     for (auto& p : g.players) {
         if (!p.alive || !p.burning) continue;
         p.burning = false;
         int dmg = 10;
-        p.hp -= dmg;
+        auto [final_dmg, saved] = apply_rings(p, dmg);
         if (!log.empty()) log += "\n";
-        log += "🔥 **" + p.display_name + "** 燃燒受到 **10** 點傷害！";
-        if (p.hp <= 0) { p.hp = 0; p.alive = false; log += " 💀"; }
-        if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
-            p.latus_orb_triggered = true; p.hp = p.max_hp / 2;
-            log += " 🔶（拉圖斯寶珠！）";
+        log += "🔥 **" + p.display_name + "** 燃燒受到 **" + std::to_string(final_dmg) + "** 點傷害！";
+        if (saved) {
+            log += " ⏰（鐘錶戒發動！復活回滿HP，攻擊力減半）";
+        } else {
+            if (!p.alive) log += " 💀";
+            if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
+                p.latus_orb_triggered = true; p.hp = p.max_hp / 2;
+                log += " 🔶（拉圖斯寶珠！）";
+            }
         }
     }
 
@@ -504,14 +552,18 @@ static std::string dd_do_boss_turn(DDGame& g) {
                     continue;
                 }
                 int dmg = std::max(1, raw - dd_eff_def(p, g));
-                if (g.block_active) dmg = std::max(1, (int)(dmg * 0.8));
-                p.hp -= dmg;
-                log += "\n  → " + p.display_name + " 受到 **" + std::to_string(dmg) + "** 傷害";
-                if (p.hp <= 0) { p.hp = 0; p.alive = false; log += " 💀"; }
-                if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
-                    p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                if (g.block_active) dmg = std::max(1, (int)(dmg * (g.block_is_true ? 0.7 : 0.8))); // 巨山狂熊-20%／真名熊王貝奧武夫-30%
+                auto [final_dmg, saved] = apply_rings(p, dmg);
+                log += "\n  → " + p.display_name + " 受到 **" + std::to_string(final_dmg) + "** 傷害";
+                if (saved) {
+                    log += " ⏰（鐘錶戒發動！復活回滿HP，攻擊力減半）";
+                } else {
+                    if (!p.alive) log += " 💀";
+                    if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
+                        p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                    }
+                    roll_tears_heal(p);
                 }
-                roll_tears_heal(p);
             }
         } else if (sk == 1) {
             // 龍爪橫掃：2隨機
@@ -526,14 +578,18 @@ static std::string dd_do_boss_turn(DDGame& g) {
                         continue;
                     }
                     int dmg = std::max(1, lh.atk - dd_eff_def(p, g));
-                    if (g.block_active) dmg = std::max(1, dmg / 2);
-                    p.hp -= dmg;
-                    log += "\n  → " + p.display_name + " 受到 **" + std::to_string(dmg) + "** 傷害";
-                    if (p.hp <= 0) { p.hp = 0; p.alive = false; log += " 💀"; }
-                    if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
-                        p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                    if (g.block_active) dmg = std::max(1, (int)(dmg * (g.block_is_true ? 0.35 : 0.5))); // 巨山狂熊-50%／真名熊王貝奧武夫-65%
+                    auto [final_dmg, saved] = apply_rings(p, dmg);
+                    log += "\n  → " + p.display_name + " 受到 **" + std::to_string(final_dmg) + "** 傷害";
+                    if (saved) {
+                        log += " ⏰（鐘錶戒發動！復活回滿HP，攻擊力減半）";
+                    } else {
+                        if (!p.alive) log += " 💀";
+                        if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
+                            p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                        }
+                        roll_tears_heal(p);
                     }
-                    roll_tears_heal(p);
                 }
             }
         } else if (sk == 2) {
@@ -547,14 +603,18 @@ static std::string dd_do_boss_turn(DDGame& g) {
                     continue;
                 }
                 int dmg = std::max(1, raw - dd_eff_def(p, g));
-                if (g.block_active) dmg = std::max(1, (int)(dmg * 0.8));
-                p.hp -= dmg;
-                log += "\n  → " + p.display_name + " 受到 **" + std::to_string(dmg) + "** 傷害";
-                if (p.hp <= 0) { p.hp = 0; p.alive = false; log += " 💀"; }
-                if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
-                    p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                if (g.block_active) dmg = std::max(1, (int)(dmg * (g.block_is_true ? 0.7 : 0.8))); // 巨山狂熊-20%／真名熊王貝奧武夫-30%
+                auto [final_dmg, saved] = apply_rings(p, dmg);
+                log += "\n  → " + p.display_name + " 受到 **" + std::to_string(final_dmg) + "** 傷害";
+                if (saved) {
+                    log += " ⏰（鐘錶戒發動！復活回滿HP，攻擊力減半）";
+                } else {
+                    if (!p.alive) log += " 💀";
+                    if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
+                        p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                    }
+                    roll_tears_heal(p);
                 }
-                roll_tears_heal(p);
             }
         } else {
             // 黑暗恢復：三頭各+50
@@ -617,14 +677,18 @@ static std::string dd_do_boss_turn(DDGame& g) {
                         log += "⛓️ **中頭** 【黑暗鎖鍊】→ **" + p.display_name + "** 完全閃避了攻擊！💨（隱形斗篷）";
                     } else {
                         int dmg = std::max(1, raw - dd_eff_def(p, g));
-                        if (g.block_active) dmg = std::max(1, dmg / 2); // 單體攻擊，跟龍爪橫掃一樣-50%（不是AOE的-20%）
-                        p.hp -= dmg;
-                        log += "⛓️ **中頭** 【黑暗鎖鍊】→ **" + p.display_name + "** 受到 **" + std::to_string(dmg) + "** 傷害！";
-                        if (p.hp <= 0) { p.hp = 0; p.alive = false; log += " 💀"; }
-                        if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
-                            p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                        if (g.block_active) dmg = std::max(1, (int)(dmg * (g.block_is_true ? 0.35 : 0.5))); // 單體攻擊：巨山狂熊-50%／真名熊王貝奧武夫-65%
+                        auto [final_dmg, saved] = apply_rings(p, dmg);
+                        log += "⛓️ **中頭** 【黑暗鎖鍊】→ **" + p.display_name + "** 受到 **" + std::to_string(final_dmg) + "** 傷害！";
+                        if (saved) {
+                            log += " ⏰（鐘錶戒發動！復活回滿HP，攻擊力減半）";
+                        } else {
+                            if (!p.alive) log += " 💀";
+                            if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
+                                p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                            }
+                            roll_tears_heal(p);
                         }
-                        roll_tears_heal(p);
                     }
                 }
                 mh.chain_cd = 1;
@@ -639,15 +703,19 @@ static std::string dd_do_boss_turn(DDGame& g) {
                         continue;
                     }
                     int dmg = std::max(1, raw - dd_eff_def(p, g));
-                    if (g.block_active) dmg = std::max(1, (int)(dmg * 0.8)); // AOE，漏掉的熊寶珠減傷補上
-                    p.hp -= dmg;
+                    if (g.block_active) dmg = std::max(1, (int)(dmg * (g.block_is_true ? 0.7 : 0.8))); // 巨山狂熊-20%／真名熊王貝奧武夫-30%
                     p.atk_down_turns = std::max(p.atk_down_turns, 1); // 下一次 boss 回合 -ATK
-                    log += "\n  → " + p.display_name + " 受到 **" + std::to_string(dmg) + "** 傷害，力量被削弱！";
-                    if (p.hp <= 0) { p.hp = 0; p.alive = false; log += " 💀"; }
-                    if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
-                        p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                    auto [final_dmg, saved] = apply_rings(p, dmg);
+                    log += "\n  → " + p.display_name + " 受到 **" + std::to_string(final_dmg) + "** 傷害，力量被削弱！";
+                    if (saved) {
+                        log += " ⏰（鐘錶戒發動！復活回滿HP，攻擊力減半）";
+                    } else {
+                        if (!p.alive) log += " 💀";
+                        if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
+                            p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                        }
+                        roll_tears_heal(p);
                     }
-                    roll_tears_heal(p);
                 }
                 mh.chain_cd = 0;
             }
@@ -723,20 +791,25 @@ static std::string dd_do_boss_turn(DDGame& g) {
                     continue;
                 }
                 int dmg = std::max(1, raw - dd_eff_def(p, g));
-                if (g.block_active) dmg = std::max(1, (int)(dmg * 0.8));
-                p.hp -= dmg;
+                if (g.block_active) dmg = std::max(1, (int)(dmg * (g.block_is_true ? 0.7 : 0.8))); // 巨山狂熊-20%／真名熊王貝奧武夫-30%
                 p.burning = true;
-                log += "\n  → " + p.display_name + " 受到 **" + std::to_string(dmg) + "** 傷害（下回合再燃燒 10）";
-                if (p.hp <= 0) { p.hp = 0; p.alive = false; p.burning = false; log += " 💀"; }
-                if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
-                    p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                auto [final_dmg, saved] = apply_rings(p, dmg);
+                log += "\n  → " + p.display_name + " 受到 **" + std::to_string(final_dmg) + "** 傷害（下回合再燃燒 10）";
+                if (saved) {
+                    log += " ⏰（鐘錶戒發動！復活回滿HP，攻擊力減半）";
+                } else {
+                    if (!p.alive) { p.burning = false; log += " 💀"; }
+                    if (p.alive && p.orb_key == "EQ_K_LATUS" && !p.latus_orb_triggered && p.hp <= p.max_hp / 5) {
+                        p.latus_orb_triggered = true; p.hp = p.max_hp / 2; log += " 🔶（拉圖斯！）";
+                    }
+                    roll_tears_heal(p);
                 }
-                roll_tears_heal(p);
             }
         }
     }
 
     g.block_active = false;
+    g.block_is_true = false;
 
     // Check all players dead
     bool any_alive = false;
@@ -817,6 +890,17 @@ static std::string dd_give_rewards_one(dpp::snowflake uid) {
         int cnt = dd_rand(1, 4);
         inventory_data[uid]["orb_shard_darkdragon"] += cnt;
         parts.push_back("🌑 暗黑龍王的寶珠碎片 ×" + std::to_string(cnt));
+    }
+    // 2% 龍血戒（掉落限定）
+    if (dd_rand(1, 100) <= 2) {
+        inventory_data[uid]["EQ_R_DRAGONBLOOD"]++;
+        parts.push_back("🩸 龍血戒 ×1");
+    }
+    // 65% 神諭殘片 3~7 片（神名解放素材）
+    if (dd_rand(1, 100) <= 65) {
+        int cnt = dd_rand(3, 7);
+        inventory_data[uid]["oracle_fragment"] += cnt;
+        parts.push_back("🔮 神諭殘片 ×" + std::to_string(cnt));
     }
 
     std::string result;

@@ -508,6 +508,203 @@ void handle_games_button(const dpp::button_click_t& ev)
         return;
     }
 
+    // ── 轉盤：開啟多人模式（把目前這局轉成多人房間，房主的下注直接算第一筆）──
+    if (cid.rfind("er_multi_open_", 0) == 0) {
+        uint64_t gid = std::stoull(cid.substr(14));
+        EuRouletteMultiGame ng; bool ok = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = euroulette_games.find(gid);
+            if (it == euroulette_games.end() || it->second.uid != uid) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
+            }
+            if (!it->second.bet_type.empty()) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("⚠️ 已經下注過了，輪盤轉動中！").set_flags(dpp::m_ephemeral)); return;
+            }
+            EuRouletteMultiPlayer host_p;
+            host_p.uid = uid; host_p.display_name = it->second.display_name;
+            host_p.avatar_url = it->second.avatar_url; host_p.bet = it->second.bet;
+            ng.id = euroulette_multi_counter++;
+            ng.host_uid = uid; ng.ch = it->second.ch; ng.msg_id = ev.command.message_id;
+            ng.players.push_back(host_p);
+            euroulette_games.erase(it);
+            user_euroulette.erase(uid);
+            euroulette_multi_games[ng.id] = ng;
+            ok = true;
+        }
+        if (ok) {
+            save_euroulette_games();
+            save_euroulette_multi_games();
+            {
+                dpp::message lobby = make_eu_multi_lobby_msg(ng);
+                lobby.id = ng.msg_id; lobby.channel_id = ng.ch;
+                g_bot->message_edit(lobby);
+            }
+            // 房主自己的下注也還沒選色，跟一般加入者一樣跳出選色按鈕（ephemeral）
+            dpp::component row; row.set_type(dpp::cot_action_row);
+            std::string gid_s = std::to_string(ng.id);
+            auto btn = [&](const std::string& lbl, const std::string& type, dpp::component_style sty) {
+                row.add_component(dpp::component().set_type(dpp::cot_button).set_label(lbl)
+                    .set_id("er_mcolor_" + gid_s + "_" + type).set_style(sty));
+            };
+            btn("🔴 紅", "red", dpp::cos_danger);
+            btn("⚫ 黑", "black", dpp::cos_secondary);
+            btn("🟡 黃", "yellow", dpp::cos_primary);
+            dpp::message resp("👥 多人模式已開啟！請選擇你的押注顏色：");
+            resp.set_flags(dpp::m_ephemeral);
+            resp.add_component(row);
+            ev.reply(dpp::ir_channel_message_with_source, resp);
+        }
+        return;
+    }
+
+    // ── 轉盤（多人）：加入下注 → 彈出籌碼輸入視窗 ──────────────────────────
+    if (cid.rfind("er_mjoin_", 0) == 0) {
+        uint64_t gid = std::stoull(cid.substr(9));
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = euroulette_multi_games.find(gid);
+            if (it == euroulette_multi_games.end()) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 找不到這個多人輪盤房間！").set_flags(dpp::m_ephemeral)); return;
+            }
+            for (auto& p : it->second.players) {
+                if (p.uid == uid) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("❌ 你已經加入這局了！").set_flags(dpp::m_ephemeral)); return;
+                }
+            }
+        }
+        dpp::interaction_modal_response modal(
+            "er_mjoin_modal_" + std::to_string(gid), "🎡 加入多人輪盤");
+        modal.add_component(dpp::component()
+            .set_type(dpp::cot_text)
+            .set_label("輸入下注籌碼（或輸入 ALL）")
+            .set_id("er_mjoin_bet_input")
+            .set_required(true)
+            .set_text_style(dpp::text_short));
+        ev.dialog(modal);
+        return;
+    }
+
+    // ── 轉盤（多人）：選押注顏色（加入後的第二步）───────────────────────────
+    if (cid.rfind("er_mcolor_", 0) == 0) {
+        std::string rest = cid.substr(10);
+        size_t sep = rest.rfind('_');
+        if (sep == std::string::npos) return;
+        uint64_t gid = std::stoull(rest.substr(0, sep));
+        std::string type = rest.substr(sep + 1);
+        EuRouletteMultiGame snap; bool found_player = false, already = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = euroulette_multi_games.find(gid);
+            if (it == euroulette_multi_games.end()) {
+                ev.reply(dpp::ir_update_message,
+                    dpp::message("❌ 這局多人輪盤已經結束或被取消了！")); return;
+            }
+            for (auto& p : it->second.players) {
+                if (p.uid == uid) {
+                    found_player = true;
+                    if (!p.bet_type.empty()) { already = true; break; }
+                    p.bet_type = type;
+                    break;
+                }
+            }
+            if (found_player) snap = it->second;
+        }
+        if (!found_player) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 找不到你在這局的下注紀錄！").set_flags(dpp::m_ephemeral)); return;
+        }
+        if (already) {
+            ev.reply(dpp::ir_update_message, dpp::message("⚠️ 你已經選過顏色了！")); return;
+        }
+        save_euroulette_multi_games();
+        {
+            dpp::message lobby = make_eu_multi_lobby_msg(snap);
+            lobby.id = snap.msg_id; lobby.channel_id = snap.ch;
+            g_bot->message_edit(lobby);
+        }
+        ev.reply(dpp::ir_update_message,
+            dpp::message("✅ 已下注 **" + eu_bet_type_label(type, -1) + "**，等待房主開始轉動！"));
+        return;
+    }
+
+    // ── 轉盤（多人）：房主開始轉動 ───────────────────────────────────────────
+    if (cid.rfind("er_mstart_", 0) == 0) {
+        uint64_t gid = std::stoull(cid.substr(10));
+        bool ok = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = euroulette_multi_games.find(gid);
+            if (it == euroulette_multi_games.end()) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 找不到這個多人輪盤房間！").set_flags(dpp::m_ephemeral)); return;
+            }
+            if (it->second.host_uid != uid) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 只有房主能開始轉動！").set_flags(dpp::m_ephemeral)); return;
+            }
+            bool any_ready = false;
+            for (auto& p : it->second.players) if (!p.bet_type.empty()) { any_ready = true; break; }
+            if (!any_ready) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 還沒有人選好顏色！").set_flags(dpp::m_ephemeral)); return;
+            }
+            ok = true;
+        }
+        if (ok) {
+            ev.reply(dpp::ir_deferred_update_message, dpp::message());
+            eu_confirm_multi_start(gid, ev.command.message_id);
+        }
+        return;
+    }
+
+    // ── 轉盤（多人）：房主取消，全額退還所有下注 ────────────────────────────
+    if (cid.rfind("er_mcancel_", 0) == 0) {
+        uint64_t gid = std::stoull(cid.substr(11));
+        EuRouletteMultiGame snap; bool ok = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = euroulette_multi_games.find(gid);
+            if (it == euroulette_multi_games.end()) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 找不到這個多人輪盤房間！").set_flags(dpp::m_ephemeral)); return;
+            }
+            if (it->second.host_uid != uid) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 只有房主能取消！").set_flags(dpp::m_ephemeral)); return;
+            }
+            snap = it->second;
+            euroulette_multi_games.erase(it);
+            ok = true;
+        }
+        if (ok) {
+            for (auto& p : snap.players) add_chips(p.uid, p.bet); // 退還所有下注
+            save_euroulette_multi_games();
+            dpp::embed e; e.set_title("❌ 多人輪盤已取消").set_color(0x95A5A6)
+                .set_description("所有下注已全額退還。");
+            ev.reply(dpp::ir_update_message, dpp::message().add_embed(e));
+        }
+        return;
+    }
+
+    // ── 轉盤（多人）：結算畫面「開新一局」──────────────────────────────────
+    if (cid.rfind("er_mnew_", 0) == 0) {
+        EuRouletteMultiGame ng;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            ng.id = euroulette_multi_counter++;
+            ng.host_uid = uid; ng.ch = ev.command.channel_id; ng.msg_id = ev.command.message_id;
+            euroulette_multi_games[ng.id] = ng;
+        }
+        save_euroulette_multi_games();
+        ev.reply(dpp::ir_update_message, make_eu_multi_lobby_msg(ng));
+        return;
+    }
+
     // ── 射龍門按鈕 ───────────────────────────────────────────────────────────
     if (cid.rfind("shoot_", 0) == 0) {
         auto sh_get_uid = [&]() -> dpp::snowflake {
@@ -847,6 +1044,97 @@ void handle_games_modal(const dpp::form_submit_t& ev)
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("✅ 已記錄：`" + input + "` → **" + snap.history.back().second + "**").set_flags(dpp::m_ephemeral));
         }
+        return;
+    }
+
+    // ── 轉盤（多人）：加入下注輸入的籌碼量 ──────────────────────────────────
+    if (cid.rfind("er_mjoin_modal_", 0) == 0) {
+        uint64_t gid = std::stoull(cid.substr(15));
+        std::string input;
+        for (auto& row : ev.components) {
+            if (std::holds_alternative<std::string>(row.value))
+                input = std::get<std::string>(row.value);
+            for (auto& sub : row.components)
+                if (std::holds_alternative<std::string>(sub.value))
+                    input = std::get<std::string>(sub.value);
+        }
+        while (!input.empty() && input.front() == ' ') input.erase(input.begin());
+        while (!input.empty() && input.back()  == ' ') input.pop_back();
+        std::string input_lo = input;
+        for (auto& c2 : input_lo) c2 = (char)std::tolower((unsigned char)c2);
+
+        dpp::snowflake ch = ev.command.channel_id;
+        bool is_all = (input_lo == "all");
+        int64_t bet = is_all ? get_chips(issuer) : 0;
+        if (!is_all) { try { bet = std::stoll(input); } catch (...) { bet = 0; } }
+
+        if (!cfg.allin_thread_id.empty() && std::to_string((uint64_t)ch) == cfg.allin_thread_id) {
+            bet = get_chips(issuer);
+            if (bet < 5000) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 此房間需持有至少 **5,000** 碼才能 ALLIN！").set_flags(dpp::m_ephemeral)); return;
+            }
+        } else {
+            if (bet <= 0) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 請輸入有效的籌碼量（或輸入 ALL）！").set_flags(dpp::m_ephemeral)); return;
+            }
+            if (!cfg.min_bet_thread_id.empty() && std::to_string((uint64_t)ch) == cfg.min_bet_thread_id && bet < 1000) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 此討論串最低下注為 **1,000** 碼！").set_flags(dpp::m_ephemeral)); return;
+            }
+        }
+        if (get_chips(issuer) < bet) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 籌碼不足！").set_flags(dpp::m_ephemeral)); return;
+        }
+
+        dpp::user issuer_user = ev.command.get_issuing_user();
+        EuRouletteMultiGame snap; bool ok = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto it = euroulette_multi_games.find(gid);
+            if (it == euroulette_multi_games.end()) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 這局多人輪盤已經結束或被取消了！").set_flags(dpp::m_ephemeral)); return;
+            }
+            for (auto& p : it->second.players) {
+                if (p.uid == issuer) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("❌ 你已經加入這局了！").set_flags(dpp::m_ephemeral)); return;
+                }
+            }
+            EuRouletteMultiPlayer np;
+            np.uid = issuer;
+            np.display_name = issuer_user.username;
+            np.avatar_url   = issuer_user.get_avatar_url();
+            np.bet = bet;
+            it->second.players.push_back(np);
+            snap = it->second;
+            ok = true;
+        }
+        if (!ok) return;
+        add_chips(issuer, -bet);
+        save_euroulette_multi_games();
+        {
+            dpp::message lobby = make_eu_multi_lobby_msg(snap);
+            lobby.id = snap.msg_id; lobby.channel_id = snap.ch;
+            g_bot->message_edit(lobby);
+        }
+
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        std::string gid_s = std::to_string(gid);
+        auto btn = [&](const std::string& lbl, const std::string& type, dpp::component_style sty) {
+            row.add_component(dpp::component().set_type(dpp::cot_button).set_label(lbl)
+                .set_id("er_mcolor_" + gid_s + "_" + type).set_style(sty));
+        };
+        btn("🔴 紅", "red", dpp::cos_danger);
+        btn("⚫ 黑", "black", dpp::cos_secondary);
+        btn("🟡 黃", "yellow", dpp::cos_primary);
+        dpp::message resp("✅ 已下注 **" + std::to_string(bet) + "** 碼！請選擇押注顏色：");
+        resp.set_flags(dpp::m_ephemeral);
+        resp.add_component(row);
+        ev.reply(dpp::ir_channel_message_with_source, resp);
         return;
     }
 
