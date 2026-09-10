@@ -179,6 +179,48 @@ void handle_maple_button(const dpp::button_click_t& ev) {
         return;
     }
 
+    if (cid.rfind("maple_atktype_", 0) == 0) {
+        if (!check_owner("maple_atktype_")) return;
+        MapleCharacter c0 = maple_get_or_create(uid);
+        if (maple_is_adventuring(c0)) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 冒險中無法調整攻擊方式！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_atktype_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_atkpick_", 0) == 0) {
+        std::string rest = cid.substr(14);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string skill_key = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (maple_is_adventuring(c)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 冒險中無法調整攻擊方式！").set_flags(dpp::m_ephemeral)); return;
+            }
+            if (skill_key == "normal") {
+                c.adv_atk_skill.clear();
+            } else {
+                const MapleSkillDef* sd = maple_find_skill(skill_key);
+                if (!sd || (sd->type != "damage_fixed" && sd->type != "damage_coef")
+                    || maple_skill_level(c, skill_key) <= 0) return;
+                c.adv_atk_skill = skill_key;
+            }
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_atktype_msg(uid));
+        return;
+    }
+
     if (cid.rfind("maple_skadd_", 0) == 0) {
         std::string rest = cid.substr(12);
         size_t sep = rest.find('_');
@@ -254,10 +296,14 @@ void handle_maple_button(const dpp::button_click_t& ev) {
 
     if (cid.rfind("maple_apadd_", 0) == 0) {
         std::string rest = cid.substr(12);
-        size_t sep = rest.rfind('_');
-        if (sep == std::string::npos) return;
-        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
-        std::string stat = rest.substr(sep + 1);
+        size_t sep1 = rest.find('_');
+        if (sep1 == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep1)));
+        std::string rest2 = rest.substr(sep1 + 1);
+        size_t sep2 = rest2.rfind('_');
+        if (sep2 == std::string::npos) return;
+        std::string stat = rest2.substr(0, sep2);
+        int amount = std::stoi(rest2.substr(sep2 + 1));
         if (owner != uid) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
@@ -269,11 +315,12 @@ void handle_maple_button(const dpp::button_click_t& ev) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 冒險中無法調整能力值！").set_flags(dpp::m_ephemeral)); return;
             }
-            if (maple_unspent_ap(c) > 0) {
-                if      (stat == "str") c.str_stat++;
-                else if (stat == "dex") c.dex_stat++;
-                else if (stat == "int") c.int_stat++;
-                else if (stat == "luk") c.luk_stat++;
+            int add = std::min(amount, maple_unspent_ap(c));
+            if (add > 0) {
+                if      (stat == "str") c.str_stat += add;
+                else if (stat == "dex") c.dex_stat += add;
+                else if (stat == "int") c.int_stat += add;
+                else if (stat == "luk") c.luk_stat += add;
             }
         }
         save_maple_data();

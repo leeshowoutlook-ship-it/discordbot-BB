@@ -3847,7 +3847,7 @@ int main(int argc, char* argv[]) {
                     "gacha_pity.json","gacha_hero_pity.json","gacha_mystery_pity.json",
                     "euroulette_stats.json","rocketstats.json","rpsstats.json",
                     "wolfplayerstats.json","adventure.json","registrations.json",
-                    "shop.json", nullptr
+                    "shop.json","maple_data.json", nullptr
                 };
                 for (int i = 0; FILES[i]; i++) {
                     fs::path src(FILES[i]);

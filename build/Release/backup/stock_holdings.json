@@ -29,8 +29,8 @@
       "shares": 50
     },
     "stock_catbro": {
-      "avg_cost": 888,
-      "shares": 50
+      "avg_cost": 889,
+      "shares": 60
     }
   },
   "1390285382381338627": {
@@ -43,6 +43,12 @@
     "stock_mood": {
       "avg_cost": 1060,
       "shares": 2
+    }
+  },
+  "470149299934593024": {
+    "stock_0050": {
+      "avg_cost": 110,
+      "shares": 20
     }
   },
   "479900597013708802": {
@@ -79,18 +85,14 @@
       "shares": 60
     },
     "stock_purse": {
-      "avg_cost": 963,
-      "shares": 20
+      "avg_cost": 971,
+      "shares": 40
     }
   },
   "604244623124070423": {
     "stock_ntdo": {
-      "avg_cost": 8849,
-      "shares": 28
-    },
-    "stock_purse": {
-      "avg_cost": 963,
-      "shares": 10
+      "avg_cost": 8619,
+      "shares": 59
     }
   },
   "651090037102084096": {
@@ -110,10 +112,6 @@
     }
   },
   "856481432581701643": {
-    "stock_0050": {
-      "avg_cost": 104,
-      "shares": 496
-    },
     "stock_mood": {
       "avg_cost": 866,
       "shares": 60
@@ -135,8 +133,8 @@
   },
   "978574913306755084": {
     "stock_yageo": {
-      "avg_cost": 612,
-      "shares": 5
+      "avg_cost": 589,
+      "shares": 10
     }
   }
 }

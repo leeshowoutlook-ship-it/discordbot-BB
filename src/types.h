@@ -333,6 +333,7 @@ struct MapleCharacter {
     std::string    eq_shoes;
     double         weapon_mastery = 0.10; // 熟練度，預設10%，攻擊力下限公式用
     std::map<std::string,int> skill_levels; // 技能key -> 已投入等級
+    std::string    adv_atk_skill;   // 冒險／戰鬥計算使用的攻擊技能key，空字串＝普通攻擊
     std::string    adv_region;      // 目前冒險中的區域key，空字串＝沒有在冒險
     time_t         adv_started_at = 0;
     int64_t        monsters_defeated = 0;

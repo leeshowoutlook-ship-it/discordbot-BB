@@ -2,71 +2,71 @@
   "stock_0050": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788664667,
-    "prev_close": 108,
-    "price": 108
+    "last_update": 1788974267,
+    "prev_close": 110,
+    "price": 110
   },
   "stock_btc": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788664667,
-    "prev_close": 79906,
-    "price": 79951
+    "last_update": 1788974267,
+    "prev_close": 78864,
+    "price": 78842
   },
   "stock_catbro": {
-    "day_number": 20701,
-    "day_open_price": 913,
-    "last_update": 1788600504,
-    "prev_close": 913,
-    "price": 867
+    "day_number": 20705,
+    "day_open_price": 886,
+    "last_update": 1788944069,
+    "prev_close": 915,
+    "price": 925
   },
   "stock_mood": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788626177,
-    "prev_close": 995,
-    "price": 980
+    "last_update": 1788918978,
+    "prev_close": 965,
+    "price": 920
   },
   "stock_mstr": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788664667,
-    "prev_close": 143,
-    "price": 143
+    "last_update": 1788974267,
+    "prev_close": 135,
+    "price": 135
   },
   "stock_ntdo": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788664667,
-    "prev_close": 8839,
-    "price": 8839
+    "last_update": 1788974267,
+    "prev_close": 8401,
+    "price": 8401
   },
   "stock_nvda": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788664667,
-    "prev_close": 230,
-    "price": 230
+    "last_update": 1788974267,
+    "prev_close": 224,
+    "price": 224
   },
   "stock_purse": {
-    "day_number": 20702,
-    "day_open_price": 978,
-    "last_update": 1788627642,
-    "prev_close": 974,
-    "price": 994
+    "day_number": 20705,
+    "day_open_price": 994,
+    "last_update": 1788917471,
+    "prev_close": 994,
+    "price": 970
   },
   "stock_tsmc": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788664667,
-    "prev_close": 2410,
-    "price": 2410
+    "last_update": 1788974267,
+    "prev_close": 2465,
+    "price": 2465
   },
   "stock_yageo": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1788664667,
-    "prev_close": 562,
-    "price": 562
+    "last_update": 1788974267,
+    "prev_close": 565,
+    "price": 565
   }
 }

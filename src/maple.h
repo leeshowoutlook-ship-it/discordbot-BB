@@ -274,19 +274,42 @@ static int maple_total_atk(const MapleCharacter& c) {
     return total;
 }
 
+// 取得玩家目前選擇、且實際可用（已學會、轉職後仍看得到）的攻擊技能；回傳 nullptr＝普通攻擊
+static const MapleSkillDef* maple_current_atk_skill(const MapleCharacter& c) {
+    if (c.adv_atk_skill.empty()) return nullptr;
+    const MapleSkillDef* sd = maple_find_skill(c.adv_atk_skill);
+    if (!sd) return nullptr;
+    if (sd->type != "damage_fixed" && sd->type != "damage_coef") return nullptr;
+    if (!maple_skill_visible(c, sd->job)) return nullptr;
+    int lvl = maple_skill_level(c, sd->key);
+    if (lvl <= 0) return nullptr;
+    return sd;
+}
+
 // 攻擊力是一個範圍：最大＝主屬性係數全開；最小＝主屬性係數只算 0.9*熟練度（預設10%）
-// 兩者最後都要 /100
+// 兩者最後都要 /100。若玩家選擇了攻擊技能：damage_coef 套用技能係數取代基礎100%；
+// damage_fixed 直接固定傷害（不吃屬性，最大最小相同）
 static int64_t maple_atk_power_max(const MapleCharacter& c) {
     const MapleJobDef& j = maple_job_of(c);
     double primary   = maple_stat_value(c, j.primary_stat);
     double secondary = maple_stat_value(c, j.secondary_stat);
-    return (int64_t)llround((j.primary_coef * primary + j.secondary_coef * secondary) * maple_total_atk(c) / 100.0);
+    int64_t base = (int64_t)llround((j.primary_coef * primary + j.secondary_coef * secondary) * maple_total_atk(c) / 100.0);
+    const MapleSkillDef* sd = maple_current_atk_skill(c);
+    if (!sd) return base;
+    int lvl = maple_skill_level(c, sd->key);
+    if (sd->type == "damage_fixed") return (int64_t)sd->values[lvl-1];
+    return (int64_t)llround(base * sd->values[lvl-1] / 100.0);
 }
 static int64_t maple_atk_power_min(const MapleCharacter& c) {
     const MapleJobDef& j = maple_job_of(c);
     double primary   = maple_stat_value(c, j.primary_stat);
     double secondary = maple_stat_value(c, j.secondary_stat);
-    return (int64_t)llround((j.primary_coef * 0.9 * c.weapon_mastery * primary + j.secondary_coef * secondary) * maple_total_atk(c) / 100.0);
+    int64_t base = (int64_t)llround((j.primary_coef * 0.9 * c.weapon_mastery * primary + j.secondary_coef * secondary) * maple_total_atk(c) / 100.0);
+    const MapleSkillDef* sd = maple_current_atk_skill(c);
+    if (!sd) return base;
+    int lvl = maple_skill_level(c, sd->key);
+    if (sd->type == "damage_fixed") return (int64_t)sd->values[lvl-1];
+    return (int64_t)llround(base * sd->values[lvl-1] / 100.0);
 }
 static double maple_atk_power_avg(const MapleCharacter& c) {
     return (maple_atk_power_min(c) + maple_atk_power_max(c)) / 2.0;
@@ -373,6 +396,7 @@ static void save_maple_data() {
                 {"eq_shoes",          c.eq_shoes},
                 {"weapon_mastery",    c.weapon_mastery},
                 {"skill_levels",      c.skill_levels},
+                {"adv_atk_skill",     c.adv_atk_skill},
                 {"adv_region",        c.adv_region},
                 {"adv_started_at",    (int64_t)c.adv_started_at},
                 {"monsters_defeated", c.monsters_defeated},
@@ -414,6 +438,7 @@ static void load_maple_data() {
             c.weapon_mastery    = v.value("weapon_mastery",    0.10);
             if (v.contains("skill_levels") && v["skill_levels"].is_object())
                 c.skill_levels  = v["skill_levels"].get<std::map<std::string,int>>();
+            c.adv_atk_skill     = v.value("adv_atk_skill",     std::string());
             c.adv_region        = v.value("adv_region",        std::string());
             c.adv_started_at    = (time_t)v.value("adv_started_at", (int64_t)0);
             c.monsters_defeated = v.value("monsters_defeated", (int64_t)0);
@@ -458,11 +483,15 @@ static dpp::message make_maple_home_msg(dpp::snowflake uid, const std::string& d
              + "副屬性：" + maple_stat_name(job.secondary_stat) + " **" + std::to_string(maple_stat_value(c, job.secondary_stat)) + "**\n";
     content += "攻擊力 **" + std::to_string(maple_atk_power_min(c)) + " ~ " + std::to_string(maple_atk_power_max(c))
              + "**　防禦力 **" + std::to_string(c.def) + "**　生命值 **" + std::to_string(c.max_hp) + "**\n";
+    {
+        const MapleSkillDef* atk_sd = maple_current_atk_skill(c);
+        content += "⚔️ 目前攻擊方式：**" + (atk_sd ? atk_sd->name : std::string("普通攻擊")) + "**\n";
+    }
     content += "🗡️ 累計擊敗怪物：**" + std::to_string(c.monsters_defeated) + "** 隻\n";
     content += "🌟 剩餘技能點：**" + std::to_string(maple_sp_unspent(c)) + "**\n";
     if (!maple_equip_unlocked(c)) content += "🔒 「換裝自由」點滿後開放裝備系統\n";
     if (!maple_ap_unlocked(c))    content += "🔒 「能力值自由」點滿後開放能力值系統\n";
-    if (maple_is_adventuring(c))  content += "🗺️ 冒險中，無法調整裝備與能力值\n";
+    if (maple_is_adventuring(c))  content += "🗺️ 冒險中，無法調整裝備、能力值與攻擊方式\n";
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
@@ -494,6 +523,9 @@ static dpp::message make_maple_home_msg(dpp::snowflake uid, const std::string& d
 
     dpp::component row2; row2.set_type(dpp::cot_action_row);
     row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("⚔️ 攻擊方式").set_id("maple_atktype_" + uid_s).set_style(dpp::cos_secondary)
+        .set_disabled(maple_is_adventuring(c)));
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row2);
 
@@ -515,6 +547,59 @@ static std::string maple_skill_value_text(const MapleSkillDef& sd, int level) {
     return "";
 }
 
+// ─── 攻擊方式選擇（普通攻擊 或 已學會的攻擊技能）─────────────────────────────
+
+static dpp::message make_maple_atktype_msg(dpp::snowflake uid) {
+    MapleCharacter c = maple_get_or_create(uid);
+    std::string uid_s = std::to_string((uint64_t)uid);
+    const MapleSkillDef* cur_sd = maple_current_atk_skill(c);
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## ⚔️ 攻擊方式\n選擇冒險與戰鬥計算時使用的攻擊方式，只能選擇已經學會的攻擊技能。"));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
+        .set_spacing(dpp::sep_small).set_divider(true));
+
+    auto row_for = [&](const std::string& name, const std::string& desc, bool current, const std::string& skill_key) {
+        std::string text = "**" + name + "**\n" + desc;
+        if (current) text += "\n✅ 目前使用中";
+        return dpp::component()
+            .set_type(dpp::cot_section)
+            .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
+            .set_accessory(dpp::component().set_type(dpp::cot_button)
+                .set_label(current ? "使用中" : "選擇")
+                .set_id("maple_atkpick_" + uid_s + "_" + skill_key)
+                .set_style(current ? dpp::cos_secondary : dpp::cos_success)
+                .set_disabled(current));
+    };
+
+    container.add_component_v2(row_for("🔹 普通攻擊", "基礎攻擊力，不套用任何技能係數。",
+        cur_sd == nullptr, "normal"));
+
+    for (auto& skill_job : maple_visible_skill_jobs(c)) {
+        for (auto* sd : maple_skills_for_job(skill_job)) {
+            if (sd->type != "damage_fixed" && sd->type != "damage_coef") continue;
+            int lvl = maple_skill_level(c, sd->key);
+            if (lvl <= 0) continue; // 尚未學習，不能選
+            container.add_component_v2(row_for(sd->name,
+                "Lv." + std::to_string(lvl) + "／" + maple_skill_value_text(*sd, lvl),
+                cur_sd == sd, sd->key));
+        }
+    }
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
+
+    return msg;
+}
+
 static dpp::message make_maple_skill_msg(dpp::snowflake uid) {
     MapleCharacter c = maple_get_or_create(uid);
     std::string uid_s = std::to_string((uint64_t)uid);
@@ -522,16 +607,17 @@ static dpp::message make_maple_skill_msg(dpp::snowflake uid) {
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
 
-    dpp::component header;
-    header.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
-    header.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
         .set_content("## 🌟 技能\n剩餘技能點：**" + std::to_string(maple_sp_unspent(c)) + "**"));
-    msg.add_component_v2(header);
 
     // 轉職後之前職業的技能仍然顯示（初心者技能一律顯示，再加上目前一轉職業的技能）
     for (auto& skill_job : maple_visible_skill_jobs(c)) {
         const MapleJobDef* jd = maple_find_job(skill_job);
-        msg.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
+            .set_spacing(dpp::sep_small).set_divider(true));
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
             .set_content("**── " + (jd ? jd->name : skill_job) + " ──**"));
         for (auto* sd : maple_skills_for_job(skill_job)) {
             int lvl = maple_skill_level(c, sd->key);
@@ -539,7 +625,7 @@ static dpp::message make_maple_skill_msg(dpp::snowflake uid) {
             std::string text = "**" + sd->name + "** Lv." + std::to_string(lvl) + "/" + std::to_string(sd->max_level) + "\n";
             text += sd->desc + "\n";
             text += "目前：" + maple_skill_value_text(*sd, lvl);
-            msg.add_component_v2(dpp::component()
+            container.add_component_v2(dpp::component()
                 .set_type(dpp::cot_section)
                 .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
                 .set_accessory(dpp::component().set_type(dpp::cot_button)
@@ -548,6 +634,7 @@ static dpp::message make_maple_skill_msg(dpp::snowflake uid) {
                     .set_disabled(maxed || maple_sp_unspent(c) <= 0)));
         }
     }
+    msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -565,25 +652,39 @@ static dpp::message make_maple_ap_msg(dpp::snowflake uid) {
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
 
-    dpp::component header;
-    header.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
-    header.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
         .set_content("## 🔢 能力值分配\n剩餘可分配點數：**" + std::to_string(unspent) + "**"));
-    msg.add_component_v2(header);
+    container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
+        .set_spacing(dpp::sep_small).set_divider(true));
 
-    auto stat_row = [&](const std::string& stat, int value) {
-        return dpp::component()
-            .set_type(dpp::cot_section)
-            .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-                .set_content("**" + maple_stat_name(stat) + "**：" + std::to_string(value)))
-            .set_accessory(dpp::component().set_type(dpp::cot_button)
-                .set_label("+1").set_id("maple_apadd_" + uid_s + "_" + stat)
-                .set_style(dpp::cos_success).set_disabled(unspent <= 0));
+    auto stat_text = [&](const std::string& stat, int value) {
+        return dpp::component().set_type(dpp::cot_text_display)
+            .set_content("**" + maple_stat_name(stat) + "**：" + std::to_string(value));
     };
-    msg.add_component_v2(stat_row("str", c.str_stat));
-    msg.add_component_v2(stat_row("dex", c.dex_stat));
-    msg.add_component_v2(stat_row("int", c.int_stat));
-    msg.add_component_v2(stat_row("luk", c.luk_stat));
+    container.add_component_v2(stat_text("str", c.str_stat));
+    container.add_component_v2(stat_text("dex", c.dex_stat));
+    container.add_component_v2(stat_text("int", c.int_stat));
+    container.add_component_v2(stat_text("luk", c.luk_stat));
+    msg.add_component_v2(container);
+
+    // 每項能力值一列，各給 +1／+5／+10 三顆按鈕（超過剩餘點數時實際只會加到剩餘量，不會卡住不能按）
+    auto stat_btn_row = [&](const std::string& stat) {
+        dpp::component r; r.set_type(dpp::cot_action_row);
+        std::string nm = maple_stat_name(stat);
+        for (int amt : {1, 5, 10}) {
+            r.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label(nm + " +" + std::to_string(amt))
+                .set_id("maple_apadd_" + uid_s + "_" + stat + "_" + std::to_string(amt))
+                .set_style(dpp::cos_success).set_disabled(unspent <= 0));
+        }
+        return r;
+    };
+    msg.add_component_v2(stat_btn_row("str"));
+    msg.add_component_v2(stat_btn_row("dex"));
+    msg.add_component_v2(stat_btn_row("int"));
+    msg.add_component_v2(stat_btn_row("luk"));
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -649,11 +750,12 @@ static dpp::message make_maple_equip_msg(dpp::snowflake uid) {
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
 
-    dpp::component header;
-    header.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
-    header.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
         .set_content("## 🎽 裝備\n武器攻擊力目前 **" + std::to_string(maple_total_atk(c)) + "**"));
-    msg.add_component_v2(header);
+    container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
+        .set_spacing(dpp::sep_small).set_divider(true));
 
     for (auto& slot : MAPLE_SLOTS) {
         std::string key = maple_equipped_key(c, slot.key);
@@ -665,12 +767,13 @@ static dpp::message make_maple_equip_msg(dpp::snowflake uid) {
         } else {
             text += "（未裝備）";
         }
-        msg.add_component_v2(dpp::component()
+        container.add_component_v2(dpp::component()
             .set_type(dpp::cot_section)
             .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
             .set_accessory(dpp::component().set_type(dpp::cot_button)
                 .set_label("更換").set_id("maple_eqopen_" + uid_s + "_" + slot.key).set_style(dpp::cos_secondary)));
     }
+    msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -691,11 +794,12 @@ static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::str
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
 
-    dpp::component header;
-    header.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
-    header.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
         .set_content("## 🔄 更換" + slot_name));
-    msg.add_component_v2(header);
+    container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
+        .set_spacing(dpp::sep_small).set_divider(true));
 
     bool any = false;
     for (auto& item : MAPLE_ITEMS) {
@@ -709,7 +813,7 @@ static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::str
               + "　限制主屬性 " + std::to_string(item.primary_req)
               + "　限制副屬性 " + std::to_string(item.secondary_req)
               + (item.sellable ? "" : "　🚫無法售出");
-        msg.add_component_v2(dpp::component()
+        container.add_component_v2(dpp::component()
             .set_type(dpp::cot_section)
             .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
             .set_accessory(dpp::component().set_type(dpp::cot_button)
@@ -719,12 +823,10 @@ static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::str
                 .set_disabled(equipped || !eligible)));
     }
     if (!any) {
-        dpp::component container;
-        container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x95, 0x95, 0x95));
         container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
             .set_content("目前沒有可裝備的" + slot_name + "道具。"));
-        msg.add_component_v2(container);
     }
+    msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -773,16 +875,17 @@ static dpp::message make_maple_adv_region_list_msg(dpp::snowflake uid) {
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
 
-    dpp::component header;
-    header.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
-    header.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
         .set_content("## 🗺️ 冒險\n攻擊間隔固定 " + std::to_string(MAPLE_ADV_ATTACK_INTERVAL_SEC) + " 秒／次，建議等級僅供參考、未達也能進入。"));
-    msg.add_component_v2(header);
+    container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
+        .set_spacing(dpp::sep_small).set_divider(true));
 
     for (auto& r : MAPLE_ADV_REGIONS) {
         std::string text = "**" + r.name + "**　建議 Lv. " + std::to_string(r.suggested_level) + "~";
         if (!r.open) text += "　🚧尚未開放";
-        msg.add_component_v2(dpp::component()
+        container.add_component_v2(dpp::component()
             .set_type(dpp::cot_section)
             .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
             .set_accessory(dpp::component().set_type(dpp::cot_button)
@@ -791,6 +894,7 @@ static dpp::message make_maple_adv_region_list_msg(dpp::snowflake uid) {
                 .set_style(r.open ? dpp::cos_success : dpp::cos_secondary)
                 .set_disabled(!r.open)));
     }
+    msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
