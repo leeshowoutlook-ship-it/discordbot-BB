@@ -64,6 +64,19 @@ void handle_maple_button (const dpp::button_click_t& ev);
 void handle_maple_slash  (const dpp::slashcommand_t& ev, const std::string& cmd_name, dpp::snowflake uid, dpp::snowflake ch);
 void load_maple_all_data(); // 啟動時呼叫，載入角色資料與進行中的戰鬥
 
+// ─── 楓之谷世界養成系統：交易輔助（實作在 handlers_maple.cpp）────────────────
+// mv_ = Maple Valley。用於讓 !交易／/交易 支援楓之谷卷軸、裝備與瘋幣。
+bool    mv_item_info(int id, std::string& key_out, std::string& name_out); // true=此ID是楓之谷卷軸或裝備
+bool    mv_is_item_key(const std::string& key);
+bool    mv_has_item(dpp::snowflake uid, const std::string& key, int64_t qty); // 內部自行加鎖
+int64_t mv_get_coins(dpp::snowflake uid);                                     // 內部自行加鎖
+// 以下需在呼叫前持有 data_mutex：
+bool    mv_locked_has_item(dpp::snowflake uid, const std::string& key, int64_t qty);
+void    mv_locked_transfer_item(dpp::snowflake from, dpp::snowflake to, const std::string& key, int64_t qty);
+int64_t mv_locked_get_coins(dpp::snowflake uid);
+void    mv_locked_add_coins(dpp::snowflake uid, int64_t delta);
+void    mv_save_data();
+
 // ─── Chest reward helpers（實作在各自的 cpp）──────────────────────────────────
 // 呼叫前不可持有 data_mutex（內部自行加鎖）
 std::string give_latus_chest_reward(dpp::snowflake uid);

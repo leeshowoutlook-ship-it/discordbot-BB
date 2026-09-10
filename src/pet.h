@@ -1252,7 +1252,7 @@ static dpp::message make_bag_sell_equip_msg(dpp::snowflake uid) {
             .set_content("## 💰 售出裝備\n沒有可售出的裝備。"));
         msg.add_component_v2(container);
     } else {
-        bool has_C = false, has_R = false, has_SR = false, has_UR = false;
+        bool has_C = false, has_R = false, has_SR = false, has_UR_excess = false;
         for (auto& en : eq_entries) {
             auto* gi = find_gacha_item(en.key);
             if (!gi) continue;
@@ -1261,8 +1261,9 @@ static dpp::message make_bag_sell_equip_msg(dpp::snowflake uid) {
                 if (gi->rarity == "C")  has_C  = true;
                 if (gi->rarity == "R")  has_R  = true;
                 if (gi->rarity == "SR") has_SR = true;
-                if (gi->rarity == "UR") has_UR = true;
             }
+            // UR：不管有沒有裝備，每種都固定留1份，count>1才有多餘可賣
+            if (gi->rarity == "UR" && en.count > 1) has_UR_excess = true;
         }
 
         dpp::component container;
@@ -1304,7 +1305,10 @@ static dpp::message make_bag_sell_equip_msg(dpp::snowflake uid) {
              .set_style(dpp::cos_danger).set_disabled(!has_any);
             bulk_row.add_component(b);
         };
-        mk_bulk("C", has_C); mk_bulk("R", has_R); mk_bulk("SR", has_SR); mk_bulk("UR", has_UR);
+        mk_bulk("C", has_C); mk_bulk("R", has_R); mk_bulk("SR", has_SR);
+        bulk_row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("批量售出多餘UR").set_id("bag_sellurconfirm_" + uid_s)
+            .set_style(dpp::cos_danger).set_disabled(!has_UR_excess));
         msg.add_component_v2(bulk_row);
     }
 
@@ -1313,6 +1317,28 @@ static dpp::message make_bag_sell_equip_msg(dpp::snowflake uid) {
     nav.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回裝備背包").set_id("bag_tab_equip_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(nav);
+    return msg;
+}
+
+static dpp::message make_bag_sellur_confirm_msg(dpp::snowflake uid) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## ⚠️ 確認出售多餘UR\n每一種UR裝備會保留1份（不論是否裝備中），其餘全部以 **"
+                     + std::to_string(eq_sell_price("UR")) + "** 碼／件賣出。此動作無法復原，確定要繼續嗎？"));
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("✅ 確定出售").set_id("bag_sellurok_" + uid_s).set_style(dpp::cos_danger));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("❌ 取消").set_id("bag_sellurno_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
+
     return msg;
 }
 

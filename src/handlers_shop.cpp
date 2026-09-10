@@ -352,6 +352,34 @@ void handle_shop_button(const dpp::button_click_t& ev)
             }
             if (total > 0) { save_inventory(); save_chips(); }
             ev.reply(dpp::ir_update_message, make_bag_equip_msg(uid));
+
+        } else if (cid.rfind("bag_sellurconfirm_", 0) == 0) {
+            if (!chk(dpp::snowflake(std::stoull(cid.substr(18))))) return;
+            ev.reply(dpp::ir_update_message, make_bag_sellur_confirm_msg(uid));
+
+        } else if (cid.rfind("bag_sellurno_", 0) == 0) {
+            if (!chk(dpp::snowflake(std::stoull(cid.substr(13))))) return;
+            ev.reply(dpp::ir_update_message, make_bag_sell_equip_msg(uid));
+
+        } else if (cid.rfind("bag_sellurok_", 0) == 0) {
+            if (!chk(dpp::snowflake(std::stoull(cid.substr(13))))) return;
+            int64_t price = eq_sell_price("UR");
+            int64_t total = 0;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto& inv = inventory_data[uid];
+                for (auto& [k, cnt] : inv) {
+                    if (k.size() < 3 || k.substr(0, 3) != "EQ_" || cnt <= 1) continue;
+                    auto* gi = find_gacha_item(k);
+                    if (!gi || gi->rarity != "UR") continue;
+                    int sellable = cnt - 1; // 每種UR固定留1份
+                    total += (int64_t)sellable * price;
+                    inv[k] -= sellable;
+                }
+                chip_data[uid].chips += total;
+            }
+            if (total > 0) { save_inventory(); save_chips(); }
+            ev.reply(dpp::ir_update_message, make_bag_sell_equip_msg(uid));
         }
         return;
     }

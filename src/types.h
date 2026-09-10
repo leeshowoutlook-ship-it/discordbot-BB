@@ -310,6 +310,17 @@ struct MonsterHuntGame {
 
 // ─── 楓之谷世界（養成系統）────────────────────────────────────────────────────
 
+// 已強化的裝備實例（未強化的裝備仍以 MapleCharacter::equipment 計數保存）
+struct MapleEnhItem {
+    int         id = 0;             // 角色內唯一序號
+    std::string base_key;           // 對應 MapleItemDef.key
+    int         add_primary   = 0;  // 卷軸累積的主屬性
+    int         add_secondary = 0;  // 卷軸累積的副屬性
+    int         add_atk       = 0;  // 卷軸累積的攻擊力
+    int         enh_count     = 0;  // 已成功強化次數（顯示用）
+    int         slots_used    = 0;  // 已使用的卷軸次數（成功或失敗都算；武器上限7、其餘5）
+};
+
 struct MapleCharacter {
     dpp::snowflake uid;
     int            level  = 1;
@@ -333,10 +344,16 @@ struct MapleCharacter {
     std::string    eq_shoes;
     double         weapon_mastery = 0.10; // 熟練度，預設10%，攻擊力下限公式用
     std::map<std::string,int> skill_levels; // 技能key -> 已投入等級
+    std::map<std::string,int> scrolls;      // 卷軸key -> 持有數量
+    std::map<std::string,int> equipment;    // 未強化裝備key -> 持有數量（不含已穿在身上的預設新手木劍）
+    std::vector<MapleEnhItem> enh_items;    // 已強化的裝備實例（含已穿在身上的，用 eq_* 的 "#id" 參照）
+    int            enh_next_id = 1;         // 下一個強化實例序號
     std::string    adv_atk_skill;   // 冒險／戰鬥計算使用的攻擊技能key，空字串＝普通攻擊
     std::string    adv_region;      // 目前冒險中的區域key，空字串＝沒有在冒險
     time_t         adv_started_at = 0;
     int64_t        monsters_defeated = 0;
+    int64_t        token_week_id    = 0;   // 代幣商店：上次兌換所屬的週次（epoch 週）
+    int64_t        token_week_spent = 0;   // 代幣商店：本週已用掉的籌碼數
     time_t         created_at = 0;
 };
 
@@ -806,9 +823,11 @@ struct TradeOffer {
     int            from_item_id = 0;  // 0 = no item
     int64_t        from_qty     = 1;  // from_item_id 的數量
     int64_t        from_chips   = 0;
+    int64_t        from_coins   = 0;  // 瘋幣（楓之谷世界貨幣）
     int            to_item_id   = 0;  // 0 = no item
     int64_t        to_qty       = 1;  // to_item_id 的數量
     int64_t        to_chips     = 0;
+    int64_t        to_coins     = 0;  // 瘋幣（楓之谷世界貨幣）
 };
 inline std::map<uint64_t, TradeOffer> trade_offers;
 inline std::atomic<uint64_t>          trade_counter{1};

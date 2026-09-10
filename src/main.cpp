@@ -38,13 +38,16 @@ static std::pair<std::string,std::string> trade_item_info(int id) {
     if (auto* vi = find_virtual_item_by_id(id)) return {vi->key, vi->name};
     if (auto* gi = find_gacha_item_by_id(id))   return {gi->key, gi->name};
     if (auto* sd = find_stock_def_by_id(id))    return {sd->key, sd->name};
+    { std::string k, n; if (mv_item_info(id, k, n)) return {k, n}; }
     return {"",""};
 }
 
 static bool trade_is_stock(const std::string& key) { return key.rfind("stock_", 0) == 0; }
+static bool trade_is_mv(const std::string& key) { return mv_is_item_key(key); }
 
 // 是否持有至少 qty 個道具／股數。呼叫前不可持有 data_mutex（自己上鎖）。
 static bool trade_has_item(dpp::snowflake uid, const std::string& key, int64_t qty) {
+    if (trade_is_mv(key)) return mv_has_item(uid, key, qty);
     std::lock_guard<std::mutex> lk(data_mutex);
     if (trade_is_stock(key)) {
         auto pit = player_stocks.find(uid);
@@ -58,6 +61,7 @@ static bool trade_has_item(dpp::snowflake uid, const std::string& key, int64_t q
 
 // 執行道具／股票的轉移。呼叫前必須持有 data_mutex。
 static void trade_transfer_item(dpp::snowflake from_uid, dpp::snowflake to_uid, const std::string& key, int64_t qty) {
+    if (trade_is_mv(key)) { mv_locked_transfer_item(from_uid, to_uid, key, qty); return; }
     if (trade_is_stock(key)) {
         auto& fh = player_stocks[from_uid][key];
         auto& th = player_stocks[to_uid][key];
@@ -118,7 +122,7 @@ static dpp::message make_trade_msg(const TradeOffer& t,
     };
 
     desc += "**" + from_name + " 提供：**\n";
-    bool from_empty = (!t.from_item_id && t.from_chips <= 0);
+    bool from_empty = (!t.from_item_id && t.from_chips <= 0 && t.from_coins <= 0);
     if (t.from_item_id) {
         desc += "• " + item_desc(t.from_item_id, t.from_qty) + "\n";
         auto [from_key, from_iname2] = trade_item_info(t.from_item_id);
@@ -126,10 +130,11 @@ static dpp::message make_trade_msg(const TradeOffer& t,
             desc += "　⚠️ 交易後 " + from_name + " 的收藏套組加成將會失效！\n";
     }
     if (t.from_chips > 0) desc += chips_with_fee(t.from_chips, t.from_uid);
+    if (t.from_coins > 0) desc += "• 🪙 " + std::to_string(t.from_coins) + " 瘋幣\n";
     if (from_empty) desc += "• （無）\n";
 
     desc += "\n**" + to_name + " 提供：**\n";
-    bool to_empty = (!t.to_item_id && t.to_chips <= 0);
+    bool to_empty = (!t.to_item_id && t.to_chips <= 0 && t.to_coins <= 0);
     if (t.to_item_id) {
         desc += "• " + item_desc(t.to_item_id, t.to_qty) + "\n";
         auto [to_key, to_iname2] = trade_item_info(t.to_item_id);
@@ -137,6 +142,7 @@ static dpp::message make_trade_msg(const TradeOffer& t,
             desc += "　⚠️ 交易後 " + to_name + " 的收藏套組加成將會失效！\n";
     }
     if (t.to_chips > 0) desc += chips_with_fee(t.to_chips, t.to_uid);
+    if (t.to_coins > 0) desc += "• 🪙 " + std::to_string(t.to_coins) + " 瘋幣\n";
     if (to_empty) desc += "• （無）\n";
 
     if (status.empty()) desc += "\n⏳ 等待 " + to_name + " 確認...";
@@ -1015,7 +1021,7 @@ int main(int argc, char* argv[]) {
         else if (content.rfind("!交易", 0) == 0) {
             auto trade_usage = [&]() {
                 dpp::message m; m.channel_id = ch;
-                m.set_content("用法：`!交易 @對象 我的道具ID 我的道具數量 我出的籌碼 對方道具ID 對方道具數量 對方出的籌碼`（不出填 0，數量預設1）\n例：`!交易 @小明 50001 1 0 50002 1 500`");
+                m.set_content("用法：`!交易 @對象 我的道具ID 數量 我出的籌碼 我出的瘋幣 對方道具ID 數量 對方出的籌碼 對方出的瘋幣`（不出填 0，數量預設1）\n例：`!交易 @小明 50001 1 0 0 50002 1 500 0`");
                 bot.message_create(m);
             };
             dpp::snowflake target = parse_mention(content);
@@ -1028,10 +1034,17 @@ int main(int argc, char* argv[]) {
             }
             std::istringstream iss(content.substr(gt + 1));
             int from_item_id = 0, to_item_id = 0;
-            int64_t from_qty = 1, to_qty = 1, from_chips = 0, to_chips = 0;
-            iss >> from_item_id >> from_qty >> from_chips >> to_item_id >> to_qty >> to_chips;
+            int64_t from_qty = 1, to_qty = 1, from_chips = 0, to_chips = 0, from_coins = 0, to_coins = 0;
+            iss >> from_item_id >> from_qty >> from_chips >> from_coins >> to_item_id >> to_qty >> to_chips >> to_coins;
             if (from_qty <= 0) from_qty = 1;
             if (to_qty   <= 0) to_qty   = 1;
+            if (from_coins < 0) from_coins = 0;
+            if (to_coins   < 0) to_coins   = 0;
+            if (from_coins > 0 && mv_get_coins(uid) < from_coins) {
+                dpp::message m; m.channel_id = ch;
+                m.set_content("❌ 你的瘋幣不足（需 " + std::to_string(from_coins) + "）！");
+                bot.message_create(m); return;
+            }
 
             // Validate sender's side
             auto [from_key, from_iname] = trade_item_info(from_item_id);
@@ -1083,8 +1096,8 @@ int main(int argc, char* argv[]) {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 t.id = trade_counter++;
                 t.from_uid = uid; t.to_uid = target; t.channel_id = ch;
-                t.from_item_id = from_item_id; t.from_qty = from_qty; t.from_chips = from_chips;
-                t.to_item_id   = to_item_id;   t.to_qty   = to_qty;   t.to_chips   = to_chips;
+                t.from_item_id = from_item_id; t.from_qty = from_qty; t.from_chips = from_chips; t.from_coins = from_coins;
+                t.to_item_id   = to_item_id;   t.to_qty   = to_qty;   t.to_chips   = to_chips;   t.to_coins   = to_coins;
                 t.created_at   = time(nullptr);
                 trade_offers[t.id] = t;
             }
@@ -1759,6 +1772,10 @@ int main(int argc, char* argv[]) {
                     fail_reason = "你沒有足夠的對方要求的道具！交易取消。";
                 if (fail_reason.empty() && t.to_chips > 0 && chip_data[t.to_uid].chips < t.to_chips + to_fee)
                     fail_reason = "你的籌碼不足（含手續費）！交易取消。";
+                if (fail_reason.empty() && t.from_coins > 0 && mv_locked_get_coins(t.from_uid) < t.from_coins)
+                    fail_reason = "提案方瘋幣不足！交易取消。";
+                if (fail_reason.empty() && t.to_coins > 0 && mv_locked_get_coins(t.to_uid) < t.to_coins)
+                    fail_reason = "你的瘋幣不足！交易取消。";
 
                 if (!fail_reason.empty()) {
                     trade_offers.erase(tid);
@@ -1774,6 +1791,14 @@ int main(int argc, char* argv[]) {
                         chip_data[t.to_uid].chips   -= t.to_chips + to_fee;      // 手續費燒掉
                         chip_data[t.from_uid].chips += t.to_chips;
                     }
+                    if (t.from_coins > 0) {  // 瘋幣無手續費
+                        mv_locked_add_coins(t.from_uid, -t.from_coins);
+                        mv_locked_add_coins(t.to_uid,    t.from_coins);
+                    }
+                    if (t.to_coins > 0) {
+                        mv_locked_add_coins(t.to_uid,   -t.to_coins);
+                        mv_locked_add_coins(t.from_uid,  t.to_coins);
+                    }
                     trade_offers.erase(tid);
                 }
             }
@@ -1782,6 +1807,8 @@ int main(int argc, char* argv[]) {
             }
             save_chips();
             save_inventory();
+            if (t.from_coins > 0 || t.to_coins > 0 || trade_is_mv(trade_item_info(t.from_item_id).first) || trade_is_mv(trade_item_info(t.to_item_id).first))
+                mv_save_data();
             if (trade_is_stock(trade_item_info(t.from_item_id).first) || trade_is_stock(trade_item_info(t.to_item_id).first))
                 save_stock_holdings();
             ev.reply(dpp::ir_update_message, make_trade_msg(t, from_name, to_name, "ok"));
@@ -3230,12 +3257,18 @@ int main(int argc, char* argv[]) {
               if (p.index() != 0) try { from_item_id = std::stoi(std::get<std::string>(p)); } catch (...) {} }
             int64_t from_qty   = get_int("我的道具數量"); if (from_qty <= 0) from_qty = 1;
             int64_t from_chips = get_int("我的籌碼");
+            int64_t from_coins = get_int("我的瘋幣"); if (from_coins < 0) from_coins = 0;
             int to_item_id   = (int)get_int("對方道具");
             int64_t to_qty   = get_int("對方道具數量"); if (to_qty <= 0) to_qty = 1;
             int64_t to_chips = get_int("對方籌碼");
+            int64_t to_coins = get_int("對方瘋幣"); if (to_coins < 0) to_coins = 0;
             if (target == uid) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 不能和自己交易！").set_flags(dpp::m_ephemeral)); return;
+            }
+            if (from_coins > 0 && mv_get_coins(uid) < from_coins) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 你的瘋幣不足（需 " + std::to_string(from_coins) + "）！").set_flags(dpp::m_ephemeral)); return;
             }
             auto [from_key2, from_iname2] = trade_item_info(from_item_id);
             if (from_item_id && from_key2.empty()) {
@@ -3277,8 +3310,8 @@ int main(int argc, char* argv[]) {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 t.id = trade_counter++;
                 t.from_uid = uid; t.to_uid = target; t.channel_id = ch;
-                t.from_item_id = from_item_id; t.from_qty = from_qty; t.from_chips = from_chips;
-                t.to_item_id   = to_item_id;   t.to_qty   = to_qty;   t.to_chips   = to_chips;
+                t.from_item_id = from_item_id; t.from_qty = from_qty; t.from_chips = from_chips; t.from_coins = from_coins;
+                t.to_item_id   = to_item_id;   t.to_qty   = to_qty;   t.to_chips   = to_chips;   t.to_coins   = to_coins;
                 t.created_at   = time(nullptr);
                 trade_offers[t.id] = t;
             }
@@ -3620,9 +3653,11 @@ int main(int argc, char* argv[]) {
               p.set_auto_complete(true); trade_cmd.add_option(p); }
             trade_cmd.add_option(dpp::command_option(dpp::co_integer, "我的道具數量", "我出的道具數量（預設1，股票可填股數）", false))
                      .add_option(dpp::command_option(dpp::co_integer, "我的籌碼", "我出的籌碼（0=無）",  false))
+                     .add_option(dpp::command_option(dpp::co_integer, "我的瘋幣", "我出的瘋幣（楓之谷世界貨幣，0=無）",  false))
                      .add_option(dpp::command_option(dpp::co_integer, "對方道具", "要對方出的道具ID（0=無）", false))
                      .add_option(dpp::command_option(dpp::co_integer, "對方道具數量", "要對方出的道具數量（預設1）", false))
-                     .add_option(dpp::command_option(dpp::co_integer, "對方籌碼", "要對方出的籌碼（0=無）",  false));
+                     .add_option(dpp::command_option(dpp::co_integer, "對方籌碼", "要對方出的籌碼（0=無）",  false))
+                     .add_option(dpp::command_option(dpp::co_integer, "對方瘋幣", "要對方出的瘋幣（0=無）",  false));
 
             dpp::slashcommand trade_en("trade", "Propose an item/chip trade with another player", bot.me.id);
             trade_en.add_option(dpp::command_option(dpp::co_user, "對象", "Trade target", true));
@@ -3630,9 +3665,11 @@ int main(int argc, char* argv[]) {
               p.set_auto_complete(true); trade_en.add_option(p); }
             trade_en.add_option(dpp::command_option(dpp::co_integer, "我的道具數量", "Your item quantity (default 1, shares for stocks)", false))
                     .add_option(dpp::command_option(dpp::co_integer, "我的籌碼", "Your chips (0=none)",   false))
+                    .add_option(dpp::command_option(dpp::co_integer, "我的瘋幣", "Your Maple coins (0=none)", false))
                     .add_option(dpp::command_option(dpp::co_integer, "對方道具", "Their item ID (0=none)",false))
                     .add_option(dpp::command_option(dpp::co_integer, "對方道具數量", "Their item quantity (default 1)", false))
-                    .add_option(dpp::command_option(dpp::co_integer, "對方籌碼", "Their chips (0=none)",  false));
+                    .add_option(dpp::command_option(dpp::co_integer, "對方籌碼", "Their chips (0=none)",  false))
+                    .add_option(dpp::command_option(dpp::co_integer, "對方瘋幣", "Their Maple coins (0=none)", false));
 
             dpp::slashcommand roulette_cmd("輪盤", "向玩家發起俄羅斯輪盤（賭注輸贏）", bot.me.id);
             roulette_cmd.add_option(dpp::command_option(dpp::co_integer, "籌碼", "下注籌碼數量", true))
