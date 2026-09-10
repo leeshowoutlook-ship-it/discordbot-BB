@@ -710,22 +710,20 @@ static std::string maple_enh_apply(MapleCharacter& c, const std::string& slot,
 }
 
 // ─── 冒險 ───────────────────────────────────────────────────────────────────
-// 攻速固定：每 30 秒攻擊一次。瘋幣掉落＝經驗值 × 0.8~1.5 倍（估算用平均倍率 1.15）。
+// 每隻怪的瘋幣掉落是一個範圍，收益估算與結算都用範圍平均值。
 
-static const double MAPLE_ADV_COIN_AVG_MULT = 1.15;
-
-struct MapleAdvMonsterDef { std::string name; int hp; int64_t exp; };
+struct MapleAdvMonsterDef { std::string name; int hp; int64_t exp; int coin_min; int coin_max; };
 struct MapleAdvRegionDef {
     std::string key, name;
     int suggested_level;
-    bool open; // 是否已經開放（目前只開放弓箭手訓練場）
+    bool open; // 是否已經開放
     MapleAdvMonsterDef monster;
 };
 
 static const std::vector<MapleAdvRegionDef> MAPLE_ADV_REGIONS = {
-    {"archer_range", "弓箭手訓練場", 1,  true,  {"紅寶", 40, 8}},
-    {"trapdoor",     "小心掉落",     10, false, {"", 0, 0}},
-    {"blue_mushroom_forest", "藍菇菇森林", 15, false, {"", 0, 0}},
+    {"archer_range",         "弓箭手訓練場", 1,  true, {"紅寶",     40,  4,  6,  9}},
+    {"trapdoor",             "小心掉落",     10, true, {"三眼章魚", 200, 12, 12, 18}},
+    {"blue_mushroom_forest", "藍菇菇樹林",   15, true, {"藍菇菇",   350, 16, 18, 27}},
 };
 
 static const MapleAdvRegionDef* maple_find_adv_region(const std::string& key) {
@@ -789,7 +787,7 @@ static int64_t maple_adv_kills_done(const MapleCharacter& c, const MapleAdvRegio
     return (elapsed_sec - atk) / (atk + maple_eff_rest_sec(c)) + 1;
 }
 static int64_t maple_adv_coins_per_kill(const MapleAdvRegionDef& region) {
-    return (int64_t)llround(region.monster.exp * MAPLE_ADV_COIN_AVG_MULT);
+    return (int64_t)llround((region.monster.coin_min + region.monster.coin_max) / 2.0);
 }
 
 // 估算每小時擊殺數／經驗／瘋幣（依「殺滿一隻才有收益」的離散模型）
@@ -1563,6 +1561,9 @@ static dpp::message make_maple_adv_region_list_msg(dpp::snowflake uid) {
     for (auto& r : MAPLE_ADV_REGIONS) {
         std::string text = "**" + r.name + "**　建議 Lv. " + std::to_string(r.suggested_level) + "~";
         if (!r.open) text += "　🚧尚未開放";
+        else text += "\n" + r.monster.name + "：" + std::to_string(r.monster.hp) + " HP　"
+                   + std::to_string(r.monster.exp) + " EXP　"
+                   + std::to_string(r.monster.coin_min) + "~" + std::to_string(r.monster.coin_max) + " 幣";
         container.add_component_v2(dpp::component()
             .set_type(dpp::cot_section)
             .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
@@ -1598,7 +1599,8 @@ static dpp::message make_maple_adv_preview_msg(dpp::snowflake uid, const std::st
         maple_adv_estimate(c, *region, kph, eph, cph);
         content = "## 🗺️ " + region->name + "\n";
         content += "怪物：**" + region->monster.name + "**　" + std::to_string(region->monster.hp) + " HP　"
-                 + std::to_string(region->monster.exp) + " EXP\n\n";
+                 + std::to_string(region->monster.exp) + " EXP　"
+                 + std::to_string(region->monster.coin_min) + "~" + std::to_string(region->monster.coin_max) + " 幣\n\n";
         content += "**預估收益（每小時）**\n";
         content += "✨ 經驗值：約 **" + std::to_string((int64_t)llround(eph)) + "**\n";
         content += "🪙 瘋幣：約 **" + std::to_string((int64_t)llround(cph)) + "**\n";
