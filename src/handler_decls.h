@@ -61,6 +61,7 @@ void handle_stock_modal (const dpp::form_submit_t&  ev);
 // ─── Maple Valley（楓之谷世界養成系統）────────────────────────────────────────
 void handle_maple_message(const dpp::message_create_t& ev, const std::string& content, dpp::snowflake uid, dpp::snowflake ch);
 void handle_maple_button (const dpp::button_click_t& ev);
+void handle_maple_select (const dpp::select_click_t& ev, dpp::snowflake uid);
 void handle_maple_slash  (const dpp::slashcommand_t& ev, const std::string& cmd_name, dpp::snowflake uid, dpp::snowflake ch);
 void load_maple_all_data(); // 啟動時呼叫，載入角色資料與進行中的戰鬥
 
@@ -76,6 +77,11 @@ void    mv_locked_transfer_item(dpp::snowflake from, dpp::snowflake to, const st
 int64_t mv_locked_get_coins(dpp::snowflake uid);
 void    mv_locked_add_coins(dpp::snowflake uid, int64_t delta);
 void    mv_save_data();
+// 管理員給道具／道具ID：接受道具ID或key字串找楓之谷卷軸／裝備；give 回傳實際變動量（沒收會夾在0，不扣成負的）
+bool    mv_resolve_item(const std::string& raw, std::string& key_out, std::string& name_out);
+int64_t mv_locked_give_item(dpp::snowflake uid, const std::string& key, int64_t qty); // 呼叫前需持有 data_mutex
+struct MvOwnedItem { std::string key, name; int item_id; int64_t qty; };
+std::vector<MvOwnedItem> mv_list_owned_items(dpp::snowflake uid); // 供 /交易 autocomplete 列出玩家持有的楓之谷卷軸／裝備（未強化才會出現在背包計數裡）
 
 // ─── Chest reward helpers（實作在各自的 cpp）──────────────────────────────────
 // 呼叫前不可持有 data_mutex（內部自行加鎖）

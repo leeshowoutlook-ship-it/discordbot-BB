@@ -71,6 +71,7 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"recover_injury",  "高級傷藥",    2000, "recovery", "解除負面狀態「受傷」",                      81002},
     {"recover_muscle",  "肌肉舒緩劑",  2000, "recovery", "解除負面狀態「肌肉緊繃」",                  81003},
     {"recover_fatigue", "高級強效咖啡",2000, "recovery", "解除負面狀態「疲勞」",                      81004},
+    {"recover_homesick","溫馨家書",   2000, "recovery", "解除負面狀態「思鄉病」",                    81005},
     // ── Orb shards（怪物掉落，10 個可合成寶珠）──────────────────────────────
     {"orb_shard_speed",  "迅捷狼王的寶珠碎片", 0, "shard", "10 個可合成「迅捷狼王的寶珠」，單人必定先手；組隊：40%機率多行動一回合",  95001},
     {"orb_shard_athena", "雅典娜的寶珠碎片",   0, "shard", "10 個可合成「雅典娜的寶珠」，單人30%恢復8滴血；組隊20%全體恢復5滴血", 95002},
@@ -854,6 +855,7 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
             {"憂鬱",    "憂鬱：打工報酬 -20%，有機率隨機花錢"},
             {"肌肉緊繃","肌肉緊繃：狩獵時 30% 機率攻擊失敗"},
             {"疲勞",    "疲勞：打工時長 +30%"},
+            {"思鄉病",  "思鄉病：無法帶去探險"},
         };
         std::string status_str;
         for (auto& s : pet.statuses) status_str += "⚠️ **" + s + "**  ";
@@ -889,9 +891,9 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
             int roll = std::uniform_int_distribution<int>(1,100)(onsen_rng);
             if (roll <= 25) {
                 static const std::vector<std::string> SHOP_ITEMS = {
-                    "recover_depress","recover_injury","recover_muscle","recover_fatigue"
+                    "recover_depress","recover_injury","recover_muscle","recover_fatigue","recover_homesick"
                 };
-                std::string gift = SHOP_ITEMS[std::uniform_int_distribution<int>(0,3)(onsen_rng)];
+                std::string gift = SHOP_ITEMS[std::uniform_int_distribution<int>(0,4)(onsen_rng)];
                 { std::lock_guard<std::mutex> lk(data_mutex); inventory_data[uid][gift]++; }
                 save_inventory();
                 auto* vi = find_virtual_item(gift);
@@ -2099,6 +2101,7 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
         static const std::map<std::string,std::string> ITEM_STATUS = {
             {"recover_depress","憂鬱"}, {"recover_injury","受傷"},
             {"recover_muscle","肌肉緊繃"}, {"recover_fatigue","疲勞"},
+            {"recover_homesick","思鄉病"},
         };
         if (!ITEM_STATUS.count(key)) return err("無效的恢復道具！");
         std::string target_status = ITEM_STATUS.at(key);

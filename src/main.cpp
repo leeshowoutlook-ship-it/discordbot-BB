@@ -1,4 +1,5 @@
-﻿#include "team.h"
+﻿#include <process.h> // _getpid()：用來幫 srand() 加一點熵，避免短時間內連續重啟拿到同一個 seed
+#include "team.h"
 #include "giveaway.h"
 #include "bjstats.h"
 // blackjack.h → moved to handlers_bj.cpp
@@ -28,6 +29,7 @@
 #include "stock.h"
 #include "announcement.h"
 #include "signin.h"
+#include "settings.h"
 #include "handler_decls.h"
 
 // ─── Trade helpers ────────────────────────────────────────────────────────────
@@ -179,6 +181,8 @@ static dpp::message make_admin_panel_msg(dpp::snowflake channel_id = 0) {
         .set_label("💰 調整碼數").set_id("admin_chip_modal_btn").set_style(dpp::cos_primary));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🎒 給道具").set_id("admin_item_btn").set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🪙 給瘋幣").set_id("admin_maplecoin_btn").set_style(dpp::cos_secondary));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🛑 中斷遊戲").set_id("admin_kill_btn").set_style(dpp::cos_danger));
     dpp::component row2; row2.set_type(dpp::cot_action_row);
@@ -406,6 +410,10 @@ static int admin_kill_everything() {
 // ─── main ─────────────────────────────────────────────────────────────────────
 
 int main(int argc, char* argv[]) {
+    // 全域只在這裡呼叫一次 srand()：整支程式沒有任何地方 seed 過 rand()，
+    // 沒下這行的話每次重啟 rand() 都會從同一組固定序列開始跑，等於每次重啟後
+    // 前面幾次抽獎/掉落/機率判定都是「可預期、會重複」的假隨機，不是真的隨機。
+    srand((unsigned)time(nullptr) ^ (unsigned)_getpid());
     // Always use the exe's directory so data files go to the same place regardless of launch path
     if (argc > 0) std::filesystem::current_path(std::filesystem::path(argv[0]).parent_path());
 
@@ -450,6 +458,7 @@ int main(int argc, char* argv[]) {
     load_stock_holdings();
     load_announcement();
     load_signin();
+    load_settings();
 
     dpp::cluster bot(cfg.token, dpp::i_default_intents | dpp::i_message_content);
     g_bot = &bot;
@@ -1529,6 +1538,7 @@ int main(int argc, char* argv[]) {
                     dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
             }
             g_claim_verify_enabled = !g_claim_verify_enabled;
+            save_settings();
             ev.reply(dpp::ir_update_message, make_admin_panel_msg());
         }
         // ── 簽到系統按鈕 ──────────────────────────────────────────────────────
@@ -1759,6 +1769,7 @@ int main(int argc, char* argv[]) {
                         auto hit = pit->second.find(key);
                         return hit != pit->second.end() && hit->second.shares >= qty;
                     }
+                    if (trade_is_mv(key)) return mv_locked_has_item(u, key, qty); // 楓之谷卷軸／裝備
                     auto it2 = inventory_data[u].find(key);
                     return it2 != inventory_data[u].end() && it2->second >= qty;
                 };
@@ -2160,7 +2171,7 @@ int main(int argc, char* argv[]) {
             ev.reply(dpp::ir_update_message, handle_warn_detail(target));
         }
         // ── 管理員面板 Modal 觸發 ─────────────────────────────────────────────
-        else if (cid == "admin_chip_modal_btn" || cid == "admin_item_btn" || cid == "admin_kill_btn") {
+        else if (cid == "admin_chip_modal_btn" || cid == "admin_item_btn" || cid == "admin_maplecoin_btn" || cid == "admin_kill_btn") {
             if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
@@ -2189,6 +2200,16 @@ int main(int argc, char* argv[]) {
                     .set_label("數量（負數＝沒收）").set_id("item_qty")
                     .set_text_style(dpp::text_short).set_min_length(1).set_max_length(5)
                     .set_placeholder("1"));
+                ev.dialog(modal);
+            } else if (cid == "admin_maplecoin_btn") {
+                dpp::interaction_modal_response modal("admin_maplecoin_modal", "管理員給瘋幣");
+                modal.add_component(dpp::component().set_type(dpp::cot_text)
+                    .set_label("目標 User ID").set_id("target_uid")
+                    .set_text_style(dpp::text_short).set_min_length(1).set_max_length(20)
+                    .set_placeholder("例：457478323665240065"));
+                modal.add_component(dpp::component().set_type(dpp::cot_text)
+                    .set_label("瘋幣數量（負數可扣除）").set_id("coin_amount")
+                    .set_text_style(dpp::text_short).set_min_length(1).set_max_length(15));
                 ev.dialog(modal);
             } else { // admin_kill_btn
                 dpp::interaction_modal_response modal("admin_kill_lookup_modal", "查詢／中斷玩家遊戲");
@@ -2653,7 +2674,7 @@ int main(int argc, char* argv[]) {
             handle_stock_modal(ev); return;
         }
 
-        if (cid != "admin_chips_modal" && cid != "admin_item_modal" && cid != "admin_kill_lookup_modal") return;
+        if (cid != "admin_chips_modal" && cid != "admin_item_modal" && cid != "admin_maplecoin_modal" && cid != "admin_kill_lookup_modal") return;
         if (cfg.notify_user_id.empty() || std::to_string(issuer) != cfg.notify_user_id) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
@@ -2710,17 +2731,22 @@ int main(int argc, char* argv[]) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 請填寫道具代碼和數量！").set_flags(dpp::m_ephemeral)); return;
             }
-            // Accept item_id (numeric) or key (string)
+            // Accept item_id (numeric) or key (string)：先查虛擬商店道具，找不到再查轉蛋裝備，最後查楓之谷卷軸／裝備
             const std::string& raw = fields[1];
-            const VirtualShopItem* vi = nullptr;
             bool is_num = !raw.empty() && std::all_of(raw.begin(), raw.end(), ::isdigit);
-            if (is_num) vi = find_virtual_item_by_id(std::stoi(raw));
-            else        vi = find_virtual_item(raw);
-            if (!vi) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 找不到道具：`" + raw + "`\n可輸入道具 ID 數字（如 96001）或 key（如 weekly_hunt_scroll）").set_flags(dpp::m_ephemeral)); return;
+            std::string key, item_name;
+            bool is_mv = false;
+            if (const VirtualShopItem* vi = is_num ? find_virtual_item_by_id(std::stoi(raw)) : find_virtual_item(raw)) {
+                key = vi->key; item_name = vi->name;
+            } else if (const GachaItem* gi = is_num ? find_gacha_item_by_id(std::stoi(raw)) : find_gacha_item(raw)) {
+                key = gi->key; item_name = gi->name;
+            } else if (mv_resolve_item(raw, key, item_name)) {
+                is_mv = true;
             }
-            const std::string& key = vi->key;
+            if (key.empty()) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 找不到道具：`" + raw + "`\n可輸入道具／裝備 ID 數字（如 96001、94009、96515）或 key（如 weekly_hunt_scroll、EQ_K_BEAR、earring_snail）").set_flags(dpp::m_ephemeral)); return;
+            }
             int qty = 1;
             try { qty = std::stoi(fields[2]); } catch (...) {}
             if (qty == 0 || qty < -999 || qty > 999) {
@@ -2730,17 +2756,45 @@ int main(int argc, char* argv[]) {
             int64_t actual = 0;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
-                auto& cur = inventory_data[target_uid][key];
-                int64_t before = cur;
-                cur += qty;
-                if (cur < 0) cur = 0; // 沒收上限就是玩家現有的數量，不會扣成負的
-                actual = cur - before;
+                if (is_mv) {
+                    actual = mv_locked_give_item(target_uid, key, qty);
+                } else {
+                    auto& cur = inventory_data[target_uid][key];
+                    int64_t before = cur;
+                    cur += qty;
+                    if (cur < 0) cur = 0; // 沒收上限就是玩家現有的數量，不會扣成負的
+                    actual = cur - before;
+                }
             }
-            save_inventory();
+            if (is_mv) mv_save_data(); else save_inventory();
             std::string verb = actual >= 0 ? "給予" : "沒收";
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("✅ 已" + verb + " <@" + std::to_string((uint64_t)target_uid) +
-                    "> **" + vi->name + "** × " + std::to_string(std::abs(actual)) + "！").set_flags(dpp::m_ephemeral));
+                    "> **" + item_name + "** × " + std::to_string(std::abs(actual)) + "！").set_flags(dpp::m_ephemeral));
+
+        } else if (cid == "admin_maplecoin_modal") {
+            // fields: [target_uid, amount]（負數＝扣除，扣到0為止）
+            if (fields.size() < 2) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 請填寫瘋幣數量！").set_flags(dpp::m_ephemeral)); return;
+            }
+            int64_t amount = 0;
+            try { amount = std::stoll(fields[1]); } catch (...) {}
+            if (amount == 0) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 請輸入有效數字！").set_flags(dpp::m_ephemeral)); return;
+            }
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                mv_locked_add_coins(target_uid, amount);
+            }
+            mv_save_data();
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message(
+                    "✅ 已為 <@" + std::to_string((uint64_t)target_uid) + "> " +
+                    (amount > 0 ? "新增" : "扣除") + " **" + std::to_string(std::abs(amount)) +
+                    "** 瘋幣！\n目前餘額：**" + std::to_string(mv_get_coins(target_uid)) + "** 瘋幣。"
+                ).set_flags(dpp::m_ephemeral));
 
         } else if (cid == "admin_kill_lookup_modal") {
             ev.reply(dpp::ir_channel_message_with_source, make_admin_kill_report_msg(target_uid));
@@ -2834,6 +2888,10 @@ int main(int argc, char* argv[]) {
         else if (cid.rfind("rl_ch_sel_", 0) == 0) {
             handle_roulette_select(ev); return;
         }
+        // ── 楓之谷裝備商店 select → handlers_maple.cpp ────────────────────────
+        else if (cid.rfind("maple_eqshopsel_", 0) == 0) {
+            handle_maple_select(ev, uid); return;
+        }
     });
 
     // ── Autocomplete ──────────────────────────────────────────────────────────
@@ -2880,6 +2938,16 @@ int main(int argc, char* argv[]) {
                         std::to_string(sd->item_id).find(filter) == std::string::npos) continue;
                 }
                 choices.push_back(dpp::command_option_choice(label, std::to_string(sd->item_id)));
+            }
+            // 楓之谷世界：卷軸／未強化裝備（強化過的實例穿在身上、不會出現在這份背包清單）
+            for (auto& mi : mv_list_owned_items(uid)) {
+                if (mi.item_id == 0 || choices.size() >= 25) continue;
+                std::string label = mi.name + " ×" + std::to_string(mi.qty) + "（ID: " + std::to_string(mi.item_id) + "）";
+                if (!filter.empty()) {
+                    if (label.find(filter) == std::string::npos &&
+                        std::to_string(mi.item_id).find(filter) == std::string::npos) continue;
+                }
+                choices.push_back(dpp::command_option_choice(label, std::to_string(mi.item_id)));
             }
             dpp::interaction_response res(dpp::ir_autocomplete_reply);
             for (auto& c : choices) res.add_autocomplete_choice(c);
@@ -3884,7 +3952,7 @@ int main(int argc, char* argv[]) {
                     "gacha_pity.json","gacha_hero_pity.json","gacha_mystery_pity.json",
                     "euroulette_stats.json","rocketstats.json","rpsstats.json",
                     "wolfplayerstats.json","adventure.json","registrations.json",
-                    "shop.json","maple_data.json", nullptr
+                    "shop.json","maple_data.json","maple_wb_state.json","settings.json", nullptr
                 };
                 for (int i = 0; FILES[i]; i++) {
                     fs::path src(FILES[i]);

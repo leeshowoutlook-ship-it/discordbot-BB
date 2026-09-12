@@ -1647,14 +1647,16 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
     if (cid == "adv_partner_" + uid_s + "_0" || cid == "adv_partner_" + uid_s + "_1") {
         bool with_pet = (cid.back() == '1');
         if (with_pet) {
-            bool ok = false;
+            bool ok = false, homesick = false;
             { std::lock_guard<std::mutex> lk(data_mutex);
               auto it = pet_data.find(uid);
               if (it != pet_data.end() && it->second.stage > 0) {
                   auto& p = it->second;
-                  ok = (p.work_task == 0 && p.onsen_end == 0);
+                  for (auto& s : p.statuses) if (s == "思鄉病") { homesick = true; break; }
+                  ok = (p.work_task == 0 && p.onsen_end == 0 && !homesick);
               }
             }
+            if (homesick) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 寵物得了思鄉病，無法帶去探險！請先用「溫馨家書」或泡溫泉治好牠。").set_flags(dpp::m_ephemeral)); return; }
             if (!ok) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 寵物必須空閒才能帶去探險！\n（打工中、有未領取的打工、泡溫泉中皆無法出發）").set_flags(dpp::m_ephemeral)); return; }
         } else {
             bool require_pet = false;
@@ -1712,16 +1714,22 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         int pet_stage = 0;
         std::string pet_talent1, pet_talent2;
         if (setup.partner == 1) {
-            bool ok = false;
+            bool ok = false, homesick = false;
             { std::lock_guard<std::mutex> lk(data_mutex);
               auto it = pet_data.find(uid);
               if (it != pet_data.end() && it->second.stage > 0) {
                   auto& p = it->second;
-                  ok = (p.work_task == 0 && p.onsen_end == 0);
+                  for (auto& s : p.statuses) if (s == "思鄉病") { homesick = true; break; }
+                  ok = (p.work_task == 0 && p.onsen_end == 0 && !homesick);
                   pet_stage = p.stage;
                   pet_talent1 = p.talent;
                   pet_talent2 = p.talent2_unlocked ? p.talent2 : "";
               }
+            }
+            if (homesick) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 寵物得了思鄉病，無法帶去探險！請先用「溫馨家書」或泡溫泉治好牠。").set_flags(dpp::m_ephemeral));
+                return;
             }
             if (!ok) {
                 ev.reply(dpp::ir_channel_message_with_source,
@@ -1809,6 +1817,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         bool refund_triggered = false;
         bool star_rerolled = false;
         bool treasure_rerolled = false;
+        bool homesick_triggered = false;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& inv = inventory_data[uid];
@@ -1865,6 +1874,16 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             if (g.funds > 0 && refund_pct > 0 && std::uniform_int_distribution<int>(1, 100)(bb_effect_rng) <= refund_pct)
                 refund_triggered = true;
 
+            // 帶寵物出去探險：結束時 4.5% 機率得到「思鄉病」，得病期間無法再帶去探險
+            if (g.pet_along) {
+                static std::mt19937 homesick_rng(std::random_device{}());
+                if (std::uniform_int_distribution<int>(1, 1000)(homesick_rng) <= 45) {
+                    auto& p = pet_data[uid];
+                    bool already = false;
+                    for (auto& s : p.statuses) if (s == "思鄉病") { already = true; break; }
+                    if (!already) { p.statuses.push_back("思鄉病"); homesick_triggered = true; }
+                }
+            }
             adv_games.erase(uid);
             // 恢復上次設定，讓玩家可以馬上再出發（資金不足時出發時才會拒絕）
             AdventureSetup& ns  = adv_setups[uid];
@@ -1875,6 +1894,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             ns.notify_on_finish = g.notify_on_finish;
         }
         if (item_added) save_inventory();
+        if (homesick_triggered) save_pet_data();
         save_adv_games();
         if (refund_triggered) add_chips(uid, g.funds);
 
@@ -1906,6 +1926,8 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         }
         if (refund_triggered)
             desc_r += "\n💰 內衣加成觸發，返還本次探索資金 **" + std::to_string(g.funds) + "** 碼！";
+        if (homesick_triggered)
+            desc_r += "\n🏠 寵物在外面想家了，得了「**思鄉病**」，在治好之前無法再帶牠去探險！";
         desc_r += "\n\n-# 👤 " + user_tag_r;
 
         dpp::component ct_r;

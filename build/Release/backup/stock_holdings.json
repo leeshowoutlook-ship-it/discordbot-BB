@@ -14,6 +14,10 @@
     }
   },
   "1115212853289427004": {
+    "stock_catbro": {
+      "avg_cost": 880,
+      "shares": 5
+    },
     "stock_mood": {
       "avg_cost": 919,
       "shares": 2
@@ -27,6 +31,10 @@
     "stock_0050": {
       "avg_cost": 107,
       "shares": 50
+    },
+    "stock_btc": {
+      "avg_cost": 78106,
+      "shares": 1
     },
     "stock_catbro": {
       "avg_cost": 889,
@@ -47,8 +55,16 @@
   },
   "470149299934593024": {
     "stock_0050": {
-      "avg_cost": 110,
-      "shares": 20
+      "avg_cost": 109,
+      "shares": 250
+    },
+    "stock_catbro": {
+      "avg_cost": 967,
+      "shares": 80
+    },
+    "stock_mood": {
+      "avg_cost": 904,
+      "shares": 3
     }
   },
   "479900597013708802": {
@@ -72,31 +88,23 @@
     }
   },
   "592404587248615458": {
-    "stock_0050": {
-      "avg_cost": 103,
-      "shares": 50
-    },
-    "stock_catbro": {
-      "avg_cost": 903,
-      "shares": 20
-    },
-    "stock_mstr": {
-      "avg_cost": 101,
-      "shares": 60
+    "stock_mood": {
+      "avg_cost": 904,
+      "shares": 10
     },
     "stock_purse": {
-      "avg_cost": 971,
-      "shares": 40
+      "avg_cost": 965,
+      "shares": 50
     }
   },
   "604244623124070423": {
     "stock_btc": {
       "avg_cost": 78106,
-      "shares": 3
+      "shares": 2
     },
     "stock_ntdo": {
       "avg_cost": 8563,
-      "shares": 64
+      "shares": 11
     }
   },
   "651090037102084096": {
@@ -113,6 +121,12 @@
     "stock_mood": {
       "avg_cost": 979,
       "shares": 17
+    }
+  },
+  "850359830404661258": {
+    "stock_ntdo": {
+      "avg_cost": 8563,
+      "shares": 5
     }
   },
   "856481432581701643": {

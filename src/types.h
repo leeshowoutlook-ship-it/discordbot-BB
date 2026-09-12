@@ -344,6 +344,7 @@ struct MapleCharacter {
     std::string    eq_shoes;
     double         weapon_mastery = 0.10; // 熟練度，預設10%，攻擊力下限公式用
     std::map<std::string,int> skill_levels; // 技能key -> 已投入等級
+    bool           skill_reset_used = false; // 技能點數重製限一次（免費）
     std::map<std::string,int> scrolls;      // 卷軸key -> 持有數量
     std::map<std::string,int> equipment;    // 未強化裝備key -> 持有數量（不含已穿在身上的預設新手木劍）
     std::vector<MapleEnhItem> enh_items;    // 已強化的裝備實例（含已穿在身上的，用 eq_* 的 "#id" 參照）
@@ -351,6 +352,10 @@ struct MapleCharacter {
     std::string    adv_atk_skill;   // 冒險／戰鬥計算使用的攻擊技能key，空字串＝普通攻擊
     std::string    adv_region;      // 目前冒險中的區域key，空字串＝沒有在冒險
     time_t         adv_started_at = 0;
+    std::string    wb_region;         // 目前挑戰中的野外首領區域key，空字串＝沒有在挑戰
+    time_t         wb_started_at    = 0;
+    int64_t        wb_required_secs = 0; // 出發當下鎖定的預計擊殺秒數（不顯示給玩家，只用來判定何時結算）
+    int64_t        wb_epoch         = 0; // 出發當下的 dead_since 快照，結算時若全服狀態已變動（被別人搶先）就視為無功而返
     int64_t        monsters_defeated = 0;
     int64_t        token_week_id    = 0;   // 代幣商店：上次兌換所屬的週次（epoch 週）
     int64_t        token_week_spent = 0;   // 代幣商店：本週已用掉的籌碼數
@@ -692,6 +697,14 @@ inline std::map<dpp::snowflake, EuRouletteStats> euroulette_stats_data;
 inline std::map<uint64_t, EuRouletteMultiGame>  euroulette_multi_games;
 inline std::atomic<uint64_t>                    euroulette_multi_counter{1};
 inline std::map<dpp::snowflake, MapleCharacter> maple_data;
+
+// ─── 楓之谷世界：野外首領（全服共用一隻，前3個擊殺完成的人獲得獎勵，湊滿3人才開始算重生）───
+struct MapleWorldBossState {
+    time_t dead_since = 0; // 0＝從未關閉過本輪（一開始就是生成中）；>0＝本輪湊滿3人關閉的時間，過了重生間隔才會開新一輪
+    int    round_kills = 0; // 本輪（dead_since 代表的這個區間）已經有幾人完成擊殺，滿3人就關閉本輪、round_kills 歸零給下一輪用
+    int    respawn_secs = 0; // 本輪關閉當下隨機決定的實際重生秒數（區域設定的是分鐘範圍，這裡存實際擲出來的那個值）
+};
+inline std::map<std::string, MapleWorldBossState> maple_wb_state; // key=區域key
 inline std::vector<PurchaseRecord>              purchase_records;
 inline std::atomic<uint64_t>                    purchase_counter{1};
 inline std::map<dpp::snowflake, Pet>            pet_data;

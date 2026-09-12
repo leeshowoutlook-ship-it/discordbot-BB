@@ -1,0 +1,12 @@
+{
+  "coastal_grass": {
+    "dead_since": 1789191338,
+    "respawn_secs": 3000,
+    "round_kills": 0
+  },
+  "east_rock4": {
+    "dead_since": 1789192700,
+    "respawn_secs": 3960,
+    "round_kills": 0
+  }
+}
