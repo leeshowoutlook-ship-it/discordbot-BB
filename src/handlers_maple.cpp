@@ -1186,4 +1186,17 @@ void handle_maple_select(const dpp::select_click_t& ev, dpp::snowflake uid) {
         ev.reply(dpp::ir_update_message, make_maple_eqshop_msg(uid, mode, cat, 0));
         return;
     }
+
+    // maple_advbracket_<uid>　值＝選中的等級區間 index
+    if (cid.rfind("maple_advbracket_", 0) == 0) {
+        dpp::snowflake owner(std::stoull(cid.substr(17)));
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        int bracket = 0;
+        try { if (!ev.values.empty()) bracket = std::stoi(ev.values[0]); } catch (...) {}
+        ev.reply(dpp::ir_update_message, make_maple_adv_region_list_msg(uid, bracket));
+        return;
+    }
 }
