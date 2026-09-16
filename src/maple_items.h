@@ -17,7 +17,7 @@ struct MapleItemDef {
     int  atk_bonus      = 0;
     int  atk_speed_sec  = 60; // 武器攻速（秒／下）：30最快 45較快 60普通 70較慢 90最慢
     int  str_bonus = 0, dex_bonus = 0, int_bonus = 0, luk_bonus = 0; // 裝備提供的能力值
-    std::string weapon_type; // 武器類型（法杖/拳套/匕首/弓/弩/大劍/火槍/指虎/棒子），非武器留空
+    std::string weapon_type; // 武器類型（法杖/拳套/匕首/弓/弩/大劍/棒子），非武器留空
     std::string job_req;     // 職業限制（一轉職業key，"" = 無限制）
     int64_t price = 0;       // 裝備商店售價（瘋幣），0 = 非商店販售
     int  item_id = 0;        // 交易用數字ID
@@ -41,8 +41,6 @@ static const std::vector<MapleWeaponTypeDef> MAPLE_WEAPON_TYPES = {
     {"匕首", "dagger",  "thief",   "luk", 45, {25,40,54,68,90,108,118}},
     {"弩",   "xbow",    "archer",  "dex", 60, {19,35,52,67,88,103,115}},
     {"弓",   "bow",     "archer",  "dex", 60, {15,33,49,64,85,100,112}},
-    {"火槍", "gun",     "pirate",  "dex", 60, {20,35,49,63,85,103,115}},
-    {"指虎", "knuckle", "pirate",  "str", 60, {20,35,49,63,85,103,115}},
 };
 static const int   MAPLE_WPN_TIER_LV[7]    = {10, 30, 50, 70, 100, 120, 150};
 static const int64_t MAPLE_WPN_TIER_PRICE[7] = {3000, 5000, 10000, 25000, 60000, 200000, 1000000};
@@ -53,23 +51,28 @@ static const char* MAPLE_WPN_TIER_NAME[7]  = {"鐵製", "精鋼", "秘銀", "山
 static const int MAPLE_ARMOR_TIER_LV[7] = {10, 30, 50, 70, 100, 120, 150};
 
 struct MapleArmorDef {
-    std::string slot;     // helmet / clothes / glove / shoes
-    std::string slot_cn;  // 頭盔 / 套服 / 手套 / 鞋子
+    std::string slot;     // helmet / clothes / glove / shoes / ring / necklace
+    std::string slot_cn;  // 頭盔 / 套服 / 手套 / 鞋子 / 戒指 / 項鍊
     int64_t price[7];     // 售價（瘋幣）
     int     primary[7];   // 給予「穿戴者主屬性」+N
     int     secondary[7]; // 給予「穿戴者副屬性」+N
+    int     id_base;      // 這個部位7階裝備的起始 item_id（id_base ~ id_base+6），固定寫死避免加新部位時跟其他道具ID撞號
 };
 static const std::vector<MapleArmorDef> MAPLE_ARMORS = {
-    //  價格：套服 = 武器階價×0.75 進位到最高位；頭/手/鞋 = 武器階價×0.4 進位到最高位
+    //  價格：套服 = 武器階價×0.75 進位到最高位；戒指=×0.5、項鍊=×0.6；頭/手/鞋 = 武器階價×0.4 進位到最高位
     //  頭盔  主 = 等級/10−1   副 = 等級/10+1
     //  套服  主 = 等級/10+2   副 = 等級/10
     //  手套  主 = (等級−10)/20 副 = (等級−30)/20（皆不低於 0，整數除法）
     //  鞋子  主 = 0            副 = 等級/5
+    //  戒指  主 = 等級/10      副 = 等級/10
+    //  項鍊  主 = 等級/10+3    副 = 等級/10+2
     //  slot        cn     price ── 等級      10    30    50     70     100     120      150
-    { "helmet",  "頭盔", { 2000, 2000, 4000, 10000, 30000,  80000, 400000 }, { 0,  2,  4,  6,  9, 11, 14 }, { 2,  4,  6,  8, 11, 13, 16 } },
-    { "clothes", "套服", { 3000, 4000, 8000, 20000, 50000, 200000, 800000 }, { 3,  5,  7,  9, 12, 14, 17 }, { 1,  3,  5,  7, 10, 12, 15 } },
-    { "glove",   "手套", { 2000, 2000, 4000, 10000, 30000,  80000, 400000 }, { 0,  1,  2,  3,  4,  5,  7 }, { 0,  0,  1,  2,  3,  4,  6 } },
-    { "shoes",   "鞋子", { 2000, 2000, 4000, 10000, 30000,  80000, 400000 }, { 0,  0,  0,  0,  0,  0,  0 }, { 2,  6, 10, 14, 20, 24, 30 } },
+    { "helmet",   "頭盔", { 2000, 2000, 4000, 10000, 30000,  80000, 400000 }, { 0,  2,  4,  6,  9, 11, 14 }, { 2,  4,  6,  8, 11, 13, 16 }, 96661 },
+    { "clothes",  "套服", { 3000, 4000, 8000, 20000, 50000, 200000, 800000 }, { 3,  5,  7,  9, 12, 14, 17 }, { 1,  3,  5,  7, 10, 12, 15 }, 96668 },
+    { "glove",    "手套", { 2000, 2000, 4000, 10000, 30000,  80000, 400000 }, { 0,  1,  2,  3,  4,  5,  7 }, { 0,  0,  1,  2,  3,  4,  6 }, 96675 },
+    { "shoes",    "鞋子", { 2000, 2000, 4000, 10000, 30000,  80000, 400000 }, { 0,  0,  0,  0,  0,  0,  0 }, { 2,  6, 10, 14, 20, 24, 30 }, 96682 },
+    { "ring",     "戒指", { 2000, 3000, 5000, 20000, 30000, 100000, 500000 }, { 1,  3,  5,  7, 10, 12, 15 }, { 1,  3,  5,  7, 10, 12, 15 }, 96710 },
+    { "necklace", "項鍊", { 2000, 3000, 6000, 20000, 40000, 200000, 600000 }, { 4,  6,  8, 10, 13, 15, 18 }, { 3,  5,  7,  9, 12, 14, 17 }, 96717 },
 };
 
 static const std::vector<MapleItemDef>& maple_items() {
@@ -114,8 +117,7 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.item_id = 96660;
             items.push_back(e);
         }
-        // 防具：頭盔／套服／手套／鞋子 × 7 階（item_id 96661..96688）
-        int aidx = 0;
+        // 防具：頭盔／套服／手套／鞋子／戒指／項鍊 × 7 階（item_id 各自對應 ar.id_base ~ +6）
         for (auto& ar : MAPLE_ARMORS) {
             for (int t = 0; t < 7; t++) {
                 MapleItemDef it;
@@ -128,10 +130,9 @@ static const std::vector<MapleItemDef>& maple_items() {
                 it.price     = ar.price[t];
                 it.primary_generic   = ar.primary[t];
                 it.secondary_generic = ar.secondary[t];
-                it.item_id   = 96661 + aidx * 7 + t;
+                it.item_id   = ar.id_base + t;
                 items.push_back(it);
             }
-            aidx++;
         }
         // 特殊裝備：蝸牛殼耳環，無職業／等級／屬性要求，全屬性+3（不在商店販售，price=0）
         {
@@ -163,6 +164,72 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.secondary_generic = 30;
             e.price = 0;
             e.item_id = 96690;
+            items.push_back(e);
+        }
+        // 冥界武器系列：8種一般武器類型都各一把（不含棒子），等級限制20、副屬性限制20，
+        // 攻擊力＝10等裝與30等裝的平均、再依武器各自加一點；主屬性+5（吃該武器類型原本對應的那個屬性）。
+        // 冥界幽靈（地鐵三號站）掉落，不在商店販售。
+        {
+            struct UwWpn { std::string type_cn, type_key, job_req, stat; int speed; int atk; int item_id; };
+            static const std::vector<UwWpn> UW_WPNS = {
+                {"大劍", "gsword",  "warrior", "str", 70, 34, 96691},
+                {"法杖", "staff",   "mage",    "int", 90, 58, 96692},
+                {"拳套", "claw",    "thief",   "luk", 45, 21, 96693},
+                {"匕首", "dagger",  "thief",   "luk", 45, 36, 96694},
+                {"弩",   "xbow",    "archer",  "dex", 60, 30, 96695},
+                {"弓",   "bow",     "archer",  "dex", 60, 27, 96696},
+            };
+            for (auto& w : UW_WPNS) {
+                MapleItemDef e;
+                e.key = "wpn_underworld_" + w.type_key;
+                e.name = "冥界" + w.type_cn;
+                e.slot = "weapon";
+                e.level_req = 20;
+                e.secondary_req = 20;
+                e.sellable = true;
+                e.atk_bonus = w.atk;
+                e.atk_speed_sec = w.speed;
+                e.weapon_type = w.type_cn;
+                e.job_req = w.job_req;
+                if      (w.stat == "str") e.str_bonus = 5;
+                else if (w.stat == "dex") e.dex_bonus = 5;
+                else if (w.stat == "int") e.int_bonus = 5;
+                else                      e.luk_bonus = 5;
+                e.price = 0;
+                e.item_id = w.item_id;
+                items.push_back(e);
+            }
+        }
+        // 冥界套服：等級限制20、無屬性限制，主屬性+0、副屬性+10。冥界幽靈掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "arm_underworld_clothes";
+            e.name = "冥界套服";
+            e.slot = "clothes";
+            e.level_req = 20;
+            e.sellable = true;
+            e.atk_speed_sec = 60;
+            e.secondary_generic = 10;
+            e.price = 0;
+            e.item_id = 96699;
+            items.push_back(e);
+        }
+        // 黃金杖：法杖，限制等級40、限制副屬性20，攻擊力80、主屬性(智力)+5。殭屍猴王5%掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "wpn_golden_staff";
+            e.name = "黃金杖";
+            e.slot = "weapon";
+            e.level_req = 40;
+            e.secondary_req = 20;
+            e.sellable = true;
+            e.atk_bonus = 80;
+            e.atk_speed_sec = 90;
+            e.weapon_type = "法杖";
+            e.job_req = "mage";
+            e.int_bonus = 5;
+            e.price = 0;
+            e.item_id = 96701;
             items.push_back(e);
         }
         return items;
@@ -207,8 +274,6 @@ static const std::vector<MapleScrollDef> MAPLE_SCROLLS = {
     {"sc_wpn_bow",     "弓 攻擊力卷軸 100%",   100, 7000, "弓",   1, 0, 1, 96509},
     {"sc_wpn_xbow",    "弩 攻擊力卷軸 100%",   100, 7000, "弩",   1, 0, 1, 96510},
     {"sc_wpn_gsword",  "大劍 攻擊力卷軸 100%", 100, 7000, "大劍", 1, 0, 1, 96511},
-    {"sc_wpn_gun",     "火槍 攻擊力卷軸 100%", 100, 7000, "火槍", 1, 0, 1, 96512},
-    {"sc_wpn_knuckle", "指虎 攻擊力卷軸 100%", 100, 7000, "指虎", 1, 0, 1, 96513},
     {"sc_wpn_rod",     "棒子 攻擊力卷軸 100%", 100, 5000, "棒子", 5, 0, 3, 96514},
     // 武器（除了棒子）60% 攻擊力卷軸：攻擊+2、主屬性+3（不上架商店，另外取得）
     {"sc_wpn_staff60",   "法杖 攻擊力卷軸 60%", 60, 12000, "法杖", 3, 0, 2, 96515, 0, false},
@@ -217,8 +282,6 @@ static const std::vector<MapleScrollDef> MAPLE_SCROLLS = {
     {"sc_wpn_bow60",     "弓 攻擊力卷軸 60%",   60, 12000, "弓",   3, 0, 2, 96518, 0, false},
     {"sc_wpn_xbow60",    "弩 攻擊力卷軸 60%",   60, 12000, "弩",   3, 0, 2, 96519, 0, false},
     {"sc_wpn_gsword60",  "大劍 攻擊力卷軸 60%", 60, 12000, "大劍", 3, 0, 2, 96520, 0, false},
-    {"sc_wpn_gun60",     "火槍 攻擊力卷軸 60%", 60, 12000, "火槍", 3, 0, 2, 96521, 0, false},
-    {"sc_wpn_knuckle60", "指虎 攻擊力卷軸 60%", 60, 12000, "指虎", 3, 0, 2, 96522, 0, false},
     // 武器（除了棒子）20% 攻擊力卷軸：攻擊+5、主屬性+5、副屬性+1（不上架商店，另外取得）
     {"sc_wpn_staff20",   "法杖 攻擊力卷軸 20%", 20, 45000, "法杖", 5, 1, 5, 96523, 0, false},
     {"sc_wpn_claw20",    "拳套 攻擊力卷軸 20%", 20, 45000, "拳套", 5, 1, 5, 96524, 0, false},
@@ -226,12 +289,27 @@ static const std::vector<MapleScrollDef> MAPLE_SCROLLS = {
     {"sc_wpn_bow20",     "弓 攻擊力卷軸 20%",   20, 45000, "弓",   5, 1, 5, 96526, 0, false},
     {"sc_wpn_xbow20",    "弩 攻擊力卷軸 20%",   20, 45000, "弩",   5, 1, 5, 96527, 0, false},
     {"sc_wpn_gsword20",  "大劍 攻擊力卷軸 20%", 20, 45000, "大劍", 5, 1, 5, 96528, 0, false},
-    {"sc_wpn_gun20",     "火槍 攻擊力卷軸 20%", 20, 45000, "火槍", 5, 1, 5, 96529, 0, false},
-    {"sc_wpn_knuckle20", "指虎 攻擊力卷軸 20%", 20, 45000, "指虎", 5, 1, 5, 96530, 0, false},
     // 耳環詛咒卷軸：效果等同耳環主副屬性卷軸20%，但機率是 50%成功／25%失敗／25%爆炸（裝備直接消失）（不上架商店，另外取得）
     {"sc_earring_curse50", "耳環詛咒卷軸 50%", 50, 40000, "耳環", 3, 5, 0, 96531, 25, false},
     // 棒子攻擊力詛咒卷軸：50%成功／25%失敗／25%爆炸（裝備直接消失），攻擊+10、主屬性+12、副屬性+5（樹妖王掉落，不上架商店）
     {"sc_wpn_rod_curse50", "棒子攻擊力詛咒卷軸 50%", 50, 60000, "棒子", 12, 5, 10, 96532, 25, false},
     // 棒子攻擊力卷軸60%：攻擊+5、主屬性+8（樹妖王掉落，不上架商店）
     {"sc_wpn_rod60", "棒子攻擊力卷軸 60%", 60, 25000, "棒子", 8, 0, 5, 96533, 0, false},
+    // 武器詛咒卷軸50%（除了棒子，每種一張）：效果等同該武器20%卷軸，50%成功／25%失敗／25%爆炸（裝備直接消失）（不上架商店）
+    {"sc_wpn_staff_curse50",  "法杖攻擊力詛咒卷軸 50%", 50, 40000, "法杖", 5, 1, 5, 96537, 25, false},
+    {"sc_wpn_claw_curse50",   "拳套攻擊力詛咒卷軸 50%", 50, 40000, "拳套", 5, 1, 5, 96538, 25, false},
+    {"sc_wpn_dagger_curse50", "匕首攻擊力詛咒卷軸 50%", 50, 40000, "匕首", 5, 1, 5, 96539, 25, false},
+    {"sc_wpn_bow_curse50",    "弓攻擊力詛咒卷軸 50%",   50, 40000, "弓",   5, 1, 5, 96540, 25, false},
+    {"sc_wpn_xbow_curse50",   "弩攻擊力詛咒卷軸 50%",   50, 40000, "弩",   5, 1, 5, 96541, 25, false},
+    {"sc_wpn_gsword_curse50", "大劍攻擊力詛咒卷軸 50%", 50, 40000, "大劍", 5, 1, 5, 96542, 25, false},
+    // 手套攻擊卷軸60%：攻擊+3、主屬性+5、副屬性+1（不上架商店）
+    {"sc_glove_atk60", "手套攻擊卷軸 60%", 60, 18000, "手套", 5, 1, 3, 96543, 0, false},
+    // 手套攻擊卷軸20%：攻擊+5、主屬性+8、副屬性+5（不上架商店）
+    {"sc_glove_atk20", "手套攻擊卷軸 20%", 20, 50000, "手套", 8, 5, 5, 96544, 0, false},
+    // 手套攻擊詛咒卷軸50%：效果等同手套攻擊卷軸20%，50%成功／25%失敗／25%爆炸（裝備直接消失）（不上架商店）
+    {"sc_glove_atk_curse50", "手套攻擊詛咒卷軸 50%", 50, 42000, "手套", 8, 5, 5, 96545, 25, false},
+    // 手套副屬性卷軸60%：副屬性+8（不上架商店）
+    {"sc_glove_sec60", "手套副屬性卷軸 60%", 60, 15000, "手套", 0, 8, 0, 96546, 0, false},
+    // 手套副屬性卷軸20%：副屬性+15（不上架商店）
+    {"sc_glove_sec20", "手套副屬性卷軸 20%", 20, 40000, "手套", 0, 15, 0, 96547, 0, false},
 };

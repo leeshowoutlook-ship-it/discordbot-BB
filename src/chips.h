@@ -458,18 +458,19 @@ static void claim_jail_unlock(dpp::snowflake target) {
     save_chips();
 }
 
-// ─── Weekly claim — 每週四中午12:00(UTC+8) = 週四04:00 UTC ────────────────────
-// 1970-01-01 was a Thursday, so week_id = (t - 4*3600) / 604800
+// ─── Weekly claim — 每週二早上08:00(UTC+8) = 週二00:00 UTC ────────────────────
+// 1970-01-01 是星期四，往後推5天(1970-01-06)剛好是星期二00:00 UTC，
+// 所以 week_id = (t - 5*86400) / 604800
 
 static int64_t weekly_id(time_t t) {
-    return ((int64_t)t - 4 * 3600) / (7 * 86400);
+    return ((int64_t)t - 5 * 86400) / (7 * 86400);
 }
 
 static dpp::message handle_weekly_claim(dpp::snowflake uid, bool* claimed_out = nullptr) {
     time_t now = time(nullptr);
     int64_t cur_week = weekly_id(now);
     int64_t balance; bool success; bool scroll_given = false;
-    time_t next_thu = (time_t)((cur_week + 1) * (int64_t)(7 * 86400) + 4 * 3600);
+    time_t next_reset = (time_t)((cur_week + 1) * (int64_t)(7 * 86400) + 5 * 86400);
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         auto& cd = chip_data[uid];
@@ -508,10 +509,10 @@ static dpp::message handle_weekly_claim(dpp::snowflake uid, bool* claimed_out = 
         e.add_field("🎟️  免手續費轉帳", "+2 次（累計可使用）", false);
         if (scroll_given)
             e.add_field("🎫  組隊王挑戰卷", "獲得 **每週怪物狩獵卷** ×1", false);
-        e.set_footer(dpp::embed_footer().set_text("每週四中午12:00（UTC+8）更新"));
+        e.set_footer(dpp::embed_footer().set_text("每週二早上08:00（UTC+8）更新"));
     } else {
         e.set_title("⏳  本週已領取").set_color(0x808080);
-        e.add_field("⏰  下次領取", "<t:" + std::to_string((int64_t)next_thu) + ":F>", true);
+        e.add_field("⏰  下次領取", "<t:" + std::to_string((int64_t)next_reset) + ":F>", true);
         e.add_field("💼  目前持有", std::to_string(balance) + " 碼",                  true);
         if (scroll_given)
             e.add_field("🎫  組隊王挑戰卷", "獲得 **每週怪物狩獵卷** ×1（本週首次）", false);

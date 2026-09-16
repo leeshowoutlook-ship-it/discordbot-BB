@@ -342,6 +342,8 @@ struct MapleCharacter {
     std::string    eq_glove;
     std::string    eq_clothes;
     std::string    eq_shoes;
+    std::string    eq_ring;
+    std::string    eq_necklace;
     double         weapon_mastery = 0.10; // 熟練度，預設10%，攻擊力下限公式用
     std::map<std::string,int> skill_levels; // 技能key -> 已投入等級
     bool           skill_reset_used = false; // 技能點數重製限一次（免費）
@@ -703,6 +705,7 @@ struct MapleWorldBossState {
     time_t dead_since = 0; // 0＝從未關閉過本輪（一開始就是生成中）；>0＝本輪湊滿3人關閉的時間，過了重生間隔才會開新一輪
     int    round_kills = 0; // 本輪（dead_since 代表的這個區間）已經有幾人完成擊殺，滿3人就關閉本輪、round_kills 歸零給下一輪用
     int    respawn_secs = 0; // 本輪關閉當下隨機決定的實際重生秒數（區域設定的是分鐘範圍，這裡存實際擲出來的那個值）
+    int64_t total_kills = 0; // 這隻首領累計被討伐幾隻了（每次湊滿3人關閉一輪就 +1，不是每個人 +1）
 };
 inline std::map<std::string, MapleWorldBossState> maple_wb_state; // key=區域key
 inline std::vector<PurchaseRecord>              purchase_records;
@@ -844,6 +847,25 @@ struct TradeOffer {
 };
 inline std::map<uint64_t, TradeOffer> trade_offers;
 inline std::atomic<uint64_t>          trade_counter{1};
+
+// ─── 拍賣行 ───────────────────────────────────────────────────────────────────
+// 掛售(is_buy=false)：賣家的道具在刊登當下就先扣起來(玩家暫時不能用)，成交時直接給買家。
+// 求售(is_buy=true)：買家出的錢在刊登當下就先扣起來，成交時直接給賣家。
+// 兩種都支援取消，取消會把扣起來的東西/錢退回去。
+struct AuctionListing {
+    uint64_t       id         = 0;
+    dpp::snowflake uid;                 // 刊登者（掛售＝賣家／求售＝買家）
+    bool           is_buy     = false;  // false=掛售（賣道具收錢）／true=求售（收道具付錢）
+    int            item_id    = 0;      // 道具數字ID（顯示、辨識用）
+    std::string    item_key;            // 內部 key
+    std::string    item_name;           // 下單當下的名稱快照（避免道具改名後對不上）
+    int64_t        qty        = 1;
+    std::string    currency;            // "chips"（籌碼）或 "coins"（瘋幣）
+    int64_t        price      = 0;      // 這筆訂單的總金額（不是單價）
+    time_t         created_at = 0;
+};
+inline std::map<uint64_t, AuctionListing> auction_listings;
+inline std::atomic<uint64_t>              auction_counter{1};
 
 // ─── 一夜狼人 ─────────────────────────────────────────────────────────────────
 

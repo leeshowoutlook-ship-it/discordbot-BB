@@ -1,0 +1,77 @@
+{
+  "listings": [
+    {
+      "created_at": 1789437837,
+      "currency": "coins",
+      "id": 25,
+      "is_buy": false,
+      "item_id": 96523,
+      "item_key": "sc_wpn_staff20",
+      "item_name": "法杖 攻擊力卷軸 20%",
+      "price": 8000,
+      "qty": 1,
+      "uid": "457478323665240065"
+    },
+    {
+      "created_at": 1789443229,
+      "currency": "chips",
+      "id": 27,
+      "is_buy": false,
+      "item_id": 96517,
+      "item_key": "sc_wpn_dagger60",
+      "item_name": "匕首 攻擊力卷軸 60%",
+      "price": 15000,
+      "qty": 1,
+      "uid": "592685139717390346"
+    },
+    {
+      "created_at": 1789443262,
+      "currency": "chips",
+      "id": 28,
+      "is_buy": false,
+      "item_id": 96523,
+      "item_key": "sc_wpn_staff20",
+      "item_name": "法杖 攻擊力卷軸 20%",
+      "price": 30000,
+      "qty": 1,
+      "uid": "592685139717390346"
+    },
+    {
+      "created_at": 1789443287,
+      "currency": "chips",
+      "id": 29,
+      "is_buy": false,
+      "item_id": 96526,
+      "item_key": "sc_wpn_bow20",
+      "item_name": "弓 攻擊力卷軸 20%",
+      "price": 15000,
+      "qty": 1,
+      "uid": "592685139717390346"
+    },
+    {
+      "created_at": 1789463120,
+      "currency": "chips",
+      "id": 30,
+      "is_buy": false,
+      "item_id": 81004,
+      "item_key": "recover_fatigue",
+      "item_name": "高級強效咖啡",
+      "price": 1000,
+      "qty": 1,
+      "uid": "353567910285017090"
+    },
+    {
+      "created_at": 1789485990,
+      "currency": "coins",
+      "id": 35,
+      "is_buy": false,
+      "item_id": 96516,
+      "item_key": "sc_wpn_claw60",
+      "item_name": "拳套 攻擊力卷軸 60%",
+      "price": 20000,
+      "qty": 1,
+      "uid": "470149299934593024"
+    }
+  ],
+  "next_id": 36
+}

@@ -60,7 +60,7 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"star_unknown",    "未知的星星",    0, "special",  "不知道有什麼用的星星，可能在未來某一天會用到", 70001},
     // ── 怪物狩獵卷 ────────────────────────────────────────────────────────────
     {"hunt_scroll",        "怪物狩獵卷",      3000, "hunt",    "可用於開始怪物狩獵",                                   80001},
-    {"weekly_hunt_scroll", "每週怪物狩獵卷",     0, "special", "用於挑戰組隊王，不可售出。每週四隨每週領取一同發放",   96001},
+    {"weekly_hunt_scroll", "每週怪物狩獵卷",     0, "special", "用於挑戰組隊王，不可售出。每週二隨每週領取一同發放",   96001},
     {"orb_ticket",         "寶珠池專屬兌換卷",  0, "special", "使用後從所有寶珠（含稀有合成限定）中隨機獲得一顆，補償專用，不可交易", 97001},
     {"game_cancel",        "這局不算",          0, "special", "輸掉任何小遊戲後可按下「這局不算！！」取消該局並退還下注籌碼。已停止發放，持有者仍可使用。", 97002},
     {"half_refund",        "對不起我錯了",      0, "special", "輸掉任何小遊戲後可按下「對不起我錯了！！」返還一半輸掉的籌碼。組隊遠征（拉圖斯/暗黑龍王）極低機率掉落。", 97003},
@@ -702,6 +702,8 @@ static dpp::message make_lobby_msg(dpp::snowflake uid,
         .set_label("🎰 轉蛋").set_id("gacha_main_" + uid_s).set_style(dpp::cos_secondary));
     row3.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🍁 養成").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
+    row3.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏛️ 拍賣").set_id("auction_home_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row3);
 
     return msg;
