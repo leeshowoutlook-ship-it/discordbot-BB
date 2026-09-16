@@ -1,9 +1,9 @@
 {
   "coastal_grass": {
-    "dead_since": 1789565844,
+    "dead_since": 1789569407,
     "respawn_secs": 3000,
     "round_kills": 0,
-    "total_kills": 79
+    "total_kills": 80
   },
   "cursed_temple": {
     "dead_since": 1789560841,
@@ -12,21 +12,21 @@
     "total_kills": 1
   },
   "east_rock4": {
-    "dead_since": 1789561938,
-    "respawn_secs": 4200,
+    "dead_since": 1789567850,
+    "respawn_secs": 4500,
     "round_kills": 0,
-    "total_kills": 53
+    "total_kills": 54
   },
   "subway_station3": {
-    "dead_since": 1789564493,
-    "respawn_secs": 3360,
+    "dead_since": 1789570072,
+    "respawn_secs": 3420,
     "round_kills": 0,
-    "total_kills": 44
+    "total_kills": 45
   },
   "witch_forest": {
     "dead_since": 1789557859,
     "respawn_secs": 6720,
-    "round_kills": 0,
+    "round_kills": 1,
     "total_kills": 5
   }
 }

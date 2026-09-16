@@ -2,9 +2,9 @@
   "1036953796007448606": {
     "adv_atk_skill": "double_shot",
     "adv_region": "ruins_dig_site",
-    "adv_started_at": 1789561679,
+    "adv_started_at": 1789570451,
     "ap_reset_used": false,
-    "coins": 5112,
+    "coins": 7092,
     "created_at": 1789002968,
     "def": 5,
     "dex_stat": 73,
@@ -86,7 +86,7 @@
       "arm_underworld_clothes": 2,
       "earring_snail": 2
     },
-    "exp": 10977,
+    "exp": 12597,
     "int_stat": 4,
     "job": "archer",
     "level": 18,
@@ -865,10 +865,10 @@
   },
   "470149299934593024": {
     "adv_atk_skill": "rage_slash",
-    "adv_region": "aiosta_57f",
-    "adv_started_at": 1789564519,
+    "adv_region": "",
+    "adv_started_at": 0,
     "ap_reset_used": false,
-    "coins": 584,
+    "coins": 1077,
     "created_at": 1789041026,
     "def": 5,
     "dex_stat": 19,
@@ -880,16 +880,16 @@
         "base_key": "wpn_gsword_10",
         "enh_count": 5,
         "id": 1,
-        "slots_used": 6
+        "slots_used": 7
       },
       {
         "add_atk": 0,
-        "add_primary": 0,
+        "add_primary": 5,
         "add_secondary": 0,
         "base_key": "arm_clothes_10",
-        "enh_count": 0,
+        "enh_count": 1,
         "id": 2,
-        "slots_used": 1
+        "slots_used": 2
       },
       {
         "add_atk": 0,
@@ -911,7 +911,7 @@
     "eq_shoes": "arm_shoes_10",
     "eq_weapon": "#1",
     "equipment": {},
-    "exp": 138,
+    "exp": 343,
     "int_stat": 4,
     "job": "warrior",
     "level": 16,
@@ -920,7 +920,7 @@
     "monsters_defeated": 0,
     "scrolls": {
       "sc_wpn_bow20": 3,
-      "sc_wpn_staff60": 1,
+      "sc_wpn_claw20": 1,
       "sc_wpn_xbow60": 1
     },
     "skill_levels": {
@@ -934,10 +934,10 @@
     "str_stat": 64,
     "token_week_id": 2958,
     "token_week_spent": 20000,
-    "wb_epoch": 0,
-    "wb_region": "",
-    "wb_required_secs": 0,
-    "wb_started_at": 0,
+    "wb_epoch": 1789557859,
+    "wb_region": "witch_forest",
+    "wb_required_secs": 5670,
+    "wb_started_at": 1789567861,
     "weapon_mastery": 0.1
   },
   "479900597013708802": {
@@ -1144,9 +1144,9 @@
   "558513044632895509": {
     "adv_atk_skill": "double_throw",
     "adv_region": "aiosta_57f",
-    "adv_started_at": 1789562485,
+    "adv_started_at": 1789569633,
     "ap_reset_used": true,
-    "coins": 94084,
+    "coins": 98234,
     "created_at": 1789001795,
     "def": 5,
     "dex_stat": 4,
@@ -1216,7 +1216,7 @@
     "eq_shoes": "#5",
     "eq_weapon": "#14",
     "equipment": {},
-    "exp": 6164,
+    "exp": 8164,
     "int_stat": 4,
     "job": "thief",
     "level": 21,
@@ -1225,6 +1225,7 @@
     "monsters_defeated": 0,
     "scrolls": {
       "sc_clothes60": 3,
+      "sc_earring_curse50": 1,
       "sc_helmet60": 2,
       "sc_shoes60": 1,
       "sc_wpn_bow20": 5,
@@ -1232,13 +1233,14 @@
       "sc_wpn_claw20": 2,
       "sc_wpn_claw60": 2,
       "sc_wpn_dagger20": 17,
-      "sc_wpn_dagger60": 17,
+      "sc_wpn_dagger60": 19,
       "sc_wpn_gsword20": 6,
+      "sc_wpn_gsword60": 1,
       "sc_wpn_rod60": 1,
       "sc_wpn_rod_curse50": 8,
       "sc_wpn_staff20": 4,
       "sc_wpn_xbow20": 3,
-      "sc_wpn_xbow60": 17
+      "sc_wpn_xbow60": 18
     },
     "skill_levels": {
       "double_throw": 10,
@@ -1298,9 +1300,9 @@
   "560474152755134464": {
     "adv_atk_skill": "double_throw",
     "adv_region": "blue_mushroom_forest",
-    "adv_started_at": 1789555316,
+    "adv_started_at": 1789569424,
     "ap_reset_used": true,
-    "coins": 2274,
+    "coins": 4550,
     "created_at": 1789025790,
     "def": 5,
     "dex_stat": 10,
@@ -1366,7 +1368,7 @@
     "eq_glove": "#5",
     "eq_helmet": "#2",
     "eq_necklace": "arm_necklace_10",
-    "eq_ring": "",
+    "eq_ring": "arm_ring_10",
     "eq_shoes": "#4",
     "eq_weapon": "#1",
     "equipment": {
@@ -1374,7 +1376,7 @@
       "wpn_underworld_claw": 2,
       "wpn_underworld_dagger": 1
     },
-    "exp": 673,
+    "exp": 3667,
     "int_stat": 4,
     "job": "thief",
     "level": 19,
@@ -1396,7 +1398,7 @@
       "sc_wpn_staff20": 2,
       "sc_wpn_staff60": 1,
       "sc_wpn_xbow20": 3,
-      "sc_wpn_xbow60": 5
+      "sc_wpn_xbow60": 6
     },
     "skill_levels": {
       "double_throw": 10,
@@ -1507,9 +1509,9 @@
   "592685139717390346": {
     "adv_atk_skill": "rage_slash",
     "adv_region": "aiosta_57f",
-    "adv_started_at": 1789560893,
+    "adv_started_at": 1789567179,
     "ap_reset_used": true,
-    "coins": 10440,
+    "coins": 3154,
     "created_at": 1789000805,
     "def": 5,
     "dex_stat": 4,
@@ -1543,12 +1545,12 @@
       },
       {
         "add_atk": 0,
-        "add_primary": 4,
+        "add_primary": 8,
         "add_secondary": 0,
         "base_key": "arm_helmet_10",
-        "enh_count": 2,
+        "enh_count": 4,
         "id": 4,
-        "slots_used": 2
+        "slots_used": 4
       }
     ],
     "enh_next_id": 5,
@@ -1561,7 +1563,7 @@
     "eq_shoes": "arm_shoes_10",
     "eq_weapon": "#1",
     "equipment": {},
-    "exp": 2564,
+    "exp": 3944,
     "int_stat": 4,
     "job": "warrior",
     "level": 20,
@@ -1682,11 +1684,11 @@
       "sc_wpn_dagger20": 2,
       "sc_wpn_dagger60": 8,
       "sc_wpn_gsword20": 8,
-      "sc_wpn_gsword60": 2,
+      "sc_wpn_gsword60": 1,
       "sc_wpn_rod60": 2,
       "sc_wpn_rod_curse50": 5,
       "sc_wpn_staff20": 3,
-      "sc_wpn_staff60": 13,
+      "sc_wpn_staff60": 14,
       "sc_wpn_xbow20": 4
     },
     "skill_levels": {
@@ -1930,10 +1932,10 @@
   },
   "843071419671904308": {
     "adv_atk_skill": "double_shot",
-    "adv_region": "aiosta_57f",
-    "adv_started_at": 1789561299,
+    "adv_region": "",
+    "adv_started_at": 0,
     "ap_reset_used": false,
-    "coins": 80985,
+    "coins": 87710,
     "created_at": 1789000342,
     "def": 5,
     "dex_stat": 93,
@@ -2012,7 +2014,7 @@
     "eq_shoes": "#10",
     "eq_weapon": "#11",
     "equipment": {},
-    "exp": 10530,
+    "exp": 13500,
     "int_stat": 4,
     "job": "archer",
     "level": 20,
@@ -2021,7 +2023,7 @@
     "monsters_defeated": 0,
     "scrolls": {
       "sc_clothes60": 4,
-      "sc_glove_sec20": 5,
+      "sc_glove_sec20": 6,
       "sc_glove_sec60": 8,
       "sc_shoes60": 1,
       "sc_wpn_bow20": 7,
@@ -2048,10 +2050,10 @@
     "str_stat": 10,
     "token_week_id": 2958,
     "token_week_spent": 20000,
-    "wb_epoch": 0,
-    "wb_region": "",
-    "wb_required_secs": 0,
-    "wb_started_at": 0,
+    "wb_epoch": 1789557859,
+    "wb_region": "witch_forest",
+    "wb_required_secs": 1860,
+    "wb_started_at": 1789571883,
     "weapon_mastery": 0.1
   },
   "850359830404661258": {
@@ -2237,9 +2239,9 @@
   "876757185152028692": {
     "adv_atk_skill": "double_throw",
     "adv_region": "blue_mushroom_forest",
-    "adv_started_at": 1789564671,
+    "adv_started_at": 1789570086,
     "ap_reset_used": false,
-    "coins": 32649,
+    "coins": 34299,
     "created_at": 1789045289,
     "def": 5,
     "dex_stat": 10,
@@ -2276,7 +2278,7 @@
       "arm_underworld_clothes": 1,
       "wpn_rod_club": 1
     },
-    "exp": 1338,
+    "exp": 1994,
     "int_stat": 4,
     "job": "thief",
     "level": 18,
@@ -2284,19 +2286,21 @@
     "max_hp": 50,
     "monsters_defeated": 0,
     "scrolls": {
-      "sc_shoes60": 1,
-      "sc_wpn_bow20": 1,
-      "sc_wpn_bow60": 2,
+      "sc_earring_curse50": 1,
+      "sc_shoes60": 2,
+      "sc_wpn_bow20": 3,
+      "sc_wpn_bow60": 3,
       "sc_wpn_claw20": 2,
       "sc_wpn_claw60": 1,
-      "sc_wpn_dagger20": 2,
+      "sc_wpn_dagger20": 3,
       "sc_wpn_dagger60": 1,
+      "sc_wpn_gsword20": 1,
       "sc_wpn_gsword60": 2,
       "sc_wpn_rod60": 1,
       "sc_wpn_staff20": 1,
       "sc_wpn_staff60": 2,
       "sc_wpn_xbow20": 1,
-      "sc_wpn_xbow60": 2
+      "sc_wpn_xbow60": 3
     },
     "skill_levels": {
       "double_throw": 10,
@@ -2317,9 +2321,9 @@
   "959450115007975444": {
     "adv_atk_skill": "",
     "adv_region": "archer_range",
-    "adv_started_at": 1789545520,
+    "adv_started_at": 1789568514,
     "ap_reset_used": false,
-    "coins": 0,
+    "coins": 195,
     "created_at": 1789545479,
     "def": 5,
     "dex_stat": 4,
@@ -2334,15 +2338,18 @@
     "eq_shoes": "",
     "eq_weapon": "wooden_sword",
     "equipment": {},
-    "exp": 0,
+    "exp": 20,
     "int_stat": 4,
     "job": "beginner",
-    "level": 1,
+    "level": 6,
     "luk_stat": 4,
     "max_hp": 50,
     "monsters_defeated": 0,
     "scrolls": {},
-    "skill_levels": {},
+    "skill_levels": {
+      "free_ap": 3,
+      "free_equip": 2
+    },
     "skill_reset_used": false,
     "str_stat": 4,
     "token_week_id": 0,

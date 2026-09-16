@@ -703,7 +703,8 @@ int main(int argc, char* argv[]) {
                 "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤","!探險","!猜拳","！猜拳","!強化","!股票",
                 "!拍賣","！拍賣",
                 "!公告","！公告","!小黑屋","！小黑屋",
-                "!簽到","！簽到","!簽到名單","！簽到名單","!結束簽到","！結束簽到"
+                "!簽到","！簽到","!簽到名單","！簽到名單","!結束簽到","！結束簽到",
+                "!簽到重整","！簽到重整"
             };
             for (auto& s : EXACT) if (content == s) return true;
             // Secret owner-only command
@@ -1158,6 +1159,40 @@ int main(int argc, char* argv[]) {
             if (m_id != 0) { closed.id = m_id; closed.channel_id = m_ch; bot.message_edit(closed); }
             dpp::message conf; conf.set_content("✅ 簽到已強制結束。"); conf.channel_id = ch;
             bot.message_create(conf);
+        }
+        // !簽到重整 / ！簽到重整：踢人失敗（權限不足）卻誤刪名單時，用現在的伺服器成員重新補回未簽到名單（副會長/會長/管理員）
+        else if (content == "!簽到重整" || content == "！簽到重整") {
+            if (!si_perm(uid, ev.msg.member.get_roles())) {
+                dpp::message m; m.set_content("❌ 只有副會長、會長或管理員才能重整簽到名單！"); m.channel_id = ch;
+                bot.message_create(m); return;
+            }
+            dpp::snowflake gid = ev.msg.guild_id;
+            bot.guild_get_members(gid, 1000, 0, [&bot, ch, gid](const dpp::confirmation_callback_t& cc) {
+                if (cc.is_error()) {
+                    bot.message_create(dpp::message(ch, "❌ 無法取得伺服器成員列表！"));
+                    return;
+                }
+                auto& gmap = std::get<dpp::guild_member_map>(cc.value);
+                int added = 0;
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    for (auto& [muid, gm] : gmap) {
+                        if (g_signin.signed_in.count(muid)) continue;
+                        if (g_signin.not_signed.count(muid)) continue;
+                        const dpp::user* user = dpp::find_user(muid);
+                        if (user && user->is_bot()) continue;
+                        std::string name;
+                        if (!gm.get_nickname().empty()) name = gm.get_nickname();
+                        else if (user) name = user->global_name.empty() ? user->username : user->global_name;
+                        else name = "<@" + std::to_string((uint64_t)muid) + ">";
+                        g_signin.not_signed[muid] = name;
+                        added++;
+                    }
+                }
+                save_signin();
+                bot.message_create(dpp::message(ch,
+                    "✅ 已用目前伺服器成員名單重新比對，補回 **" + std::to_string(added) + "** 位未簽到成員。"));
+            });
         }
         // ── 骰子/射/火箭/卷軸/刮刮樂/猜數字 → handlers_games.cpp ───────────
         else if (content.rfind("!骰子", 0) == 0 ||
@@ -3620,6 +3655,41 @@ int main(int argc, char* argv[]) {
             if (m_id != 0) { closed.id = m_id; closed.channel_id = m_ch; bot.message_edit(closed); }
             ev.reply(dpp::ir_channel_message_with_source, dpp::message("✅ 簽到已強制結束。"));
         }
+        else if (cmd_name == "簽到重整" || cmd_name == "resyncsignin") {
+            if (!si_perm(ev.command)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 只有副會長、會長或管理員才能重整簽到名單！").set_flags(dpp::m_ephemeral));
+                return;
+            }
+            ev.thinking(true);
+            dpp::snowflake gid = ev.command.guild_id;
+            bot.guild_get_members(gid, 1000, 0, [&bot, ev, gid](const dpp::confirmation_callback_t& cc) {
+                if (cc.is_error()) {
+                    ev.edit_original_response(dpp::message("❌ 無法取得伺服器成員列表！"));
+                    return;
+                }
+                auto& gmap = std::get<dpp::guild_member_map>(cc.value);
+                int added = 0;
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    for (auto& [muid, gm] : gmap) {
+                        if (g_signin.signed_in.count(muid)) continue;
+                        if (g_signin.not_signed.count(muid)) continue;
+                        const dpp::user* user = dpp::find_user(muid);
+                        if (user && user->is_bot()) continue;
+                        std::string name;
+                        if (!gm.get_nickname().empty()) name = gm.get_nickname();
+                        else if (user) name = user->global_name.empty() ? user->username : user->global_name;
+                        else name = "<@" + std::to_string((uint64_t)muid) + ">";
+                        g_signin.not_signed[muid] = name;
+                        added++;
+                    }
+                }
+                save_signin();
+                ev.edit_original_response(dpp::message(
+                    "✅ 已用目前伺服器成員名單重新比對，補回 **" + std::to_string(added) + "** 位未簽到成員。"));
+            });
+        }
         else if (cmd_name == "幫助" || cmd_name == "help") {
             ev.reply(dpp::ir_channel_message_with_source, make_help_msg(0));
         }
@@ -4336,6 +4406,7 @@ int main(int argc, char* argv[]) {
                 }(),
                 dpp::slashcommand("簽到名單",  "查看簽到名單（副會長/會長/管理員）", bot.me.id),
                 dpp::slashcommand("結束簽到",  "強制結束目前的簽到（副會長/會長/管理員）", bot.me.id),
+                dpp::slashcommand("簽到重整",  "用目前伺服器成員補回誤刪的未簽到名單（副會長/會長/管理員）", bot.me.id),
             }, gid);
         }
     });
