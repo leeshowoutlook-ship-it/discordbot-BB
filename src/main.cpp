@@ -1,4 +1,9 @@
-﻿#include <process.h> // _getpid()：用來幫 srand() 加一點熵，避免短時間內連續重啟拿到同一個 seed
+﻿#ifdef _WIN32
+#include <process.h> // _getpid()：用來幫 srand() 加一點熵，避免短時間內連續重啟拿到同一個 seed
+#else
+#include <unistd.h>  // getpid()：非 Windows 平台的對應函式
+#define _getpid getpid
+#endif
 #include "team.h"
 #include "giveaway.h"
 #include "bjstats.h"
@@ -1877,20 +1882,44 @@ int main(int argc, char* argv[]) {
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 auto it = g_signin.not_signed.find(tuid);
-                if (it != g_signin.not_signed.end()) {
-                    name = it->second;
-                    g_signin.not_signed.erase(it);
-                }
+                if (it != g_signin.not_signed.end()) name = it->second;
                 gid = g_signin.guild_id;
             }
-            if (gid != 0 && tuid != 0)
-                bot.guild_member_kick(gid, tuid);
-            if (!name.empty()) save_signin();
-            dpp::message m;
-            { std::lock_guard<std::mutex> lk(data_mutex); m = make_si_unchecked_msg(page); }
-            if (!name.empty())
-                m.content = "✅ 已踢出 **" + name + "**。";
-            ev.reply(dpp::ir_update_message, m);
+            if (name.empty() || gid == 0 || tuid == 0) {
+                dpp::message m;
+                { std::lock_guard<std::mutex> lk(data_mutex); m = make_si_unchecked_msg(page); }
+                if (name.empty()) {
+                    // 名單裡已經沒有這個人了，維持原樣顯示
+                } else {
+                    m.content = "❌ 找不到伺服器資訊，無法踢出 **" + name + "**。";
+                }
+                ev.reply(dpp::ir_update_message, m);
+                return;
+            }
+            // 踢人是非同步 API 呼叫，先 ACK 避免逾時，等 Discord 真的回應成功/失敗後才更新畫面，
+            // 不然權限不足或身分組層級不夠時，Discord 端會靜默失敗，卻顯示「已踢出」誤導管理員。
+            ev.reply(dpp::ir_deferred_update_message, dpp::message());
+            std::string itoken = ev.command.token;
+            bot.guild_member_kick(gid, tuid, [&bot, itoken, tuid, name, page](const dpp::confirmation_callback_t& cb) {
+                std::string result;
+                if (!cb.is_error()) {
+                    { std::lock_guard<std::mutex> lk(data_mutex); g_signin.not_signed.erase(tuid); }
+                    save_signin();
+                    result = "✅ 已踢出 **" + name + "**。";
+                } else {
+                    auto err = cb.get_error();
+                    std::string reason = !err.human_readable.empty() ? err.human_readable
+                                        : (!err.message.empty() ? err.message : "未知錯誤");
+                    result = "❌ 踢出失敗（HTTP " + std::to_string(cb.http_info.status)
+                           + (err.code ? "，錯誤碼 " + std::to_string(err.code) : "")
+                           + "）：" + reason
+                           + "\n請確認機器人有「踢出成員」權限，且身分組高於對方。";
+                }
+                dpp::message m;
+                { std::lock_guard<std::mutex> lk(data_mutex); m = make_si_unchecked_msg(page); }
+                m.content = result;
+                bot.interaction_response_edit(itoken, m);
+            });
         }
         // si_kno_{page}：取消踢出
         else if (cid.rfind("si_kno_", 0) == 0) {
@@ -3346,6 +3375,10 @@ int main(int argc, char* argv[]) {
         }
         // ── 楓之谷裝備商店／排行榜職業篩選 select → handlers_maple.cpp ─────────
         else if (cid.rfind("maple_eqshopsel_", 0) == 0 || cid.rfind("maple_ranksel_", 0) == 0) {
+            handle_maple_select(ev, uid); return;
+        }
+        // ── 楓之谷冒險等級區間 select → handlers_maple.cpp ─────────────────────
+        else if (cid.rfind("maple_advbracket_", 0) == 0) {
             handle_maple_select(ev, uid); return;
         }
     });

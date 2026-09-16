@@ -807,14 +807,21 @@ struct MapleAdvRegionDef {
     int suggested_level;
     bool open; // 是否已經開放
     MapleAdvMonsterDef monster;
+    std::string bonus_job;    // 特定職業在這張圖有攻擊力加成，"" = 無（key 對應 MAPLE_JOBS）
+    double      bonus_mult = 1.0; // 該職業的攻擊力倍率
 };
 
 static const std::vector<MapleAdvRegionDef> MAPLE_ADV_REGIONS = {
-    {"archer_range",         "弓箭手訓練場", 1,  true, {"紅寶",     40,   8, 12, 18}},
-    {"trapdoor",             "小心掉落",     10, true, {"三眼章魚", 200, 24, 24, 36}},
-    {"blue_mushroom_forest", "藍菇菇樹林",   15, true, {"藍菇菇",   350, 32, 36, 54}},
-    {"ruins_dig_site",       "遺跡發掘地",   20, true, {"石面怪人", 600, 45, 44, 66}},
-    {"aiosta_57f",           "愛奧斯塔57層", 25, true, {"兔子鼓手", 950, 60, 97, 139}},
+    {"archer_range",         "弓箭手訓練場", 1,  true, {"紅寶",     40,   8,  12,  18}},
+    {"trapdoor",             "小心掉落",     10, true, {"三眼章魚", 200, 24,  24,  36}},
+    {"blue_mushroom_forest", "藍菇菇樹林",   15, true, {"藍菇菇",   350, 32,  36,  54}},
+    {"ruins_dig_site",       "遺跡發掘地",   20, true, {"石面怪人", 600, 45,  44,  66}},
+    {"aiosta_57f",           "愛奧斯塔57層", 25, true, {"兔子鼓手", 950, 60,  97, 139}},
+    // 掉落幣先用 exp×1.5 抓的暫定值（±20%），等你給正式數字
+    {"water_canyon",         "水中峽谷",     30, true, {"粉紅小海豹", 1550,  81, 100, 145}},
+    {"monkey_swamp_3",       "猴子沼澤地III", 35, true, {"天使猴",     1800,  90, 110, 160}, "priest", 1.5},
+    {"time_road_4",          "時間之路<4>",  40, true, {"妖魔隊長",   2600, 115, 140, 205}, "priest", 1.5},
+    {"dragon_hunting_ground","龍族狩獵場",   45, true, {"青龍",       3200, 135, 165, 240}},
 };
 
 static const MapleAdvRegionDef* maple_find_adv_region(const std::string& key) {
@@ -857,9 +864,25 @@ static double maple_crit_avg_mult(const MapleCharacter& c) {
     return 1.0 + crit_pct / 100.0;
 }
 
+// 特定職業在某張圖有固定攻擊力倍率加成（例如僧侶在猴子沼澤地III／時間之路<4> ×1.5）
+static double maple_adv_region_job_mult(const MapleCharacter& c, const MapleAdvRegionDef& region) {
+    return (!region.bonus_job.empty() && c.job == region.bonus_job) ? region.bonus_mult : 1.0;
+}
+
+// 等差懲罰：玩家等級低於區域建議等級「5 級以上」，超過的部分每低 1 級傷害 -1%
+// 例：Lv35 區域、玩家 Lv29 → 差 6 級，超過門檻 1 級 → ×0.99
+static double maple_adv_underlevel_mult(const MapleCharacter& c, const MapleAdvRegionDef& region) {
+    int gap = region.suggested_level - c.level;
+    int excess = gap > 5 ? gap - 5 : 0;
+    double mult = 1.0 - 0.01 * excess;
+    return mult < 0.0 ? 0.0 : mult;
+}
+
 // 擊殺一隻怪物需要的攻擊次數（用平均傷害＋爆擊期望算，無條件進位，最少1下）
 static int maple_adv_hits_to_kill(const MapleCharacter& c, const MapleAdvRegionDef& region) {
-    double avg_dmg = std::max(1.0, maple_atk_power_avg(c) * maple_crit_avg_mult(c));
+    double avg_dmg = std::max(1.0, maple_atk_power_avg(c) * maple_crit_avg_mult(c)
+                                  * maple_adv_region_job_mult(c, region)
+                                  * maple_adv_underlevel_mult(c, region));
     int hits = (int)std::ceil(region.monster.hp / avg_dmg);
     return hits < 1 ? 1 : hits;
 }
@@ -1983,7 +2006,33 @@ static std::string maple_fmt_duration(int64_t seconds) {
     return std::to_string(m) + " 分鐘";
 }
 
-static dpp::message make_maple_adv_region_list_msg(dpp::snowflake uid) {
+// 冒險區域用等級區間分頁：1~30 / 31~60 / 61~90 / 91~120 / 121~150
+struct MapleAdvBracketDef { int lo, hi; std::string label; };
+static const std::vector<MapleAdvBracketDef> MAPLE_ADV_BRACKETS = {
+    {1,   30,  "Lv 1~30"},
+    {31,  60,  "Lv 31~60"},
+    {61,  90,  "Lv 61~90"},
+    {91,  120, "Lv 91~120"},
+    {121, 150, "Lv 121~150"},
+};
+static int maple_adv_bracket_of_level(int lvl) {
+    for (size_t i = 0; i < MAPLE_ADV_BRACKETS.size(); i++)
+        if (lvl >= MAPLE_ADV_BRACKETS[i].lo && lvl <= MAPLE_ADV_BRACKETS[i].hi) return (int)i;
+    return (int)MAPLE_ADV_BRACKETS.size() - 1;
+}
+// 預設要顯示哪個區間：玩家正在冒險就用那個區域所在的區間，否則第一個
+static int maple_adv_default_bracket(const MapleCharacter& c) {
+    if (maple_is_adventuring(c)) {
+        const MapleAdvRegionDef* r = maple_find_adv_region(c.adv_region);
+        if (r) return maple_adv_bracket_of_level(r->suggested_level);
+    }
+    return 0;
+}
+
+static dpp::message make_maple_adv_region_list_msg(dpp::snowflake uid, int bracket = -1) {
+    MapleCharacter c = maple_get_or_create(uid);
+    if (bracket < 0 || bracket >= (int)MAPLE_ADV_BRACKETS.size())
+        bracket = maple_adv_default_bracket(c);
     std::string uid_s = std::to_string((uint64_t)uid);
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -1994,14 +2043,39 @@ static dpp::message make_maple_adv_region_list_msg(dpp::snowflake uid) {
         .set_content("## 🗺️ 冒險\n攻擊間隔取決於武器攻速，建議等級僅供參考、未達也能進入。"));
     container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
         .set_spacing(dpp::sep_small).set_divider(true));
+    msg.add_component_v2(container);
 
+    // 下拉選單：等級區間
+    {
+        dpp::component sel_row; sel_row.set_type(dpp::cot_action_row);
+        dpp::component sel;
+        sel.set_type(dpp::cot_selectmenu).set_id("maple_advbracket_" + uid_s)
+            .set_placeholder("選擇等級區間");
+        for (size_t i = 0; i < MAPLE_ADV_BRACKETS.size(); i++)
+            sel.add_select_option(dpp::select_option(MAPLE_ADV_BRACKETS[i].label, std::to_string(i))
+                .set_default((int)i == bracket));
+        sel_row.add_component(sel);
+        msg.add_component_v2(sel_row);
+    }
+
+    dpp::component list;
+    list.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
+    bool any = false;
     for (auto& r : MAPLE_ADV_REGIONS) {
+        if (maple_adv_bracket_of_level(r.suggested_level) != bracket) continue;
+        any = true;
         std::string text = "**" + r.name + "**　建議 Lv. " + std::to_string(r.suggested_level) + "~";
         if (!r.open) text += "　🚧尚未開放";
-        else text += "\n" + r.monster.name + "：" + std::to_string(r.monster.hp) + " HP　"
-                   + std::to_string(r.monster.exp) + " EXP　"
-                   + std::to_string(r.monster.coin_min) + "~" + std::to_string(r.monster.coin_max) + " 幣";
-        container.add_component_v2(dpp::component()
+        else {
+            text += "\n" + r.monster.name + "：" + std::to_string(r.monster.hp) + " HP　"
+                  + std::to_string(r.monster.exp) + " EXP　"
+                  + std::to_string(r.monster.coin_min) + "~" + std::to_string(r.monster.coin_max) + " 幣";
+            if (!r.bonus_job.empty()) {
+                const MapleJobDef* bj = maple_find_job(r.bonus_job);
+                text += "　✨" + (bj ? bj->name : r.bonus_job) + " 攻擊力×" + std::to_string(r.bonus_mult).substr(0, 3);
+            }
+        }
+        list.add_component_v2(dpp::component()
             .set_type(dpp::cot_section)
             .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
             .set_accessory(dpp::component().set_type(dpp::cot_button)
@@ -2010,7 +2084,11 @@ static dpp::message make_maple_adv_region_list_msg(dpp::snowflake uid) {
                 .set_style(r.open ? dpp::cos_success : dpp::cos_secondary)
                 .set_disabled(!r.open)));
     }
-    msg.add_component_v2(container);
+    if (!any) {
+        list.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("這個等級區間還沒有開放的區域。"));
+    }
+    msg.add_component_v2(list);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -2037,7 +2115,19 @@ static dpp::message make_maple_adv_preview_msg(dpp::snowflake uid, const std::st
         content = "## 🗺️ " + region->name + "\n";
         content += "怪物：**" + region->monster.name + "**　" + std::to_string(region->monster.hp) + " HP　"
                  + std::to_string(region->monster.exp) + " EXP　"
-                 + std::to_string(region->monster.coin_min) + "~" + std::to_string(region->monster.coin_max) + " 幣\n\n";
+                 + std::to_string(region->monster.coin_min) + "~" + std::to_string(region->monster.coin_max) + " 幣\n";
+        if (!region->bonus_job.empty()) {
+            const MapleJobDef* bj = maple_find_job(region->bonus_job);
+            content += "✨ " + (bj ? bj->name : region->bonus_job) + " 在這張圖攻擊力 ×"
+                     + std::to_string(region->bonus_mult).substr(0, 3) + "\n";
+        }
+        {
+            double ul = maple_adv_underlevel_mult(c, *region);
+            if (ul < 1.0)
+                content += "⚠️ 等級落差過大（低於建議等級 5 級以上），傷害 ×"
+                         + std::to_string((int)llround(ul * 100)) + "%\n";
+        }
+        content += "\n";
         content += "**預估收益（每小時）**\n";
         content += "✨ 經驗值：約 **" + std::to_string((int64_t)llround(eph)) + "**";
         if (maple_exp_mult(c) > 1.0)
