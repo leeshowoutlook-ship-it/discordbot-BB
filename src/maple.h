@@ -165,8 +165,8 @@ static const std::vector<MapleSkillDef> MAPLE_SKILLS = {
     // 法師
     {"magic_claw", "魔力爪", "運用自身魔力化成尖銳的爪擊攻擊敵人，技能係數如上", "mage", 10, "damage_coef",
         {120,140,160,175,180,190,200,210,220,230}, "", {"法杖"}},
-    {"teleport", "瞬間移動", "自己的攻擊間隔縮短（每級 -0.2 秒，滿級 -2 秒）", "mage", 10, "buff_pct",
-        {2,4,6,8,10,12,14,16,18,20}, "", {}},
+    {"teleport", "瞬間移動", "自己的攻擊間隔縮短（每級 -0.5 秒，滿級 -5 秒）", "mage", 10, "buff_pct",
+        {5,10,15,20,25,30,35,40,45,50}, "", {}},
     {"rage_slash", "魔天一擊", "粗暴地揮舞大劍攻擊敵人，技能係數如上", "warrior", 10, "damage_coef",
         {170,190,210,230,250,270,290,310,330,350}, "", {"大劍"}},
     {"endurance", "自身強化", "冒險時擊殺後的休息時間縮短（每級 -2%，滿級 -20%）", "warrior", 10, "buff_pct",
@@ -232,12 +232,12 @@ static const std::vector<MapleSkillDef> MAPLE_SKILLS = {
     {"strong_page", "遇強則強", "在野外首領戰中，找到首領後能挑戰的時間跟著延長", "page", 10, "buff_pct",
         {1,2,3,4,5,6,7,8,9,10}, "", {}},
 
-    {"mana_boost_ice", "魔力強化", "熟練掌握魔力的運行法則，根據點數強化魔力流動（每級 +2 攻擊力），點滿十級時額外永久提升法杖一階攻速", "icelightning", 10, "buff_pct",
+    {"mana_boost_ice", "魔力強化", "熟練掌握魔力的運行法則，根據點數強化魔力流動（每級 +2 攻擊力、魔力爪技能係數 +10%），點滿十級時額外永久提升法杖一階攻速", "icelightning", 10, "buff_pct",
         {2,4,6,8,10,12,14,16,18,20}, "", {}},
-    {"mana_resist_ice", "法力抗性", "總能找到野外首領法力薄弱的弱點，對野外首領傷害 +3~30%", "icelightning", 10, "buff_pct",
-        {3,6,9,12,15,18,21,24,27,30}, "", {}},
+    {"mana_resist_ice", "魔法封印", "總能找到野外首領法力薄弱的弱點，對野外首領傷害 +3~30%；同時封印一般怪物的抵抗力，對普通怪物傷害 +1~10%",
+        "icelightning", 10, "buff_pct", {3,6,9,12,15,18,21,24,27,30}, "", {}},
 
-    {"angel_blessing", "天使祝福", "獲得來自上蒼的注視，獲得神明恩惠（每級 +1 攻擊力）", "priest", 5, "buff_pct",
+    {"angel_blessing", "天使祝福", "獲得來自上蒼的注視，獲得神明恩惠（每級 +1 攻擊力、+5% 爆擊率）", "priest", 5, "buff_pct",
         {1,2,3,4,5}, "", {}},
     {"group_heal", "群體恢復", "不需要使用生命藥水，因此瘋幣收益略為增加（每級 +1%）", "priest", 10, "buff_pct",
         {1,2,3,4,5,6,7,8,9,10}, "", {}},
@@ -407,6 +407,7 @@ static int64_t maple_item_sell_price(const MapleItemDef& it) {
     if (it.key.rfind("wpn_underworld_", 0) == 0) return 3000; // 冥界武器系列：冥界幽靈10%掉落
     if (it.key == "arm_underworld_clothes")      return 6000;  // 冥界套服：冥界幽靈3%掉落
     if (it.key == "wpn_golden_staff")            return 20000; // 黃金杖：殭屍猴王5%掉落
+    if (it.key == "wpn_wolf_fang")               return 15000; // 狼牙：雪山巨狼5%掉落
     if (it.price > 0) return (int64_t)std::ceil(it.price * 0.4);
     return 1000; // 其他沒設售價、也沒特別列出的道具的保底售價
 }
@@ -446,6 +447,9 @@ static int maple_atk_speed_sec(const MapleCharacter& c) {
         if (tk == "bow") base = maple_atk_speed_one_tier_faster(base); // 快速弓額外多快一階（共兩階），補償弓天生攻擊力比弩低
     }
     if (maple_skill_maxed(c, "mana_boost_ice")) base = maple_atk_speed_one_tier_faster(base);
+    // 狼牙：裝備這把拳套時，使用「雙飛閃」攻速額外快一階
+    if (c.adv_atk_skill == "double_throw" && maple_equipped_key(c, "weapon") == "wpn_wolf_fang")
+        base = maple_atk_speed_one_tier_faster(base);
     return base;
 }
 
@@ -637,6 +641,11 @@ static double maple_job_dmg_pct_bonus(const MapleCharacter& c) {
                + maple_buff_value(c, "dragon_arrow_xbow");
     return pct / 100.0;
 }
+// 魔力強化：每級讓「魔力爪」的技能係數本身 +10 個百分點（滿級230%+100%=330%），只在目前選用魔力爪時生效
+static double maple_skill_coef_bonus_pct(const MapleCharacter& c, const std::string& skill_key) {
+    if (skill_key == "magic_claw") return maple_skill_level(c, "mana_boost_ice") * 10.0;
+    return 0.0;
+}
 // 二轉職業技能對「攻擊力」的固定加成（魔力強化／天使祝福／續能激發）
 static int64_t maple_job_flat_atk_bonus(const MapleCharacter& c) {
     return (int64_t)(maple_buff_value(c, "mana_boost_ice")
@@ -662,8 +671,9 @@ static int64_t maple_atk_power_max(const MapleCharacter& c) {
     if (!sd) result = base;
     else {
         int lvl = maple_skill_level(c, sd->key);
+        double coef = sd->values[lvl-1] + maple_skill_coef_bonus_pct(c, sd->key);
         result = (sd->type == "damage_fixed") ? (int64_t)sd->values[lvl-1] * sd->hits
-                                               : (int64_t)std::ceil(base * sd->values[lvl-1] / 100.0 * sd->hits);
+                                               : (int64_t)std::ceil(base * coef / 100.0 * sd->hits);
     }
     result += maple_job_flat_atk_bonus(c);
     result = (int64_t)std::ceil(result * (1.0 + maple_job_dmg_pct_bonus(c)));
@@ -681,8 +691,9 @@ static int64_t maple_atk_power_min(const MapleCharacter& c) {
     if (!sd) result = base;
     else {
         int lvl = maple_skill_level(c, sd->key);
+        double coef = sd->values[lvl-1] + maple_skill_coef_bonus_pct(c, sd->key);
         result = (sd->type == "damage_fixed") ? (int64_t)sd->values[lvl-1] * sd->hits
-                                               : (int64_t)std::ceil(base * sd->values[lvl-1] / 100.0 * sd->hits);
+                                               : (int64_t)std::ceil(base * coef / 100.0 * sd->hits);
     }
     result += maple_job_flat_atk_bonus(c);
     result = (int64_t)std::ceil(result * (1.0 + maple_job_dmg_pct_bonus(c)));
@@ -707,6 +718,7 @@ static const MapleScrollDef* maple_find_scroll_by_id(int id) {
 }
 
 static std::string maple_scroll_effect_text(const MapleScrollDef& s) {
+    if (s.restore_slot) return "歸還1次已使用的卷軸次數（只能用在已有強化失敗紀錄的裝備）";
     std::string t;
     if (s.atk_bonus       > 0) t += (t.empty() ? "" : "、") + std::string("攻擊力+") + std::to_string(s.atk_bonus);
     if (s.primary_bonus   > 0) t += (t.empty() ? "" : "、") + std::string("主屬性+") + std::to_string(s.primary_bonus);
@@ -748,9 +760,33 @@ static std::string maple_enh_apply(MapleCharacter& c, const std::string& slot,
     if (sit == c.scrolls.end() || sit->second <= 0) return "你沒有這張卷軸。";
 
     int max_slots = maple_enh_max_slots(slot);
+    std::string raw = maple_equipped_raw(c, slot);
+
+    // 純白卷軸：只能用在已經有強化失敗紀錄的裝備上，不佔用強化次數上限，
+    // 50%成功歸還1次已使用的卷軸次數／50%爆炸裝備直接消失（跟其他詛咒卷軸一樣沒有「純失敗」的中間結果）。
+    if (s->restore_slot) {
+        if (!maple_eq_is_enh(raw)) return "這件裝備沒有強化失敗紀錄，不能使用純白卷軸。";
+        MapleEnhItem* e = maple_find_enh(c, maple_eq_enh_id(raw));
+        if (!e) return "強化實例遺失，請重試。";
+        if (e->slots_used <= e->enh_count) return "這件裝備沒有強化失敗紀錄，不能使用純白卷軸。";
+        sit->second--;
+        if (sit->second <= 0) c.scrolls.erase(sit);
+        ok = true;
+        static std::mt19937 white_rng(std::random_device{}());
+        int roll = std::uniform_int_distribution<int>(0, 99)(white_rng);
+        if (roll >= s->rate) {
+            int eid = e->id;
+            maple_set_equipped(c, slot, "");
+            c.enh_items.erase(std::remove_if(c.enh_items.begin(), c.enh_items.end(),
+                                              [&](const MapleEnhItem& x){ return x.id == eid; }), c.enh_items.end());
+            return "💥💥 純白卷軸失敗，裝備直接爆炸消失了！這個部位現在是空的。";
+        }
+        e->slots_used--;
+        return "✨ 純白卷軸成功！已歸還 1 次可用卷軸次數，目前已使用 "
+             + std::to_string(e->slots_used) + "/" + std::to_string(max_slots) + " 次。";
+    }
 
     // 取得（必要時建立）此部位的強化實例
-    std::string raw = maple_equipped_raw(c, slot);
     MapleEnhItem* e = nullptr;
     if (maple_eq_is_enh(raw)) {
         e = maple_find_enh(c, maple_eq_enh_id(raw));
@@ -857,16 +893,22 @@ static int maple_eff_rest_sec(const MapleCharacter& c) {
     if (v < 5.0) v = 5.0;
     return (int)llround(v);
 }
-// 爆擊平均加成倍率（霸王箭／強力投擲）：爆擊率 p、爆擊 2 倍傷害 → 平均 = 1 + p
+// 爆擊平均加成倍率（霸王箭／強力投擲／天使祝福）：爆擊率 p、爆擊 2 倍傷害 → 平均 = 1 + p
 static double maple_crit_avg_mult(const MapleCharacter& c) {
     double crit_pct = maple_buff_value(c, "eagle_eye")     // 每級 4% → 滿級 40%
-                     + maple_buff_value(c, "power_throw"); // 每級 5% → 滿級 50%
+                     + maple_buff_value(c, "power_throw")  // 每級 5% → 滿級 50%
+                     + maple_skill_level(c, "angel_blessing") * 5.0; // 每級 5% → 滿級(5級)25%
     return 1.0 + crit_pct / 100.0;
 }
 
 // 特定職業在某張圖有固定攻擊力倍率加成（例如僧侶在猴子沼澤地III／時間之路<4> ×1.5）
 static double maple_adv_region_job_mult(const MapleCharacter& c, const MapleAdvRegionDef& region) {
     return (!region.bonus_job.empty() && c.job == region.bonus_job) ? region.bonus_mult : 1.0;
+}
+
+// 魔法封印對「一般怪物」的傷害加成（每級+1%，滿級10%）：只在冒險/練等場景套用，跟野外首領那組+3~30%分開算
+static double maple_adv_dmg_pct_bonus(const MapleCharacter& c) {
+    return 1.0 + maple_skill_level(c, "mana_resist_ice") * 1.0 / 100.0;
 }
 
 // 等差懲罰：玩家等級低於區域建議等級「5 級以上」，超過的部分每低 1 級傷害 -1%
@@ -882,7 +924,8 @@ static double maple_adv_underlevel_mult(const MapleCharacter& c, const MapleAdvR
 static int maple_adv_hits_to_kill(const MapleCharacter& c, const MapleAdvRegionDef& region) {
     double avg_dmg = std::max(1.0, maple_atk_power_avg(c) * maple_crit_avg_mult(c)
                                   * maple_adv_region_job_mult(c, region)
-                                  * maple_adv_underlevel_mult(c, region));
+                                  * maple_adv_underlevel_mult(c, region)
+                                  * maple_adv_dmg_pct_bonus(c));
     int hits = (int)std::ceil(region.monster.hp / avg_dmg);
     return hits < 1 ? 1 : hits;
 }
@@ -965,6 +1008,10 @@ static const std::vector<std::string> MAPLE_WB_UNDERWORLD_WPN_SET = {
     "wpn_underworld_gsword", "wpn_underworld_staff", "wpn_underworld_claw", "wpn_underworld_dagger",
     "wpn_underworld_xbow", "wpn_underworld_bow",
 };
+static const std::vector<std::string> MAPLE_WB_WPN_CURSE50_SET = {
+    "sc_wpn_staff_curse50", "sc_wpn_claw_curse50", "sc_wpn_dagger_curse50",
+    "sc_wpn_bow_curse50", "sc_wpn_xbow_curse50", "sc_wpn_gsword_curse50",
+};
 
 // 依建議等級由低到高排列，清單顯示順序就是這個陣列的順序
 static const std::vector<MapleWbRegionDef> MAPLE_WB_REGIONS = {
@@ -985,10 +1032,25 @@ static const std::vector<MapleWbRegionDef> MAPLE_WB_REGIONS = {
         {5,   {"sc_wpn_rod60"}},
         {1,   {"wpn_rod_club"}},
     }}},
+    {"turtle_beach", "海龜沙灘", 30, 45, 95, true, {"寄居蟹", 5000, 100, 280, 400, {
+        {50, {"sc_glove_atk100"}},
+        {30, {"sc_glove_sec_curse50"}},
+        {10, {"sc_glove_atk20"}},
+    }}},
+    {"ice_canyon2", "冰雪峽谷II", 40, 120, 180, true, {"雪山巨狼", 8000, 115, 320, 460, {
+        {25, {"sc_shoes20"}},
+        {15, {"sc_shoes_curse50"}},
+        {5,  {"wpn_wolf_fang"}},
+    }}},
     {"witch_forest", "女巫之森", 50, 90, 120, true, {"殭屍猴王", 15000, 450, 1200, 1800, {
         {80, {"sc_glove_sec60"}},
         {20, {"sc_glove_sec20"}},
         {5,  {"wpn_golden_staff"}},
+    }}},
+    {"dead_forest4", "亡者之林IV", 65, 50, 120, true, {"厄運死神", 40000, 500, 1350, 2000, {
+        {30, {"sc_clothes_curse50"}},
+        {20, {"sc_clothes_curse50"}},
+        {10, MAPLE_WB_WPN_CURSE50_SET},
     }}},
     {"cursed_temple", "被詛咒的神殿", 80, 300, 480, true, {"巴洛古", 90000, 2500, 8000, 12000, {
         {100, MAPLE_WB_WPN60_SET_NO_ROD},
@@ -1135,6 +1197,7 @@ static void save_maple_data() {
                 {"adv_atk_skill",     c.adv_atk_skill},
                 {"adv_region",        c.adv_region},
                 {"adv_started_at",    (int64_t)c.adv_started_at},
+                {"adv_last_bracket",  c.adv_last_bracket},
                 {"wb_region",         c.wb_region},
                 {"wb_started_at",     (int64_t)c.wb_started_at},
                 {"wb_required_secs",  c.wb_required_secs},
@@ -1204,6 +1267,7 @@ static void load_maple_data() {
             c.adv_atk_skill     = v.value("adv_atk_skill",     std::string());
             c.adv_region        = v.value("adv_region",        std::string());
             c.adv_started_at    = (time_t)v.value("adv_started_at", (int64_t)0);
+            c.adv_last_bracket  = v.value("adv_last_bracket",  -1);
             c.wb_region         = v.value("wb_region",         std::string());
             c.wb_started_at     = (time_t)v.value("wb_started_at", (int64_t)0);
             c.wb_required_secs  = v.value("wb_required_secs",  (int64_t)0);
@@ -1314,8 +1378,6 @@ static dpp::message make_maple_home_msg(dpp::snowflake uid, const std::string& d
         .set_label("🎒 背包").set_id("maple_bag_" + uid_s + "_scroll").set_style(dpp::cos_secondary));
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏪 商店").set_id("maple_shop_" + uid_s).set_style(dpp::cos_secondary));
-    row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row2);
 
     dpp::component row3; row3.set_type(dpp::cot_action_row);
@@ -1325,6 +1387,10 @@ static dpp::message make_maple_home_msg(dpp::snowflake uid, const std::string& d
         .set_label("🐉 野外首領").set_id("maple_wb_" + uid_s).set_style(dpp::cos_danger));
     row3.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("💥 突襲首領").set_id("maple_ambush_" + uid_s).set_style(dpp::cos_secondary));
+    row3.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏰 公會").set_id("maple_guild_" + uid_s).set_style(dpp::cos_secondary));
+    row3.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row3);
 
     return msg;
@@ -1435,9 +1501,11 @@ static std::string maple_skill_value_text(const MapleSkillDef& sd, int level) {
         if (sd.key == "haste")      return "全體攻擊間隔 -" + std::to_string(v * 0.1) .substr(0,3) + " 秒";
         if (sd.key == "teleport")   return "自身攻擊間隔 -" + std::to_string(v * 0.1).substr(0,3) + " 秒";
         if (sd.key == "charge")     return "攻擊間隔 -" + s + " 秒、休息時間 -" + s + "%";
-        if (sd.key == "angel_blessing") return "攻擊力 +" + s;
+        if (sd.key == "angel_blessing") return "攻擊力 +" + s + "、爆擊率 +" + std::to_string(level * 5) + "%";
+        if (sd.key == "mana_resist_ice") return "野外首領傷害 +" + s + "%、一般怪物傷害 +" + std::to_string(level) + "%";
         if (sd.key == "mana_boost_ice")
-            return "攻擊力 +" + s + (level >= sd.max_level ? "、✅ 已解鎖：永久快一階攻速" : "");
+            return "攻擊力 +" + s + "、魔力爪技能係數 +" + std::to_string(level * 10) + "%"
+                 + (level >= sd.max_level ? "、✅ 已解鎖：永久快一階攻速" : "");
         if (sd.key == "octopus_turret") return "額外攻擊力 +武器攻擊力 ×" + s + "%";
         if (sd.key == "energy_boost")
             return "攻擊力 +" + s + "、休息時間 -" + s + " 秒、攻擊間隔 -" + std::to_string(v * 0.5).substr(0,3) + " 秒";
@@ -2020,12 +2088,14 @@ static int maple_adv_bracket_of_level(int lvl) {
         if (lvl >= MAPLE_ADV_BRACKETS[i].lo && lvl <= MAPLE_ADV_BRACKETS[i].hi) return (int)i;
     return (int)MAPLE_ADV_BRACKETS.size() - 1;
 }
-// 預設要顯示哪個區間：玩家正在冒險就用那個區域所在的區間，否則第一個
+// 預設要顯示哪個區間：玩家正在冒險就用那個區域所在的區間，否則用上次瀏覽的區間，都沒有才用第一個
 static int maple_adv_default_bracket(const MapleCharacter& c) {
     if (maple_is_adventuring(c)) {
         const MapleAdvRegionDef* r = maple_find_adv_region(c.adv_region);
         if (r) return maple_adv_bracket_of_level(r->suggested_level);
     }
+    if (c.adv_last_bracket >= 0 && c.adv_last_bracket < (int)MAPLE_ADV_BRACKETS.size())
+        return c.adv_last_bracket;
     return 0;
 }
 
@@ -2241,6 +2311,8 @@ static dpp::message make_maple_adv_settle_msg(dpp::snowflake uid, const std::str
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🗺️ 返回冒險").set_id("maple_adv_" + uid_s).set_style(dpp::cos_primary));
     row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🍁 養成").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
 
@@ -2392,6 +2464,24 @@ static dpp::message make_maple_ambush_boss_soon_msg(dpp::snowflake uid) {
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x95, 0x95, 0x95));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
         .set_content("## 🚧 突襲首領\n尚未開放，敬請期待。"));
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
+    return msg;
+}
+
+static dpp::message make_maple_guild_soon_msg(dpp::snowflake uid) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x95, 0x95, 0x95));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 🚧 公會\n尚未開放，敬請期待。"));
     msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
@@ -2901,7 +2991,20 @@ static dpp::message make_maple_eqbuy_confirm_msg(dpp::snowflake uid, const std::
 
 // ─── 背包 ───────────────────────────────────────────────────────────────────
 
-static dpp::message make_maple_bag_msg(dpp::snowflake uid, const std::string& tab) {
+// 卷軸分類：special＝純白系列（restore_slot）、wpn＝武器卷軸（key 開頭 sc_wpn_）、armor＝其餘（防具/耳環/戒指/項鍊）
+static std::string maple_scroll_cat(const MapleScrollDef& s) {
+    if (s.restore_slot) return "special";
+    if (s.key.rfind("sc_wpn_", 0) == 0) return "wpn";
+    return "armor";
+}
+// 裝備分類：wpn＝武器、acc＝飾品（耳環/戒指/項鍊）、armor＝其餘（頭盔/手套/套服/鞋子）
+static std::string maple_item_cat(const std::string& slot) {
+    if (slot == "weapon") return "wpn";
+    if (slot == "earring" || slot == "ring" || slot == "necklace") return "acc";
+    return "armor";
+}
+
+static dpp::message make_maple_bag_msg(dpp::snowflake uid, const std::string& tab, int page = 0, std::string subcat = "") {
     MapleCharacter c = maple_get_or_create(uid);
     std::string uid_s = std::to_string((uint64_t)uid);
     bool scroll_tab = (tab != "other");
@@ -2912,9 +3015,12 @@ static dpp::message make_maple_bag_msg(dpp::snowflake uid, const std::string& ta
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
 
     if (scroll_tab) {
-        std::string content = head + "\n\n**📜 卷軸**\n";
+        if (subcat != "wpn" && subcat != "armor" && subcat != "special") subcat = "wpn";
+        std::string cat_label = subcat == "wpn" ? "武器卷軸" : subcat == "armor" ? "裝備卷軸" : "特殊卷軸";
+        std::string content = head + "\n\n**📜 " + cat_label + "**\n";
         bool any = false;
         for (auto& s : MAPLE_SCROLLS) {
+            if (maple_scroll_cat(s) != subcat) continue;
             int n = c.scrolls.count(s.key) ? c.scrolls.at(s.key) : 0;
             if (n <= 0) continue;
             any = true;
@@ -2923,33 +3029,60 @@ static dpp::message make_maple_bag_msg(dpp::snowflake uid, const std::string& ta
                      + (s.explode_pct > 0 ? "（失敗中 " + std::to_string(s.explode_pct) + "% 機率裝備直接爆炸消失）" : "") + "\n"
                      + "　效果：" + maple_scroll_effect_text(s) + "\n";
         }
-        if (!any) content += "（沒有卷軸）\n";
+        if (!any) content += "（沒有這個分類的卷軸）\n";
         content += "\n-# 可用 `!交易` 指令交換（帶上 ID）";
         container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+
+        dpp::message msg;
+        msg.set_flags(dpp::m_using_components_v2);
+        msg.add_component_v2(container);
+
+        dpp::component tabs; tabs.set_type(dpp::cot_action_row);
+        tabs.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("📜 卷軸").set_id("maple_bag_" + uid_s + "_scroll").set_style(dpp::cos_primary).set_disabled(true));
+        tabs.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("📦 其他").set_id("maple_bag_" + uid_s + "_other").set_style(dpp::cos_secondary));
+        msg.add_component_v2(tabs);
+
+        dpp::component cats; cats.set_type(dpp::cot_action_row);
+        cats.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("武器卷軸").set_id("maple_bagcat_" + uid_s + "_scroll_wpn")
+            .set_style(subcat == "wpn" ? dpp::cos_primary : dpp::cos_secondary).set_disabled(subcat == "wpn"));
+        cats.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("裝備卷軸").set_id("maple_bagcat_" + uid_s + "_scroll_armor")
+            .set_style(subcat == "armor" ? dpp::cos_primary : dpp::cos_secondary).set_disabled(subcat == "armor"));
+        cats.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("特殊卷軸").set_id("maple_bagcat_" + uid_s + "_scroll_special")
+            .set_style(subcat == "special" ? dpp::cos_primary : dpp::cos_secondary).set_disabled(subcat == "special"));
+        msg.add_component_v2(cats);
+
+        dpp::component nav; nav.set_type(dpp::cot_action_row);
+        nav.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component_v2(nav);
+        return msg;
     } else {
+        if (subcat != "wpn" && subcat != "armor" && subcat != "acc") subcat = "wpn";
+        std::string cat_label = subcat == "wpn" ? "武器" : subcat == "armor" ? "裝備" : "飾品";
         container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-            .set_content(head + "\n\n**📦 裝備（未穿在身上）**"));
-        bool any = false;
+            .set_content(head + "\n\n**📦 " + cat_label + "（未穿在身上）**"));
+
+        // 先收集全部項目再分頁顯示，避免裝備/強化實例太多時一次塞爆 Discord 訊息的元件上限（背包打不開）
+        struct BagEntry { std::string text, sell_id; };
+        std::vector<BagEntry> entries;
         for (auto& [k, n] : c.equipment) {
             if (n <= 0) continue;
             const MapleItemDef* it = maple_find_item(k);
-            if (!it) continue;
-            any = true;
+            if (!it || maple_item_cat(it->slot) != subcat) continue;
             int64_t sell = maple_item_sell_price(*it);
             std::string text = "**" + it->name + "**　ID:`" + std::to_string(it->item_id) + "`　×" + std::to_string(n)
                               + "\n　售出單價：🪙" + std::to_string(sell);
-            container.add_component_v2(dpp::component()
-                .set_type(dpp::cot_section)
-                .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
-                .set_accessory(dpp::component().set_type(dpp::cot_button)
-                    .set_label("賣出1個").set_id("maple_sellconfirm_" + uid_s + "_item_" + k)
-                    .set_style(dpp::cos_danger)));
+            entries.push_back({text, "maple_sellconfirm_" + uid_s + "_item_" + k});
         }
         for (auto& e : c.enh_items) {
             if (maple_enh_is_equipped(c, e.id)) continue;
             const MapleItemDef* it = maple_find_item(e.base_key);
-            if (!it) continue;
-            any = true;
+            if (!it || maple_item_cat(it->slot) != subcat) continue;
             int64_t sell = maple_item_sell_price(*it) + maple_enh_extra_sell_value(e);
             std::string text = "**" + it->name + "** ✨+" + std::to_string(e.enh_count) + "　🚫不可交易";
             if (e.add_atk || e.add_primary || e.add_secondary) {
@@ -2960,37 +3093,73 @@ static dpp::message make_maple_bag_msg(dpp::snowflake uid, const std::string& ta
                 text += "）";
             }
             text += "\n　售出單價：🪙" + std::to_string(sell);
-            container.add_component_v2(dpp::component()
-                .set_type(dpp::cot_section)
-                .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
-                .set_accessory(dpp::component().set_type(dpp::cot_button)
-                    .set_label("賣出").set_id("maple_sellconfirm_" + uid_s + "_enh_" + std::to_string(e.id))
-                    .set_style(dpp::cos_danger)));
+            entries.push_back({text, "maple_sellconfirm_" + uid_s + "_enh_" + std::to_string(e.id)});
         }
-        if (!any) container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content("（沒有備用裝備）"));
+
+        const int PAGE_SIZE = 8;
+        int total_pages = std::max(1, (int)((entries.size() + PAGE_SIZE - 1) / PAGE_SIZE));
+        page = std::max(0, std::min(page, total_pages - 1));
+        int start = page * PAGE_SIZE, end = std::min((int)entries.size(), start + PAGE_SIZE);
+
+        if (entries.empty()) {
+            container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content("（沒有這個分類的備用裝備）"));
+        } else {
+            for (int i = start; i < end; i++) {
+                container.add_component_v2(dpp::component()
+                    .set_type(dpp::cot_section)
+                    .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(entries[i].text))
+                    .set_accessory(dpp::component().set_type(dpp::cot_button)
+                        .set_label("賣出").set_id(entries[i].sell_id).set_style(dpp::cos_danger)));
+            }
+            if (total_pages > 1)
+                container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+                    .set_content("-# 第 " + std::to_string(page + 1) + "/" + std::to_string(total_pages) + " 頁"));
+        }
         container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
             .set_content("-# 純裝備可用 `!交易` 交換（帶上 ID）；**點過卷軸的裝備不可交易，只能賣出換瘋幣**"));
+
+        dpp::message msg;
+        msg.set_flags(dpp::m_using_components_v2);
+        msg.add_component_v2(container);
+
+        dpp::component tabs; tabs.set_type(dpp::cot_action_row);
+        tabs.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("📜 卷軸").set_id("maple_bag_" + uid_s + "_scroll")
+            .set_style(dpp::cos_secondary));
+        tabs.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("📦 其他").set_id("maple_bag_" + uid_s + "_other")
+            .set_style(dpp::cos_primary).set_disabled(true));
+        msg.add_component_v2(tabs);
+
+        dpp::component cats; cats.set_type(dpp::cot_action_row);
+        cats.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("武器").set_id("maple_bagcat_" + uid_s + "_other_wpn")
+            .set_style(subcat == "wpn" ? dpp::cos_primary : dpp::cos_secondary).set_disabled(subcat == "wpn"));
+        cats.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("裝備").set_id("maple_bagcat_" + uid_s + "_other_armor")
+            .set_style(subcat == "armor" ? dpp::cos_primary : dpp::cos_secondary).set_disabled(subcat == "armor"));
+        cats.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("飾品").set_id("maple_bagcat_" + uid_s + "_other_acc")
+            .set_style(subcat == "acc" ? dpp::cos_primary : dpp::cos_secondary).set_disabled(subcat == "acc"));
+        msg.add_component_v2(cats);
+
+        if (total_pages > 1) {
+            dpp::component pg; pg.set_type(dpp::cot_action_row);
+            pg.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("◀ 上一頁").set_id("maple_bagpg_" + uid_s + "_" + std::to_string(page - 1) + "_" + subcat)
+                .set_style(dpp::cos_secondary).set_disabled(page <= 0));
+            pg.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("▶ 下一頁").set_id("maple_bagpg_" + uid_s + "_" + std::to_string(page + 1) + "_" + subcat)
+                .set_style(dpp::cos_secondary).set_disabled(page >= total_pages - 1));
+            msg.add_component_v2(pg);
+        }
+
+        dpp::component nav; nav.set_type(dpp::cot_action_row);
+        nav.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component_v2(nav);
+        return msg;
     }
-
-    dpp::message msg;
-    msg.set_flags(dpp::m_using_components_v2);
-    msg.add_component_v2(container);
-
-    dpp::component tabs; tabs.set_type(dpp::cot_action_row);
-    tabs.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("📜 卷軸").set_id("maple_bag_" + uid_s + "_scroll")
-        .set_style(scroll_tab ? dpp::cos_primary : dpp::cos_secondary).set_disabled(scroll_tab));
-    tabs.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("📦 其他").set_id("maple_bag_" + uid_s + "_other")
-        .set_style(!scroll_tab ? dpp::cos_primary : dpp::cos_secondary).set_disabled(!scroll_tab));
-    msg.add_component_v2(tabs);
-
-    dpp::component nav; nav.set_type(dpp::cot_action_row);
-    nav.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component_v2(nav);
-
-    return msg;
 }
 
 // kind=="item"：ref 是道具 key（賣一個純裝備）；kind=="enh"：ref 是強化實例 id（賣掉那一件，整個消失）

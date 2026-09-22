@@ -48,6 +48,14 @@
     }
   },
   "1390285382381338627": {
+    "stock_0050": {
+      "avg_cost": 110,
+      "shares": 500
+    },
+    "stock_purse": {
+      "avg_cost": 880,
+      "shares": 10
+    },
     "stock_tsmc": {
       "avg_cost": 2400,
       "shares": 4
@@ -86,29 +94,25 @@
     }
   },
   "592404587248615458": {
-    "stock_mood": {
-      "avg_cost": 904,
-      "shares": 10
-    },
     "stock_purse": {
       "avg_cost": 965,
       "shares": 50
     }
   },
   "604244623124070423": {
-    "stock_btc": {
-      "avg_cost": 78106,
-      "shares": 2
-    },
     "stock_ntdo": {
       "avg_cost": 8563,
       "shares": 11
+    },
+    "stock_purse": {
+      "avg_cost": 880,
+      "shares": 200
     }
   },
   "651090037102084096": {
     "stock_0050": {
       "avg_cost": 105,
-      "shares": 200
+      "shares": 180
     }
   },
   "843071419671904308": {
@@ -131,6 +135,10 @@
     "stock_mood": {
       "avg_cost": 866,
       "shares": 60
+    },
+    "stock_purse": {
+      "avg_cost": 858,
+      "shares": 20
     },
     "stock_tsmc": {
       "avg_cost": 2380,

@@ -119,6 +119,7 @@ struct SignInSession {
     dpp::timer timer_id = 0;    // 截止時間自動結束 timer handle
     std::map<dpp::snowflake, std::string> signed_in;   // uid -> display_name
     std::map<dpp::snowflake, std::string> not_signed;  // uid -> display_name
+    dpp::snowflake unsigned_role_id = 0;  // 「未簽到人員」身分組 id，0＝尚未建立
 };
 inline SignInSession g_signin;
 
@@ -195,6 +196,7 @@ struct Pet {
     int         enh_atk = 0; // 強化等級 0~10：攻擊力每層 +1%
     int         enh_def = 0; // 強化等級 0~10：防禦力每兩層 +1
     int         enh_hp  = 0; // 強化等級 0~10：生命值每層 +1%
+    int         bonus_hp = 0; // 華瑄的變身密藥：每喝一瓶永久 +1（消耗品，全球限量100瓶）
 };
 
 // ─── Equipment ────────────────────────────────────────────────────────────────
@@ -272,6 +274,7 @@ struct AdventureGame {
     bool    notify_on_finish = false;
     bool    finish_notified  = false;
     bool    star_boost       = false;
+    bool    no_interest      = false; // 出發時寵物是否有「毫無興致」狀態：探索度 -15（整趟固定，中途治好也不變）
 };
 
 // ─── Monster hunt active game ─────────────────────────────────────────────────
@@ -303,6 +306,8 @@ struct MonsterHuntGame {
     bool           battlecry_pending = false;
     int            atk_down_turns    = 0;  // 巨山狂熊觸發時剩餘的怪物ATK削弱回合數
     int            atk_down_pct      = 60; // 巨山狂熊觸發時的削弱%（真名熊王貝奧武夫為75）
+    int            poison_turns      = 0;  // 大蛇丸靈魂寶珠：劇毒debuff剩餘回合數（重新命中會直接覆蓋成5，不疊加）
+    int            poison_dmg        = 0;  // 劇毒debuff每回合傷害（命中當下攻擊力的10%）
     bool           latus_orb_triggered = false;
     bool           underwear_first_atk_used = false; // 觀觀遺失的胖次：本場首次攻擊 +5 ATK 是否已用掉
     int            lifegoddess_uses = 0; // 生命女神的寶珠：單人回血已使用次數（上限3）
@@ -354,6 +359,7 @@ struct MapleCharacter {
     std::string    adv_atk_skill;   // 冒險／戰鬥計算使用的攻擊技能key，空字串＝普通攻擊
     std::string    adv_region;      // 目前冒險中的區域key，空字串＝沒有在冒險
     time_t         adv_started_at = 0;
+    int            adv_last_bracket = -1;  // 上次瀏覽的冒險等級區間頁籤，-1＝從未選過
     std::string    wb_region;         // 目前挑戰中的野外首領區域key，空字串＝沒有在挑戰
     time_t         wb_started_at    = 0;
     int64_t        wb_required_secs = 0; // 出發當下鎖定的預計擊殺秒數（不顯示給玩家，只用來判定何時結算）
@@ -422,6 +428,9 @@ struct RaidGame {
     bool                        speed_extra_pending = false;  // 迅捷：extra turn queued
     bool                        last_boss_aoe       = false;  // 防連續 AOE 保護
     bool                        last_boss_single    = false;  // 單體後禁 AOE+單體
+    int                         poison_turns   = 0;  // 大蛇丸靈魂寶珠：boss 劇毒debuff剩餘回合數（重新命中直接覆蓋成5，不疊加）
+    int                         poison_dmg     = 0;  // 劇毒debuff每回合傷害（命中當下攻擊力的10%）
+    bool                        boss_stunned   = false; // 呀呀撕裂的部分衣角/星輝霓裳：boss 下回合無法行動（不會疊加）
     // battlecry: src player uid -> target player idx
     std::map<dpp::snowflake, int> battlecry_pending;
     // cry target picking: src uid is waiting for target selection
@@ -448,6 +457,8 @@ struct DDHead {
     int chain_cd       = 0;    // 中頭：黑暗鎖鍊冷卻（1回合間隔）
     int rage_turns     = 0;    // 右頭：狂暴剩餘回合
     bool rage_triggered = false; // 右頭：已進入狂暴（只觸發一次）
+    int poison_turns   = 0;    // 大蛇丸靈魂寶珠：這顆頭的劇毒debuff剩餘回合數（重新命中直接覆蓋成5，不疊加）
+    int poison_dmg     = 0;    // 劇毒debuff每回合傷害（命中當下攻擊力的10%）
 };
 
 struct DDPlayer {
@@ -497,6 +508,7 @@ struct DDGame {
     bool                      speed_extra_pending = false;
     int                       bomb_cooldown  = 4;    // 中頭投彈冷卻（4~5回合）
     int                       selected_head  = -1;   // 玩家選擇的目標頭部
+    bool                      boss_stunned   = false; // 呀呀撕裂的部分衣角/星輝霓裳：boss 下回合整輪無法行動（不會疊加）
     std::string               log_line;
     time_t                    started_at     = 0;
     dpp::timer                timer_id       = 0;
@@ -735,6 +747,9 @@ inline std::map<dpp::snowflake, RaidRoom>           raid_rooms;
 inline int g_dogbook_week      = 0;
 inline int g_dogbook_uses_left = 0;
 
+// 華瑄的變身密藥：全球歷史累計已掉落瓶數（含已喝掉的），上限100瓶，喝掉不會釋出名額，用 data_mutex 保護
+inline int g_tj_potion_granted = 0;
+
 // 寵物聖物加成（需持有 data_mutex 呼叫）
 inline int col_pet_atk_bonus(dpp::snowflake uid) {
     auto it = inventory_data.find(uid); if (it == inventory_data.end()) return 0;
@@ -746,18 +761,37 @@ inline int col_pet_def_bonus(dpp::snowflake uid) {
     auto jt = it->second.find("col_penguin_relic");
     return (jt != it->second.end() && jt->second > 0) ? 1 : 0;
 }
-inline int col_pet_hp_bonus(dpp::snowflake uid) {
-    auto it = inventory_data.find(uid); if (it == inventory_data.end()) return 0;
-    auto jt = it->second.find("col_koala_relic");
-    return (jt != it->second.end() && jt->second > 0) ? 10 : 0;
-}
-
-// 收藏套組完成判定（需持有 data_mutex 呼叫）
+// 收藏套組完成判定（需持有 data_mutex 呼叫）——搬到 col_pet_hp_bonus 前面，因為扭曲叢林初級套組加成要在那裡用到
 inline bool col_all_owned(dpp::snowflake uid, std::initializer_list<const char*> keys) {
     auto it = inventory_data.find(uid); if (it == inventory_data.end()) return false;
     for (auto k : keys) { auto jt = it->second.find(k); if (jt == it->second.end() || jt->second <= 0) return false; }
     return true;
 }
+// 扭曲叢林 初級套組（木妖系列7件）：寵物生命值 +5（固定值，跟koala聖物一樣直接疊加）
+inline bool col_set_twisted_basic(dpp::snowflake uid) {
+    return col_all_owned(uid, {"col_tj_jade_axe","col_tj_obsidian_axe","col_tj_golden_axe","col_tj_bronze_axe",
+                                "col_tj_cupid_bow","col_tj_brown_rod","col_tj_lava_flame"});
+}
+// 扭曲叢林 中級套組（哈維系列7件）：寵物防禦力的「強化」效果翻倍
+inline bool col_set_twisted_mid(dpp::snowflake uid) {
+    return col_all_owned(uid, {"col_tj_rose_cape","col_tj_crystal_armor","col_tj_python_gauntlet","col_tj_gold_crown",
+                                "col_tj_sunset_shackle","col_tj_soil_shield","col_tj_black_cape"});
+}
+// 扭曲叢林 高級套組（半人馬+食物系列6件）：寵物攻擊力的「強化」效果翻倍
+inline bool col_set_twisted_adv(dpp::snowflake uid) {
+    return col_all_owned(uid, {"col_tj_grilled_meat","col_tj_fried_worm","col_tj_moss_mushroom",
+                                "col_tj_ice_blade","col_tj_flame_spear","col_tj_dark_sword"});
+}
+inline int col_pet_hp_bonus(dpp::snowflake uid) {
+    auto it = inventory_data.find(uid); if (it == inventory_data.end()) return 0;
+    int bonus = 0;
+    auto jt = it->second.find("col_koala_relic");
+    if (jt != it->second.end() && jt->second > 0) bonus += 10;
+    if (col_set_twisted_basic(uid)) bonus += 5;
+    bonus += pet_data.count(uid) ? pet_data.at(uid).bonus_hp : 0; // 華瑄的變身密藥：每喝一瓶永久+1
+    return bonus;
+}
+
 // 初級：寵物攻擊力 ×1.01
 inline bool col_set_mushroom_basic(dpp::snowflake uid) { return col_all_owned(uid, {"col_ms_handkerchief","col_gm_beret","col_sm_spine"}); }
 // 初級：寵物生命值 ×1.01
@@ -804,12 +838,15 @@ inline void apply_pet_basic_set_bonus(dpp::snowflake uid, const Pet& pet, int& a
     if (col_set_mushroom_basic(uid)) atk_mult += 0.01;
     if (col_set_water_basic(uid))    hp_mult  += 0.01;
     if (col_set_ghost_basic(uid))    def_mult += 0.02;
-    atk_mult += pet.enh_atk * 0.01;
+    // 扭曲叢林高級套組：強化攻擊效果翻倍／中級套組：強化防禦效果翻倍
+    int enh_atk_eff = pet.enh_atk * (col_set_twisted_adv(uid) ? 2 : 1);
+    int enh_def_eff = pet.enh_def * (col_set_twisted_mid(uid) ? 2 : 1);
+    atk_mult += enh_atk_eff * 0.01;
     hp_mult  += pet.enh_hp  * 0.01;
     if (atk_mult > 0) atk = (int)std::ceil(atk * (1.0 + atk_mult));
     if (hp_mult  > 0) { hp = (int)std::ceil(hp * (1.0 + hp_mult)); max_hp = (int)std::ceil(max_hp * (1.0 + hp_mult)); }
     if (def_mult > 0) def = (int)std::ceil(def * (1.0 + def_mult));
-    def += pet.enh_def / 2;
+    def += enh_def_eff / 2;
 }
 
 // 背包分頁的返回按鈕（V2 訊息用）

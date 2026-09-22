@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <numeric>
 #include <fstream>
+#include <functional>
+#include <deque>
 #include <nlohmann/json.hpp>
 
 // ─── Permission: admin / 副會長 / 會長 ────────────────────────────────────────
@@ -348,6 +350,7 @@ static void save_signin() {
         j["channel_id"] = (uint64_t)g_signin.channel_id;
         j["message_id"] = (uint64_t)g_signin.message_id;
         j["deadline"]   = (int64_t)g_signin.deadline;
+        j["unsigned_role_id"] = (uint64_t)g_signin.unsigned_role_id;
         nlohmann::json si = nlohmann::json::object();
         for (auto& [uid, name] : g_signin.signed_in)
             si[std::to_string((uint64_t)uid)] = name;
@@ -373,6 +376,7 @@ static void load_signin() {
         g_signin.channel_id = dpp::snowflake(j.value("channel_id", (uint64_t)0));
         g_signin.message_id = dpp::snowflake(j.value("message_id", (uint64_t)0));
         g_signin.deadline   = (time_t)j.value("deadline", (int64_t)0);
+        g_signin.unsigned_role_id = dpp::snowflake(j.value("unsigned_role_id", (uint64_t)0));
         if (j.contains("signed_in"))
             for (auto& [k, v] : j["signed_in"].items())
                 g_signin.signed_in[dpp::snowflake(std::stoull(k))] = v.get<std::string>();
@@ -380,4 +384,69 @@ static void load_signin() {
             for (auto& [k, v] : j["not_signed"].items())
                 g_signin.not_signed[dpp::snowflake(std::stoull(k))] = v.get<std::string>();
     } catch (...) {}
+}
+
+// ─── 「未簽到人員」身分組 ─────────────────────────────────────────────────────
+// 角色 id 建立一次後存進 g_signin.unsigned_role_id（存檔），之後直接重複使用，不用每次都搜尋。
+
+static void ensure_unsigned_role(dpp::cluster& bot, dpp::snowflake gid, std::function<void(dpp::snowflake)> then) {
+    dpp::snowflake existing;
+    { std::lock_guard<std::mutex> lk(data_mutex); existing = g_signin.unsigned_role_id; }
+    if (existing != 0) { then(existing); return; }
+    dpp::role r;
+    r.guild_id = gid;
+    r.name     = "未簽到人員";
+    r.colour   = 0xE74C3C;
+    bot.role_create(r, [then](const dpp::confirmation_callback_t& cb) {
+        if (cb.is_error()) {
+            auto err = cb.get_error();
+            std::ofstream lf("cmd_register_log.txt", std::ios::app);
+            lf << "[" << time(nullptr) << "] role_create(未簽到人員) 失敗！HTTP "
+               << cb.http_info.status << "，code=" << err.code
+               << "，message=" << err.message
+               << "，human_readable=" << err.human_readable << "\n";
+            then(0); return;
+        }
+        dpp::snowflake rid = std::get<dpp::role>(cb.value).id;
+        { std::lock_guard<std::mutex> lk(data_mutex); g_signin.unsigned_role_id = rid; }
+        save_signin();
+        then(rid);
+    });
+}
+
+// 把「未簽到人員」身分組發給目前 not_signed 名單裡的每一個人（已經有的話 Discord 端會自動忽略）。
+// 用 timer 一秒發一個（比之前的每秒3個更保守，因為那個速度實測還是會被 Discord rate limit 擋掉），
+// 被限速（429）的話排回佇列尾端稍後重試，其他錯誤（例如權限不足）記一次log就跳過、不重試。
+// done(count)：count >= 0 為排入處理的人數；count == -1 代表身分組建立/取得失敗（例如機器人缺少「管理身分組」權限）。
+static void grant_unsigned_role_to_all(dpp::cluster& bot, dpp::snowflake gid, std::function<void(int)> done = nullptr) {
+    ensure_unsigned_role(bot, gid, [&bot, gid, done](dpp::snowflake rid) {
+        if (rid == 0) { if (done) done(-1); return; }
+        auto queue = std::make_shared<std::deque<dpp::snowflake>>();
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          for (auto& [uid, name] : g_signin.not_signed) queue->push_back(uid); }
+        int total = (int)queue->size();
+        if (total > 0) {
+            bot.start_timer([&bot, gid, rid, queue](dpp::timer t) {
+                if (queue->empty()) { bot.stop_timer(t); return; }
+                dpp::snowflake uid = queue->front(); queue->pop_front();
+                bot.guild_member_add_role(gid, uid, rid, [queue, uid](const dpp::confirmation_callback_t& cb) {
+                    if (!cb.is_error()) return;
+                    if (cb.http_info.status == 429) { queue->push_back(uid); return; } // 被限速，排回佇列尾端稍後重試
+                    auto err = cb.get_error();
+                    std::ofstream lf("cmd_register_log.txt", std::ios::app);
+                    lf << "[" << time(nullptr) << "] guild_member_add_role 失敗！uid=" << (uint64_t)uid
+                       << "，HTTP " << cb.http_info.status << "，message=" << err.message
+                       << "，human_readable=" << err.human_readable << "\n";
+                });
+            }, 1);
+        }
+        if (done) done(total);
+    });
+}
+
+// 單一玩家簽到成功時拿掉「未簽到人員」身分組。
+static void remove_unsigned_role(dpp::cluster& bot, dpp::snowflake gid, dpp::snowflake uid) {
+    dpp::snowflake rid;
+    { std::lock_guard<std::mutex> lk(data_mutex); rid = g_signin.unsigned_role_id; }
+    if (rid != 0) bot.guild_member_remove_role(gid, uid, rid);
 }

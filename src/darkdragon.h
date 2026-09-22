@@ -404,6 +404,24 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         log = build_atk_log("⚔️ **" + cp.display_name + "** 攻擊 **" + h.name + "**", hits) + vk_log;
     }
 
+    // 大蛇丸靈魂寶珠：攻擊命中時給這顆頭劇毒debuff（10%自身攻擊力，持續5回合，重新命中直接覆蓋不疊加）
+    if (h.alive && cp.orb_key == "EQ_K_SNAKE" && atk_dmg > 0) {
+        h.poison_turns = 5;
+        h.poison_dmg = std::max(1, (int)(eff_atk * 0.10));
+        log += " 🐍（劇毒附著！）";
+    }
+    // 呀呀撕裂的部分衣角／呀呀的星輝霓裳：攻擊時機率讓 boss 下回合全部無法行動（不會疊加）
+    if (h.alive && !g.boss_stunned) {
+        auto wi2 = inventory_data.find(cp.uid);
+        int yaya_broken = (wi2 != inventory_data.end() && wi2->second.count("col_yaya_torn_cloth")) ? wi2->second.at("col_yaya_torn_cloth") : 0;
+        int yaya_full   = (wi2 != inventory_data.end() && wi2->second.count("col_yaya_starlight_dress")) ? wi2->second.at("col_yaya_starlight_dress") : 0;
+        int yaya_permille = yaya_broken * 5 + yaya_full * 30;
+        if (yaya_permille > 0 && dd_rand(1, 1000) <= yaya_permille) {
+            g.boss_stunned = true;
+            log += "\n🌸 **香噴噴的呀呀衣角發威！** 暗黑龍王下回合無法行動！";
+        }
+    }
+
     if (h.hp <= 0) {
         h.hp = 0; h.alive = false;
         log += "\n💥 **" + h.name + "** 被擊倒！";
@@ -452,6 +470,20 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
 
 static std::string dd_do_boss_turn(DDGame& g) {
     std::string log;
+
+    // 大蛇丸靈魂寶珠：boss 回合開始，每顆還活著又中毒的頭先跳劇毒傷害
+    for (auto& hd : g.heads) {
+        if (!hd.alive || hd.poison_turns <= 0) continue;
+        hd.hp -= hd.poison_dmg;
+        hd.poison_turns--;
+        log += "🐍 劇毒發作，對 **" + hd.name + "** 造成 **" + std::to_string(hd.poison_dmg) + "** 傷害！\n";
+        if (hd.hp <= 0) { hd.hp = 0; hd.alive = false; log += "💥 **" + hd.name + "** 被擊倒！\n"; }
+    }
+    // 呀呀撕裂的部分衣角／星輝霓裳：boss 被封鎖，這回合整輪無法行動（不會疊加，用完立刻清掉）
+    if (g.boss_stunned) {
+        g.boss_stunned = false;
+        return log + "🌸 暗黑龍王香噴噴地愣住了，這回合無法行動！";
+    }
 
     // BB博物館限定：Sian的隱形斗篷 — 每位持有者各自 1% 機率完全閃避怪物攻擊
     // 呼叫前必須持有 data_mutex（dd_do_boss_turn 只會在呼叫端已鎖的情況下被呼叫，自己再鎖會死鎖）

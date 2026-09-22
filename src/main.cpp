@@ -4,6 +4,7 @@
 #include <unistd.h>  // getpid()：非 Windows 平台的對應函式
 #define _getpid getpid
 #endif
+#include <fstream> // 記錄 slash command 註冊結果用（guild_bulk_command_create 本身沒有掛 callback 會靜默失敗）
 #include "team.h"
 #include "giveaway.h"
 #include "bjstats.h"
@@ -665,16 +666,20 @@ int main(int argc, char* argv[]) {
     load_scratch_games();
     load_euroulette_games();
     load_euroulette_multi_games();
+    fprintf(stderr, "[STARTUP] before load_maple_all_data\n"); fflush(stderr);
     load_maple_all_data();
+    fprintf(stderr, "[STARTUP] after load_maple_all_data\n"); fflush(stderr);
     load_stock_market();
     load_stock_holdings();
     load_announcement();
     load_signin();
     load_settings();
+    fprintf(stderr, "[STARTUP] all loads complete\n"); fflush(stderr);
 
     dpp::cluster bot(cfg.token, dpp::i_default_intents | dpp::i_message_content);
     g_bot = &bot;
     bot.on_log(dpp::utility::cout_logger());
+    fprintf(stderr, "[STARTUP] cluster constructed, entering handler setup\n"); fflush(stderr);
 
     // ── 訊息指令 ──────────────────────────────────────────────────────────────
     bot.on_message_create([&bot](const dpp::message_create_t& ev) {
@@ -1082,6 +1087,7 @@ int main(int argc, char* argv[]) {
                     }
                     total = (int)g_signin.not_signed.size();
                 }
+                grant_unsigned_role_to_all(bot, gid);
                 dpp::message msg = make_si_start_msg(total);
                 msg.channel_id = ch;
                 bot.message_create(msg, [&bot, deadline](const dpp::confirmation_callback_t& cb) {
@@ -1190,8 +1196,13 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 save_signin();
-                bot.message_create(dpp::message(ch,
-                    "✅ 已用目前伺服器成員名單重新比對，補回 **" + std::to_string(added) + "** 位未簽到成員。"));
+                grant_unsigned_role_to_all(bot, gid, [&bot, ch, added](int granted) {
+                    std::string note = granted < 0
+                        ? "\n⚠️ 「未簽到人員」身分組建立/發放失敗，請確認機器人有「管理身分組」權限。"
+                        : "，並補發「未簽到人員」身分組給 " + std::to_string(granted) + " 人。";
+                    bot.message_create(dpp::message(ch,
+                        "✅ 已用目前伺服器成員名單重新比對，補回 **" + std::to_string(added) + "** 位未簽到成員" + note));
+                });
             });
         }
         // ── 骰子/射/火箭/卷軸/刮刮樂/猜數字 → handlers_games.cpp ───────────
@@ -1802,7 +1813,7 @@ int main(int argc, char* argv[]) {
             std::string display_name;
             bool was_unsigned = false;
             bool session_still_active = false;
-            dpp::snowflake si_ch = 0, si_mid = 0;
+            dpp::snowflake si_ch = 0, si_mid = 0, si_gid = 0;
             dpp::message updated_main;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
@@ -1821,7 +1832,9 @@ int main(int argc, char* argv[]) {
                 }
                 si_ch  = g_signin.channel_id;
                 si_mid = g_signin.message_id;
+                si_gid = g_signin.guild_id;
             }
+            if (was_unsigned) remove_unsigned_role(bot, si_gid, uid);
             if (!was_unsigned) {
                 std::string msg;
                 if (!session_still_active)
@@ -2301,16 +2314,18 @@ int main(int argc, char* argv[]) {
                 dpp::message("✨ 神名解放成功！**" + ai->base_name + "** 解放為 **" + ai->true_name + "** ×1！\n"
                              "前往 `!裝備` → 靈魂寶珠欄位裝備它。").set_flags(dpp::m_ephemeral));
         }
-        else if (cid.rfind("craft_bb_wig_", 0) == 0 || cid.rfind("craft_bb_undies_", 0) == 0) {
+        else if (cid.rfind("craft_bb_wig_", 0) == 0 || cid.rfind("craft_bb_undies_", 0) == 0 || cid.rfind("craft_yaya_", 0) == 0) {
             bool is_wig = cid.rfind("craft_bb_wig_", 0) == 0;
-            dpp::snowflake bu(std::stoull(cid.substr(is_wig ? 13 : 16)));
+            bool is_undies = cid.rfind("craft_bb_undies_", 0) == 0;
+            size_t prefix_len = is_wig ? 13 : is_undies ? 16 : 11;
+            dpp::snowflake bu(std::stoull(cid.substr(prefix_len)));
             if (uid != bu) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 這不是你的視窗！").set_flags(dpp::m_ephemeral)); return;
             }
-            std::string broken_key = is_wig ? "col_bb_wig_broken" : "col_bb_undies_broken";
-            std::string full_key   = is_wig ? "col_bb_wig_full"   : "col_bb_undies_full";
-            std::string full_name  = is_wig ? "Zoey散發氣味的秀髮" : "皮包遺失的粉紅內衣";
+            std::string broken_key = is_wig ? "col_bb_wig_broken" : is_undies ? "col_bb_undies_broken" : "col_yaya_torn_cloth";
+            std::string full_key   = is_wig ? "col_bb_wig_full"   : is_undies ? "col_bb_undies_full"   : "col_yaya_starlight_dress";
+            std::string full_name  = is_wig ? "Zoey散發氣味的秀髮" : is_undies ? "皮包遺失的粉紅內衣" : "呀呀的星輝霓裳";
             bool ok = false;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
@@ -3576,6 +3591,7 @@ int main(int argc, char* argv[]) {
                     }
                     total = (int)g_signin.not_signed.size();
                 }
+                grant_unsigned_role_to_all(bot, gid);
                 dpp::message msg = make_si_start_msg(total);
                 msg.channel_id = ch;
                 bot.message_create(msg, [&bot, deadline](const dpp::confirmation_callback_t& cb) {
@@ -3686,8 +3702,13 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 save_signin();
-                ev.edit_original_response(dpp::message(
-                    "✅ 已用目前伺服器成員名單重新比對，補回 **" + std::to_string(added) + "** 位未簽到成員。"));
+                grant_unsigned_role_to_all(bot, gid, [ev, added](int granted) {
+                    std::string note = granted < 0
+                        ? "\n⚠️ 「未簽到人員」身分組建立/發放失敗，請確認機器人有「管理身分組」權限。"
+                        : "，並補發「未簽到人員」身分組給 " + std::to_string(granted) + " 人。";
+                    ev.edit_original_response(dpp::message(
+                        "✅ 已用目前伺服器成員名單重新比對，補回 **" + std::to_string(added) + "** 位未簽到成員" + note));
+                });
             });
         }
         else if (cmd_name == "幫助" || cmd_name == "help") {
@@ -4163,6 +4184,7 @@ int main(int argc, char* argv[]) {
     // ── 伺服器連線：抓 emoji 名稱 + 即時註冊 guild slash 指令 ────────────────
     bot.on_guild_create([&bot](const dpp::guild_create_t& ev) {
         dpp::snowflake gid = ev.created.id;
+        fprintf(stderr, "[STARTUP] on_guild_create fired, gid=%llu\n", (unsigned long long)gid); fflush(stderr);
 
         // 抓 emoji（try-catch 防止型別不符崩潰）
         bot.guild_emojis_get(gid, [](const dpp::confirmation_callback_t& cb) {
@@ -4180,32 +4202,15 @@ int main(int argc, char* argv[]) {
 
         // 用 bulk_create 一次取代所有 guild commands（自動移除舊指令如 /狀態）
         if (dpp::run_once<struct register_guild_cmds>()) {
+            fprintf(stderr, "[STARTUP] entering register_guild_cmds run_once block\n"); fflush(stderr);
             dpp::slashcommand bj("21", "用籌碼玩 21 點", bot.me.id);
             bj.add_option(dpp::command_option(dpp::co_string, "籌碼", "下注籌碼量（數字 或 ALL）", true));
-
-            dpp::slashcommand draw("抽獎", "開始抽獎（需要管理員或副會長）", bot.me.id);
-            draw.add_option(dpp::command_option(dpp::co_string,  "時間",      "抽獎時長，例: 5h 30m", true))
-                .add_option(dpp::command_option(dpp::co_integer, "獲獎人數",  "中獎人數",             true))
-                .add_option(dpp::command_option(dpp::co_string,  "獎品名稱",  "獎品名稱",             true))
-                .add_option(dpp::command_option(dpp::co_channel, "抽獎頻道",  "在哪個頻道發起抽獎",   true))
-                .add_option(dpp::command_option(dpp::co_role,    "限制身分組","限制特定身分組才能參加",false))
-                .add_option(dpp::command_option(dpp::co_user,    "提供者",    "獎品提供者",           false))
-                .add_option(dpp::command_option(dpp::co_user,    "提及",      "特別提及的對象",        false))
-                .add_option(dpp::command_option(dpp::co_string,  "備註",      "備註說明",             false))
-                .add_option(dpp::command_option(dpp::co_integer, "報名費",    "參加需花費的籌碼數（0為免費）", false));
 
             dpp::slashcommand warn_cmd("警告", "警告成員並記錄次數", bot.me.id);
             warn_cmd.add_option(dpp::command_option(dpp::co_user,   "對象", "要警告的成員",       true))
                     .add_option(dpp::command_option(dpp::co_string, "原因", "警告原因（可省略）", false));
 
-            dpp::slashcommand announce_cmd("公告", "查看／設定大廳最新更新（設定限管理員/副會長）", bot.me.id);
-            announce_cmd.add_option(dpp::command_option(dpp::co_string, "內容", "留空＝查看；填寫＝設定新公告（限管理員/副會長）", false));
-
-            dpp::slashcommand claimjail_cmd("小黑屋", "查看／解除領取驗證的鎖定（限管理員）", bot.me.id);
-
-            dpp::slashcommand announce_en("announcement", "View or set the lobby announcement (admin/officer to set)", bot.me.id);
-            announce_en.add_option(dpp::command_option(dpp::co_string, "內容", "Leave empty to view; fill in to set (admin/officer only)", false));
-
+            // 抽獎/公告/小黑屋不註冊 slash（低頻或管理員專用，保留 !/！ 訊息指令），見上方註記
             dpp::slashcommand lucky("幸運頻道", "隨機抽出幸運頻道號碼", bot.me.id);
             lucky.add_option(dpp::command_option(dpp::co_integer, "最大頻道數", "頻道總數（抽 1 到此數）", true));
 
@@ -4221,17 +4226,6 @@ int main(int argc, char* argv[]) {
 
             dpp::slashcommand bj_en("blackjack", "Play 21/Blackjack with chips", bot.me.id);
             bj_en.add_option(dpp::command_option(dpp::co_string, "籌碼", "Bet amount (number or ALL)", true));
-
-            dpp::slashcommand draw_en("giveaway", "Start a giveaway (admin/officer only)", bot.me.id);
-            draw_en.add_option(dpp::command_option(dpp::co_string,  "時間",      "Duration, e.g. 5h 30m",     true))
-                   .add_option(dpp::command_option(dpp::co_integer, "獲獎人數",  "Number of winners",          true))
-                   .add_option(dpp::command_option(dpp::co_string,  "獎品名稱",  "Prize name",                 true))
-                   .add_option(dpp::command_option(dpp::co_channel, "抽獎頻道",  "Channel to post giveaway",   true))
-                   .add_option(dpp::command_option(dpp::co_role,    "限制身分組","Restrict to a role",         false))
-                   .add_option(dpp::command_option(dpp::co_user,    "提供者",    "Prize provider",             false))
-                   .add_option(dpp::command_option(dpp::co_user,    "提及",      "Mention target",             false))
-                   .add_option(dpp::command_option(dpp::co_string,  "備註",      "Extra notes",                false))
-                   .add_option(dpp::command_option(dpp::co_integer, "報名費",    "Entry fee in chips (0=free)",false));
 
             dpp::slashcommand shoot_cmd("射", "射龍門 — 猜中間牌贏籌碼", bot.me.id);
             shoot_cmd.add_option(dpp::command_option(dpp::co_string, "籌碼", "下柱碼數（數字 或 ALL）", true));
@@ -4315,22 +4309,20 @@ int main(int argc, char* argv[]) {
             dpp::slashcommand rps_en("janken", "Open a 2–5 player rock-paper-scissors room", bot.me.id);
             rps_en.add_option(dpp::command_option(dpp::co_integer, "籌碼", "Bet amount", true));
 
+            fprintf(stderr, "[STARTUP] about to call guild_bulk_command_create\n"); fflush(stderr);
             bot.guild_bulk_command_create({
                 dpp::slashcommand("王團報名",  "王團報名",                      bot.me.id),
-                dpp::slashcommand("王團紀錄",  "查看王團報名紀錄",              bot.me.id),
                 dpp::slashcommand("幫助",      "查看所有指令說明",              bot.me.id),
                 dpp::slashcommand("領取",      "每整點領取 500 碼",             bot.me.id),
                 dpp::slashcommand("每週領取",  "每週二可領取 2000 碼",          bot.me.id),
                 dpp::slashcommand("錢包",      "查看籌碼量與21點統計",          bot.me.id),
                 dpp::slashcommand("富豪榜",    "查看全伺服器籌碼排行榜",        bot.me.id),
                 dpp::slashcommand("商店",      "瀏覽並購買道具",                bot.me.id),
-                dpp::slashcommand("記帳",      "查看購買記帳本（管理員）",      bot.me.id),
-                // ledger / signin English aliases removed to stay under 100 command limit
-                dpp::slashcommand("警告榜單",  "查看警告次數排行榜",            bot.me.id),
+                // 記帳/警告榜單/小黑屋/寵物圖鑑/裝備圖鑑/道具圖鑑/規則類/抽獎/公告/王團紀錄 一律不註冊 slash，
+                // 保留 !/！ 訊息指令即可（低頻或管理員專用，Discord 每伺服器 slash 指令上限 100 個）
                 dpp::slashcommand("大廳",      "進入大廳（寵物/背包/裝備/商店）",bot.me.id),
                 dpp::slashcommand("寵物",      "查看你的寵物狀態",              bot.me.id),
                 dpp::slashcommand("背包",      "查看背包道具，點選使用",         bot.me.id),
-                dpp::slashcommand("寵物圖鑑",  "查看所有寵物進化路線",          bot.me.id),
                 dpp::slashcommand("虧損榜",    "查看全伺服器虧損排行榜",        bot.me.id),
                 dpp::slashcommand("狼人殺",    "開始狼人殺遊戲（需要9名玩家）", bot.me.id),
                 dpp::slashcommand("銀行",      "存款/借款/還款，查看利息",      bot.me.id),
@@ -4345,34 +4337,21 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("lobby",     "Open lobby (pet/bag/equip/shop)",bot.me.id),
                 dpp::slashcommand("pet",       "View your pet status",          bot.me.id),
                 dpp::slashcommand("bag",       "View backpack and use items",   bot.me.id),
-                dpp::slashcommand("petdex",    "View pet evolution chart",      bot.me.id),
-                dpp::slashcommand("warnboard", "View warning leaderboard",      bot.me.id),
                 dpp::slashcommand("werewolf",  "Start a werewolf game",         bot.me.id),
                 dpp::slashcommand("一夜狼人",  "開始一夜終極狼人遊戲",            bot.me.id),
                 dpp::slashcommand("誰是臥底",  "開始誰是臥底遊戲",                bot.me.id),
                 dpp::slashcommand("bank",      "Deposit/borrow/repay chips",    bot.me.id),
                 dpp::slashcommand("raid",      "Sign up for raid",              bot.me.id),
-                dpp::slashcommand("raidlog",   "View raid sign-up records",     bot.me.id),
                 dpp::slashcommand("合成",      "查看並合成寶珠（需要碎片×10）", bot.me.id),
                 dpp::slashcommand("craft",     "Craft orbs from shards (×10)",  bot.me.id),
                 dpp::slashcommand("怪物狩獵",  "開始怪物狩獵",                  bot.me.id),
                 dpp::slashcommand("hunt",      "Start monster hunt",             bot.me.id),
                 dpp::slashcommand("養成",      "開啟瘋子谷世界養成系統",          bot.me.id),
                 dpp::slashcommand("growth",    "Open Maple Valley growth system",bot.me.id),
-                dpp::slashcommand("狩獵規則",  "查看怪物狩獵規則說明",          bot.me.id),
-                dpp::slashcommand("huntrules", "View monster hunt rules",        bot.me.id),
                 dpp::slashcommand("裝備",      "查看並管理裝備",                 bot.me.id),
                 dpp::slashcommand("equip",     "View and manage equipment",      bot.me.id),
-                dpp::slashcommand("裝備圖鑑",  "查看所有裝備列表",               bot.me.id),
-                dpp::slashcommand("equipdex",  "View equipment catalog",         bot.me.id),
-                dpp::slashcommand("道具圖鑑",  "查看所有道具列表",               bot.me.id),
-                dpp::slashcommand("itemdex",   "View item catalog",              bot.me.id),
                 dpp::slashcommand("轉蛋",      "開啟轉蛋（抽裝備）",             bot.me.id),
                 dpp::slashcommand("gacha",     "Open gacha (draw equipment)",    bot.me.id),
-                dpp::slashcommand("一夜狼人規則", "查看一夜終極狼人遊戲規則",    bot.me.id),
-                dpp::slashcommand("onwrules",  "View One Night Werewolf rules",  bot.me.id),
-                dpp::slashcommand("狼人殺規則", "查看狼人殺遊戲規則",            bot.me.id),
-                dpp::slashcommand("wwrules",   "View Werewolf game rules",       bot.me.id),
                 dpp::slashcommand("狼人殺榜單", "查看狼人殺勝率排行",            bot.me.id),
                 dpp::slashcommand("wwboard",   "View Werewolf leaderboard",      bot.me.id),
                 dpp::slashcommand("收藏",      "查看收藏",                        bot.me.id),
@@ -4389,16 +4368,14 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("undercover","Start Undercover (Who is spy?)", bot.me.id),
                 dpp::slashcommand("猜數字",    "猜四位不重複數字（1A2B）",       bot.me.id),
                 dpp::slashcommand("guess",     "Guess the 4-digit number (1A2B)",bot.me.id),
-                bj, draw, warn_cmd, lucky, transfer, dice_cmd, shoot_cmd, shoot_en,
+                bj, warn_cmd, lucky, transfer, dice_cmd, shoot_cmd, shoot_en,
                 rocket_cmd, rocket_en, scratch_cmd, scratch_en,
                 euroulette_cmd, euroulette_en,
                 warn_en, lucky_en, transfer_en, trade_cmd, trade_en,
                 scroll_cmd, scroll_en,
-                dice_en, bj_en, draw_en,
+                dice_en, bj_en,
                 roulette_cmd, roulette_en,
                 rps_cmd, rps_en,
-                announce_cmd, announce_en,
-                claimjail_cmd,
                 [&]() {
                     dpp::slashcommand c("簽到", "開始全體簽到（副會長/會長/管理員）", bot.me.id);
                     c.add_option(dpp::command_option(dpp::co_string, "截止時間", "例：22:30、30m、1h（選填）", false));
@@ -4407,15 +4384,31 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("簽到名單",  "查看簽到名單（副會長/會長/管理員）", bot.me.id),
                 dpp::slashcommand("結束簽到",  "強制結束目前的簽到（副會長/會長/管理員）", bot.me.id),
                 dpp::slashcommand("簽到重整",  "用目前伺服器成員補回誤刪的未簽到名單（副會長/會長/管理員）", bot.me.id),
-            }, gid);
+            }, gid, [](const dpp::confirmation_callback_t& cb) {
+                std::ofstream lf("cmd_register_log.txt", std::ios::app);
+                if (cb.is_error()) {
+                    auto err = cb.get_error();
+                    lf << "[" << time(nullptr) << "] guild_bulk_command_create 失敗！HTTP "
+                       << cb.http_info.status << "，code=" << err.code
+                       << "，message=" << err.message
+                       << "，human_readable=" << err.human_readable << "\n";
+                } else {
+                    lf << "[" << time(nullptr) << "] guild_bulk_command_create 成功，共註冊 "
+                       << std::get<dpp::slashcommand_map>(cb.value).size() << " 個指令。\n";
+                }
+            });
+            fprintf(stderr, "[STARTUP] guild_bulk_command_create call returned (async, callback pending)\n"); fflush(stderr);
         }
+        fprintf(stderr, "[STARTUP] on_guild_create handler returning\n"); fflush(stderr);
     });
 
     // ── on_ready ──────────────────────────────────────────────────────────────
     // 斷線後若 session 過期（無法 resume），DPP 會重新 IDENTIFY，on_ready 會再次觸發。
     // 整個 body 用 run_once 包起來，避免 timer（股價、抽獎、備份...）被重複註冊。
     bot.on_ready([&bot](const dpp::ready_t& event) {
+      fprintf(stderr, "[STARTUP] on_ready fired\n"); fflush(stderr);
       if (dpp::run_once<struct on_ready_once>()) {
+        fprintf(stderr, "[STARTUP] entering on_ready_once block\n"); fflush(stderr);
         // 清除舊的 global commands（避免與 guild commands 重複顯示）
         bot.global_bulk_command_create({});
 
@@ -4457,12 +4450,16 @@ int main(int argc, char* argv[]) {
             "", "application/json",
             { {"Authorization", auth_hdr} });
 
+        fprintf(stderr, "[STARTUP] before cleanup_expired\n"); fflush(stderr);
         cleanup_expired();
+        fprintf(stderr, "[STARTUP] before apply_daily_interest\n"); fflush(stderr);
         apply_daily_interest(); // 啟動時補算可能錯過的利息
+        fprintf(stderr, "[STARTUP] before start_stock_price_timer\n"); fflush(stderr);
         bot.start_timer([](dpp::timer)     { cleanup_expired(); },  3600);
         bot.start_timer([&bot](dpp::timer) { check_giveaways(bot); save_giveaways(); }, 30);
         bot.start_timer([](dpp::timer)     { apply_daily_interest(); }, 300); // 每 5 分鐘檢查是否跨日
         start_stock_price_timer(); // 開機立即抓一次股價，之後每 5 分鐘更新
+        fprintf(stderr, "[STARTUP] after start_stock_price_timer\n"); fflush(stderr);
 
         // ── 重啟後恢復簽到截止 timer ──────────────────────────────────────────
         {
@@ -4661,8 +4658,10 @@ int main(int argc, char* argv[]) {
       } // run_once<on_ready_once>
 
         printf("Bot 已上線：%s\n", bot.me.username.c_str());
+        fflush(stdout);
     });
 
+    fprintf(stderr, "[STARTUP] handler setup done, calling bot.start()\n"); fflush(stderr);
     bot.start(dpp::st_wait);
     return 0;
 }

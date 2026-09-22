@@ -90,7 +90,7 @@ static dpp::message make_ledger_msg(int page = 0, const std::string& filter = "a
     int start = page * PAGE_SIZE;
     int end   = std::min(start + PAGE_SIZE, total);
 
-    std::string title = (filter == "maple") ? "📒  瘋子谷商店帳本"
+    std::string title = (filter == "maple") ? "📒  楓之谷商店帳本"
                       : (filter == "virtual") ? "📒  虛擬商店帳本"
                       : "📒  購買記帳本";
     dpp::embed e;
@@ -270,11 +270,11 @@ static dpp::message make_shop_main_msg(const std::string& back_uid = "") {
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x1A, 0xBC, 0x9C));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 🏪 商店\n請選擇要前往的商店：\n\n**🍁 瘋子谷商店** — 購買瘋子谷道具\n**💻 虛擬商店** — 購買寵物蛋、孵蛋工具、成長道具等"));
+        .set_content("## 🏪 商店\n請選擇要前往的商店：\n\n**🍁 楓之谷商店** — 購買瘋子谷道具\n**💻 虛擬商店** — 購買寵物蛋、孵蛋工具、成長道具等"));
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🍁 瘋子谷商店").set_id("shop_maple_0").set_style(dpp::cos_success));
+        .set_label("🍁 楓之谷商店").set_id("shop_maple_0").set_style(dpp::cos_success));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("💻 虛擬商店").set_id("shop_virtual").set_style(dpp::cos_primary));
     if (!back_uid.empty()) {
@@ -296,7 +296,7 @@ static dpp::message make_maple_shop_msg(int page = 0) {
     int start = page * PAGE_SIZE;
     int end   = std::min(start + PAGE_SIZE, (int)maple_items.size());
 
-    std::string content = "## 🍁 瘋子谷商店\n";
+    std::string content = "## 🍁 楓之谷商店\n";
     for (int i = start; i < end; i++) {
         auto& item = maple_items[i];
         std::string remain_str = (item.total == -1) ? "∞" : std::to_string(item.total - item.sold);

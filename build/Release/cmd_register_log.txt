@@ -1,0 +1,123 @@
+[1789691181] guild_bulk_command_create 失敗！HTTP 400，code=30032，message=Maximum number of application commands reached (100).，human_readable=30032: Maximum number of application commands reached (100).
+[1789691784] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789793215] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789839669] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789839675] guild_member_add_role 失敗！uid=563348903861157888，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=333606997259714560，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=532829285258493962，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=714436972042780712，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=593773897887776779，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=609028631473160213，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=684773505157431347，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=735471379889258497，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=527832145842929664，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=576780376903778334，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=692367816350892073，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=947868262690095236，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1371871634142793759，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=577738152802910208，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=949056410354876457，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1345051547934920725，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=486514447293349889，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1392781553813426249，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1365174301887561758，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1378049761441091714，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1391322531025260566，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1460092582293016708，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1378399454188802058，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=973082172607045662，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1031144735789817876，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1383256118704345229，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1491513140960038952，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1462510766300336210，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1471871731156128008，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1465750271131910205，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1467817594961662086，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1134349730877542410，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=1389507534808678420，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839675] guild_member_add_role 失敗！uid=323121697085587456，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=947868262690095236，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=692367816350892073，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=684773505157431347，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=609028631473160213，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=431639503195865089，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=532829285258493962，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=973082172607045662，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=396294591323701248，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=735471379889258497，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1031144735789817876，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=949056410354876457，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=577738152802910208，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=323121697085587456，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1134349730877542410，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1371871634142793759，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1378049761441091714，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1383256118704345229，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1465750271131910205，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1467817594961662086，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1471871731156128008，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1491513140960038952，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=714436972042780712，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1392781553813426249，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1378399454188802058，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1391322531025260566，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1462510766300336210，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1460092582293016708，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1389507534808678420，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1345051547934920725，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=1365174301887561758，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=433660949766078464，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=468436177607983104，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=486514447293349889，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839748] guild_member_add_role 失敗！uid=593773897887776779，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839835] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789839858] guild_member_add_role 失敗！uid=500373847871324172，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839858] guild_member_add_role 失敗！uid=486514447293349889，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839858] guild_member_add_role 失敗！uid=500899726049411083，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839858] guild_member_add_role 失敗！uid=527832145842929664，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839858] guild_member_add_role 失敗！uid=532829285258493962，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839865] guild_member_add_role 失敗！uid=714436972042780712，HTTP 404，message=Unknown Member，human_readable=10007: Unknown Member
+[1789839865] guild_member_add_role 失敗！uid=684773505157431347，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839865] guild_member_add_role 失敗！uid=692367816350892073，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839865] guild_member_add_role 失敗！uid=735471379889258497，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839865] guild_member_add_role 失敗！uid=563348903861157888，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839865] guild_member_add_role 失敗！uid=577738152802910208，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839865] guild_member_add_role 失敗！uid=576780376903778334，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839865] guild_member_add_role 失敗！uid=1345051547934920725，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839865] guild_member_add_role 失敗！uid=1031144735789817876，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839865] guild_member_add_role 失敗！uid=1383256118704345229，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839865] guild_member_add_role 失敗！uid=1389507534808678420，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789839866] guild_member_add_role 失敗！uid=1378399454188802058，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879435] guild_member_add_role 失敗！uid=577738152802910208，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879436] guild_member_add_role 失敗！uid=593773897887776779，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879444] guild_member_add_role 失敗！uid=1389507534808678420，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879444] guild_member_add_role 失敗！uid=1378399454188802058，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879444] guild_member_add_role 失敗！uid=949056410354876457，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879444] guild_member_add_role 失敗！uid=714436972042780712，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879444] guild_member_add_role 失敗！uid=692367816350892073，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879444] guild_member_add_role 失敗！uid=947868262690095236，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879444] guild_member_add_role 失敗！uid=684773505157431347，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879444] guild_member_add_role 失敗！uid=735471379889258497，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879444] guild_member_add_role 失敗！uid=609028631473160213，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879444] guild_member_add_role 失敗！uid=1391322531025260566，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879444] guild_member_add_role 失敗！uid=1365174301887561758，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789879445] guild_member_add_role 失敗！uid=1392781553813426249，HTTP 429，message=You are being rate limited.，human_readable=0: You are being rate limited.
+[1789884386] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789892854] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789892975] guild_member_add_role 失敗！uid=714436972042780712，HTTP 404，message=Unknown Member，human_readable=10007: Unknown Member
+[1789994313] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789996569] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789997277] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789997457] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789997749] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789998142] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789998209] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789998224] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789998358] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789998673] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789998821] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789998821] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789998835] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789999019] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1789999595] guild_bulk_command_create 成功，共註冊 84 個指令。
+[1790098865] guild_bulk_command_create 成功，共註冊 84 個指令。

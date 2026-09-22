@@ -392,6 +392,12 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
             }
             if (hit_results.size() == 2) log += "\n⚡**赫耳墨斯雙擊！**";
             g.monster_hp -= pet_dmg;
+            // 大蛇丸靈魂寶珠：攻擊命中時給怪物劇毒debuff（10%自身攻擊力，持續5回合，重新命中直接覆蓋不疊加）
+            if (g.orb_key == "EQ_K_SNAKE" && pet_dmg > 0) {
+                g.poison_turns = 5;
+                g.poison_dmg = std::max(1, (int)(effective_pet_atk * 0.10));
+                log += " 🐍（劇毒附著！）";
+            }
             // 暗黑龍王寶珠：攻擊後回復傷害的 1/10（最多 10 HP）
             if (g.orb_key == "EQ_K_DARKDRAGON" && pet_dmg > 0) {
                 int heal = std::min(pet_dmg / 10, 10);
@@ -430,6 +436,13 @@ static bool process_combat(MonsterHuntGame& g, bool power_attack,
         } else {
             log += "💗 **生命女神的祝福！** HP已滿，未回復。";
         }
+    }
+
+    // 大蛇丸靈魂寶珠：劇毒debuff每回合造成傷害（不論這回合做什麼動作都會跳）
+    if (g.poison_turns > 0 && g.monster_hp > 0) {
+        g.monster_hp -= g.poison_dmg;
+        g.poison_turns--;
+        log += "\n🐍 劇毒發作，對 **" + g.monster_name + "** 造成 **" + std::to_string(g.poison_dmg) + "** 傷害！";
     }
 
     if (g.monster_hp <= 0) {

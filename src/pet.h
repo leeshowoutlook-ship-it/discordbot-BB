@@ -72,6 +72,7 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"recover_muscle",  "肌肉舒緩劑",  2000, "recovery", "解除負面狀態「肌肉緊繃」",                  81003},
     {"recover_fatigue", "高級強效咖啡",2000, "recovery", "解除負面狀態「疲勞」",                      81004},
     {"recover_homesick","溫馨家書",   2000, "recovery", "解除負面狀態「思鄉病」",                    81005},
+    {"recover_no_interest","腎上腺素",2000, "recovery", "解除負面狀態「毫無興致」",                  81006},
     // ── Orb shards（怪物掉落，10 個可合成寶珠）──────────────────────────────
     {"orb_shard_speed",  "迅捷狼王的寶珠碎片", 0, "shard", "10 個可合成「迅捷狼王的寶珠」，單人必定先手；組隊：40%機率多行動一回合",  95001},
     {"orb_shard_athena", "雅典娜的寶珠碎片",   0, "shard", "10 個可合成「雅典娜的寶珠」，單人30%恢復8滴血；組隊20%全體恢復5滴血", 95002},
@@ -173,10 +174,45 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     // 綠水靈洞窟 限定收藏（全球僅1份）
     {"col_cat_tears",    "貓哥的眼淚",   0, "collectible", "特殊道具（限定）。效果：戰鬥中受到傷害時，5% 機率恢復 5 點血量", 90076},
     {"col_golden_staff", "李秀的金箍棒", 0, "collectible", "特殊道具（限定）。效果：戰鬥中攻擊時，1% 機率額外多打一下", 90077},
+    // 扭曲叢林 進度35「木妖系列」（初級套組，集滿7件：寵物生命值+5）
+    {"col_tj_jade_axe",     "木妖的翡翠斧頭",     0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物生命值+5", 90078},
+    {"col_tj_obsidian_axe", "黑木妖的黑曜石斧頭", 0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物生命值+5", 90079},
+    {"col_tj_golden_axe",   "發芽木妖的黃金斧頭", 0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物生命值+5", 90080},
+    {"col_tj_bronze_axe",   "遠古木妖的山銅斧頭", 0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物生命值+5", 90081},
+    {"col_tj_cupid_bow",    "天使木妖的邱比特弓箭", 0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物生命值+5", 90082},
+    {"col_tj_brown_rod",    "泥沼木妖的褐色權杖", 0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物生命值+5", 90083},
+    {"col_tj_lava_flame",   "熔岩木妖的火苗",     0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物生命值+5", 90084},
+    {"col_tj_thorn_compass","upup的荊棘羅盤",     0, "collectible", "特殊道具（限定，全球僅1份）。效果：帶去探險時可避免「憂鬱／受傷／毫無興致」負面效果", 90085},
+    // 扭曲叢林 進度65「哈維系列」（中級套組，集滿7件：寵物防禦力的強化效果翻倍）
+    {"col_tj_rose_cape",     "血腥哈維的玫瑰披風",   0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物防禦力的強化效果翻倍", 90086},
+    {"col_tj_crystal_armor", "冰霜哈維的結晶鎧甲",   0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物防禦力的強化效果翻倍", 90087},
+    {"col_tj_python_gauntlet","苔影哈維的森蟒手甲",  0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物防禦力的強化效果翻倍", 90088},
+    {"col_tj_gold_crown",    "金曦哈維的金光皇冠",   0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物防禦力的強化效果翻倍", 90089},
+    {"col_tj_sunset_shackle","赭橙哈維的日落腳鐐",   0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物防禦力的強化效果翻倍", 90090},
+    {"col_tj_soil_shield",   "沼澤哈維的古壤之盾",   0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物防禦力的強化效果翻倍", 90091},
+    {"col_tj_black_cape",    "夜幕哈維的黑紗披肩",   0, "collectible", "扭曲叢林掉落。集滿本系列7件：寵物防禦力的強化效果翻倍", 90092},
+    {"col_tj_transform_potion", "華瑄的變身密藥", 0, "collectible",
+        "特殊道具（限定，全球限量100瓶）。可消耗喝下，永久獲得寵物生命值+1（可重複喝多瓶疊加）", 90093},
+    // 扭曲叢林 進度85「半人馬+食物系列」（高級套組，集滿6件：寵物攻擊力的強化效果翻倍）
+    {"col_tj_grilled_meat",  "炙烤猿人肥肥松阪肉", 0, "collectible", "扭曲叢林掉落。集滿本系列6件：寵物攻擊力的強化效果翻倍", 90094},
+    {"col_tj_fried_worm",    "酥炸石蟲條",         0, "collectible", "扭曲叢林掉落。集滿本系列6件：寵物攻擊力的強化效果翻倍", 90095},
+    {"col_tj_moss_mushroom", "苔癬杏鮑菇",         0, "collectible", "扭曲叢林掉落。集滿本系列6件：寵物攻擊力的強化效果翻倍", 90096},
+    {"col_tj_ice_blade",     "寒冰半人馬的佛羅利刃", 0, "collectible", "扭曲叢林掉落。集滿本系列6件：寵物攻擊力的強化效果翻倍", 90097},
+    {"col_tj_flame_spear",   "烈焰半人馬的丈八蛇矛", 0, "collectible", "扭曲叢林掉落。集滿本系列6件：寵物攻擊力的強化效果翻倍", 90098},
+    {"col_tj_dark_sword",    "黑暗半人馬的斬魔刀",   0, "collectible", "扭曲叢林掉落。集滿本系列6件：寵物攻擊力的強化效果翻倍", 90099},
+    // 扭曲叢林：呀呀撕裂的部分衣角（戰損版）— !合成 5個→呀呀的星輝霓裳
+    {"col_yaya_torn_cloth", "呀呀撕裂的部分衣角（戰損版）", 0, "collectible",
+        "組隊遠征中每持有1個，有0.5%機率讓boss當回合無法行動（不會疊加）。!合成 5個可合成「呀呀的星輝霓裳」", 90100},
+    {"col_yaya_starlight_dress", "呀呀的星輝霓裳", 0, "collectible",
+        "由5個「呀呀撕裂的部分衣角」合成。組隊遠征中每持有1個，有3%機率讓boss當回合無法行動（不會疊加）", 90101},
     // 赤龍山脈 龍族寶箱（消耗品，非收藏品）
     {"dragon_chest_small", "小型龍族寶箱", 2500, "consumable", "使用後獲得 1500~4500 碼", 96001},
     {"dragon_chest_mid",   "中型龍族寶箱", 5500, "consumable", "使用後獲得 4500~7500 碼", 96002},
     {"dragon_chest_grand", "豪邁龍族寶箱", 12000, "consumable", "使用後獲得 10500~15000 碼", 96003},
+    // 扭曲叢林 叢林探險寶箱（效果同龍族寶箱，僅換皮）
+    {"jungle_chest_small", "小叢林探險寶箱", 2500, "consumable", "使用後獲得 1500~4500 碼", 96005},
+    {"jungle_chest_mid",   "中叢林探險寶箱", 5500, "consumable", "使用後獲得 4500~7500 碼", 96006},
+    {"jungle_chest_grand", "大叢林探險寶箱", 12000, "consumable", "使用後獲得 10500~15000 碼", 96007},
     // 天元的舔狗密笈 專用：被詛咒的咖啡（跟一般高級強效咖啡效果相同，但領取者本人不可用/不可賣）
     {"recover_fatigue_cursed", "高級強效咖啡（被詛咒）", 0, "recovery",
         "由「天元的舔狗密笈」每日領取產生。目前持有者無法使用或售出，交易給別人後會變回一般的高級強效咖啡", 96004},
@@ -858,6 +894,7 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
             {"肌肉緊繃","肌肉緊繃：狩獵時 30% 機率攻擊失敗"},
             {"疲勞",    "疲勞：打工時長 +30%"},
             {"思鄉病",  "思鄉病：無法帶去探險"},
+            {"毫無興致","毫無興致：帶去探險時探索度 -15"},
         };
         std::string status_str;
         for (auto& s : pet.statuses) status_str += "⚠️ **" + s + "**  ";
@@ -1845,13 +1882,14 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
         return m;
     }
 
-    // 龍族寶箱：不需要寵物，開啟後隨機獲得籌碼
-    if (vi && (key == "dragon_chest_small" || key == "dragon_chest_mid" || key == "dragon_chest_grand")) {
+    // 龍族寶箱／叢林探險寶箱（效果同龍族寶箱，僅換皮）：不需要寵物，開啟後隨機獲得籌碼
+    if (vi && (key == "dragon_chest_small" || key == "dragon_chest_mid" || key == "dragon_chest_grand" ||
+               key == "jungle_chest_small" || key == "jungle_chest_mid" || key == "jungle_chest_grand")) {
         if (item_count <= 0) return err("道具數量不足！");
         int lo, hi;
-        if (key == "dragon_chest_small")      { lo = 1500;  hi = 4500; }
-        else if (key == "dragon_chest_mid")   { lo = 4500;  hi = 7500; }
-        else                                  { lo = 10500; hi = 15000; }
+        if (key == "dragon_chest_small" || key == "jungle_chest_small")     { lo = 1500;  hi = 4500; }
+        else if (key == "dragon_chest_mid" || key == "jungle_chest_mid")    { lo = 4500;  hi = 7500; }
+        else                                                                { lo = 10500; hi = 15000; }
         int actual_qty = std::min(qty, item_count);
         static thread_local std::mt19937 chest_rng(std::random_device{}());
         int64_t total = 0;
@@ -1864,9 +1902,31 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
         }
         save_inventory(); save_chips();
         dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF1, 0xC4, 0x0F));
+        std::string emoji2 = key.rfind("jungle_", 0) == 0 ? "🌀" : "🐉";
         ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-            .set_content("## 🐉 開啟" + vi->name + (actual_qty > 1 ? "×" + std::to_string(actual_qty) : "") +
+            .set_content("## " + emoji2 + " 開啟" + vi->name + (actual_qty > 1 ? "×" + std::to_string(actual_qty) : "") +
                          "\n獲得 **" + std::to_string(total) + "** 碼！"));
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 返回")
+            .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
+        m.add_component_v2(ct); m.add_component_v2(row);
+        return m;
+    }
+
+    // 華瑄的變身密藥：不需要寵物，喝下消耗，永久獲得寵物生命值+1（需要已經孵化的寵物才有意義，但沒有蛋也能先喝存著）
+    if (vi && key == "col_tj_transform_potion") {
+        if (item_count <= 0) return err("道具數量不足！");
+        int actual_qty = std::min(qty, item_count);
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            inventory_data[uid][key] -= actual_qty;
+            pet_data[uid].bonus_hp += actual_qty;
+        }
+        save_inventory(); save_pet_data();
+        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x4E, 0xC7));
+        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("## 🧪 喝下" + vi->name + (actual_qty > 1 ? "×" + std::to_string(actual_qty) : "") +
+                         "\n寵物生命值永久 **+" + std::to_string(actual_qty) + "**！"));
         dpp::component row; row.set_type(dpp::cot_action_row);
         row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 返回")
             .set_id("pet_open_use_" + uid_s).set_style(dpp::cos_secondary));
@@ -2103,7 +2163,7 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
         static const std::map<std::string,std::string> ITEM_STATUS = {
             {"recover_depress","憂鬱"}, {"recover_injury","受傷"},
             {"recover_muscle","肌肉緊繃"}, {"recover_fatigue","疲勞"},
-            {"recover_homesick","思鄉病"},
+            {"recover_homesick","思鄉病"}, {"recover_no_interest","毫無興致"},
         };
         if (!ITEM_STATUS.count(key)) return err("無效的恢復道具！");
         std::string target_status = ITEM_STATUS.at(key);

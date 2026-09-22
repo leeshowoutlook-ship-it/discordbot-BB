@@ -177,6 +177,56 @@ static const std::vector<AdvRegion> ADV_REGIONS = {
             }},
         }
     },
+    {
+        "twisted_jungle", "扭曲叢林", "🌀",
+        {
+            { 35, 40, {
+                {"",                     5},
+                {"status_depress",       5},
+                {"status_injured",       5},
+                {"status_no_interest",   5},
+                {"jungle_chest_small",  10},
+                {"col_tj_jade_axe",     10},
+                {"col_tj_obsidian_axe", 10},
+                {"col_tj_golden_axe",   10},
+                {"col_tj_bronze_axe",   10},
+                {"col_tj_cupid_bow",    10},
+                {"col_tj_brown_rod",    10},
+                {"col_tj_lava_flame",    9},
+                {"col_tj_thorn_compass", 1},
+            }},
+            { 65, 40, {
+                {"",                        5},
+                {"status_depress",          5},
+                {"status_injured",          5},
+                {"status_no_interest",      5},
+                {"jungle_chest_mid",       10},
+                {"col_tj_rose_cape",       10},
+                {"col_tj_crystal_armor",   10},
+                {"col_tj_python_gauntlet", 10},
+                {"col_tj_gold_crown",      10},
+                {"col_tj_sunset_shackle",  10},
+                {"col_tj_soil_shield",     10},
+                {"col_tj_black_cape",       9},
+                {"col_tj_transform_potion", 1},
+            }},
+            { 85, 20, {
+                {"",                       6},
+                {"status_depress",        10},
+                {"status_injured",        10},
+                {"status_no_interest",    10},
+                {"jungle_chest_grand",    11},
+                {"col_tj_grilled_meat",    5},
+                {"col_tj_fried_worm",      5},
+                {"col_tj_moss_mushroom",   5},
+                {"col_tj_ice_blade",      10},
+                {"col_tj_flame_spear",    10},
+                {"col_tj_dark_sword",     10},
+                {"EQ_K_SNAKE",             5},
+                {"col_yaya_torn_cloth",    3},
+            }},
+        }
+    },
 };
 
 static const AdvRegion* find_adv_region(const std::string& key) {
@@ -197,6 +247,7 @@ static const std::vector<ColDisplayRegion> COL_DISPLAY_REGIONS = {
     {"ghost_graveyard",    "亡魂墓地",   "💀"},
     {"bb_museum",          "BB自然博物館", "🦴"},
     {"red_dragon_range",   "赤龍山脈",   "🐉"},
+    {"twisted_jungle",     "扭曲叢林",   "🌀"},
 };
 
 static const std::set<std::string> LIMITED_COL_ITEMS = {
@@ -211,6 +262,8 @@ static const std::set<std::string> LIMITED_COL_ITEMS = {
     "col_rd_campticket", "col_rd_lovebook", "col_rd_simpmanual", "col_rd_dogbook",
     // 綠水靈洞窟限定（全球唯一）
     "col_cat_tears", "col_golden_staff",
+    // 扭曲叢林限定（全球唯一）
+    "col_tj_thorn_compass",
 };
 
 // 全球限量道具：跟 LIMITED_COL_ITEMS（全球僅 1 份）不同，這些是全球固定份數上限。
@@ -220,6 +273,8 @@ struct LimitedMaxRule { int cap; std::string crafted_key; int craft_ratio; };
 static const std::map<std::string, LimitedMaxRule> LIMITED_MAX_COUNT = {
     {"col_bb_wig_broken",    {5, "col_bb_wig_full",    5}},
     {"col_bb_undies_broken", {5, "col_bb_undies_full", 5}},
+    // 華瑄的變身密藥的上限改用 g_tj_potion_granted 這個全域歷史計數器處理（見 adv_collect_ handler），
+    // 因為藥水會被喝掉消耗，不能用「目前持有總數」估算上限（否則喝掉會釋出名額，變成能一直補貨）。
 };
 
 // 「特殊」分頁：可使用的消耗型道具（風險骰子）
@@ -257,6 +312,15 @@ static const std::map<std::string,int64_t> COL_SELL_PRICE = {
     // 赤龍山脈 — 高級（3000）
     {"col_rd_azureorb", 3000}, {"col_rd_redorb", 3000}, {"col_rd_iceorb", 3000},
     {"col_rd_blackorb", 3000}, {"col_rd_demonorb", 3000}, {"col_rd_earthorb", 3000},
+    // 扭曲叢林 — 低級（1000，木妖系列）
+    {"col_tj_jade_axe", 1000}, {"col_tj_obsidian_axe", 1000}, {"col_tj_golden_axe", 1000},
+    {"col_tj_bronze_axe", 1000}, {"col_tj_cupid_bow", 1000}, {"col_tj_brown_rod", 1000}, {"col_tj_lava_flame", 1000},
+    // 扭曲叢林 — 中級（2000，哈維系列）
+    {"col_tj_rose_cape", 2000}, {"col_tj_crystal_armor", 2000}, {"col_tj_python_gauntlet", 2000},
+    {"col_tj_gold_crown", 2000}, {"col_tj_sunset_shackle", 2000}, {"col_tj_soil_shield", 2000}, {"col_tj_black_cape", 2000},
+    // 扭曲叢林 — 高級（3000，半人馬+食物系列）
+    {"col_tj_grilled_meat", 3000}, {"col_tj_fried_worm", 3000}, {"col_tj_moss_mushroom", 3000},
+    {"col_tj_ice_blade", 3000}, {"col_tj_flame_spear", 3000}, {"col_tj_dark_sword", 3000},
 };
 static std::string col_tier_label(const std::string& key) {
     auto it = COL_SELL_PRICE.find(key);
@@ -305,11 +369,13 @@ static bool col_would_break_set(dpp::snowflake uid, const std::string& key) {
 // ─── Progress calculation ──────────────────────────────────────────────────────
 
 // pet_stage: 0=無寵物同行, 1/2/3=同行寵物的階段（一階+10／二階+15／三階+20）
-static int calc_adv_progress(int hours, int64_t funds, int pet_stage) {
+static int calc_adv_progress(int hours, int64_t funds, int pet_stage, bool no_interest = false) {
     int p = 2 + hours * 4 + (int)(funds / 250);
     if      (pet_stage == 1) p += 10;
     else if (pet_stage == 2) p += 15;
     else if (pet_stage == 3) p += 20;
+    if (no_interest) p -= 15; // 毫無興致：探索度-15
+    if (p < 1) p = 1;
     return std::min(p, 100);
 }
 
@@ -416,6 +482,7 @@ static void save_adv_games() {
                 {"finish_notified",  g.finish_notified},
                 {"star_boost",       g.star_boost},
                 {"ch",               (uint64_t)g.ch},
+                {"no_interest",      g.no_interest},
             };
         }
     }
@@ -446,6 +513,7 @@ static void load_adv_games() {
             g.notify_on_finish = v.value("notify_on_finish", false);
             g.finish_notified  = v.value("finish_notified",  false);
             g.star_boost       = v.value("star_boost",       false);
+            g.no_interest      = v.value("no_interest",      false);
             g.ch               = (uint64_t)v.value("ch",    (uint64_t)0);
             adv_games[g.uid] = g;
         }
@@ -457,7 +525,8 @@ static const std::string DOGBOOK_FILE = "dogbook.json";
 
 static void save_dogbook() {
     nlohmann::json j;
-    { std::lock_guard<std::mutex> lk(data_mutex); j = {{"week", g_dogbook_week}, {"uses_left", g_dogbook_uses_left}}; }
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      j = {{"week", g_dogbook_week}, {"uses_left", g_dogbook_uses_left}, {"tj_potion_granted", g_tj_potion_granted}}; }
     std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(DOGBOOK_FILE, j.dump(2));
 }
@@ -470,6 +539,7 @@ static void load_dogbook() {
         std::lock_guard<std::mutex> lk(data_mutex);
         g_dogbook_week      = j.value("week",      0);
         g_dogbook_uses_left = j.value("uses_left", 0);
+        g_tj_potion_granted = j.value("tj_potion_granted", 0);
     } catch (...) {}
 }
 
@@ -588,6 +658,11 @@ static dpp::message make_normal_col_msg(dpp::snowflake uid,
                 {"🌿 中級區", "強化所需金額 -10%", {"col_rd_iceeye","col_rd_icescale","col_rd_blackwing","col_rd_blackeye","col_rd_demonclaw","col_rd_demoneye","col_rd_rainbow"}},
                 {"🌳 高級區", "強化所需金額 -15%", {"col_rd_azureorb","col_rd_redorb","col_rd_iceorb","col_rd_blackorb","col_rd_demonorb","col_rd_earthorb"}},
             },
+            { // 扭曲叢林（1%/限量道具另外顯示在「限定收藏」頁；大蛇丸靈魂寶珠、呀呀系列不算收藏品，不列在這裡）
+                {"🌱 初級區", "寵物生命值 +5",       {"col_tj_jade_axe","col_tj_obsidian_axe","col_tj_golden_axe","col_tj_bronze_axe","col_tj_cupid_bow","col_tj_brown_rod","col_tj_lava_flame"}},
+                {"🌿 中級區", "防禦力的強化效果翻倍", {"col_tj_rose_cape","col_tj_crystal_armor","col_tj_python_gauntlet","col_tj_gold_crown","col_tj_sunset_shackle","col_tj_soil_shield","col_tj_black_cape"}},
+                {"🌳 高級區", "攻擊力的強化效果翻倍", {"col_tj_grilled_meat","col_tj_fried_worm","col_tj_moss_mushroom","col_tj_ice_blade","col_tj_flame_spear","col_tj_dark_sword"}},
+            },
         };
         auto has_all = [&](const std::vector<std::string>& ks) {
             for (auto& k : ks) { auto it = inv.find(k); if (it == inv.end() || it->second <= 0) return false; }
@@ -674,6 +749,10 @@ static const std::vector<std::pair<std::string,std::string>> LIMITED_ORDER = {
     {"col_rd_lovebook",   "虛擬商店購買 95 折、轉帳與交易免手續費 ── 背包「特殊」分頁可付 2000 碼解鎖一次性交易"},
     {"col_rd_simpmanual", "背包「特殊」分頁每天可領取 1 杯高級強效咖啡（本人無法使用/售出，須交易給別人才能用）"},
     {"col_rd_dogbook",    "背包「特殊」分頁每週 4 次隨機抽取虛擬商店 3000 碼以下道具（25% 失敗機率）"},
+    // 扭曲叢林 — 全球唯一（1份）
+    {"col_tj_thorn_compass", "探險時可避免「憂鬱／受傷／毫無興致」負面效果"},
+    // 扭曲叢林 — 全球限量（100瓶，歷史累計，喝掉不釋出名額）
+    {"col_tj_transform_potion", "可消耗喝下，永久獲得寵物生命值 +1（可重複疊加）── 全球限量 100 瓶"},
 };
 
 static dpp::message make_limited_col_msg(dpp::snowflake uid,
@@ -724,6 +803,16 @@ static dpp::message make_limited_col_msg(dpp::snowflake uid,
         if (owned > 0) {
             std::string cnt_s = (owned > 1) ? " ×" + std::to_string(owned) : "";
             desc += "✅ " + id_s + "　" + name + cnt_s + "\n　效果：" + effect + "\n\n";
+        } else if (key == "col_tj_transform_potion") {
+            // 華瑄的變身密藥：全球歷史累計上限100瓶（喝掉不釋出名額），用 g_tj_potion_granted 顯示
+            int granted; { std::lock_guard<std::mutex> lk2(data_mutex); granted = g_tj_potion_granted; }
+            int rem = std::max(0, 100 - granted);
+            if (rem > 0) {
+                desc += "🔓 " + id_s + "　" + name + "\n　效果：" + effect
+                      + "　（全球還剩 **" + std::to_string(rem) + "/100** 瓶可探索）\n\n";
+            } else {
+                desc += "🔒 " + id_s + "　" + name + "\n　效果：" + effect + "　（全球 100 瓶已全數出現）\n\n";
+            }
         } else if (LIMITED_MAX_COUNT.count(key)) {
             // 限量N份：顯示剩餘可探索數
             int rem = capped_remaining.count(key) ? capped_remaining.at(key) : 0;
@@ -1057,6 +1146,7 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
     if (all_set) {
         int pet_stage = 0;
         std::string pet_t1, pet_t2;
+        bool pet_no_interest = false;
         if (setup.partner == 1) {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto pit = pet_data.find(uid);
@@ -1064,11 +1154,12 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
                 pet_stage = pit->second.stage;
                 pet_t1 = pit->second.talent;
                 pet_t2 = pit->second.talent2_unlocked ? pit->second.talent2 : "";
+                for (auto& s : pit->second.statuses) if (s == "毫無興致") { pet_no_interest = true; break; }
             }
         }
         bool has_survival = (pet_t1 == "求生專家" || pet_t2 == "求生專家");
         bool has_treasure = (pet_t1 == "尋寶專家" || pet_t2 == "尋寶專家");
-        int prog = calc_adv_progress(setup.duration_hours, setup.funds, pet_stage);
+        int prog = calc_adv_progress(setup.duration_hours, setup.funds, pet_stage, pet_no_interest);
         if (setup.star_boost) prog += 10;
         if (has_survival) prog += 10;
         desc += "\n\n✨ **預計探索度：" + std::to_string(prog) + "**";
@@ -1154,7 +1245,7 @@ static dpp::message make_adv_active_msg(dpp::snowflake uid,
     std::string uid_s = std::to_string((uint64_t)uid);
     const AdvRegion* reg = find_adv_region(g.region_key);
     bool done = g.end_time <= time(nullptr);
-    int progress = calc_adv_progress(g.duration_hours, g.funds, g.pet_stage);
+    int progress = calc_adv_progress(g.duration_hours, g.funds, g.pet_stage, g.no_interest);
 
     std::string user_tag = dn.empty() ? uid_s : dn;
     uint32_t accent_color = done ? dpp::utility::rgb(0xF1, 0xC4, 0x0F) : dpp::utility::rgb(0x34, 0x98, 0xDB);
@@ -1234,13 +1325,18 @@ static dpp::message make_adv_region_select_msg(dpp::snowflake uid, const std::st
     msg.set_flags(dpp::m_using_components_v2);
     msg.add_component_v2(container);
 
-    dpp::component row; row.set_type(dpp::cot_action_row);
-    for (auto& r : ADV_REGIONS)
-        row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label(r.emoji + " " + r.name)
-            .set_id("adv_region_" + uid_s + "_" + r.key)
-            .set_style(dpp::cos_primary));
-    msg.add_component_v2(row);
+    // Discord 一個 action row 最多 5 個按鈕，超過要換下一行（地區數量已經超過5個了）
+    for (size_t base = 0; base < ADV_REGIONS.size(); base += 5) {
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        for (size_t i = base; i < std::min(base + 5, ADV_REGIONS.size()); i++) {
+            auto& r = ADV_REGIONS[i];
+            row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label(r.emoji + " " + r.name)
+                .set_id("adv_region_" + uid_s + "_" + r.key)
+                .set_style(dpp::cos_primary));
+        }
+        msg.add_component_v2(row);
+    }
 
     dpp::component back_row; back_row.set_type(dpp::cot_action_row);
     back_row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -1713,6 +1809,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         }
         int pet_stage = 0;
         std::string pet_talent1, pet_talent2;
+        bool pet_no_interest = false;
         if (setup.partner == 1) {
             bool ok = false, homesick = false;
             { std::lock_guard<std::mutex> lk(data_mutex);
@@ -1720,6 +1817,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
               if (it != pet_data.end() && it->second.stage > 0) {
                   auto& p = it->second;
                   for (auto& s : p.statuses) if (s == "思鄉病") { homesick = true; break; }
+                  for (auto& s : p.statuses) if (s == "毫無興致") { pet_no_interest = true; break; }
                   ok = (p.work_task == 0 && p.onsen_end == 0 && !homesick);
                   pet_stage = p.stage;
                   pet_talent1 = p.talent;
@@ -1747,6 +1845,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         g.pet_talent1 = pet_talent1; g.pet_talent2 = pet_talent2;
         g.notify_on_finish = setup.notify_on_finish;
         g.star_boost = setup.star_boost;
+        g.no_interest = pet_no_interest;
         g.start_time = time(nullptr);
         int64_t adv_secs = (int64_t)g.duration_hours * 3600LL;
         { std::lock_guard<std::mutex> lk(data_mutex);
@@ -1807,7 +1906,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         if (!found || g.end_time > time(nullptr)) {
             ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 探險尚未結束！").set_flags(dpp::m_ephemeral)); return;
         }
-        int progress = calc_adv_progress(g.duration_hours, g.funds, g.pet_stage);
+        int progress = calc_adv_progress(g.duration_hours, g.funds, g.pet_stage, g.no_interest);
         if (g.star_boost) progress += 10;
         bool has_survival_expert = (g.pet_talent1 == "求生專家" || g.pet_talent2 == "求生專家");
         if (has_survival_expert) progress += 10;
@@ -1818,6 +1917,8 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         bool star_rerolled = false;
         bool treasure_rerolled = false;
         bool homesick_triggered = false;
+        bool potion_granted_this_round = false;
+        std::vector<std::string> status_hits;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& inv = inventory_data[uid];
@@ -1842,6 +1943,8 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
                 }
                 if (total >= rule.cap) claimed_limited.insert(lk2);
             }
+            // 華瑄的變身密藥：全球歷史累計上限100瓶（喝掉不釋出名額，用全域計數器追蹤，不是目前持有數）
+            if (g_tj_potion_granted >= 100) claimed_limited.insert("col_tj_transform_potion");
 
             // 骰之前先記錄目前持有的假髮／內衣（新骰到的這次不算數）
             auto owned = [&](const std::string& k) { auto it = inv.find(k); return it != inv.end() ? it->second : 0; };
@@ -1850,7 +1953,27 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             int undies_broken = owned("col_bb_undies_broken");
             int undies_full   = owned("col_bb_undies_full");
 
+            // 扭曲叢林：負面效果詞條（並重骰）——命中的話套用寵物負面狀態，然後重骰一次拿真正的獎勵。
+            // upup的荊棘羅盤：持有時直接免疫這些負面效果（但還是要重骰拿獎勵）。
+            static const std::map<std::string,std::string> ADV_STATUS_ROLL_MAP = {
+                {"status_depress", "憂鬱"}, {"status_injured", "受傷"}, {"status_no_interest", "毫無興致"},
+            };
+            bool has_compass = owned("col_tj_thorn_compass") > 0;
             item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
+            for (int _sr = 0; _sr < 20; _sr++) {
+                auto sit = ADV_STATUS_ROLL_MAP.find(item_key);
+                if (sit == ADV_STATUS_ROLL_MAP.end()) break;
+                if (!has_compass) status_hits.push_back(sit->second);
+                item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
+            }
+            if (!status_hits.empty()) {
+                auto& p = pet_data[uid];
+                for (auto& st : status_hits) {
+                    bool already = false;
+                    for (auto& s : p.statuses) if (s == st) { already = true; break; }
+                    if (!already) p.statuses.push_back(st);
+                }
+            }
             if (item_key.empty() && g.star_boost) {
                 for (int _r = 0; _r < 50 && item_key.empty(); _r++)
                     item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
@@ -1860,14 +1983,20 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
                 item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
                 treasure_rerolled = true;
             }
-            if (!item_key.empty()) { inv[item_key]++; item_added = true; }
+            if (!item_key.empty()) {
+                inv[item_key]++; item_added = true;
+                if (item_key == "col_tj_transform_potion") { g_tj_potion_granted++; potion_granted_this_round = true; }
+            }
 
             static std::mt19937 bb_effect_rng(std::random_device{}());
             // Zoey的假髮：機率額外骰一次戰利品（戰損版每個+1%，完整版每個+10%，可疊加）
             int double_pct = wig_broken * 1 + wig_full * 10;
             if (double_pct > 0 && std::uniform_int_distribution<int>(1, 100)(bb_effect_rng) <= double_pct) {
                 item_key2 = roll_adv_loot(g.region_key, progress, claimed_limited);
-                if (!item_key2.empty()) { inv[item_key2]++; item_added = true; }
+                if (!item_key2.empty()) {
+                    inv[item_key2]++; item_added = true;
+                    if (item_key2 == "col_tj_transform_potion") { g_tj_potion_granted++; potion_granted_this_round = true; }
+                }
             }
             // 皮包的內衣：機率返還這次探索花費的資金（戰損版每個+2%，完整版每個+20%，可疊加）
             int refund_pct = undies_broken * 2 + undies_full * 20;
@@ -1894,13 +2023,15 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             ns.notify_on_finish = g.notify_on_finish;
         }
         if (item_added) save_inventory();
-        if (homesick_triggered) save_pet_data();
+        if (potion_granted_this_round) save_dogbook();
+        if (homesick_triggered || !status_hits.empty()) save_pet_data();
         save_adv_games();
         if (refund_triggered) add_chips(uid, g.funds);
 
         const AdvRegion* reg = find_adv_region(g.region_key);
         auto* vi = find_virtual_item(item_key);
-        std::string item_name = vi ? vi->name : "";
+        auto* gi_snake = vi ? nullptr : find_gacha_item(item_key); // EQ_K_SNAKE 等寶珠不在 VIRTUAL_ITEMS 裡
+        std::string item_name = vi ? vi->name : (gi_snake ? gi_snake->name : "");
 
         std::string user_tag_r = dn.empty() ? uid_s : dn;
         std::string desc_r;

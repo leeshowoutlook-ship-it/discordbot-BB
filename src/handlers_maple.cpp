@@ -315,6 +315,12 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
+    if (cid.rfind("maple_guild_", 0) == 0) {
+        if (!check_owner("maple_guild_")) return;
+        ev.reply(dpp::ir_update_message, make_maple_guild_soon_msg(uid));
+        return;
+    }
+
     if (cid.rfind("maple_wbopen_", 0) == 0) {
         std::string rest = cid.substr(13);
         size_t sep = rest.find('_');
@@ -451,6 +457,47 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
         }
         ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, tab));
+        return;
+    }
+
+    // 背包「其他」分頁翻頁：maple_bagpg_<uid>_<page>_<subcat>
+    if (cid.rfind("maple_bagpg_", 0) == 0) {
+        std::string rest = cid.substr(12);
+        size_t sep1 = rest.find('_');
+        if (sep1 == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep1)));
+        std::string rem = rest.substr(sep1 + 1);
+        size_t sep2 = rem.rfind('_');
+        int page = 0; std::string subcat;
+        if (sep2 == std::string::npos) { try { page = std::stoi(rem); } catch (...) {} }
+        else {
+            try { page = std::stoi(rem.substr(0, sep2)); } catch (...) {}
+            subcat = rem.substr(sep2 + 1);
+        }
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, "other", page, subcat));
+        return;
+    }
+
+    // 背包分類切換：maple_bagcat_<uid>_<tab>_<subcat>
+    if (cid.rfind("maple_bagcat_", 0) == 0) {
+        std::string rest = cid.substr(13);
+        size_t sep1 = rest.find('_');
+        if (sep1 == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep1)));
+        std::string rem = rest.substr(sep1 + 1);
+        size_t sep2 = rem.rfind('_');
+        if (sep2 == std::string::npos) return;
+        std::string tab = rem.substr(0, sep2);
+        std::string subcat = rem.substr(sep2 + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, tab, 0, subcat));
         return;
     }
 
@@ -1338,6 +1385,11 @@ void handle_maple_select(const dpp::select_click_t& ev, dpp::snowflake uid) {
         }
         int bracket = 0;
         try { if (!ev.values.empty()) bracket = std::stoi(ev.values[0]); } catch (...) {}
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            maple_data[uid].adv_last_bracket = bracket;
+        }
+        save_maple_data();
         ev.reply(dpp::ir_update_message, make_maple_adv_region_list_msg(uid, bracket));
         return;
     }

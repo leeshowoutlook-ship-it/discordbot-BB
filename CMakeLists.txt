@@ -34,6 +34,6 @@ target_precompile_headers(dcbot PRIVATE
 )
 
 if(MSVC)
-    target_compile_options(dcbot PRIVATE /utf-8 /Zm2000)
-    target_link_options(dcbot PRIVATE /STACK:8388608)
+    target_compile_options(dcbot PRIVATE /utf-8 /Zm2000 /Z7)
+    target_link_options(dcbot PRIVATE /STACK:8388608 /DEBUG)
 endif()

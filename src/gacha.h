@@ -122,6 +122,8 @@ static const std::vector<GachaItem> GACHA_ITEMS = {
     {"EQ_K_DARKDRAGON",  "暗黑龍王的寶珠", "K","UR","","", 0,"dd_orb",    "", 94008},
     {"EQ_K_LIFEGODDESS", "生命女神的寶珠", "K","UR","","", 0,"lifegoddess","", 94009},
     {"EQ_K_HEROHEART",   "俠客之心",       "K","UR","","",40,"crit",       "", 94010}, // 天選之子池限定，不進轉蛋池／星星池
+    // 探險掉落限定（不可抽取）：扭曲叢林進度85限定掉落，不進轉蛋池／星星池
+    {"EQ_K_SNAKE",       "大蛇丸靈魂寶珠", "K","UR","","", 0,"snake_poison","", 94011},
     // ── 戒指 (R) ─────────────────────────────────────────────────────────────
     // 掉落限定（不可抽取）：組隊遠征王級怪物限定掉落，不進轉蛋池／星星池
     {"EQ_R_CLOCK",       "鐘錶戒",         "R","UR","","", 0,"clock_ring", "", 94401}, // 拉圖斯 2% 掉落
@@ -421,7 +423,7 @@ static std::mt19937& gacha_rng() {
 
 static const GachaItem& gacha_pull_one(bool star_pool) {
     // 合成限定寶珠：不進入抽取池
-    static const std::set<std::string> NOT_GACHABLE = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON","EQ_K_LIFEGODDESS","EQ_K_HEROHEART","EQ_W_D_UR","EQ_G_D_UR","EQ_C_D_UR","EQ_S_D_UR","EQ_W_E_UR","EQ_G_E_UR","EQ_C_E_UR","EQ_S_E_UR","EQ_R_CLOCK","EQ_R_DRAGONBLOOD","EQ_K_UR_TRUE","EQ_K_SPEED_TRUE","EQ_K_WARGOD_TRUE","EQ_K_LIFEGODDESS_TRUE","EQ_K_HEROHEART_TRUE","EQ_K_VIKING_TRUE","EQ_K_BEAR_TRUE"};
+    static const std::set<std::string> NOT_GACHABLE = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON","EQ_K_LIFEGODDESS","EQ_K_HEROHEART","EQ_K_SNAKE","EQ_W_D_UR","EQ_G_D_UR","EQ_C_D_UR","EQ_S_D_UR","EQ_W_E_UR","EQ_G_E_UR","EQ_C_E_UR","EQ_S_E_UR","EQ_R_CLOCK","EQ_R_DRAGONBLOOD","EQ_K_UR_TRUE","EQ_K_SPEED_TRUE","EQ_K_WARGOD_TRUE","EQ_K_LIFEGODDESS_TRUE","EQ_K_HEROHEART_TRUE","EQ_K_VIKING_TRUE","EQ_K_BEAR_TRUE"};
     static std::vector<const GachaItem*> pool_C, pool_R, pool_SR, pool_UR_eq, pool_UR_orb;
     static bool pools_built = false;
     if (!pools_built) {
@@ -464,7 +466,7 @@ static const GachaItem& gacha_pull_one(bool star_pool) {
 
 // 保底 UR：從所有可抽 UR 裝備＋寶珠中隨機一個
 static const GachaItem& gacha_pull_ur_pity() {
-    static const std::set<std::string> NOT_GACHABLE = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON","EQ_K_LIFEGODDESS","EQ_K_HEROHEART","EQ_W_D_UR","EQ_G_D_UR","EQ_C_D_UR","EQ_S_D_UR","EQ_W_E_UR","EQ_G_E_UR","EQ_C_E_UR","EQ_S_E_UR","EQ_R_CLOCK","EQ_R_DRAGONBLOOD","EQ_K_UR_TRUE","EQ_K_SPEED_TRUE","EQ_K_WARGOD_TRUE","EQ_K_LIFEGODDESS_TRUE","EQ_K_HEROHEART_TRUE","EQ_K_VIKING_TRUE","EQ_K_BEAR_TRUE"};
+    static const std::set<std::string> NOT_GACHABLE = {"EQ_K_BEAR","EQ_K_VIKING","EQ_K_WARGOD","EQ_K_LATUS","EQ_K_DARKDRAGON","EQ_K_LIFEGODDESS","EQ_K_HEROHEART","EQ_K_SNAKE","EQ_W_D_UR","EQ_G_D_UR","EQ_C_D_UR","EQ_S_D_UR","EQ_W_E_UR","EQ_G_E_UR","EQ_C_E_UR","EQ_S_E_UR","EQ_R_CLOCK","EQ_R_DRAGONBLOOD","EQ_K_UR_TRUE","EQ_K_SPEED_TRUE","EQ_K_WARGOD_TRUE","EQ_K_LIFEGODDESS_TRUE","EQ_K_HEROHEART_TRUE","EQ_K_VIKING_TRUE","EQ_K_BEAR_TRUE"};
     static std::vector<const GachaItem*> pool_UR_all;
     static bool built = false;
     if (!built) {
@@ -1250,6 +1252,7 @@ static dpp::message make_craft_msg(dpp::snowflake uid) {
 
     int wig_cnt    = sc("col_bb_wig_broken");
     int undies_cnt = sc("col_bb_undies_broken");
+    int yaya_cnt   = sc("col_yaya_torn_cloth");
 
     std::string content = "## 🔨 寶珠合成\n";
     content += "收集 **10 個碎片** 可合成對應的寶珠。\n";
@@ -1262,6 +1265,7 @@ static dpp::message make_craft_msg(dpp::snowflake uid) {
     }
     content += "**Zoey散發氣味的秀髮** 戰損版：**" + std::to_string(wig_cnt) + " / 5**　效果：探索額外骰一次戰利品 10%（可疊加）\n";
     content += "**皮包遺失的粉紅內衣** 戰損版：**" + std::to_string(undies_cnt) + " / 5**　效果：探索完成返還資金 20%（可疊加）\n";
+    content += "**呀呀撕裂的部分衣角** 戰損版：**" + std::to_string(yaya_cnt) + " / 5**　效果：組隊遠征攻擊時 0.5% 機率讓boss下回合無法行動（可疊加）\n";
 
     int oracle_cnt = sc("oracle_fragment");
     std::string awaken_content = "## ✨ 神名解放\n";
@@ -1319,6 +1323,9 @@ static dpp::message make_craft_msg(dpp::snowflake uid) {
     bb_row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("合成 皮包遺失的粉紅內衣").set_id("craft_bb_undies_" + uid_s)
         .set_style(undies_cnt >= 5 ? dpp::cos_primary : dpp::cos_secondary).set_disabled(undies_cnt < 5));
+    bb_row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("合成 呀呀的星輝霓裳").set_id("craft_yaya_" + uid_s)
+        .set_style(yaya_cnt >= 5 ? dpp::cos_primary : dpp::cos_secondary).set_disabled(yaya_cnt < 5));
     msg.add_component_v2(bb_row);
 
     dpp::component nav; nav.set_type(dpp::cot_action_row);

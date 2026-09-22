@@ -490,6 +490,24 @@ static std::string raid_do_boss_turn(RaidGame& g) {
         if (g.players[i].alive) alive_idx.push_back(i);
     if (alive_idx.empty()) { g.game_over = true; g.victory = false; return "全滅！"; }
 
+    // 大蛇丸靈魂寶珠：boss 回合開始先跳劇毒傷害
+    std::string poison_log;
+    if (g.poison_turns > 0 && g.boss_hp > 0) {
+        g.boss_hp -= g.poison_dmg;
+        g.poison_turns--;
+        poison_log = "🐍 劇毒發作，對 **" + g.boss_name + "** 造成 **" + std::to_string(g.poison_dmg) + "** 傷害！";
+        if (g.boss_hp <= 0) {
+            g.boss_hp = 0; g.victory = true; g.game_over = true;
+            return poison_log + " 🏆 Boss 倒下！";
+        }
+    }
+    // 呀呀撕裂的部分衣角／星輝霓裳：boss 被封鎖，這回合直接跳過（不會疊加，用完立刻清掉）
+    if (g.boss_stunned) {
+        g.boss_stunned = false;
+        std::string l = poison_log.empty() ? "" : (poison_log + "\n");
+        return l + "🌸 **" + g.boss_name + "** 香噴噴地愣住了，這回合無法行動！";
+    }
+
     BossAttack atk = pick_boss_attack(
         g.last_boss_aoe || g.last_boss_single,  // 上次AOE或單體 → 禁AOE
         g.last_boss_single,                      // 上次單體 → 禁單體
@@ -653,7 +671,7 @@ static std::string raid_do_boss_turn(RaidGame& g) {
     for (auto& p : g.players) if (p.alive) { any_alive = true; break; }
     if (!any_alive) { g.game_over = true; g.victory = false; }
 
-    return log;
+    return poison_log.empty() ? log : (poison_log + "\n" + log);
 }
 
 // ─── Helper: advance turn + auto-run boss turns until a player can act ────────
@@ -766,6 +784,24 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
         log = build_atk_log("⚔️ **" + cp.display_name + "** 攻擊 Boss", hits) + extra_log;
     }
     if (g.boss_hp <= 0) { g.boss_hp = 0; g.victory = true; g.game_over = true; log += " 🏆 Boss 倒下！"; }
+
+    // 大蛇丸靈魂寶珠：攻擊命中時給 boss 劇毒debuff（10%自身攻擊力，持續5回合，重新命中直接覆蓋不疊加）
+    if (!g.game_over && cp.orb_key == "EQ_K_SNAKE" && atk_dmg > 0) {
+        g.poison_turns = 5;
+        g.poison_dmg = std::max(1, (int)(base_atk * (1.0 + atk_bonus) * 0.10));
+        log += " 🐍（劇毒附著！）";
+    }
+    // 呀呀撕裂的部分衣角／呀呀的星輝霓裳：攻擊時機率讓 boss 下回合無法行動（不會疊加，戰損版每個0.5%、完整版每個3%）
+    if (!g.game_over && !g.boss_stunned) {
+        auto wi = inventory_data.find(cp.uid);
+        int yaya_broken = (wi != inventory_data.end() && wi->second.count("col_yaya_torn_cloth")) ? wi->second.at("col_yaya_torn_cloth") : 0;
+        int yaya_full   = (wi != inventory_data.end() && wi->second.count("col_yaya_starlight_dress")) ? wi->second.at("col_yaya_starlight_dress") : 0;
+        int yaya_permille = yaya_broken * 5 + yaya_full * 30; // 0.5% = 5/1000、3% = 30/1000
+        if (yaya_permille > 0 && raid_rand(1, 1000) <= yaya_permille) {
+            g.boss_stunned = true;
+            log += "\n🌸 **香噴噴的呀呀衣角發威！** Boss 下回合無法行動！";
+        }
+    }
 
     // 暗黑龍王寶珠：攻擊後回復傷害的 1/10（最多 10 HP）
     if (cp.orb_key == "EQ_K_DARKDRAGON" && atk_dmg > 0) {
