@@ -322,9 +322,14 @@ struct MapleEnhItem {
     int         add_primary   = 0;  // 卷軸累積的主屬性
     int         add_secondary = 0;  // 卷軸累積的副屬性
     int         add_atk       = 0;  // 卷軸累積的攻擊力
+    int         add_str = 0, add_dex = 0, add_int = 0, add_luk = 0; // 卷軸累積的「全屬性」（不分職業，四維各自加）
     int         enh_count     = 0;  // 已成功強化次數（顯示用）
     int         slots_used    = 0;  // 已使用的卷軸次數（成功或失敗都算；武器上限7、其餘5）
 };
+
+// 陣營系統：全服共用一份等級/經驗（不分玩家），加入/退出不影響陣營本身的進度。
+struct MapleFactionState { int level = 0; int64_t exp = 0; };
+inline std::map<std::string, MapleFactionState> maple_faction_state;
 
 struct MapleCharacter {
     dpp::snowflake uid;
@@ -367,6 +372,13 @@ struct MapleCharacter {
     int64_t        monsters_defeated = 0;
     int64_t        token_week_id    = 0;   // 代幣商店：上次兌換所屬的週次（epoch 週）
     int64_t        token_week_spent = 0;   // 代幣商店：本週已用掉的籌碼數
+    std::string    raid_room_id;    // 目前所在的突襲首領房間ID，空字串＝沒有在房間裡
+    int64_t        raid_week_id    = 0; // 突襲首領：上次計算所屬的週次（epoch週，跟代幣商店同一套）
+    int            raid_week_used  = 0; // 本週已經完成結算的突襲次數
+    int            raid_week_extra = 0; // 本週從特殊商店買到的額外次數（一週限購1次，固定+1）
+    std::string    faction_key;         // 目前所屬陣營，空字串＝沒有加入任何陣營
+    int64_t        faction_donate_week_id   = 0; // 陣營捐贈：上次捐贈所屬的週次（epoch週，跟代幣商店同一套）
+    int            faction_donate_week_used = 0; // 本週已捐贈次數（上限1次／2000瘋幣）
     time_t         created_at = 0;
 };
 
@@ -720,6 +732,34 @@ struct MapleWorldBossState {
     int64_t total_kills = 0; // 這隻首領累計被討伐幾隻了（每次湊滿3人關閉一輪就 +1，不是每個人 +1）
 };
 inline std::map<std::string, MapleWorldBossState> maple_wb_state; // key=區域key
+
+// ─── 楓之谷世界：限時經驗活動（管理員設定，全服共用一個時段）────────────────────
+struct MapleExpEventState {
+    double mult  = 1.0; // 冒險經驗值倍率，1.0＝沒有活動
+    time_t start = 0;   // 活動開始時間（用來跟玩家冒險的起訖時間算重疊區間，按比例套用倍率）
+    time_t until = 0;   // 活動結束時間，0或已過期＝沒有活動
+};
+inline MapleExpEventState maple_exp_event;
+
+// ─── 楓之谷世界：突襲首領（多人組隊房間，開始後自動討伐，隊長結算、全員各自獨立roll掉落）──
+struct MapleRaidMember {
+    dpp::snowflake uid;
+    std::string    display_name;
+};
+struct MapleRaidRoom {
+    std::string      id;
+    std::string      boss_key;
+    dpp::snowflake   leader_uid;
+    dpp::snowflake   channel_id;              // 結算公告要發去哪個頻道
+    std::vector<MapleRaidMember> members;     // 含隊長，上限6人
+    std::string      state = "waiting";       // waiting(招募中) / fighting(討伐中) / won(已擊敗待結算)
+    int64_t          team_dps_x100 = 0;       // 開始討伐當下鎖定的隊伍總DPS×100（避免存浮點數），之後不會再變
+    int64_t          accum_secs    = 0;       // 已經累積的「有效討伐秒數」（暫停時凍結在這個數字）
+    time_t           resume_at     = 0;       // >0＝正在跑，從這個時間點繼續累加；0＝暫停中，等任一人簽到
+    time_t           created_at    = 0;
+};
+inline std::map<std::string, MapleRaidRoom> maple_raid_rooms; // key = room id
+inline std::atomic<uint64_t> maple_raid_room_seq{1};
 inline std::vector<PurchaseRecord>              purchase_records;
 inline std::atomic<uint64_t>                    purchase_counter{1};
 inline std::map<dpp::snowflake, Pet>            pet_data;

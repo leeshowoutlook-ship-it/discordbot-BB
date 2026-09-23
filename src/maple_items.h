@@ -251,6 +251,46 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.item_id = 96724;
             items.push_back(e);
         }
+        // 螃蟹鉗：手套，無職業限制、無副屬性限制，攻擊力+1。寄居蟹 0.5% 掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "arm_crab_claw";
+            e.name = "螃蟹鉗";
+            e.slot = "glove";
+            e.sellable = true;
+            e.atk_bonus = 3;
+            e.atk_speed_sec = 60;
+            e.price = 0;
+            e.item_id = 96725;
+            items.push_back(e);
+        }
+        // 狼牙項鏈：項鍊，無職業限制、限制等級30、無副屬性限制，全屬性(力/敏/智/幸)各+12。
+        // 冰雪狼王掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "necklace_wolf_fang";
+            e.name = "狼牙項鏈";
+            e.slot = "necklace";
+            e.level_req = 30;
+            e.sellable = true;
+            e.atk_speed_sec = 60;
+            e.str_bonus = 12; e.dex_bonus = 12; e.int_bonus = 12; e.luk_bonus = 12;
+            e.price = 0;
+            e.item_id = 96726;
+            items.push_back(e);
+        }
+        // 狼王象徵：材料道具，放背包「其他」分頁，目前無作用。冰雪狼王掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "mat_wolf_king_token";
+            e.name = "狼王象徵";
+            e.slot = "material";
+            e.sellable = true;
+            e.atk_speed_sec = 60;
+            e.price = 0;
+            e.item_id = 96727;
+            items.push_back(e);
+        }
         return items;
     }();
     return v;
@@ -274,6 +314,7 @@ struct MapleScrollDef {
     int         explode_pct     = 0; // 詛咒卷軸專用：失敗中有這麼多%機率裝備直接爆炸消失（0＝一般卷軸，失敗只是沒效果）
     bool        shop            = true; // 是否顯示在卷軸商店（false＝不上架，只能用其他方式取得，仍可交易/使用）
     bool        restore_slot    = false; // 純白卷軸專用：只能用在「已有強化失敗紀錄」的裝備，不佔用強化次數上限，成功時歸還1次已使用次數
+    int         str_bonus = 0, dex_bonus = 0, int_bonus = 0, luk_bonus = 0; // 「全屬性」卷軸專用：不分職業，四維各自加
 };
 
 static const std::vector<MapleScrollDef> MAPLE_SCROLLS = {
@@ -348,4 +389,22 @@ static const std::vector<MapleScrollDef> MAPLE_SCROLLS = {
     {"sc_glove_sec20", "手套副屬性卷軸 20%", 20, 40000, "手套", 0, 15, 0, 96547, 0, false},
     // 手套副屬性詛咒卷軸50%：效果等同副屬性20%，50%成功／25%失敗／25%爆炸（裝備直接消失）（不上架商店）
     {"sc_glove_sec_curse50", "手套副屬性詛咒卷軸 50%", 50, 34000, "手套", 0, 15, 0, 96557, 25, false},
+    // 項鍊全屬性卷軸：力/敏/智/幸 四維各自加，不分職業（冰雪狼王掉落，不上架商店）
+    // 20%版額外多給主屬性+2（用 primary_bonus 欄位，會依穿戴者職業對應到對的那個屬性）
+    {"sc_necklace100", "項鍊全屬性卷軸 100%", 100, 15000, "項鍊", 0, 0, 0, 96558, 0, false, false, 1, 1, 1, 1},
+    {"sc_necklace60",  "項鍊全屬性卷軸 60%",  60, 40000, "項鍊", 0, 0, 0, 96559, 0, false, false, 3, 3, 3, 3},
+    {"sc_necklace20",  "項鍊全屬性卷軸 20%",  20, 90000, "項鍊", 2, 0, 0, 96560, 0, false, false, 5, 5, 5, 5},
 };
+
+// ─── 陣營系統 ─────────────────────────────────────────────────────────────────
+// 三大陣營，玩家可任選一個加入；退出後保留該陣營的等級/經驗，之後回鍋接續。
+// 陣營經驗值目前還沒有接來源（先建架構），等級/經驗公式已經定案。
+
+struct MapleFactionDef { std::string key, name; };
+static const std::vector<MapleFactionDef> MAPLE_FACTIONS = {
+    {"mushroom_baby",     "菇菇寶貝"},
+    {"water_spirit",      "綠水靈"},
+    {"three_eye_octopus", "三眼章魚"},
+};
+static const int64_t MAPLE_FACTION_JOIN_FEE  = 50000; // 入陣營費
+static const int64_t MAPLE_FACTION_LEAVE_FEE = 50000; // 退陣營費

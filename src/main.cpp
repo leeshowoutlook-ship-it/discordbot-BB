@@ -39,6 +39,32 @@
 #include "settings.h"
 #include "handler_decls.h"
 
+// ─── 楓之谷世界養成系統：經驗活動 helpers ───────────────────────────────────────
+static std::string fmt_exp_mult(double v) {
+    char buf[32]; snprintf(buf, sizeof(buf), "%.2f", v);
+    std::string s(buf);
+    while (!s.empty() && s.back() == '0') s.pop_back();
+    if (!s.empty() && s.back() == '.') s.pop_back();
+    return s;
+}
+// 開啟新經驗活動前的確認視窗：會覆蓋掉上一次（不管是還在進行中還是已結束）的設定，先確認一次。
+static dpp::message make_expevent_start_confirm_msg(double mult, time_t until, bool was_active) {
+    std::string warn = was_active
+        ? "⚠️ **目前有正在進行的經驗活動！** 開啟新的活動會覆蓋掉目前的設定，確定要這麼做嗎？"
+        : "⚠️ 開啟新的經驗活動會覆蓋掉上一次的設定，確定要開啟嗎？";
+    warn += "\n倍率 ×" + fmt_exp_mult(mult) + "，持續到 <t:" + std::to_string((int64_t)until) + ":f>（<t:"
+          + std::to_string((int64_t)until) + ":R>）";
+    dpp::message m; m.set_content(warn);
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("✅ 確定開啟").set_id("expevent_startok_" + std::to_string((int64_t)llround(mult * 100))
+            + "_" + std::to_string((int64_t)until)).set_style(dpp::cos_success));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("❌ 取消").set_id("expevent_startno").set_style(dpp::cos_secondary));
+    m.add_component(row);
+    return m;
+}
+
 // ─── Trade helpers ────────────────────────────────────────────────────────────
 
 // Unified item lookup by numeric ID — checks virtual items, gacha equipment, then stocks
@@ -187,6 +213,8 @@ static dpp::message make_auction_home_msg(dpp::snowflake uid) {
         .set_label("🙋 求售").set_id("auction_buy_" + uid_s).set_style(dpp::cos_primary));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🔍 逛拍").set_id("auction_browse_" + uid_s + "_0").set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("📋 查看自己訂單").set_id("auction_myorders_" + uid_s + "_0").set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
 
     dpp::component nav; nav.set_type(dpp::cot_action_row);
@@ -197,6 +225,63 @@ static dpp::message make_auction_home_msg(dpp::snowflake uid) {
 }
 
 static const int AUCTION_PAGE_SIZE = 5;
+
+static dpp::message make_auction_myorders_msg(dpp::snowflake uid, int page) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    std::vector<AuctionListing> mine;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [id, a] : auction_listings) if (a.uid == uid) mine.push_back(a);
+    }
+    std::sort(mine.begin(), mine.end(), [](const AuctionListing& a, const AuctionListing& b) { return a.id > b.id; });
+    int total = (int)mine.size();
+    int pages = std::max(1, (total + AUCTION_PAGE_SIZE - 1) / AUCTION_PAGE_SIZE);
+    if (page < 0) page = 0;
+    if (page >= pages) page = pages - 1;
+    int start = page * AUCTION_PAGE_SIZE;
+    int end   = std::min(start + AUCTION_PAGE_SIZE, total);
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF1, 0xC4, 0x0F));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 📋 我的訂單（" + std::to_string(page + 1) + "/" + std::to_string(pages) + "）\n共 "
+                     + std::to_string(total) + " 筆刊登中"));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
+        .set_spacing(dpp::sep_small).set_divider(true));
+
+    if (total == 0) {
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content("你目前沒有刊登中的訂單。"));
+    }
+    for (int i = start; i < end; i++) {
+        auto& a = mine[i];
+        std::string cur = a.currency == "coins" ? "瘋幣" : "籌碼";
+        std::string text = std::string(a.is_buy ? "🙋 求售" : "💰 掛售") + "　**" + a.item_name + "**　ID:`"
+                          + std::to_string(a.item_id) + "`　×" + std::to_string(a.qty) + "\n"
+                          + (a.is_buy ? "願付：" : "要價：") + std::to_string(a.price) + " " + cur;
+        container.add_component_v2(dpp::component()
+            .set_type(dpp::cot_section)
+            .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
+            .set_accessory(dpp::component().set_type(dpp::cot_button)
+                .set_label("查看").set_id("auction_view_" + uid_s + "_" + std::to_string(a.id))
+                .set_style(dpp::cos_primary)));
+    }
+    msg.add_component_v2(container);
+
+    dpp::component nav; nav.set_type(dpp::cot_action_row);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("◀ 上一頁").set_id("auction_myorders_" + uid_s + "_" + std::to_string(page - 1))
+        .set_style(dpp::cos_secondary).set_disabled(page <= 0));
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("▶ 下一頁").set_id("auction_myorders_" + uid_s + "_" + std::to_string(page + 1))
+        .set_style(dpp::cos_secondary).set_disabled(page >= pages - 1));
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回").set_id("auction_home_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav);
+    return msg;
+}
 
 static dpp::message make_auction_browse_msg(dpp::snowflake uid, int page) {
     std::string uid_s = std::to_string((uint64_t)uid);
@@ -709,7 +794,8 @@ int main(int argc, char* argv[]) {
                 "!拍賣","！拍賣",
                 "!公告","！公告","!小黑屋","！小黑屋",
                 "!簽到","！簽到","!簽到名單","！簽到名單","!結束簽到","！結束簽到",
-                "!簽到重整","！簽到重整"
+                "!簽到重整","！簽到重整",
+                "!經驗活動","！經驗活動",
             };
             for (auto& s : EXACT) if (content == s) return true;
             // Secret owner-only command
@@ -721,6 +807,7 @@ int main(int argc, char* argv[]) {
                 "!幸運頻道 ","!警告 ","!轉帳 ","!交易 ","!卷軸使用 ","!輪盤 ","!猜拳 ","！猜拳 ",
                 "!公告 ","！公告 ",
                 "!簽到 ","！簽到 ",
+                "!經驗活動 ","！經驗活動 ",
             };
             for (auto& s : PREFIX) if (content.rfind(s, 0) == 0) return true;
             // standalone (no args)
@@ -1046,80 +1133,14 @@ int main(int argc, char* argv[]) {
                 dpp::message m; m.set_content("❌ 只有副會長、會長或管理員才能開始簽到！"); m.channel_id = ch;
                 bot.message_create(m); return;
             }
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                if (g_signin.active) {
-                    dpp::message m; m.set_content("❌ 目前已有進行中的簽到！請先使用 `!簽到名單` 查看。"); m.channel_id = ch;
-                    bot.message_create(m); return;
-                }
-            }
             // 解析可選的截止時間
             std::string time_arg;
             { size_t sp = content.find(' '); if (sp != std::string::npos) time_arg = content.substr(sp + 1); }
             time_t deadline = parse_si_deadline(time_arg);
-            dpp::snowflake gid = ev.msg.guild_id;
-            bot.guild_get_members(gid, 1000, 0, [&bot, ch, gid, deadline](const dpp::confirmation_callback_t& cc) {
-                if (cc.is_error()) {
-                    bot.message_create(dpp::message(ch, "❌ 無法取得伺服器成員列表！"));
-                    return;
-                }
-                auto& gmap = std::get<dpp::guild_member_map>(cc.value);
-                int total;
-                {
-                    std::lock_guard<std::mutex> lk(data_mutex);
-                    g_signin = SignInSession{};
-                    g_signin.active     = true;
-                    g_signin.guild_id   = gid;
-                    g_signin.channel_id = ch;
-                    g_signin.deadline   = deadline;
-                    for (auto& [muid, gm] : gmap) {
-                        const dpp::user* user = dpp::find_user(muid);
-                        if (user && user->is_bot()) continue;
-                        std::string name;
-                        if (!gm.get_nickname().empty()) {
-                            name = gm.get_nickname();
-                        } else if (user) {
-                            name = user->global_name.empty() ? user->username : user->global_name;
-                        } else {
-                            name = "<@" + std::to_string((uint64_t)muid) + ">";
-                        }
-                        g_signin.not_signed[muid] = name;
-                    }
-                    total = (int)g_signin.not_signed.size();
-                }
-                grant_unsigned_role_to_all(bot, gid);
-                dpp::message msg = make_si_start_msg(total);
-                msg.channel_id = ch;
-                bot.message_create(msg, [&bot, deadline](const dpp::confirmation_callback_t& cb) {
-                    if (!cb.is_error()) {
-                        dpp::snowflake mid = std::get<dpp::message>(cb.value).id;
-                        { std::lock_guard<std::mutex> lk(data_mutex); g_signin.message_id = mid; }
-                        // 設定截止 timer
-                        if (deadline > 0) {
-                            long long secs = (long long)deadline - (long long)time(nullptr);
-                            if (secs > 0) {
-                                dpp::timer tid = bot.start_timer([&bot](dpp::timer t) {
-                                    dpp::snowflake m_id = 0, m_ch = 0;
-                                    dpp::message closed;
-                                    {
-                                        std::lock_guard<std::mutex> lk(data_mutex);
-                                        if (!g_signin.active) { bot.stop_timer(t); return; }
-                                        g_signin.active = false;
-                                        m_id = g_signin.message_id;
-                                        m_ch = g_signin.channel_id;
-                                        closed = make_si_closed_msg();
-                                    }
-                                    save_signin();
-                                    if (m_id != 0) { closed.id = m_id; closed.channel_id = m_ch; bot.message_edit(closed); }
-                                    bot.stop_timer(t);
-                                }, (uint64_t)secs);
-                                { std::lock_guard<std::mutex> lk(data_mutex); g_signin.timer_id = tid; }
-                            }
-                        }
-                        save_signin();
-                    }
-                });
-            });
+            bool was_active; { std::lock_guard<std::mutex> lk(data_mutex); was_active = g_signin.active; }
+            dpp::message m = make_si_start_confirm_msg(deadline, was_active);
+            m.channel_id = ch;
+            bot.message_create(m);
         }
         // !簽到名單 / ！簽到名單：查看目前簽到狀況（副會長/會長/管理員）
         else if (content == "!簽到名單" || content == "！簽到名單") {
@@ -1204,6 +1225,46 @@ int main(int argc, char* argv[]) {
                         "✅ 已用目前伺服器成員名單重新比對，補回 **" + std::to_string(added) + "** 位未簽到成員" + note));
                 });
             });
+        }
+        // !經驗活動 <倍率> <持續時間>：開啟楓之谷世界養成系統「冒險」限時經驗活動；<倍率> 填 0 或 "結束" 可提前結束
+        else if (content == "!經驗活動" || content == "！經驗活動" ||
+                 content.rfind("!經驗活動 ", 0) == 0 || content.rfind("！經驗活動 ", 0) == 0) {
+            if (!si_perm(uid, ev.msg.member.get_roles())) {
+                dpp::message m; m.set_content("❌ 只有副會長、會長或管理員才能設定經驗活動！"); m.channel_id = ch;
+                bot.message_create(m); return;
+            }
+            std::string args;
+            { size_t sp = content.find(' '); if (sp != std::string::npos) args = content.substr(sp + 1); }
+            bool active = maple_exp_event.until > time(nullptr);
+            if (args.empty()) {
+                dpp::message m;
+                m.set_content(active
+                    ? ("📅 經驗活動進行中：冒險經驗值 ×" + fmt_exp_mult(maple_exp_event.mult)
+                       + "，到 <t:" + std::to_string((int64_t)maple_exp_event.until) + ":f>（<t:"
+                       + std::to_string((int64_t)maple_exp_event.until) + ":R>）")
+                    : "目前沒有進行中的經驗活動。\n用法：`!經驗活動 <倍率> <持續時間>`　例：`!經驗活動 2 3h`（時間格式同 `!簽到`：HH:MM／Xm／Xh）\n提前結束：`!經驗活動 0`");
+                m.channel_id = ch; bot.message_create(m); return;
+            }
+            std::istringstream iss(args);
+            std::string mult_str, time_str;
+            iss >> mult_str >> time_str;
+            double mult = 0; try { mult = std::stod(mult_str); } catch (...) {}
+            if (mult <= 0 || mult_str == "結束") {
+                { std::lock_guard<std::mutex> lk(data_mutex); if (maple_exp_event.until > time(nullptr)) maple_exp_event.until = time(nullptr); }
+                maple_save_exp_event();
+                dpp::message m; m.set_content("✅ 經驗活動已結束。"); m.channel_id = ch; bot.message_create(m); return;
+            }
+            if (time_str.empty()) {
+                dpp::message m; m.set_content("❌ 用法：`!經驗活動 <倍率> <持續時間>`　例：`!經驗活動 2 3h`");
+                m.channel_id = ch; bot.message_create(m); return;
+            }
+            time_t until = parse_si_deadline(time_str);
+            if (until <= time(nullptr)) {
+                dpp::message m; m.set_content("❌ 時間格式錯誤或已經過去，格式同 `!簽到`：HH:MM／Xm／Xh／M/D HH:MM");
+                m.channel_id = ch; bot.message_create(m); return;
+            }
+            dpp::message m = make_expevent_start_confirm_msg(mult, until, active);
+            m.channel_id = ch; bot.message_create(m);
         }
         // ── 骰子/射/火箭/卷軸/刮刮樂/猜數字 → handlers_games.cpp ───────────
         else if (content.rfind("!骰子", 0) == 0 ||
@@ -1977,6 +2038,59 @@ int main(int argc, char* argv[]) {
             { std::lock_guard<std::mutex> lk(data_mutex); m = make_si_unchecked_msg(page); }
             ev.reply(dpp::ir_update_message, m);
         }
+        // si_startok_{deadline}：確認開啟新的簽到（會覆蓋掉上一場紀錄，見 si_startno 的確認視窗）
+        else if (cid.rfind("si_startok_", 0) == 0) {
+            if (!si_perm(uid, ev.command.member.get_roles())) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 只有副會長、會長或管理員才能開始簽到！").set_flags(dpp::m_ephemeral)); return;
+            }
+            time_t deadline = 0;
+            try { deadline = (time_t)std::stoll(cid.substr(std::string("si_startok_").size())); } catch (...) {}
+            ev.reply(dpp::ir_deferred_update_message, dpp::message());
+            dpp::snowflake gid = ev.command.guild_id;
+            dpp::snowflake sch = ev.command.channel_id;
+            si_do_start(bot, gid, sch, deadline,
+                [ev, deadline](int total) {
+                    std::string dl_note = deadline > 0
+                        ? "，截止 <t:" + std::to_string((int64_t)deadline) + ":t>" : "";
+                    ev.edit_original_response(dpp::message(
+                        "✅ 簽到已開始！共 **" + std::to_string(total) + "** 位成員需要簽到" + dl_note + "。"));
+                },
+                [ev](const std::string& err) { ev.edit_original_response(dpp::message(err)); });
+        }
+        else if (cid == "si_startno") {
+            dpp::message m; m.set_content("❌ 已取消，沒有開始新的簽到。");
+            ev.reply(dpp::ir_update_message, m);
+        }
+        // expevent_startok_{mult×100}_{until}：確認開啟新的經驗活動（會覆蓋掉上一次的設定）
+        else if (cid.rfind("expevent_startok_", 0) == 0) {
+            if (!si_perm(uid, ev.command.member.get_roles())) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 只有副會長、會長或管理員才能設定經驗活動！").set_flags(dpp::m_ephemeral)); return;
+            }
+            std::string rest = cid.substr(std::string("expevent_startok_").size());
+            size_t sep = rest.find('_');
+            double mult = 0; time_t until = 0;
+            if (sep != std::string::npos) {
+                try {
+                    mult  = std::stoll(rest.substr(0, sep)) / 100.0;
+                    until = (time_t)std::stoll(rest.substr(sep + 1));
+                } catch (...) {}
+            }
+            if (mult <= 0 || until <= time(nullptr)) {
+                ev.reply(dpp::ir_update_message, dpp::message("❌ 這個確認視窗已經過期了，請重新下一次 `!經驗活動`。"));
+                return;
+            }
+            { std::lock_guard<std::mutex> lk(data_mutex); maple_exp_event.mult = mult; maple_exp_event.start = time(nullptr); maple_exp_event.until = until; }
+            maple_save_exp_event();
+            dpp::message m; m.set_content("✅ 經驗活動開始！養成系統「冒險」經驗值 ×" + fmt_exp_mult(mult)
+                + "，持續到 <t:" + std::to_string((int64_t)until) + ":f>（<t:" + std::to_string((int64_t)until) + ":R>）");
+            ev.reply(dpp::ir_update_message, m);
+        }
+        else if (cid == "expevent_startno") {
+            dpp::message m; m.set_content("❌ 已取消，沒有開始新的經驗活動。");
+            ev.reply(dpp::ir_update_message, m);
+        }
         // ── 富豪榜翻頁 ────────────────────────────────────────────────────────
         else if (cid.rfind("lb_", 0) == 0) {
             if (!page_is_mine(ev.command.message_id, uid)) {
@@ -2690,6 +2804,19 @@ int main(int argc, char* argv[]) {
                     dpp::message("❌ 這不是你的拍賣行！").set_flags(dpp::m_ephemeral)); return;
             }
             ev.reply(dpp::ir_update_message, make_auction_browse_msg(uid, page));
+        }
+        else if (cid.rfind("auction_myorders_", 0) == 0) {
+            std::string rest = cid.substr(std::string("auction_myorders_").size());
+            size_t sep = rest.rfind('_');
+            if (sep == std::string::npos) return;
+            dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+            int page = 0;
+            try { page = std::stoi(rest.substr(sep + 1)); } catch (...) {}
+            if (uid != owner) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 這不是你的拍賣行！").set_flags(dpp::m_ephemeral)); return;
+            }
+            ev.reply(dpp::ir_update_message, make_auction_myorders_msg(uid, page));
         }
         else if (cid.rfind("auction_view_", 0) == 0) {
             std::string rest = cid.substr(std::string("auction_view_").size());
@@ -3547,86 +3674,13 @@ int main(int argc, char* argv[]) {
                     dpp::message("❌ 只有副會長、會長或管理員才能開始簽到！").set_flags(dpp::m_ephemeral));
                 return;
             }
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                if (g_signin.active) {
-                    ev.reply(dpp::ir_channel_message_with_source,
-                        dpp::message("❌ 目前已有進行中的簽到！請先使用 `/簽到名單` 查看。").set_flags(dpp::m_ephemeral));
-                    return;
-                }
-            }
             // 解析截止時間 option
             std::string time_arg;
             auto tp = ev.get_parameter("截止時間"); if (std::holds_alternative<std::string>(tp)) time_arg = std::get<std::string>(tp);
             auto tp2 = ev.get_parameter("deadline");  if (std::holds_alternative<std::string>(tp2)) time_arg = std::get<std::string>(tp2);
             time_t deadline = parse_si_deadline(time_arg);
-            ev.thinking(true);
-            dpp::snowflake gid = ev.command.guild_id;
-            bot.guild_get_members(gid, 1000, 0, [&bot, ev, ch, gid, deadline](const dpp::confirmation_callback_t& cc) {
-                if (cc.is_error()) {
-                    ev.edit_original_response(dpp::message("❌ 無法取得伺服器成員列表！"));
-                    return;
-                }
-                auto& gmap = std::get<dpp::guild_member_map>(cc.value);
-                int total;
-                {
-                    std::lock_guard<std::mutex> lk(data_mutex);
-                    g_signin = SignInSession{};
-                    g_signin.active     = true;
-                    g_signin.guild_id   = gid;
-                    g_signin.channel_id = ch;
-                    g_signin.deadline   = deadline;
-                    for (auto& [muid, gm] : gmap) {
-                        const dpp::user* user = dpp::find_user(muid);
-                        if (user && user->is_bot()) continue;
-                        std::string name;
-                        if (!gm.get_nickname().empty()) {
-                            name = gm.get_nickname();
-                        } else if (user) {
-                            name = user->global_name.empty() ? user->username : user->global_name;
-                        } else {
-                            name = "<@" + std::to_string((uint64_t)muid) + ">";
-                        }
-                        g_signin.not_signed[muid] = name;
-                    }
-                    total = (int)g_signin.not_signed.size();
-                }
-                grant_unsigned_role_to_all(bot, gid);
-                dpp::message msg = make_si_start_msg(total);
-                msg.channel_id = ch;
-                bot.message_create(msg, [&bot, deadline](const dpp::confirmation_callback_t& cb) {
-                    if (!cb.is_error()) {
-                        dpp::snowflake mid = std::get<dpp::message>(cb.value).id;
-                        { std::lock_guard<std::mutex> lk(data_mutex); g_signin.message_id = mid; }
-                        if (deadline > 0) {
-                            long long secs = (long long)deadline - (long long)time(nullptr);
-                            if (secs > 0) {
-                                dpp::timer tid = bot.start_timer([&bot](dpp::timer t) {
-                                    dpp::snowflake m_id = 0, m_ch = 0;
-                                    dpp::message closed;
-                                    {
-                                        std::lock_guard<std::mutex> lk(data_mutex);
-                                        if (!g_signin.active) { bot.stop_timer(t); return; }
-                                        g_signin.active = false;
-                                        m_id = g_signin.message_id;
-                                        m_ch = g_signin.channel_id;
-                                        closed = make_si_closed_msg();
-                                    }
-                                    save_signin();
-                                    if (m_id != 0) { closed.id = m_id; closed.channel_id = m_ch; bot.message_edit(closed); }
-                                    bot.stop_timer(t);
-                                }, (uint64_t)secs);
-                                { std::lock_guard<std::mutex> lk(data_mutex); g_signin.timer_id = tid; }
-                            }
-                        }
-                        save_signin();
-                    }
-                });
-                std::string dl_note = deadline > 0
-                    ? "，截止 <t:" + std::to_string((int64_t)deadline) + ":t>" : "";
-                ev.edit_original_response(dpp::message(
-                    "✅ 簽到已開始！共 **" + std::to_string(total) + "** 位成員需要簽到" + dl_note + "。"));
-            });
+            bool was_active; { std::lock_guard<std::mutex> lk(data_mutex); was_active = g_signin.active; }
+            ev.reply(dpp::ir_channel_message_with_source, make_si_start_confirm_msg(deadline, was_active));
         }
         else if (cmd_name == "簽到名單" || cmd_name == "signinlist") {
             if (!si_perm(ev.command)) {
@@ -3710,6 +3764,47 @@ int main(int argc, char* argv[]) {
                         "✅ 已用目前伺服器成員名單重新比對，補回 **" + std::to_string(added) + "** 位未簽到成員" + note));
                 });
             });
+        }
+        else if (cmd_name == "經驗活動" || cmd_name == "expevent") {
+            if (!si_perm(ev.command)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 只有副會長、會長或管理員才能設定經驗活動！").set_flags(dpp::m_ephemeral));
+                return;
+            }
+            double mult = 0;
+            auto mp = ev.get_parameter("倍率"); if (std::holds_alternative<double>(mp)) mult = std::get<double>(mp);
+            auto mp2 = ev.get_parameter("multiplier"); if (std::holds_alternative<double>(mp2)) mult = std::get<double>(mp2);
+            if (mult == 0) {
+                auto mi = ev.get_parameter("倍率"); if (std::holds_alternative<int64_t>(mi)) mult = (double)std::get<int64_t>(mi);
+                auto mi2 = ev.get_parameter("multiplier"); if (std::holds_alternative<int64_t>(mi2)) mult = (double)std::get<int64_t>(mi2);
+            }
+            std::string time_arg;
+            auto tp = ev.get_parameter("持續時間"); if (std::holds_alternative<std::string>(tp)) time_arg = std::get<std::string>(tp);
+            auto tp2 = ev.get_parameter("duration");  if (std::holds_alternative<std::string>(tp2)) time_arg = std::get<std::string>(tp2);
+
+            bool active = maple_exp_event.until > time(nullptr);
+            if (mult == 0 && time_arg.empty()) {
+                ev.reply(dpp::ir_channel_message_with_source, dpp::message(active
+                    ? ("📅 經驗活動進行中：冒險經驗值 ×" + fmt_exp_mult(maple_exp_event.mult)
+                       + "，到 <t:" + std::to_string((int64_t)maple_exp_event.until) + ":f>（<t:"
+                       + std::to_string((int64_t)maple_exp_event.until) + ":R>）")
+                    : "目前沒有進行中的經驗活動。填「倍率」與「持續時間」開始一場（例：倍率2、持續時間3h）；倍率填0可提前結束。"));
+                return;
+            }
+            if (mult <= 0) {
+                { std::lock_guard<std::mutex> lk(data_mutex); if (maple_exp_event.until > time(nullptr)) maple_exp_event.until = time(nullptr); }
+                maple_save_exp_event();
+                ev.reply(dpp::ir_channel_message_with_source, dpp::message("✅ 經驗活動已結束。"));
+                return;
+            }
+            time_t until = parse_si_deadline(time_arg);
+            if (until <= time(nullptr)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 「持續時間」格式錯誤或已經過去，格式同 `/簽到`：HH:MM／Xm／Xh／M/D HH:MM")
+                        .set_flags(dpp::m_ephemeral));
+                return;
+            }
+            ev.reply(dpp::ir_channel_message_with_source, make_expevent_start_confirm_msg(mult, until, active));
         }
         else if (cmd_name == "幫助" || cmd_name == "help") {
             ev.reply(dpp::ir_channel_message_with_source, make_help_msg(0));
@@ -4384,6 +4479,12 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("簽到名單",  "查看簽到名單（副會長/會長/管理員）", bot.me.id),
                 dpp::slashcommand("結束簽到",  "強制結束目前的簽到（副會長/會長/管理員）", bot.me.id),
                 dpp::slashcommand("簽到重整",  "用目前伺服器成員補回誤刪的未簽到名單（副會長/會長/管理員）", bot.me.id),
+                [&]() {
+                    dpp::slashcommand c("經驗活動", "設定楓之谷世界養成系統「冒險」限時經驗倍率（副會長/會長/管理員）", bot.me.id);
+                    c.add_option(dpp::command_option(dpp::co_number, "倍率", "冒險經驗值倍率，例：2；填0可提前結束目前活動（不填則查看目前狀態）", false));
+                    c.add_option(dpp::command_option(dpp::co_string, "持續時間", "例：22:30、30m、3h（設定倍率時必填）", false));
+                    return c;
+                }(),
             }, gid, [](const dpp::confirmation_callback_t& cb) {
                 std::ofstream lf("cmd_register_log.txt", std::ios::app);
                 if (cb.is_error()) {

@@ -444,6 +444,87 @@ static void grant_unsigned_role_to_all(dpp::cluster& bot, dpp::snowflake gid, st
     });
 }
 
+// 開始新一場簽到前的確認視窗：會覆蓋掉上一場（不管是還在進行中還是已結束）的紀錄，先跟管理員確認一次。
+static dpp::message make_si_start_confirm_msg(time_t deadline, bool was_active) {
+    std::string warn = was_active
+        ? "⚠️ **目前有正在進行的簽到！** 開啟新的簽到會結束並覆蓋掉目前的簽到紀錄，確定要這麼做嗎？"
+        : "⚠️ 開啟新的簽到會覆蓋掉上一次的簽到紀錄，確定要開啟嗎？";
+    if (deadline > 0) warn += "\n截止時間：<t:" + std::to_string((int64_t)deadline) + ":f>";
+    dpp::message m; m.set_content(warn);
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("✅ 確定開啟").set_id("si_startok_" + std::to_string((int64_t)deadline)).set_style(dpp::cos_success));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("❌ 取消").set_id("si_startno").set_style(dpp::cos_secondary));
+    m.add_component(row);
+    return m;
+}
+
+// 真正開始一場簽到（guild_get_members → 建立 g_signin → 發公告 → 設截止 timer）。
+// on_success(total)：建立成功後回呼，帶未簽到總人數；on_error(msg)：取得成員列表失敗時回呼。
+static void si_do_start(dpp::cluster& bot, dpp::snowflake gid, dpp::snowflake ch, time_t deadline,
+                        std::function<void(int)> on_success, std::function<void(const std::string&)> on_error) {
+    bot.guild_get_members(gid, 1000, 0, [&bot, ch, gid, deadline, on_success, on_error](const dpp::confirmation_callback_t& cc) {
+        if (cc.is_error()) { if (on_error) on_error("❌ 無法取得伺服器成員列表！"); return; }
+        auto& gmap = std::get<dpp::guild_member_map>(cc.value);
+        int total;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            g_signin = SignInSession{};
+            g_signin.active     = true;
+            g_signin.guild_id   = gid;
+            g_signin.channel_id = ch;
+            g_signin.deadline   = deadline;
+            for (auto& [muid, gm] : gmap) {
+                const dpp::user* user = dpp::find_user(muid);
+                if (user && user->is_bot()) continue;
+                std::string name;
+                if (!gm.get_nickname().empty()) {
+                    name = gm.get_nickname();
+                } else if (user) {
+                    name = user->global_name.empty() ? user->username : user->global_name;
+                } else {
+                    name = "<@" + std::to_string((uint64_t)muid) + ">";
+                }
+                g_signin.not_signed[muid] = name;
+            }
+            total = (int)g_signin.not_signed.size();
+        }
+        grant_unsigned_role_to_all(bot, gid);
+        dpp::message msg = make_si_start_msg(total);
+        msg.channel_id = ch;
+        bot.message_create(msg, [&bot, deadline](const dpp::confirmation_callback_t& cb) {
+            if (!cb.is_error()) {
+                dpp::snowflake mid = std::get<dpp::message>(cb.value).id;
+                { std::lock_guard<std::mutex> lk(data_mutex); g_signin.message_id = mid; }
+                if (deadline > 0) {
+                    long long secs = (long long)deadline - (long long)time(nullptr);
+                    if (secs > 0) {
+                        dpp::timer tid = bot.start_timer([&bot](dpp::timer t) {
+                            dpp::snowflake m_id = 0, m_ch = 0;
+                            dpp::message closed;
+                            {
+                                std::lock_guard<std::mutex> lk(data_mutex);
+                                if (!g_signin.active) { bot.stop_timer(t); return; }
+                                g_signin.active = false;
+                                m_id = g_signin.message_id;
+                                m_ch = g_signin.channel_id;
+                                closed = make_si_closed_msg();
+                            }
+                            save_signin();
+                            if (m_id != 0) { closed.id = m_id; closed.channel_id = m_ch; bot.message_edit(closed); }
+                            bot.stop_timer(t);
+                        }, (uint64_t)secs);
+                        { std::lock_guard<std::mutex> lk(data_mutex); g_signin.timer_id = tid; }
+                    }
+                }
+                save_signin();
+            }
+        });
+        if (on_success) on_success(total);
+    });
+}
+
 // 單一玩家簽到成功時拿掉「未簽到人員」身分組。
 static void remove_unsigned_role(dpp::cluster& bot, dpp::snowflake gid, dpp::snowflake uid) {
     dpp::snowflake rid;

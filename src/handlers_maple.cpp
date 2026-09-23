@@ -7,7 +7,12 @@
 void load_maple_all_data() {
     load_maple_data();
     load_maple_wb_state();
+    load_maple_raid_rooms();
+    load_maple_exp_event();
+    load_maple_faction_state();
 }
+
+void maple_save_exp_event() { save_maple_exp_event(); }
 
 // ─── 交易輔助（讓 !交易／/交易 支援楓之谷卷軸、裝備與瘋幣）────────────────────
 // 只有「沒點過卷軸」的裝備可交易，而且要放在背包（未穿在身上）。強化過的裝備不可交易。
@@ -249,9 +254,9 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
 
     if (cid.rfind("maple_advsettle_", 0) == 0) {
         if (!check_owner("maple_advsettle_")) return;
-        int64_t exp_gain = 0, coin_gain = 0, secs = 0;
+        int64_t exp_gain = 0, coin_gain = 0, secs = 0, faction_exp_gained = 0;
         int level_ups = 0;
-        std::string region_name;
+        std::string region_name, faction_name;
         bool ok = false;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
@@ -265,13 +270,21 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             maple_adv_progress(c, exp_gain, coin_gain, secs);
             c.coins += coin_gain;
             level_ups = maple_apply_exp(c, exp_gain);
+            // 每升一級陣營+該等級經驗，這裡算出這次總共加了多少（等差級數）方便顯示
+            if (level_ups > 0 && !c.faction_key.empty()) {
+                faction_exp_gained = (int64_t)level_ups * (2 * c.level - level_ups + 1) / 2;
+                const MapleFactionDef* fd = maple_find_faction(c.faction_key);
+                faction_name = fd ? fd->name : c.faction_key;
+            }
             c.adv_region.clear();
             c.adv_started_at = 0;
             ok = true;
         }
         if (!ok) return;
         save_maple_data();
-        ev.reply(dpp::ir_update_message, make_maple_adv_settle_msg(uid, region_name, exp_gain, coin_gain, secs, level_ups));
+        if (level_ups > 0) save_maple_faction_state();
+        ev.reply(dpp::ir_update_message, make_maple_adv_settle_msg(uid, region_name, exp_gain, coin_gain, secs,
+                                                                    level_ups, faction_name, faction_exp_gained));
         return;
     }
 
@@ -311,13 +324,486 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
 
     if (cid.rfind("maple_ambush_", 0) == 0) {
         if (!check_owner("maple_ambush_")) return;
-        ev.reply(dpp::ir_update_message, make_maple_ambush_boss_soon_msg(uid));
+        ev.reply(dpp::ir_update_message, make_maple_ambush_msg(uid));
         return;
     }
 
-    if (cid.rfind("maple_guild_", 0) == 0) {
-        if (!check_owner("maple_guild_")) return;
-        ev.reply(dpp::ir_update_message, make_maple_guild_soon_msg(uid));
+    // ── 突襲首領：選王／房間列表 ─────────────────────────────────────────────
+    if (cid.rfind("maple_raidsel_", 0) == 0) {
+        std::string rest = cid.substr(14);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string boss_key = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_raid_room_list_msg(uid, boss_key));
+        return;
+    }
+
+    if (cid.rfind("maple_raidcreate_", 0) == 0) {
+        std::string rest = cid.substr(17);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string boss_key = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        const MapleRaidBossDef* boss = maple_find_raid_boss(boss_key);
+        if (!boss || !boss->open) return;
+        std::string room_id;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (!c.raid_room_id.empty() && maple_find_raid_room(c.raid_room_id)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 你已經在一個房間裡了！").set_flags(dpp::m_ephemeral)); return;
+            }
+            if (maple_is_adventuring(c) || maple_is_wb_fighting(c)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 冒險中或挑戰野外首領中無法開房間！").set_flags(dpp::m_ephemeral)); return;
+            }
+            maple_raid_week_reset_if_needed(c);
+            if (!maple_raid_week_has_attempt(c)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 本週的突襲首領次數已經用完了！（" + std::to_string(maple_raid_week_used(c))
+                        + "/" + std::to_string(maple_raid_week_allowed(c)) + "，可以去特殊商店花瘋幣買額外次數）")
+                        .set_flags(dpp::m_ephemeral)); return;
+            }
+            room_id = "r" + std::to_string(maple_raid_room_seq++);
+            MapleRaidRoom room;
+            room.id = room_id;
+            room.boss_key = boss_key;
+            room.leader_uid = uid;
+            room.channel_id = ev.command.channel_id;
+            room.members.push_back({uid, dn});
+            room.created_at = time(nullptr);
+            maple_raid_rooms[room_id] = room;
+            c.raid_room_id = room_id;
+        }
+        save_maple_raid_rooms();
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_raid_lobby_msg(uid, room_id));
+        return;
+    }
+
+    if (cid.rfind("maple_raidjoin_", 0) == 0) {
+        std::string rest = cid.substr(15);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            MapleRaidRoom* room = maple_find_raid_room(room_id);
+            maple_raid_week_reset_if_needed(c);
+            if (!room || room->state != "waiting") err = "這間房間已經不能加入了。";
+            else if (!c.raid_room_id.empty() && maple_find_raid_room(c.raid_room_id)) err = "你已經在一個房間裡了！";
+            else if (maple_is_adventuring(c) || maple_is_wb_fighting(c)) err = "冒險中或挑戰野外首領中無法加入房間！";
+            else if ((int)room->members.size() >= MAPLE_RAID_ROOM_MAX_MEMBERS) err = "這間房間已經滿了。";
+            else if (!maple_raid_week_has_attempt(c))
+                err = "本週的突襲首領次數已經用完了！（" + std::to_string(maple_raid_week_used(c))
+                    + "/" + std::to_string(maple_raid_week_allowed(c)) + "，可以去特殊商店花瘋幣買額外次數）";
+            else {
+                room->members.push_back({uid, dn});
+                c.raid_room_id = room_id;
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_raid_rooms();
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_raid_lobby_msg(uid, room_id));
+        return;
+    }
+
+    if (cid.rfind("maple_raidlobby_", 0) == 0) {
+        std::string rest = cid.substr(16);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_raid_lobby_msg(uid, room_id));
+        return;
+    }
+
+    if (cid.rfind("maple_raidleave_", 0) == 0) {
+        std::string rest = cid.substr(16);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            MapleRaidRoom* room = maple_find_raid_room(room_id);
+            if (room && room->state == "waiting" && !maple_raid_room_is_leader(*room, uid)) {
+                room->members.erase(std::remove_if(room->members.begin(), room->members.end(),
+                    [&](const MapleRaidMember& m) { return m.uid == uid; }), room->members.end());
+                maple_data[uid].raid_room_id.clear();
+            }
+        }
+        save_maple_raid_rooms();
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_raid_boss_list_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_raiddisband_", 0) == 0) {
+        std::string rest = cid.substr(18);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            MapleRaidRoom* room = maple_find_raid_room(room_id);
+            if (room && maple_raid_room_is_leader(*room, uid) && room->state == "waiting") {
+                for (auto& m : room->members) maple_data[m.uid].raid_room_id.clear();
+                maple_raid_rooms.erase(room_id);
+            }
+        }
+        save_maple_raid_rooms();
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_raid_boss_list_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_raidkickopen_", 0) == 0) {
+        std::string rest = cid.substr(19);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_raid_kick_pick_msg(uid, room_id));
+        return;
+    }
+
+    if (cid.rfind("maple_raidkickdo_", 0) == 0) {
+        std::string rest = cid.substr(17);
+        size_t sep1 = rest.find('_');
+        if (sep1 == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep1)));
+        std::string rest2 = rest.substr(sep1 + 1);
+        size_t sep2 = rest2.rfind('_');
+        if (sep2 == std::string::npos) return;
+        std::string room_id = rest2.substr(0, sep2);
+        dpp::snowflake target(std::stoull(rest2.substr(sep2 + 1)));
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            MapleRaidRoom* room = maple_find_raid_room(room_id);
+            if (room && maple_raid_room_is_leader(*room, uid) && room->state == "waiting" && target != uid) {
+                room->members.erase(std::remove_if(room->members.begin(), room->members.end(),
+                    [&](const MapleRaidMember& m) { return m.uid == target; }), room->members.end());
+                maple_data[target].raid_room_id.clear();
+            }
+        }
+        save_maple_raid_rooms();
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_raid_kick_pick_msg(uid, room_id));
+        return;
+    }
+
+    if (cid.rfind("maple_raidstart_", 0) == 0) {
+        std::string rest = cid.substr(16);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            MapleRaidRoom* room = maple_find_raid_room(room_id);
+            if (!room || !maple_raid_room_is_leader(*room, uid)) err = "找不到房間或你不是隊長。";
+            else if (room->state != "waiting") err = "這場討伐已經開始了。";
+            else {
+                double dps = maple_raid_team_total_dps_locked(*room);
+                room->team_dps_x100 = (int64_t)llround(dps * 100.0);
+                room->accum_secs = 0;
+                room->resume_at  = time(nullptr);
+                room->state = "fighting";
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_raid_rooms();
+        ev.reply(dpp::ir_update_message, make_maple_raid_status_msg(uid, room_id));
+        return;
+    }
+
+    if (cid.rfind("maple_raidstatus_", 0) == 0) {
+        std::string rest = cid.substr(17);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        dpp::message m = make_maple_raid_status_msg(uid, room_id);
+        save_maple_raid_rooms(); // 上面那次呼叫可能觸發了自動暫停或擊敗判定，存一下
+        ev.reply(dpp::ir_update_message, m);
+        return;
+    }
+
+    if (cid.rfind("maple_raidcheckin_", 0) == 0) {
+        std::string rest = cid.substr(18);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            MapleRaidRoom* room = maple_find_raid_room(room_id);
+            if (room && room->state == "fighting" && room->resume_at <= 0 && maple_raid_room_has_member(*room, uid))
+                room->resume_at = time(nullptr);
+        }
+        save_maple_raid_rooms();
+        ev.reply(dpp::ir_update_message, make_maple_raid_status_msg(uid, room_id));
+        return;
+    }
+
+    if (cid.rfind("maple_raidsettle_", 0) == 0) {
+        std::string rest = cid.substr(17);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string err, summary, boss_name;
+        dpp::snowflake announce_ch = 0;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            MapleRaidRoom* room = maple_find_raid_room(room_id);
+            if (!room || !maple_raid_room_is_leader(*room, uid)) { err = "找不到房間或你不是隊長。"; }
+            else {
+                const MapleRaidBossDef* boss = maple_find_raid_boss(room->boss_key);
+                int64_t hp = boss ? boss->hp : 0;
+                int64_t dealt = maple_raid_damage_dealt_locked(*room, time(nullptr));
+                if (dealt < hp) { err = "首領還沒被擊敗。"; }
+                else {
+                    boss_name = boss ? boss->name : room->boss_key;
+                    announce_ch = room->channel_id;
+                    std::mt19937& rng = maple_wb_rng();
+                    summary = "## 🏆 " + boss_name + " 討伐成功！\n";
+                    for (auto& m : room->members) {
+                        auto& c = maple_data[m.uid];
+                        maple_raid_week_reset_if_needed(c);
+                        c.raid_week_used++;
+                        int64_t exp_gain = boss ? boss->exp : 0;
+                        int64_t coin_gain = boss ? std::uniform_int_distribution<int64_t>(boss->coin_min, boss->coin_max)(rng) : 0;
+                        c.coins += coin_gain;
+                        int level_ups = maple_apply_exp(c, exp_gain);
+                        if (boss && boss->faction_exp > 0) maple_faction_apply_exp(c.faction_key, boss->faction_exp);
+                        std::vector<std::string> drops;
+                        if (boss) {
+                            for (auto& d : boss->drops) {
+                                if (d.set.empty()) continue;
+                                if (std::uniform_int_distribution<int>(0, 999)(rng) >= d.per_mille) continue;
+                                const std::string& key = d.set.size() == 1 ? d.set[0]
+                                    : d.set[std::uniform_int_distribution<int>(0, (int)d.set.size() - 1)(rng)];
+                                if (const MapleScrollDef* sd = maple_find_scroll(key)) { c.scrolls[key]++; drops.push_back(sd->name); }
+                                else if (const MapleItemDef* it = maple_find_item(key)) { c.equipment[key]++; drops.push_back(it->name); }
+                            }
+                        }
+                        summary += "**" + m.display_name + "**：+" + std::to_string(exp_gain) + " EXP、+"
+                                 + std::to_string(coin_gain) + " 瘋幣" + (level_ups > 0 ? "（升級！）" : "");
+                        if (boss && boss->faction_exp > 0 && !c.faction_key.empty()) {
+                            const MapleFactionDef* fd = maple_find_faction(c.faction_key);
+                            summary += "、陣營「" + (fd ? fd->name : c.faction_key) + "」+" + std::to_string(boss->faction_exp) + " 經驗";
+                        }
+                        if (!drops.empty()) {
+                            summary += "\n　掉落：";
+                            for (size_t i = 0; i < drops.size(); i++) summary += (i ? "、" : "") + drops[i];
+                        }
+                        summary += "\n";
+                        c.raid_room_id.clear();
+                    }
+                    maple_raid_rooms.erase(room_id);
+                }
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_raid_rooms();
+        save_maple_data();
+        save_maple_faction_state();
+        dpp::message result;
+        result.set_content(summary);
+        if (announce_ch) result.channel_id = announce_ch;
+        ev.reply(dpp::ir_update_message, make_maple_ambush_msg(uid));
+        if (announce_ch) g_bot->message_create(result);
+        return;
+    }
+
+    if (cid.rfind("maple_faction_", 0) == 0) {
+        if (!check_owner("maple_faction_")) return;
+        ev.reply(dpp::ir_update_message, make_maple_faction_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_factionpick_", 0) == 0) {
+        if (!check_owner("maple_factionpick_")) return;
+        ev.reply(dpp::ir_update_message, make_maple_faction_pick_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_factionjoin_", 0) == 0) {
+        std::string rest = cid.substr(18);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string fkey = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        if (!maple_find_faction(fkey)) return;
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (c.faction_key == fkey) { err = "你已經在這個陣營了。"; }
+            else {
+                bool switching = !c.faction_key.empty();
+                int64_t cost = switching ? (MAPLE_FACTION_JOIN_FEE + MAPLE_FACTION_LEAVE_FEE) : MAPLE_FACTION_JOIN_FEE;
+                if (c.coins < cost) err = "瘋幣不足！";
+                else {
+                    c.coins -= cost;
+                    c.faction_key = fkey;
+                }
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_faction_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_factionleaveconfirm_", 0) == 0) {
+        if (!check_owner("maple_factionleaveconfirm_")) return;
+        MapleCharacter c = maple_get_or_create(uid);
+        if (c.faction_key.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 你目前沒有加入任何陣營！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_faction_leave_confirm_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_factionleaveok_", 0) == 0) {
+        if (!check_owner("maple_factionleaveok_")) return;
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (c.faction_key.empty()) err = "你目前沒有加入任何陣營！";
+            else if (c.coins < MAPLE_FACTION_LEAVE_FEE) err = "瘋幣不足！";
+            else {
+                c.coins -= MAPLE_FACTION_LEAVE_FEE;
+                c.faction_key.clear(); // 陣營本身的等級/經驗是全服共用，退出不影響
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_faction_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_factionmembers_", 0) == 0) {
+        if (!check_owner("maple_factionmembers_")) return;
+        ev.reply(dpp::ir_update_message, make_maple_faction_members_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_factionbuff_", 0) == 0) {
+        if (!check_owner("maple_factionbuff_")) return;
+        ev.reply(dpp::ir_update_message, make_maple_faction_buff_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_factiondonate_", 0) == 0) {
+        if (!check_owner("maple_factiondonate_")) return;
+        ev.reply(dpp::ir_update_message, make_maple_faction_donate_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_factiondonateok_", 0) == 0) {
+        if (!check_owner("maple_factiondonateok_")) return;
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            maple_faction_donate_week_reset_if_needed(c);
+            if (c.faction_key.empty()) err = "你目前沒有加入任何陣營！";
+            else if (maple_faction_donate_used_this_week(c)) err = "本週已經捐贈過了！";
+            else if (c.coins < MAPLE_FACTION_DONATE_COST) err = "瘋幣不足！";
+            else {
+                c.coins -= MAPLE_FACTION_DONATE_COST;
+                c.faction_donate_week_used++;
+                maple_faction_apply_exp(c.faction_key, MAPLE_FACTION_DONATE_EXP);
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_update_message, make_maple_faction_donate_msg(uid, "❌ " + err));
+            return;
+        }
+        save_maple_data();
+        save_maple_faction_state();
+        ev.reply(dpp::ir_update_message, make_maple_faction_donate_msg(uid, "✅ 捐贈成功！陣營 +" + std::to_string(MAPLE_FACTION_DONATE_EXP) + " 經驗"));
         return;
     }
 
@@ -405,7 +891,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 // 掉落表：每一筆各自獨立擲一次機率，中的話從 set 裡隨機選一個（scroll/item key 都支援）
                 for (auto& d : region->boss.drops) {
                     if (d.set.empty()) continue;
-                    if (std::uniform_int_distribution<int>(0, 99)(wb_rng) >= d.pct) continue;
+                    if (std::uniform_int_distribution<int>(0, 999)(wb_rng) >= d.per_mille) continue;
                     const std::string& key = d.set.size() == 1 ? d.set[0]
                         : d.set[std::uniform_int_distribution<int>(0, (int)d.set.size() - 1)(wb_rng)];
                     if (const MapleScrollDef* sd = maple_find_scroll(key)) {
@@ -424,6 +910,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         }
         if (win) save_maple_wb_state();
         save_maple_data();
+        if (level_ups > 0) save_maple_faction_state();
         ev.reply(dpp::ir_update_message, make_maple_wb_result_msg(uid, win, boss_name, exp_gain, coin_gain, level_ups, drops, place));
         return;
     }
@@ -1237,6 +1724,29 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
         return;
     }
+    if (cid.rfind("maple_raidbuyattempt_", 0) == 0) {
+        if (!check_owner("maple_raidbuyattempt_")) return;
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            maple_raid_week_reset_if_needed(c);
+            if (c.raid_week_extra > 0) err = "這週已經買過額外次數了！";
+            else if (c.coins < MAPLE_RAID_EXTRA_ATTEMPT_PRICE) err = "瘋幣不足！";
+            else {
+                c.coins -= MAPLE_RAID_EXTRA_ATTEMPT_PRICE;
+                c.raid_week_extra = 1;
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
+        return;
+    }
+
     if (cid.rfind("maple_apbuyreset_", 0) == 0) {
         if (!check_owner("maple_apbuyreset_")) return;
         MapleCharacter c = maple_get_or_create(uid);
