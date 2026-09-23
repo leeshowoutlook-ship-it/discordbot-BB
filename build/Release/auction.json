@@ -109,18 +109,6 @@
       "uid": "1390285382381338627"
     },
     {
-      "created_at": 1789788471,
-      "currency": "chips",
-      "id": 70,
-      "is_buy": false,
-      "item_id": 81003,
-      "item_key": "recover_muscle",
-      "item_name": "肌肉舒緩劑",
-      "price": 1500,
-      "qty": 3,
-      "uid": "1390285382381338627"
-    },
-    {
       "created_at": 1789788490,
       "currency": "chips",
       "id": 71,
@@ -143,78 +131,6 @@
       "price": 1500,
       "qty": 1,
       "uid": "1390285382381338627"
-    },
-    {
-      "created_at": 1789792337,
-      "currency": "chips",
-      "id": 74,
-      "is_buy": true,
-      "item_id": 70001,
-      "item_key": "star_unknown",
-      "item_name": "未知的星星",
-      "price": 25000,
-      "qty": 2,
-      "uid": "1367598479110836335"
-    },
-    {
-      "created_at": 1790043240,
-      "currency": "coins",
-      "id": 76,
-      "is_buy": true,
-      "item_id": 96523,
-      "item_key": "sc_wpn_staff20",
-      "item_name": "法杖 攻擊力卷軸 20%",
-      "price": 10000,
-      "qty": 1,
-      "uid": "604244623124070423"
-    },
-    {
-      "created_at": 1790043255,
-      "currency": "coins",
-      "id": 77,
-      "is_buy": true,
-      "item_id": 96523,
-      "item_key": "sc_wpn_staff20",
-      "item_name": "法杖 攻擊力卷軸 20%",
-      "price": 10000,
-      "qty": 1,
-      "uid": "604244623124070423"
-    },
-    {
-      "created_at": 1790043268,
-      "currency": "coins",
-      "id": 78,
-      "is_buy": true,
-      "item_id": 96523,
-      "item_key": "sc_wpn_staff20",
-      "item_name": "法杖 攻擊力卷軸 20%",
-      "price": 10000,
-      "qty": 1,
-      "uid": "604244623124070423"
-    },
-    {
-      "created_at": 1790043281,
-      "currency": "coins",
-      "id": 79,
-      "is_buy": true,
-      "item_id": 96523,
-      "item_key": "sc_wpn_staff20",
-      "item_name": "法杖 攻擊力卷軸 20%",
-      "price": 10000,
-      "qty": 1,
-      "uid": "604244623124070423"
-    },
-    {
-      "created_at": 1790043297,
-      "currency": "coins",
-      "id": 80,
-      "is_buy": true,
-      "item_id": 96523,
-      "item_key": "sc_wpn_staff20",
-      "item_name": "法杖 攻擊力卷軸 20%",
-      "price": 10000,
-      "qty": 1,
-      "uid": "604244623124070423"
     },
     {
       "created_at": 1790043333,
@@ -251,7 +167,19 @@
       "price": 7000,
       "qty": 1,
       "uid": "604244623124070423"
+    },
+    {
+      "created_at": 1790154680,
+      "currency": "chips",
+      "id": 90,
+      "is_buy": false,
+      "item_id": 96503,
+      "item_key": "sc_glove_atk100",
+      "item_name": "手套 攻擊力卷軸 100%",
+      "price": 20000,
+      "qty": 1,
+      "uid": "592685139717390346"
     }
   ],
-  "next_id": 85
+  "next_id": 92
 }

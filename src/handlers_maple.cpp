@@ -556,6 +556,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 room->team_dps_x100 = (int64_t)llround(dps * 100.0);
                 room->accum_secs = 0;
                 room->resume_at  = time(nullptr);
+                room->checkin_turn = 0; // 輪流指定簽到：從隊長（members[0]）開始輪
                 room->state = "fighting";
             }
         }
@@ -594,11 +595,22 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
         }
+        std::string err;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             MapleRaidRoom* room = maple_find_raid_room(room_id);
-            if (room && room->state == "fighting" && room->resume_at <= 0 && maple_raid_room_has_member(*room, uid))
+            if (!room || room->state != "fighting" || room->resume_at > 0 || !maple_raid_room_has_member(*room, uid)) {
+                // 房間不存在／沒在暫停中／不是隊員：靜默忽略，讓畫面刷新即可
+            } else if (maple_raid_checkin_designee(*room) != uid) {
+                err = "現在還沒輪到你簽到，換其他隊員試試。";
+            } else {
                 room->resume_at = time(nullptr);
+                room->checkin_turn = (room->checkin_turn + 1) % (int)room->members.size(); // 輪到下一位
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
         }
         save_maple_raid_rooms();
         ev.reply(dpp::ir_update_message, make_maple_raid_status_msg(uid, room_id));
@@ -765,7 +777,11 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
 
     if (cid.rfind("maple_factionmembers_", 0) == 0) {
         if (!check_owner("maple_factionmembers_")) return;
-        ev.reply(dpp::ir_update_message, make_maple_faction_members_msg(uid));
+        std::string rest = cid.substr(std::string("maple_factionmembers_").size());
+        size_t sep = rest.find('_');
+        int page = 0;
+        if (sep != std::string::npos) { try { page = std::stoi(rest.substr(sep + 1)); } catch (...) {} }
+        ev.reply(dpp::ir_update_message, make_maple_faction_members_msg(uid, page));
         return;
     }
 
@@ -1367,17 +1383,16 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
-    // 特殊商店：付費技能點數重製（10000 籌碼，可重複）
+    // 特殊商店：付費技能點數重製（10000 瘋幣，可重複）
     if (cid.rfind("maple_spbuyresetok_", 0) == 0) {
         if (!check_owner("maple_spbuyresetok_")) return;
         std::string err;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
-            int64_t have = chip_data.count(uid) ? chip_data[uid].chips : 0;
-            if (have < MAPLE_SP_BUYRESET_COST) err = "籌碼不足！";
+            if (c.coins < MAPLE_SP_BUYRESET_COST) err = "瘋幣不足！";
             else {
-                chip_data[uid].chips -= MAPLE_SP_BUYRESET_COST;
+                c.coins -= MAPLE_SP_BUYRESET_COST;
                 c.skill_levels.clear();
             }
         }
@@ -1385,16 +1400,15 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
         }
-        save_chips();
         save_maple_data();
         ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
         return;
     }
     if (cid.rfind("maple_spbuyreset_", 0) == 0) {
         if (!check_owner("maple_spbuyreset_")) return;
-        if (get_chips(uid) < MAPLE_SP_BUYRESET_COST) {
+        if (maple_get_or_create(uid).coins < MAPLE_SP_BUYRESET_COST) {
             ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 籌碼不足！").set_flags(dpp::m_ephemeral)); return;
+                dpp::message("❌ 瘋幣不足！").set_flags(dpp::m_ephemeral)); return;
         }
         ev.reply(dpp::ir_update_message, make_maple_spbuyreset_confirm_msg(uid));
         return;
@@ -1700,18 +1714,17 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
-    // 特殊商店：付費能力值重製（10000 籌碼，可重複）
+    // 特殊商店：付費能力值重製（10000 瘋幣，可重複）
     if (cid.rfind("maple_apbuyresetok_", 0) == 0) {
         if (!check_owner("maple_apbuyresetok_")) return;
         std::string err;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
-            int64_t have = chip_data.count(uid) ? chip_data[uid].chips : 0;
-            if (maple_is_adventuring(c))          err = "冒險中無法調整能力值！";
-            else if (have < MAPLE_AP_BUYRESET_COST) err = "籌碼不足！";
+            if (maple_is_adventuring(c))            err = "冒險中無法調整能力值！";
+            else if (c.coins < MAPLE_AP_BUYRESET_COST) err = "瘋幣不足！";
             else {
-                chip_data[uid].chips -= MAPLE_AP_BUYRESET_COST;
+                c.coins -= MAPLE_AP_BUYRESET_COST;
                 c.str_stat = 4; c.dex_stat = 4; c.int_stat = 4; c.luk_stat = 4;
             }
         }
@@ -1719,7 +1732,6 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
         }
-        save_chips();
         save_maple_data();
         ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
         return;
@@ -1754,9 +1766,9 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 冒險中無法調整能力值！").set_flags(dpp::m_ephemeral)); return;
         }
-        if (get_chips(uid) < MAPLE_AP_BUYRESET_COST) {
+        if (c.coins < MAPLE_AP_BUYRESET_COST) {
             ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 籌碼不足！").set_flags(dpp::m_ephemeral)); return;
+                dpp::message("❌ 瘋幣不足！").set_flags(dpp::m_ephemeral)); return;
         }
         ev.reply(dpp::ir_update_message, make_maple_apbuyreset_confirm_msg(uid));
         return;

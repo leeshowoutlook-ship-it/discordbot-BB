@@ -2,23 +2,23 @@
   "stock_0050": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1790096495,
+    "last_update": 1790183418,
     "prev_close": 112,
     "price": 112
   },
   "stock_btc": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1790096495,
-    "prev_close": 86507,
-    "price": 86424
+    "last_update": 1790183418,
+    "prev_close": 83889,
+    "price": 83844
   },
   "stock_catbro": {
-    "day_number": 20718,
-    "day_open_price": 1200,
-    "last_update": 1790065242,
-    "prev_close": 1212,
-    "price": 1175
+    "day_number": 20719,
+    "day_open_price": 1175,
+    "last_update": 1790144010,
+    "prev_close": 1175,
+    "price": 1233
   },
   "stock_mood": {
     "day_number": 0,
@@ -30,43 +30,43 @@
   "stock_mstr": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1790096495,
-    "prev_close": 169,
-    "price": 169
+    "last_update": 1790183418,
+    "prev_close": 163,
+    "price": 163
   },
   "stock_ntdo": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1790096495,
+    "last_update": 1790183418,
     "prev_close": 8339,
     "price": 8339
   },
   "stock_nvda": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1790096495,
-    "prev_close": 229,
-    "price": 229
+    "last_update": 1790183418,
+    "prev_close": 224,
+    "price": 224
   },
   "stock_purse": {
-    "day_number": 20718,
-    "day_open_price": 902,
-    "last_update": 1790045520,
-    "prev_close": 902,
-    "price": 910
+    "day_number": 20719,
+    "day_open_price": 910,
+    "last_update": 1790152839,
+    "prev_close": 925,
+    "price": 930
   },
   "stock_tsmc": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1790096495,
-    "prev_close": 2460,
-    "price": 2460
+    "last_update": 1790183418,
+    "prev_close": 2500,
+    "price": 2500
   },
   "stock_yageo": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1790096495,
-    "prev_close": 571,
-    "price": 571
+    "last_update": 1790183418,
+    "prev_close": 573,
+    "price": 573
   }
 }

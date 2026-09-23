@@ -1476,10 +1476,15 @@ static int64_t maple_raid_progress_secs_locked(MapleRaidRoom& room, time_t now) 
     int64_t next_checkpoint = ((room.accum_secs / MAPLE_RAID_CHECKIN_INTERVAL_SEC) + 1) * MAPLE_RAID_CHECKIN_INTERVAL_SEC;
     if (live >= next_checkpoint) {
         room.accum_secs = next_checkpoint; // 卡在整數倍，多出來的時間不算
-        room.resume_at  = 0;               // 自動暫停，等任一人簽到
+        room.resume_at  = 0;               // 自動暫停，輪到指定的那位隊員簽到（見 checkin_turn）
         return room.accum_secs;
     }
     return live;
+}
+// 目前這一輪暫停，輪到哪一位隊員簽到（輪流指定，見 MapleRaidRoom::checkin_turn）；members 為空時回傳 0
+static dpp::snowflake maple_raid_checkin_designee(const MapleRaidRoom& room) {
+    if (room.members.empty()) return 0;
+    return room.members[room.checkin_turn % room.members.size()].uid;
 }
 // 目前已經打掉多少血量；呼叫前必須持有 data_mutex
 static int64_t maple_raid_damage_dealt_locked(MapleRaidRoom& room, time_t now) {
@@ -1502,7 +1507,8 @@ static void save_maple_raid_rooms() {
                 {"id", r.id}, {"boss_key", r.boss_key}, {"leader_uid", (uint64_t)r.leader_uid},
                 {"channel_id", (uint64_t)r.channel_id}, {"members", members}, {"state", r.state},
                 {"team_dps_x100", r.team_dps_x100}, {"accum_secs", r.accum_secs},
-                {"resume_at", (int64_t)r.resume_at}, {"created_at", (int64_t)r.created_at},
+                {"resume_at", (int64_t)r.resume_at}, {"checkin_turn", r.checkin_turn},
+                {"created_at", (int64_t)r.created_at},
             });
         }
     }
@@ -1526,6 +1532,7 @@ static void load_maple_raid_rooms() {
             r.team_dps_x100 = v.value("team_dps_x100", (int64_t)0);
             r.accum_secs    = v.value("accum_secs", (int64_t)0);
             r.resume_at     = (time_t)v.value("resume_at", (int64_t)0);
+            r.checkin_turn  = v.value("checkin_turn", 0);
             r.created_at    = (time_t)v.value("created_at", (int64_t)0);
             if (v.contains("members") && v["members"].is_array()) {
                 for (auto& mv : v["members"]) {
@@ -3059,7 +3066,8 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
     msg.set_flags(dpp::m_using_components_v2);
 
     std::string content;
-    bool exists = false, is_leader = false, paused = false, defeated = false;
+    bool exists = false, is_leader = false, paused = false, defeated = false, is_designee = false;
+    dpp::snowflake designee = 0;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         MapleRaidRoom* room = maple_find_raid_room(room_id);
@@ -3073,13 +3081,15 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
             if (dealt >= hp && hp > 0) { dealt = hp; defeated = true; room->state = "won"; }
             paused = (room->resume_at <= 0) && !defeated;
             int pct = hp > 0 ? (int)(dealt * 100 / hp) : 0;
+            designee = maple_raid_checkin_designee(*room);
+            is_designee = paused && designee == uid;
 
             bool hide_hp = boss && boss->hide_hp;
             content = "## ⚔️ 討伐中 — " + (boss ? boss->name : room->boss_key) + "\n"
                      + (hide_hp ? std::string("血量未知，持續攻擊中…") : ("血量：" + std::to_string(dealt) + " / " + std::to_string(hp) + "（" + std::to_string(pct) + "%）"))
                      + "\n隊員：" + std::to_string(room->members.size()) + " 人\n";
             if (defeated) content += "\n💀 **首領已被擊敗！**" + std::string(is_leader ? "　按下方「結算」發放獎勵。" : "　等隊長按「結算」。");
-            else if (paused) content += "\n⏸️ **已暫停，需要任一位隊員簽到才會繼續累計進度**";
+            else if (paused) content += "\n⏸️ **已暫停，輪到 <@" + std::to_string((uint64_t)designee) + "> 簽到才會繼續累計進度**";
             else content += "\n▶️ 自動討伐中…";
         }
     }
@@ -3098,7 +3108,10 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
                     .set_label("🏆 結算").set_id("maple_raidsettle_" + uid_s + "_" + room_id).set_style(dpp::cos_success));
         } else if (paused) {
             row.add_component(dpp::component().set_type(dpp::cot_button)
-                .set_label("✅ 簽到，繼續討伐").set_id("maple_raidcheckin_" + uid_s + "_" + room_id).set_style(dpp::cos_success));
+                .set_label(is_designee ? "✅ 簽到，繼續討伐" : "⏳ 還沒輪到你簽到")
+                .set_id("maple_raidcheckin_" + uid_s + "_" + room_id)
+                .set_style(is_designee ? dpp::cos_success : dpp::cos_secondary)
+                .set_disabled(!is_designee));
         }
         row.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🔄 刷新").set_id("maple_raidstatus_" + uid_s + "_" + room_id).set_style(dpp::cos_secondary));
@@ -3176,7 +3189,7 @@ static dpp::message make_maple_faction_msg(dpp::snowflake uid) {
     } else {
         dpp::component row1; row1.set_type(dpp::cot_action_row);
         row1.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("👥 成員").set_id("maple_factionmembers_" + uid_s).set_style(dpp::cos_secondary));
+            .set_label("👥 成員").set_id("maple_factionmembers_" + uid_s + "_0").set_style(dpp::cos_secondary));
         row1.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("✨ 增益").set_id("maple_factionbuff_" + uid_s).set_style(dpp::cos_secondary));
         row1.add_component(dpp::component().set_type(dpp::cot_button)
@@ -3268,7 +3281,9 @@ static dpp::message make_maple_faction_leave_confirm_msg(dpp::snowflake uid) {
 }
 
 // 成員列表（按人數不多，這裡不分頁，直接全部列出）
-static dpp::message make_maple_faction_members_msg(dpp::snowflake uid) {
+static const int MAPLE_FACTION_MEMBERS_PAGE_SIZE = 10;
+
+static dpp::message make_maple_faction_members_msg(dpp::snowflake uid, int page = 0) {
     MapleCharacter c = maple_get_or_create(uid);
     std::string uid_s = std::to_string((uint64_t)uid);
     const MapleFactionDef* f = maple_find_faction(c.faction_key);
@@ -3276,6 +3291,7 @@ static dpp::message make_maple_faction_members_msg(dpp::snowflake uid) {
     msg.set_flags(dpp::m_using_components_v2);
 
     std::string content = "## 👥 " + (f ? f->name : c.faction_key) + " 成員\n";
+    int pages = 1;
     if (c.faction_key.empty()) {
         content = "## 👥 成員\n你目前沒有加入任何陣營。";
     } else {
@@ -3283,15 +3299,32 @@ static dpp::message make_maple_faction_members_msg(dpp::snowflake uid) {
         { std::lock_guard<std::mutex> lk(data_mutex);
           for (auto& [mu, mc] : maple_data) if (mc.faction_key == c.faction_key) members.push_back({mu, mc.level}); }
         std::sort(members.begin(), members.end(), [](auto& a, auto& b){ return a.second > b.second; });
-        content += "共 **" + std::to_string(members.size()) + "** 人\n";
-        for (auto& [mu, lv] : members)
-            content += "<@" + std::to_string((uint64_t)mu) + ">　Lv." + std::to_string(lv) + "\n";
+        int total = (int)members.size();
+        pages = std::max(1, (total + MAPLE_FACTION_MEMBERS_PAGE_SIZE - 1) / MAPLE_FACTION_MEMBERS_PAGE_SIZE);
+        if (page < 0) page = 0;
+        if (page >= pages) page = pages - 1;
+        int start = page * MAPLE_FACTION_MEMBERS_PAGE_SIZE;
+        int end   = std::min(start + MAPLE_FACTION_MEMBERS_PAGE_SIZE, total);
+        content += "共 **" + std::to_string(total) + "** 人　（第 " + std::to_string(page + 1) + "/" + std::to_string(pages) + " 頁）\n";
+        for (int i = start; i < end; i++)
+            content += "<@" + std::to_string((uint64_t)members[i].first) + ">　Lv." + std::to_string(members[i].second) + "\n";
     }
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x27, 0xAE, 0x60));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
     msg.add_component_v2(container);
+
+    if (!c.faction_key.empty() && pages > 1) {
+        dpp::component nav; nav.set_type(dpp::cot_action_row);
+        nav.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("◀ 上一頁").set_id("maple_factionmembers_" + uid_s + "_" + std::to_string(page - 1))
+            .set_style(dpp::cos_secondary).set_disabled(page <= 0));
+        nav.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("▶ 下一頁").set_id("maple_factionmembers_" + uid_s + "_" + std::to_string(page + 1))
+            .set_style(dpp::cos_secondary).set_disabled(page >= pages - 1));
+        msg.add_component_v2(nav);
+    }
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -3420,8 +3453,8 @@ static dpp::message make_maple_shop_msg(dpp::snowflake uid) {
 static const int64_t MAPLE_TOKEN_WEEKLY_CAP = 20000; // 每週最多可用多少籌碼兌換
 static const int     MAPLE_TOKEN_RATE_NUM   = 1;     // 瘋幣 = 籌碼 × num / den（之後可調比值）
 static const int     MAPLE_TOKEN_RATE_DEN   = 1;
-static const int64_t MAPLE_AP_BUYRESET_COST = 10000; // 付費能力值重製：每次 10000 籌碼，可重複購買
-static const int64_t MAPLE_SP_BUYRESET_COST = 10000; // 付費技能點數重製：每次 10000 籌碼，可重複購買
+static const int64_t MAPLE_AP_BUYRESET_COST = 10000; // 付費能力值重製：每次 10000 瘋幣，可重複購買
+static const int64_t MAPLE_SP_BUYRESET_COST = 10000; // 付費技能點數重製：每次 10000 瘋幣，可重複購買
 
 // 每週二早上08:00(UTC+8) = 週二00:00 UTC 重置；1970-01-01(週四)往後推5天剛好是週二00:00 UTC
 static int64_t maple_token_week_now()             { return ((int64_t)time(nullptr) - 5 * 86400) / 604800; }
@@ -3458,21 +3491,21 @@ static dpp::message make_maple_tokenshop_msg(dpp::snowflake uid) {
     container.add_component_v2(dpp::component()
         .set_type(dpp::cot_section)
         .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-            .set_content("**🔄 能力值重製**\n把已分配的力量／敏捷／智力／幸運全部歸零重新分配（可重複購買，不佔用免費的一次）\n💰 "
-                         + std::to_string(MAPLE_AP_BUYRESET_COST) + " 籌碼"))
+            .set_content("**🔄 能力值重製**\n把已分配的力量／敏捷／智力／幸運全部歸零重新分配（可重複購買，不佔用免費的一次）\n🪙 "
+                         + std::to_string(MAPLE_AP_BUYRESET_COST) + " 瘋幣"))
         .set_accessory(dpp::component().set_type(dpp::cot_button)
             .set_label("重製").set_id("maple_apbuyreset_" + uid_s)
             .set_style(dpp::cos_danger)
-            .set_disabled(chips < MAPLE_AP_BUYRESET_COST || maple_is_adventuring(c))));
+            .set_disabled(c.coins < MAPLE_AP_BUYRESET_COST || maple_is_adventuring(c))));
     container.add_component_v2(dpp::component()
         .set_type(dpp::cot_section)
         .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-            .set_content("**🔄 技能點數重製**\n把已學會的技能全部歸零、點數全部退還重新分配（可重複購買，不佔用免費的一次）\n💰 "
-                         + std::to_string(MAPLE_SP_BUYRESET_COST) + " 籌碼"))
+            .set_content("**🔄 技能點數重製**\n把已學會的技能全部歸零、點數全部退還重新分配（可重複購買，不佔用免費的一次）\n🪙 "
+                         + std::to_string(MAPLE_SP_BUYRESET_COST) + " 瘋幣"))
         .set_accessory(dpp::component().set_type(dpp::cot_button)
             .set_label("重製").set_id("maple_spbuyreset_" + uid_s)
             .set_style(dpp::cos_danger)
-            .set_disabled(chips < MAPLE_SP_BUYRESET_COST)));
+            .set_disabled(c.coins < MAPLE_SP_BUYRESET_COST)));
     {
         bool bought = c.raid_week_id == maple_raid_week_now() && c.raid_week_extra > 0;
         container.add_component_v2(dpp::component()
@@ -3525,12 +3558,12 @@ static dpp::message make_maple_apbuyreset_confirm_msg(dpp::snowflake uid) {
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
         .set_content("## ⚠️ 付費能力值重製\n花費 **" + std::to_string(MAPLE_AP_BUYRESET_COST)
-                     + "** 籌碼，把力量／敏捷／智力／幸運全部歸零重新分配。確定嗎？"));
+                     + "** 瘋幣，把力量／敏捷／智力／幸運全部歸零重新分配。確定嗎？"));
     msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("✅ 確定（-" + std::to_string(MAPLE_AP_BUYRESET_COST) + " 籌碼）")
+        .set_label("✅ 確定（-" + std::to_string(MAPLE_AP_BUYRESET_COST) + " 瘋幣）")
         .set_id("maple_apbuyresetok_" + uid_s).set_style(dpp::cos_danger));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("❌ 取消").set_id("maple_tokenshop_" + uid_s).set_style(dpp::cos_secondary));
@@ -3548,12 +3581,12 @@ static dpp::message make_maple_spbuyreset_confirm_msg(dpp::snowflake uid) {
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
         .set_content("## ⚠️ 付費技能點數重製\n花費 **" + std::to_string(MAPLE_SP_BUYRESET_COST)
-                     + "** 籌碼，把已學會的技能全部歸零、點數全部退還重新分配。確定嗎？"));
+                     + "** 瘋幣，把已學會的技能全部歸零、點數全部退還重新分配。確定嗎？"));
     msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("✅ 確定（-" + std::to_string(MAPLE_SP_BUYRESET_COST) + " 籌碼）")
+        .set_label("✅ 確定（-" + std::to_string(MAPLE_SP_BUYRESET_COST) + " 瘋幣）")
         .set_id("maple_spbuyresetok_" + uid_s).set_style(dpp::cos_danger));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("❌ 取消").set_id("maple_tokenshop_" + uid_s).set_style(dpp::cos_secondary));

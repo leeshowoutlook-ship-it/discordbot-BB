@@ -756,6 +756,7 @@ struct MapleRaidRoom {
     int64_t          team_dps_x100 = 0;       // 開始討伐當下鎖定的隊伍總DPS×100（避免存浮點數），之後不會再變
     int64_t          accum_secs    = 0;       // 已經累積的「有效討伐秒數」（暫停時凍結在這個數字）
     time_t           resume_at     = 0;       // >0＝正在跑，從這個時間點繼續累加；0＝暫停中，等任一人簽到
+    int              checkin_turn  = 0;        // 輪流指定簽到：members[checkin_turn % members.size()] 是目前這輪唯一能按簽到的人；每次成功簽到後 +1 輪下一位
     time_t           created_at    = 0;
 };
 inline std::map<std::string, MapleRaidRoom> maple_raid_rooms; // key = room id
