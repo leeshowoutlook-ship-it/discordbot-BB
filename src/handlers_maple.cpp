@@ -1156,31 +1156,47 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
-    if (cid.rfind("maple_eqbuyok_", 0) == 0) {
-        std::string rest = cid.substr(14);
-        size_t sep = rest.find('_');
-        if (sep == std::string::npos) return;
-        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
-        std::string item_key = rest.substr(sep + 1);
+    // maple_eqbuyok_<uid>_<qty>_<key>：固定數量／maple_eqbuymax_<uid>_<key>：買到上限（數量伺服器端算）
+    // 相容舊格式 maple_eqbuyok_<uid>_<key>（舊訊息上的按鈕）：數量欄位不是純數字時當作買 1 件
+    if (cid.rfind("maple_eqbuyok_", 0) == 0 || cid.rfind("maple_eqbuymax_", 0) == 0) {
+        bool is_max = cid.rfind("maple_eqbuymax_", 0) == 0;
+        std::string rest = cid.substr(is_max ? 15 : 14);
+        size_t s1 = rest.find('_');
+        if (s1 == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, s1)));
+        std::string item_key = rest.substr(s1 + 1);
+        int64_t qty = 1;
+        if (!is_max) {
+            size_t s2 = item_key.find('_');
+            if (s2 != std::string::npos && s2 > 0 &&
+                item_key.substr(0, s2).find_first_not_of("0123456789") == std::string::npos) {
+                qty = std::atoll(item_key.substr(0, s2).c_str());
+                item_key = item_key.substr(s2 + 1);
+            }
+        }
         if (owner != uid) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
         }
         const MapleItemDef* it = maple_find_item(item_key);
         if (!it || it->price <= 0) return;
-        bool bought = false;
+        std::string err;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
-            if (c.coins >= it->price) {
-                c.coins -= it->price;
-                c.equipment[item_key]++;
-                bought = true;
+            if (is_max) qty = std::min((int64_t)999, c.coins / it->price);
+            if (qty > 999) qty = 999;
+            int64_t cost = qty * it->price;
+            if (qty <= 0)          err = "數量不對。";
+            else if (c.coins < cost) err = "瘋幣不足！";
+            else {
+                c.coins -= cost;
+                c.equipment[item_key] += (int)qty;
             }
         }
-        if (!bought) {
+        if (!err.empty()) {
             ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 瘋幣不足！").set_flags(dpp::m_ephemeral)); return;
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
         }
         save_maple_data();
         ev.reply(dpp::ir_update_message,
@@ -1284,6 +1300,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         ev.reply(dpp::ir_update_message, make_maple_skill_msg(uid));
         return;
     }
+
 
     if (cid.rfind("maple_rank_", 0) == 0) {
         std::string rest = cid.substr(11);           // <uid>_<filter>_<page>
@@ -1435,7 +1452,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 c.skill_levels[skill_key] = lvl + 1;
         }
         save_maple_data();
-        ev.reply(dpp::ir_update_message, make_maple_skill_msg(uid));
+        ev.reply(dpp::ir_update_message, make_maple_skill_msg(uid, std::to_string(maple_skill_tab_of(*sd))));
         return;
     }
 
@@ -1444,12 +1461,18 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         size_t sep = rest.find('_');
         if (sep == std::string::npos) return;
         dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
-        std::string slot = rest.substr(sep + 1);
+        std::string tail = rest.substr(sep + 1);
+        std::string slot = tail;
+        int page = 0;
+        size_t psep = tail.rfind('_');
+        if (psep != std::string::npos) {
+            try { page = std::stoi(tail.substr(psep + 1)); slot = tail.substr(0, psep); } catch (...) {}
+        }
         if (owner != uid) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
         }
-        ev.reply(dpp::ir_update_message, make_maple_equip_slot_msg(uid, slot));
+        ev.reply(dpp::ir_update_message, make_maple_equip_slot_msg(uid, slot, page));
         return;
     }
 
@@ -1879,6 +1902,18 @@ void handle_maple_select(const dpp::select_click_t& ev, dpp::snowflake uid) {
         }
         std::string filter = ev.values.empty() ? std::string("all") : ev.values[0];
         ev.reply(dpp::ir_update_message, make_maple_rank_msg(uid, 0, filter));
+        return;
+    }
+
+    // maple_skillsel_<uid>　值＝選中的轉職層級（"0"/"1"/"2"）
+    if (cid.rfind("maple_skillsel_", 0) == 0) {
+        dpp::snowflake owner(std::stoull(cid.substr(std::string("maple_skillsel_").size())));
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string tab = ev.values.empty() ? std::string() : ev.values[0];
+        ev.reply(dpp::ir_update_message, make_maple_skill_msg(uid, tab));
         return;
     }
 

@@ -13,18 +13,6 @@
       "uid": "856481432581701643"
     },
     {
-      "created_at": 1789614484,
-      "currency": "coins",
-      "id": 38,
-      "is_buy": false,
-      "item_id": 96524,
-      "item_key": "sc_wpn_claw20",
-      "item_name": "拳套 攻擊力卷軸 20%",
-      "price": 20000,
-      "qty": 1,
-      "uid": "856481432581701643"
-    },
-    {
       "created_at": 1789614572,
       "currency": "coins",
       "id": 40,
@@ -47,30 +35,6 @@
       "price": 17000,
       "qty": 1,
       "uid": "856481432581701643"
-    },
-    {
-      "created_at": 1789636464,
-      "currency": "coins",
-      "id": 45,
-      "is_buy": true,
-      "item_id": 96535,
-      "item_key": "sc_shoes60",
-      "item_name": "鞋子主屬性卷軸 60%",
-      "price": 10000,
-      "qty": 1,
-      "uid": "558513044632895509"
-    },
-    {
-      "created_at": 1789636486,
-      "currency": "coins",
-      "id": 46,
-      "is_buy": true,
-      "item_id": 96534,
-      "item_key": "sc_helmet60",
-      "item_name": "頭盔主屬性卷軸 60%",
-      "price": 10000,
-      "qty": 1,
-      "uid": "558513044632895509"
     },
     {
       "created_at": 1789788214,
@@ -109,30 +73,6 @@
       "uid": "1390285382381338627"
     },
     {
-      "created_at": 1789788490,
-      "currency": "chips",
-      "id": 71,
-      "is_buy": false,
-      "item_id": 81001,
-      "item_key": "recover_depress",
-      "item_name": "抗憂鬱藥物",
-      "price": 1500,
-      "qty": 1,
-      "uid": "1390285382381338627"
-    },
-    {
-      "created_at": 1789788505,
-      "currency": "chips",
-      "id": 72,
-      "is_buy": false,
-      "item_id": 81004,
-      "item_key": "recover_fatigue",
-      "item_name": "高級強效咖啡",
-      "price": 1500,
-      "qty": 1,
-      "uid": "1390285382381338627"
-    },
-    {
       "created_at": 1790043333,
       "currency": "coins",
       "id": 81,
@@ -157,29 +97,17 @@
       "uid": "604244623124070423"
     },
     {
-      "created_at": 1790043411,
-      "currency": "coins",
-      "id": 83,
-      "is_buy": true,
-      "item_id": 96552,
-      "item_key": "sc_shoes20",
-      "item_name": "鞋子主屬性卷軸 20%",
-      "price": 7000,
-      "qty": 1,
-      "uid": "604244623124070423"
-    },
-    {
-      "created_at": 1790154680,
+      "created_at": 1790340134,
       "currency": "chips",
-      "id": 90,
+      "id": 100,
       "is_buy": false,
-      "item_id": 96503,
-      "item_key": "sc_glove_atk100",
-      "item_name": "手套 攻擊力卷軸 100%",
+      "item_id": 70001,
+      "item_key": "star_unknown",
+      "item_name": "未知的星星",
       "price": 20000,
       "qty": 1,
-      "uid": "592685139717390346"
+      "uid": "604244623124070423"
     }
   ],
-  "next_id": 92
+  "next_id": 102
 }

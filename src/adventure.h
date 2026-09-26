@@ -238,6 +238,11 @@ static const AdvRegion* find_adv_region(const std::string& key) {
 static bool adv_region_requires_pet6h(const std::string& region_key) {
     return region_key == "red_dragon_range";
 }
+// 純粹「必須攜帶寵物」（不強制時長）：扭曲叢林；赤龍山脈的寵物需求已經包含在上面那個函式裡，這裡也一併算進去
+// 方便所有「純粹檢查有沒有帶寵物」的地方只呼叫這一個函式
+static bool adv_region_requires_pet(const std::string& region_key) {
+    return region_key == "red_dragon_range" || region_key == "twisted_jungle";
+}
 
 // Collection display regions (3 pages; empty adv_key = locked/coming soon)
 struct ColDisplayRegion { std::string adv_key; std::string name; std::string emoji; };
@@ -1141,6 +1146,9 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
     if (reg && adv_region_requires_pet6h(reg->key)) {
         region_reqs_met = setup.duration_hours >= 6 && setup.partner == 1;
         if (!region_reqs_met) desc += "\n\n⚠️ **此地區需要攜帶寵物且時長至少 6 小時才能出發。**";
+    } else if (reg && adv_region_requires_pet(reg->key)) {
+        region_reqs_met = setup.partner == 1;
+        if (!region_reqs_met) desc += "\n\n⚠️ **此地區需要攜帶寵物才能出發。**";
     }
     bool all_set = reg && setup.duration_hours > 0 && setup.funds >= 0 && setup.partner >= 0 && region_reqs_met;
     if (all_set) {
@@ -1446,7 +1454,7 @@ static dpp::message make_adv_partner_select_msg(dpp::snowflake uid, const std::s
         if (ai != adv_games.end() && ai->second.pet_along) pet_busy = true;
         auto sit = adv_setups.find(uid); if (sit != adv_setups.end()) setup = sit->second;
     }
-    bool require_pet = adv_region_requires_pet6h(setup.region_key);
+    bool require_pet = adv_region_requires_pet(setup.region_key);
     std::string user_tag = dn.empty() ? uid_s : dn;
     std::string desc = "## 🐾 選擇探險夥伴\n探險期間寵物無法打工。\n\n";
     if (require_pet) desc += "⚠️ 此地區必須攜帶寵物才能出發。\n";
@@ -1756,7 +1764,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             if (!ok) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 寵物必須空閒才能帶去探險！\n（打工中、有未領取的打工、泡溫泉中皆無法出發）").set_flags(dpp::m_ephemeral)); return; }
         } else {
             bool require_pet = false;
-            { std::lock_guard<std::mutex> lk(data_mutex); require_pet = adv_region_requires_pet6h(adv_setups[uid].region_key); }
+            { std::lock_guard<std::mutex> lk(data_mutex); require_pet = adv_region_requires_pet(adv_setups[uid].region_key); }
             if (require_pet) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 此地區必須攜帶寵物！").set_flags(dpp::m_ephemeral)); return; }
         }
         { std::lock_guard<std::mutex> lk(data_mutex); adv_setups[uid].partner = with_pet ? 1 : 0; }
@@ -1800,6 +1808,9 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         }
         if (adv_region_requires_pet6h(setup.region_key) && (setup.duration_hours < 6 || setup.partner != 1)) {
             ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 此地區必須攜帶寵物且時長至少 6 小時！").set_flags(dpp::m_ephemeral)); return;
+        }
+        if (adv_region_requires_pet(setup.region_key) && setup.partner != 1) {
+            ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 此地區必須攜帶寵物！").set_flags(dpp::m_ephemeral)); return;
         }
         { std::lock_guard<std::mutex> lk(data_mutex);
           if (adv_games.count(uid)) { ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 你已有進行中的探險！").set_flags(dpp::m_ephemeral)); return; }

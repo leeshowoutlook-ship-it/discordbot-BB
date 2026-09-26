@@ -796,6 +796,7 @@ int main(int argc, char* argv[]) {
                 "!簽到","！簽到","!簽到名單","！簽到名單","!結束簽到","！結束簽到",
                 "!簽到重整","！簽到重整",
                 "!經驗活動","！經驗活動",
+                "!抽獎","！抽獎",
             };
             for (auto& s : EXACT) if (content == s) return true;
             // Secret owner-only command
@@ -808,6 +809,7 @@ int main(int argc, char* argv[]) {
                 "!公告 ","！公告 ",
                 "!簽到 ","！簽到 ",
                 "!經驗活動 ","！經驗活動 ",
+                "!抽獎 ","！抽獎 ",
             };
             for (auto& s : PREFIX) if (content.rfind(s, 0) == 0) return true;
             // standalone (no args)
@@ -1575,10 +1577,12 @@ int main(int argc, char* argv[]) {
                     } catch (...) { fail(); }
                 });
         }
-        // !抽獎 時間 人數 獎品
+        // !抽獎／！抽獎 時間 人數 獎品
         else {
-            const std::string prefix = "!抽獎";
-            if (content.rfind(prefix, 0) == 0) {
+            std::string prefix;
+            if      (content.rfind("!抽獎", 0) == 0) prefix = "!抽獎";
+            else if (content.rfind("！抽獎", 0) == 0) prefix = "！抽獎";
+            if (!prefix.empty()) {
                 bool authorized = is_draw_authorized_msg(uid, ev.msg.member.get_roles());
                 if (!authorized) {
                     ev.reply("❌ 只有管理員或副會長才能開抽獎！");
@@ -1637,6 +1641,7 @@ int main(int argc, char* argv[]) {
         dpp::snowflake     uid  = user.id;
         bool               adm  = is_admin(ev.command);
 
+      try {
         // 報名流程按鈕需要 owner 驗證
         if (cid.rfind("boss_",0)==0 || cid.rfind("slot_",0)==0 ||
             cid == "confirm_time"   || cid.rfind("pos_",0)==0   ||
@@ -3021,6 +3026,17 @@ int main(int argc, char* argv[]) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 按鈕已失效（可能在 bot 重啟前建立）").set_flags(dpp::m_ephemeral));
         }
+      } catch (const std::exception& e) {
+          fprintf(stderr, "[EXCEPTION] on_button_click cid=%s what=%s\n", cid.c_str(), e.what());
+          fflush(stderr);
+          ev.reply(dpp::ir_channel_message_with_source,
+              dpp::message("❌ 系統發生錯誤，請稍後再試（已記錄，若持續發生請回報）").set_flags(dpp::m_ephemeral));
+      } catch (...) {
+          fprintf(stderr, "[EXCEPTION] on_button_click cid=%s unknown exception\n", cid.c_str());
+          fflush(stderr);
+          ev.reply(dpp::ir_channel_message_with_source,
+              dpp::message("❌ 系統發生錯誤，請稍後再試（已記錄，若持續發生請回報）").set_flags(dpp::m_ephemeral));
+      }
     });
 
     // ── Modal 送出（管理員操作）─────────────────────────────────────────────
@@ -3550,8 +3566,9 @@ int main(int argc, char* argv[]) {
         else if (cid.rfind("rl_ch_sel_", 0) == 0) {
             handle_roulette_select(ev); return;
         }
-        // ── 楓之谷裝備商店／排行榜職業篩選 select → handlers_maple.cpp ─────────
-        else if (cid.rfind("maple_eqshopsel_", 0) == 0 || cid.rfind("maple_ranksel_", 0) == 0) {
+        // ── 楓之谷裝備商店／排行榜職業篩選／技能轉職階段 select → handlers_maple.cpp ─────────
+        else if (cid.rfind("maple_eqshopsel_", 0) == 0 || cid.rfind("maple_ranksel_", 0) == 0 ||
+                 cid.rfind("maple_skillsel_", 0) == 0) {
             handle_maple_select(ev, uid); return;
         }
         // ── 楓之谷冒險等級區間 select → handlers_maple.cpp ─────────────────────
@@ -3629,6 +3646,7 @@ int main(int argc, char* argv[]) {
         dpp::snowflake     uid      = user.id;
         dpp::snowflake     ch       = ev.command.channel_id;
 
+      try {
         if (cmd_name == "王團報名" || cmd_name == "王團紀錄" ||
             cmd_name == "raid" || cmd_name == "raidlog") {
             invalidate_old_msg(bot, uid);
@@ -4274,6 +4292,17 @@ int main(int argc, char* argv[]) {
                 }
             });
         }
+      } catch (const std::exception& e) {
+          fprintf(stderr, "[EXCEPTION] on_slashcommand cmd=%s what=%s\n", cmd_name.c_str(), e.what());
+          fflush(stderr);
+          ev.reply(dpp::ir_channel_message_with_source,
+              dpp::message("❌ 系統發生錯誤，請稍後再試（已記錄，若持續發生請回報）").set_flags(dpp::m_ephemeral));
+      } catch (...) {
+          fprintf(stderr, "[EXCEPTION] on_slashcommand cmd=%s unknown exception\n", cmd_name.c_str());
+          fflush(stderr);
+          ev.reply(dpp::ir_channel_message_with_source,
+              dpp::message("❌ 系統發生錯誤，請稍後再試（已記錄，若持續發生請回報）").set_flags(dpp::m_ephemeral));
+      }
     });
 
     // ── 伺服器連線：抓 emoji 名稱 + 即時註冊 guild slash 指令 ────────────────
@@ -4305,7 +4334,28 @@ int main(int argc, char* argv[]) {
             warn_cmd.add_option(dpp::command_option(dpp::co_user,   "對象", "要警告的成員",       true))
                     .add_option(dpp::command_option(dpp::co_string, "原因", "警告原因（可省略）", false));
 
-            // 抽獎/公告/小黑屋不註冊 slash（低頻或管理員專用，保留 !/！ 訊息指令），見上方註記
+            // 公告/小黑屋不註冊 slash（低頻或管理員專用，保留 !/！ 訊息指令）；抽獎因為選項較多改註冊 slash 方便填寫
+            dpp::slashcommand giveaway_cmd("抽獎", "開一場抽獎（管理員/副會長）", bot.me.id);
+            giveaway_cmd.add_option(dpp::command_option(dpp::co_string,  "時間",     "持續時間，格式：HH:MM／Xm／Xh", true))
+                        .add_option(dpp::command_option(dpp::co_integer, "獲獎人數", "中獎人數", true))
+                        .add_option(dpp::command_option(dpp::co_string,  "獎品名稱", "獎品內容", true))
+                        .add_option(dpp::command_option(dpp::co_channel, "抽獎頻道", "公告抽獎的頻道（預設本頻道）", false))
+                        .add_option(dpp::command_option(dpp::co_user,    "提供者",   "獎品提供者（顯示用）", false))
+                        .add_option(dpp::command_option(dpp::co_user,    "提及",     "開獎公告時要 tag 的對象", false))
+                        .add_option(dpp::command_option(dpp::co_string,  "備註",     "額外備註", false))
+                        .add_option(dpp::command_option(dpp::co_role,    "限制身分組", "限定某身分組才能參加", false))
+                        .add_option(dpp::command_option(dpp::co_integer, "報名費",   "參加需先扣的籌碼（預設0，退出可退還）", false));
+            dpp::slashcommand giveaway_en("giveaway", "Start a giveaway (admin/officer)", bot.me.id);
+            giveaway_en.add_option(dpp::command_option(dpp::co_string,  "時間",     "持續時間，格式：HH:MM／Xm／Xh", true))
+                       .add_option(dpp::command_option(dpp::co_integer, "獲獎人數", "中獎人數", true))
+                       .add_option(dpp::command_option(dpp::co_string,  "獎品名稱", "獎品內容", true))
+                       .add_option(dpp::command_option(dpp::co_channel, "抽獎頻道", "公告抽獎的頻道（預設本頻道）", false))
+                       .add_option(dpp::command_option(dpp::co_user,    "提供者",   "獎品提供者（顯示用）", false))
+                       .add_option(dpp::command_option(dpp::co_user,    "提及",     "開獎公告時要 tag 的對象", false))
+                       .add_option(dpp::command_option(dpp::co_string,  "備註",     "額外備註", false))
+                       .add_option(dpp::command_option(dpp::co_role,    "限制身分組", "限定某身分組才能參加", false))
+                       .add_option(dpp::command_option(dpp::co_integer, "報名費",   "參加需先扣的籌碼（預設0，退出可退還）", false));
+
             dpp::slashcommand lucky("幸運頻道", "隨機抽出幸運頻道號碼", bot.me.id);
             lucky.add_option(dpp::command_option(dpp::co_integer, "最大頻道數", "頻道總數（抽 1 到此數）", true));
 
@@ -4463,6 +4513,7 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("undercover","Start Undercover (Who is spy?)", bot.me.id),
                 dpp::slashcommand("猜數字",    "猜四位不重複數字（1A2B）",       bot.me.id),
                 dpp::slashcommand("guess",     "Guess the 4-digit number (1A2B)",bot.me.id),
+                giveaway_cmd, giveaway_en,
                 bj, warn_cmd, lucky, transfer, dice_cmd, shoot_cmd, shoot_en,
                 rocket_cmd, rocket_en, scratch_cmd, scratch_en,
                 euroulette_cmd, euroulette_en,

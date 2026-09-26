@@ -2001,9 +2001,24 @@ static dpp::message make_maple_atktype_msg(dpp::snowflake uid) {
     return msg;
 }
 
-static dpp::message make_maple_skill_msg(dpp::snowflake uid) {
+// 0轉／1轉／2轉技能分開顯示（下拉選單切換），避免單一畫面塞太多元件被 Discord 拒收
+// （曾經發生過全部塞在一起導致二轉後打不開技能畫面的問題）。tab 是要顯示的轉職層級（"0"/"1"/"2"），
+// 空字串＝預設顯示玩家目前最高的轉職層級（剛二轉的人一進來就看到二轉技能）。
+static int maple_skill_tab_of(const MapleSkillDef& sd) {
+    if (sd.job == "beginner") return 0;
+    return maple_skill_is_tier2(sd) ? 2 : 1;
+}
+static dpp::message make_maple_skill_msg(dpp::snowflake uid, const std::string& tab = "") {
     MapleCharacter c = maple_get_or_create(uid);
     std::string uid_s = std::to_string((uint64_t)uid);
+
+    const MapleJobDef& j = maple_job_of(c);
+    int max_tier = j.tier; // 0＝尚未轉職／1／2
+    std::string job1_key = max_tier >= 1 ? (max_tier == 2 ? j.parent : j.key) : "";
+    std::string job2_key = max_tier == 2 ? j.key : "";
+    int cur_tier = max_tier;
+    if (!tab.empty()) { try { cur_tier = std::stoi(tab); } catch (...) {} }
+    if (cur_tier < 0 || cur_tier > max_tier) cur_tier = max_tier; // 防呆：不能選超過目前能點的轉職層級
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -2011,25 +2026,39 @@ static dpp::message make_maple_skill_msg(dpp::snowflake uid) {
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
     std::string head = "## 🌟 技能\n剩餘技能點：**" + std::to_string(maple_sp_unspent(c)) + "**";
-    bool is_tier2 = maple_job_of(c).tier == 2;
     if (maple_beginner_sp_spent(c) < MAPLE_TIER1_UNLOCK_BEGINNER_SP)
         head += "\n🔒 初心者技能投入滿 " + std::to_string(MAPLE_TIER1_UNLOCK_BEGINNER_SP) + " 點後才能點一轉技能";
-    else if (!is_tier2)
+    else if (max_tier < 2)
         head += "\n🔒 轉職成二轉職業、且一轉技能投入滿 " + std::to_string(MAPLE_TIER2_UNLOCK_TIER1_SP) + " 點後才能點二轉技能";
     else if (maple_tier1_sp_spent(c) < MAPLE_TIER2_UNLOCK_TIER1_SP)
         head += "\n🔒 一轉技能投入滿 " + std::to_string(MAPLE_TIER2_UNLOCK_TIER1_SP) + " 點後才能點二轉技能";
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(head));
 
-    // 轉職後之前職業的技能仍然顯示（初心者技能一律顯示，再加上目前一轉職業的技能）
-    for (auto& skill_job : maple_visible_skill_jobs(c)) {
+    // 依目前選的轉職層級（0/1/2）組出要顯示的技能組：
+    // 0轉＝初心者技能；1轉＝一轉職業「非二轉」技能；2轉＝一轉父職業掛的共用武器技能（若有）＋二轉職業自己的技能
+    std::vector<std::pair<std::string, std::vector<const MapleSkillDef*>>> show_groups;
+    if (cur_tier == 0) {
+        show_groups.push_back({"beginner", maple_skills_for_job("beginner")});
+    } else if (cur_tier == 1) {
+        std::vector<const MapleSkillDef*> keep;
+        for (auto* sd : maple_skills_for_job(job1_key))
+            if (!maple_skill_is_tier2(*sd)) keep.push_back(sd);
+        show_groups.push_back({job1_key, keep});
+    } else {
+        std::vector<const MapleSkillDef*> wpn_skills;
+        for (auto* sd : maple_skills_for_job(job1_key))
+            if (maple_skill_is_tier2(*sd)) wpn_skills.push_back(sd);
+        if (!wpn_skills.empty()) show_groups.push_back({job1_key, wpn_skills});
+        show_groups.push_back({job2_key, maple_skills_for_job(job2_key)});
+    }
+
+    for (auto& [skill_job, skills] : show_groups) {
         const MapleJobDef* jd = maple_find_job(skill_job);
         container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
             .set_spacing(dpp::sep_small).set_divider(true));
         container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
             .set_content("**── " + (jd ? jd->name : skill_job) + " ──**"));
-        for (auto* sd : maple_skills_for_job(skill_job)) {
-            // 二轉技能（含掛在一轉職業上顯示的共用武器技能）在真的轉職成二轉職業之前完全不顯示
-            if (maple_skill_is_tier2(*sd) && !is_tier2) continue;
+        for (auto* sd : skills) {
             int lvl = maple_skill_level(c, sd->key);
             bool maxed = lvl >= sd->max_level;
             bool unlockable = maple_skill_unlockable(c, *sd);
@@ -2048,6 +2077,21 @@ static dpp::message make_maple_skill_msg(dpp::snowflake uid) {
         }
     }
     msg.add_component_v2(container);
+
+    if (max_tier >= 1) {
+        dpp::component sel_row; sel_row.set_type(dpp::cot_action_row);
+        dpp::component sel;
+        sel.set_type(dpp::cot_selectmenu).set_id("maple_skillsel_" + uid_s).set_placeholder("選擇轉職階段");
+        sel.add_select_option(dpp::select_option("0轉 初心者", "0").set_default(cur_tier == 0));
+        const MapleJobDef* j1 = maple_find_job(job1_key);
+        sel.add_select_option(dpp::select_option("1轉 " + (j1 ? j1->name : job1_key), "1").set_default(cur_tier == 1));
+        if (max_tier == 2) {
+            const MapleJobDef* j2 = maple_find_job(job2_key);
+            sel.add_select_option(dpp::select_option("2轉 " + (j2 ? j2->name : job2_key), "2").set_default(cur_tier == 2));
+        }
+        sel_row.add_component(sel);
+        msg.add_component_v2(sel_row);
+    }
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -2343,7 +2387,11 @@ static dpp::message make_maple_enh_msg(dpp::snowflake uid, const std::string& sl
     return msg;
 }
 
-static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::string& slot) {
+// 每頁最多幾件裝備（裸裝備＋每個強化實例各算一件）；擁有的種類/強化實例太多時分頁，
+// 避免跟背包一樣塞爆 Discord 訊息的元件上限、按「更換」沒反應。
+static const int MAPLE_EQUIP_SLOT_PAGE_SIZE = 8;
+
+static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::string& slot, int page = 0) {
     MapleCharacter c = maple_get_or_create(uid);
     std::string uid_s = std::to_string((uint64_t)uid);
     const MapleSlotDef* sd = nullptr;
@@ -2353,13 +2401,6 @@ static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::str
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
-
-    dpp::component container;
-    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 🔄 更換" + slot_name));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
-        .set_spacing(dpp::sep_small).set_divider(true));
 
     // 裝備欄要分開列「裸裝備」跟「每一個強化實例」——同一種類可能同時擁有好幾件不同強化結果的，
     // 不能只用「這個種類是不是已裝備」概括，不然除了裸的那份庫存被卡住選不到之外，
@@ -2382,7 +2423,9 @@ static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::str
         if (!item.sellable) text += "　🚫無法售出";
         return text;
     };
-    bool any = false;
+    // 先把「這一格所有可選項目」（裸裝備＋每個強化實例）收集成清單，再依頁碼切片顯示
+    struct EqPickEntry { std::string text, btn_label, btn_id; bool disabled; };
+    std::vector<EqPickEntry> entries;
     std::string cur_raw = maple_equipped_raw(c, slot);
     for (auto& item : MAPLE_ITEMS) {
         if (item.slot != slot) continue;
@@ -2395,37 +2438,51 @@ static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::str
 
         // 裸裝備那一行：有庫存、或正穿著裸的（庫存=0但穿著）才顯示
         if (raw_qty > 0 || worn_is_raw) {
-            any = true;
             std::string text = "**" + item.name + "**" + (raw_qty > 0 ? "　×" + std::to_string(raw_qty) : "")
                               + item_common_text(item);
-            container.add_component_v2(dpp::component()
-                .set_type(dpp::cot_section)
-                .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
-                .set_accessory(dpp::component().set_type(dpp::cot_button)
-                    .set_label(worn_is_raw ? "已裝備" : "裝備")
-                    .set_id("maple_eqpickraw_" + uid_s + "_" + slot + "_" + item.key)
-                    .set_style(worn_is_raw ? dpp::cos_secondary : dpp::cos_success)
-                    .set_disabled(worn_is_raw || !eligible)));
+            entries.push_back({text, worn_is_raw ? "已裝備" : "裝備",
+                                "maple_eqpickraw_" + uid_s + "_" + slot + "_" + item.key,
+                                worn_is_raw || !eligible});
         }
         // 每一個強化實例各自一行（不管有沒有穿著）
         for (auto* e : enh_list) {
-            any = true;
             bool worn = maple_enh_is_equipped(c, e->id);
             std::string text = "**" + item.name + "**" + maple_enh_badge(*e, slot) + item_common_text(item);
             if (maple_enh_has_bonus(*e)) text += "\n強化：" + maple_enh_bonus_text(*e);
-            container.add_component_v2(dpp::component()
-                .set_type(dpp::cot_section)
-                .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
-                .set_accessory(dpp::component().set_type(dpp::cot_button)
-                    .set_label(worn ? "已裝備" : "裝備")
-                    .set_id("maple_eqpickenh_" + uid_s + "_" + slot + "_" + std::to_string(e->id))
-                    .set_style(worn ? dpp::cos_secondary : dpp::cos_success)
-                    .set_disabled(worn || !eligible)));
+            entries.push_back({text, worn ? "已裝備" : "裝備",
+                                "maple_eqpickenh_" + uid_s + "_" + slot + "_" + std::to_string(e->id),
+                                worn || !eligible});
         }
     }
-    if (!any) {
+
+    int total = (int)entries.size();
+    int pages = std::max(1, (total + MAPLE_EQUIP_SLOT_PAGE_SIZE - 1) / MAPLE_EQUIP_SLOT_PAGE_SIZE);
+    if (page < 0) page = 0;
+    if (page >= pages) page = pages - 1;
+    int start = page * MAPLE_EQUIP_SLOT_PAGE_SIZE;
+    int end   = std::min(start + MAPLE_EQUIP_SLOT_PAGE_SIZE, total);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
+    std::string head = "## 🔄 更換" + slot_name;
+    if (pages > 1) head += "　（第 " + std::to_string(page + 1) + "/" + std::to_string(pages) + " 頁）";
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(head));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
+        .set_spacing(dpp::sep_small).set_divider(true));
+
+    if (total == 0) {
         container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
             .set_content("目前沒有擁有的" + slot_name + "，去裝備商店購買。"));
+    }
+    for (int i = start; i < end; i++) {
+        auto& en = entries[i];
+        container.add_component_v2(dpp::component()
+            .set_type(dpp::cot_section)
+            .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(en.text))
+            .set_accessory(dpp::component().set_type(dpp::cot_button)
+                .set_label(en.btn_label).set_id(en.btn_id)
+                .set_style(en.btn_label == "已裝備" ? dpp::cos_secondary : dpp::cos_success)
+                .set_disabled(en.disabled)));
     }
     // 卸下（非武器；武器的「卸下」＝換回新手木劍）
     bool has_something = !cur_key.empty() && cur_key != "wooden_sword";
@@ -2440,6 +2497,17 @@ static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::str
                 .set_label("卸下").set_id("maple_equnequip_" + uid_s + "_" + slot).set_style(dpp::cos_danger)));
     }
     msg.add_component_v2(container);
+
+    if (pages > 1) {
+        dpp::component nav; nav.set_type(dpp::cot_action_row);
+        nav.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("◀ 上一頁").set_id("maple_eqopen_" + uid_s + "_" + slot + "_" + std::to_string(page - 1))
+            .set_style(dpp::cos_secondary).set_disabled(page <= 0));
+        nav.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("▶ 下一頁").set_id("maple_eqopen_" + uid_s + "_" + slot + "_" + std::to_string(page + 1))
+            .set_style(dpp::cos_secondary).set_disabled(page >= pages - 1));
+        msg.add_component_v2(nav);
+    }
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -3893,25 +3961,45 @@ static dpp::message make_maple_eqbuy_confirm_msg(dpp::snowflake uid, const std::
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
 
+    MapleCharacter c = maple_get_or_create(uid);
+    int64_t max_afford = 0;
     std::string body;
     if (!it) {
         body = "## ❌ 找不到這件裝備";
     } else {
+        max_afford = it->price > 0 ? std::min((int64_t)999, c.coins / it->price) : 0;
         body = "## 🛒 確認購買\n**" + it->name + "**\n";
         if (it->slot == "weapon")
             body += "⚔️ 攻擊力 " + std::to_string(it->atk_bonus)
                   + "　⚡ " + maple_atk_speed_name(it->atk_speed_sec) + "\n";
-        body += "花費 **" + std::to_string(it->price) + "** 瘋幣，確定要購買嗎？";
+        body += "單價 **" + std::to_string(it->price) + "** 瘋幣　持有瘋幣：**" + std::to_string(c.coins) + "**\n選擇購買數量：";
     }
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF1, 0xC4, 0x0F));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(body));
     msg.add_component_v2(container);
 
+    if (it) {
+        // 固定數量的按鈕 id 是 maple_eqbuyok_<uid>_<qty>_<key>（數量放在 key 前面，因為 key 本身含底線）
+        static const int64_t QOPTS[] = {1, 5, 10, 50};
+        dpp::component qrow; qrow.set_type(dpp::cot_action_row);
+        for (int64_t q : QOPTS) {
+            qrow.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("×" + std::to_string(q) + "（" + std::to_string(q * it->price) + "）")
+                .set_id("maple_eqbuyok_" + uid_s + "_" + std::to_string(q) + "_" + item_key)
+                .set_style(dpp::cos_success)
+                .set_disabled(q > max_afford));
+        }
+        msg.add_component_v2(qrow);
+    }
+
     dpp::component row; row.set_type(dpp::cot_action_row);
     if (it) {
+        // 「買到上限」用獨立 id、數量伺服器端算，避免剛好等於上面某個固定量時 custom_id 撞號
         row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("✅ 確定購買").set_id("maple_eqbuyok_" + uid_s + "_" + item_key).set_style(dpp::cos_success));
+            .set_label(max_afford > 0 ? "買到上限 ×" + std::to_string(max_afford) : "瘋幣不足")
+            .set_id("maple_eqbuymax_" + uid_s + "_" + item_key)
+            .set_style(dpp::cos_primary).set_disabled(max_afford <= 0));
     }
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("❌ 取消").set_id("maple_eqshop_" + uid_s + "_" + mode + "_" + cat + "_0").set_style(dpp::cos_secondary));

@@ -1,50 +1,50 @@
 {
   "coastal_grass": {
-    "dead_since": 1790178573,
+    "dead_since": 1790442013,
     "respawn_secs": 3000,
-    "round_kills": 0,
-    "total_kills": 206
+    "round_kills": 1,
+    "total_kills": 233
   },
   "cursed_temple": {
-    "dead_since": 1790181364,
-    "respawn_secs": 18120,
+    "dead_since": 1790447055,
+    "respawn_secs": 18360,
     "round_kills": 0,
-    "total_kills": 12
+    "total_kills": 15
   },
   "dead_forest4": {
-    "dead_since": 1790140493,
-    "respawn_secs": 4200,
-    "round_kills": 2,
-    "total_kills": 8
+    "dead_since": 1790250791,
+    "respawn_secs": 5460,
+    "round_kills": 1,
+    "total_kills": 9
   },
   "east_rock4": {
-    "dead_since": 1790179969,
+    "dead_since": 1790442858,
     "respawn_secs": 3960,
-    "round_kills": 0,
-    "total_kills": 135
+    "round_kills": 1,
+    "total_kills": 156
   },
   "ice_canyon2": {
-    "dead_since": 1790177640,
-    "respawn_secs": 9840,
+    "dead_since": 1790441644,
+    "respawn_secs": 8880,
     "round_kills": 0,
-    "total_kills": 19
+    "total_kills": 26
   },
   "subway_station3": {
-    "dead_since": 1790181417,
-    "respawn_secs": 3480,
+    "dead_since": 1790440483,
+    "respawn_secs": 3300,
     "round_kills": 0,
-    "total_kills": 150
+    "total_kills": 169
   },
   "turtle_beach": {
-    "dead_since": 1790176512,
-    "respawn_secs": 2760,
-    "round_kills": 1,
-    "total_kills": 39
+    "dead_since": 1790443416,
+    "respawn_secs": 4320,
+    "round_kills": 0,
+    "total_kills": 53
   },
   "witch_forest": {
-    "dead_since": 1790168575,
-    "respawn_secs": 7080,
+    "dead_since": 1790405446,
+    "respawn_secs": 6840,
     "round_kills": 0,
-    "total_kills": 28
+    "total_kills": 29
   }
 }
