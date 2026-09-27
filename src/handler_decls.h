@@ -65,6 +65,10 @@ void handle_maple_select (const dpp::select_click_t& ev, dpp::snowflake uid);
 void handle_maple_slash  (const dpp::slashcommand_t& ev, const std::string& cmd_name, dpp::snowflake uid, dpp::snowflake ch);
 void load_maple_all_data(); // 啟動時呼叫，載入角色資料與進行中的戰鬥
 void maple_save_exp_event(); // !經驗活動 設定/結束後呼叫，存檔（maple_exp_event 這個全域struct在types.h，main.cpp可以直接讀寫欄位）
+void maple_exp_event_archive_current(); // !經驗活動 換下一場／手動結束前呼叫，把目前這場存進歷史（呼叫前需持有 data_mutex）
+// 管理員面板「給養成經驗」用：補發楓之谷世界養成經驗值（amount 必須 > 0，沒有扣除/降級功能）。
+// 回傳結果描述文字（目前等級／剩餘經驗，升級的話會註明），已經處理好存檔。
+std::string maple_admin_give_exp(dpp::snowflake uid, int64_t amount);
 
 // ─── 楓之谷世界養成系統：交易輔助（實作在 handlers_maple.cpp）────────────────
 // mv_ = Maple Valley。用於讓 !交易／/交易 支援楓之谷卷軸、裝備與瘋幣。

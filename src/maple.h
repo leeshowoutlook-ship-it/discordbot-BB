@@ -1081,6 +1081,8 @@ static bool maple_is_adventuring(const MapleCharacter& c) { return !c.adv_region
 // 目前這場冒險已累積多少經驗／瘋幣：只計「已經殺滿的怪物數」，還在打的那隻不算
 // 這趟冒險的擊殺，只有「跟經驗活動視窗有重疊的那一段時間內完成的」才吃得到倍率——
 // 出發前活動才開始、或活動中途結束你還沒結算，都只有重疊的那部分算數，不是全有全無。
+// 冒險沒有時間上限，可能橫跨好幾場活動（開新一場、或手動結束舊的一場），所以連同歷史紀錄
+// （maple_exp_event_history）一起算重疊，不然開下一場活動會讓前一場已經跑掉的倍率被忘記。
 static void maple_adv_progress(const MapleCharacter& c, int64_t& exp_out, int64_t& coins_out, int64_t& seconds_out) {
     exp_out = 0; coins_out = 0; seconds_out = 0;
     if (!maple_is_adventuring(c)) return;
@@ -1091,18 +1093,26 @@ static void maple_adv_progress(const MapleCharacter& c, int64_t& exp_out, int64_
     int64_t kills = maple_adv_kills_done(c, *region, seconds_out); // 還在打的那隻、休息中都不算
     coins_out = kills * maple_adv_coins_per_kill(c, *region);
 
-    int64_t boosted_kills = 0;
-    time_t win_start = std::max(c.adv_started_at, maple_exp_event.start);
-    time_t win_end   = std::min(now, maple_exp_event.until);
-    if (maple_exp_event.mult > 1.0 && win_end > win_start) {
+    std::vector<MapleExpEventWindow> windows = maple_exp_event_history;
+    if (maple_exp_event.mult > 1.0 && maple_exp_event.start > 0)
+        windows.push_back({maple_exp_event.mult, maple_exp_event.start, maple_exp_event.until});
+
+    double boosted_exp = 0.0;
+    int64_t boosted_kills_total = 0;
+    for (auto& w : windows) {
+        time_t win_start = std::max(c.adv_started_at, w.start);
+        time_t win_end   = std::min(now, w.until);
+        if (win_end <= win_start) continue;
         int64_t kills_before = maple_adv_kills_done(c, *region, win_start - c.adv_started_at);
         int64_t kills_upto   = maple_adv_kills_done(c, *region, win_end - c.adv_started_at);
-        boosted_kills = kills_upto - kills_before;
+        int64_t win_kills = kills_upto - kills_before;
+        if (win_kills <= 0) continue;
+        boosted_exp += (double)win_kills * region->monster.exp * w.mult;
+        boosted_kills_total += win_kills;
     }
-    int64_t normal_kills = kills - boosted_kills;
+    int64_t normal_kills = std::max((int64_t)0, kills - boosted_kills_total);
     double faction_mult = 1.0 + maple_faction_exp_bonus_pct(c) / 100.0;
-    exp_out = (int64_t)llround((normal_kills * region->monster.exp
-             + boosted_kills * region->monster.exp * maple_exp_event.mult) * faction_mult);
+    exp_out = (int64_t)llround((normal_kills * region->monster.exp + boosted_exp) * faction_mult);
 }
 
 // ─── 野外首領：全服共用一隻，先搶先贏；用你的攻擊力決定要打多久，
@@ -1336,7 +1346,11 @@ static void save_maple_exp_event() {
     nlohmann::json j;
     { std::lock_guard<std::mutex> lk(data_mutex);
       j["mult"] = maple_exp_event.mult; j["start"] = (int64_t)maple_exp_event.start;
-      j["until"] = (int64_t)maple_exp_event.until; }
+      j["until"] = (int64_t)maple_exp_event.until;
+      nlohmann::json hist = nlohmann::json::array();
+      for (auto& w : maple_exp_event_history)
+          hist.push_back({{"mult", w.mult}, {"start", (int64_t)w.start}, {"until", (int64_t)w.until}});
+      j["history"] = hist; }
     std::lock_guard<std::mutex> io_lk(io_mutex);
     atomic_write(MAPLE_EXP_EVENT_FILE, j.dump(2));
 }
@@ -1349,7 +1363,32 @@ static void load_maple_exp_event() {
         maple_exp_event.mult  = j.value("mult", 1.0);
         maple_exp_event.start = (time_t)j.value("start", (int64_t)0);
         maple_exp_event.until = (time_t)j.value("until", (int64_t)0);
+        maple_exp_event_history.clear();
+        if (j.contains("history") && j["history"].is_array()) {
+            for (auto& hv : j["history"]) {
+                MapleExpEventWindow w;
+                w.mult  = hv.value("mult", 1.0);
+                w.start = (time_t)hv.value("start", (int64_t)0);
+                w.until = (time_t)hv.value("until", (int64_t)0);
+                maple_exp_event_history.push_back(w);
+            }
+        }
     } catch (...) {}
+}
+// 換下一場活動、或手動提前結束前呼叫：把目前這場（如果真的曾經生效過）存進歷史，
+// until 夾到「現在」避免超出實際生效時間；同時順手清掉超過30天的舊紀錄。呼叫前需持有 data_mutex。
+void maple_exp_event_archive_current() {
+    time_t now = time(nullptr);
+    if (maple_exp_event.mult > 1.0 && maple_exp_event.start > 0) {
+        time_t until = std::min(maple_exp_event.until, now);
+        if (until > maple_exp_event.start)
+            maple_exp_event_history.push_back({maple_exp_event.mult, maple_exp_event.start, until});
+    }
+    const time_t MAX_AGE = 30 * 86400;
+    maple_exp_event_history.erase(
+        std::remove_if(maple_exp_event_history.begin(), maple_exp_event_history.end(),
+                        [&](const MapleExpEventWindow& w) { return w.until < now - MAX_AGE; }),
+        maple_exp_event_history.end());
 }
 
 // ─── 突襲首領（多人組隊房間）────────────────────────────────────────────────────

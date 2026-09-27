@@ -202,6 +202,7 @@ static std::string stat_label(const GachaItem& gi) {
     if (gi.stat_type == "cry")      return "🔥 被動狂暴：HP≤50% 傷害×1.4，HP≤25% 傷害×1.7";
     if (gi.stat_type == "latus_orb") return "🔶 HP≤20% 時回復至 50%（每場一次）";
     if (gi.stat_type == "dd_orb")    return "🌑 攻擊後回復造成傷害的 1/10（最多 10 HP）";
+    if (gi.stat_type == "snake_poison") return "🐍 攻擊命中時附加劇毒（每回合 10% 自身攻擊力，持續 5 回合，重新命中直接覆蓋不疊加）";
     if (gi.stat_type == "lifegoddess") return "💗 主動技能（放棄該回合攻擊）：單人回復自身20%最大HP，每場最多3次；組隊回復全體存活隊友各20%最大HP，每場限1次";
     if (gi.stat_type == "clock_ring")  return "⏰ 組隊：受到致命傷時全滿血復活、攻擊力減半（每場限1次）；單人：受到致命傷戰敗時不會受傷";
     if (gi.stat_type == "dragon_ring") return "🩸 一進入戰鬥即持續狂暴：攻擊力+100%，受到傷害+50%";

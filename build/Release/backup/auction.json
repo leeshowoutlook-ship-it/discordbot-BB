@@ -37,18 +37,6 @@
       "uid": "856481432581701643"
     },
     {
-      "created_at": 1789788214,
-      "currency": "chips",
-      "id": 64,
-      "is_buy": false,
-      "item_id": 90046,
-      "item_key": "col_bb_blood_gem",
-      "item_name": "殘暴炎魔血色秘石",
-      "price": 10000,
-      "qty": 2,
-      "uid": "1390285382381338627"
-    },
-    {
       "created_at": 1789788332,
       "currency": "chips",
       "id": 66,
@@ -93,18 +81,6 @@
       "item_key": "sc_shoes20",
       "item_name": "鞋子主屬性卷軸 20%",
       "price": 14000,
-      "qty": 1,
-      "uid": "604244623124070423"
-    },
-    {
-      "created_at": 1790340134,
-      "currency": "chips",
-      "id": 100,
-      "is_buy": false,
-      "item_id": 70001,
-      "item_key": "star_unknown",
-      "item_name": "未知的星星",
-      "price": 20000,
       "qty": 1,
       "uid": "604244623124070423"
     }

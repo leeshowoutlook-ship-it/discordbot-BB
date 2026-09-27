@@ -484,6 +484,8 @@ static dpp::message make_admin_panel_msg(dpp::snowflake channel_id = 0) {
         .set_label("🛑 中斷遊戲").set_id("admin_kill_btn").set_style(dpp::cos_danger));
     dpp::component row2; row2.set_type(dpp::cot_action_row);
     row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🎓 給養成經驗").set_id("admin_mapleexp_btn").set_style(dpp::cos_secondary));
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🧹 清除本頻道遊戲").set_id("admin_clear_channel_btn").set_style(dpp::cos_danger));
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🧨 清除全部遊戲").set_id("admin_clear_all_btn").set_style(dpp::cos_danger));
@@ -1252,7 +1254,9 @@ int main(int argc, char* argv[]) {
             iss >> mult_str >> time_str;
             double mult = 0; try { mult = std::stod(mult_str); } catch (...) {}
             if (mult <= 0 || mult_str == "結束") {
-                { std::lock_guard<std::mutex> lk(data_mutex); if (maple_exp_event.until > time(nullptr)) maple_exp_event.until = time(nullptr); }
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  maple_exp_event_archive_current();
+                  if (maple_exp_event.until > time(nullptr)) maple_exp_event.until = time(nullptr); }
                 maple_save_exp_event();
                 dpp::message m; m.set_content("✅ 經驗活動已結束。"); m.channel_id = ch; bot.message_create(m); return;
             }
@@ -2086,7 +2090,9 @@ int main(int argc, char* argv[]) {
                 ev.reply(dpp::ir_update_message, dpp::message("❌ 這個確認視窗已經過期了，請重新下一次 `!經驗活動`。"));
                 return;
             }
-            { std::lock_guard<std::mutex> lk(data_mutex); maple_exp_event.mult = mult; maple_exp_event.start = time(nullptr); maple_exp_event.until = until; }
+            { std::lock_guard<std::mutex> lk(data_mutex);
+              maple_exp_event_archive_current();
+              maple_exp_event.mult = mult; maple_exp_event.start = time(nullptr); maple_exp_event.until = until; }
             maple_save_exp_event();
             dpp::message m; m.set_content("✅ 經驗活動開始！養成系統「冒險」經驗值 ×" + fmt_exp_mult(mult)
                 + "，持續到 <t:" + std::to_string((int64_t)until) + ":f>（<t:" + std::to_string((int64_t)until) + ":R>）");
@@ -2584,7 +2590,7 @@ int main(int argc, char* argv[]) {
             ev.reply(dpp::ir_update_message, handle_warn_detail(target));
         }
         // ── 管理員面板 Modal 觸發 ─────────────────────────────────────────────
-        else if (cid == "admin_chip_modal_btn" || cid == "admin_item_btn" || cid == "admin_maplecoin_btn" || cid == "admin_kill_btn") {
+        else if (cid == "admin_chip_modal_btn" || cid == "admin_item_btn" || cid == "admin_maplecoin_btn" || cid == "admin_mapleexp_btn" || cid == "admin_kill_btn") {
             if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
@@ -2622,6 +2628,16 @@ int main(int argc, char* argv[]) {
                     .set_placeholder("例：457478323665240065"));
                 modal.add_component(dpp::component().set_type(dpp::cot_text)
                     .set_label("瘋幣數量（負數可扣除）").set_id("coin_amount")
+                    .set_text_style(dpp::text_short).set_min_length(1).set_max_length(15));
+                ev.dialog(modal);
+            } else if (cid == "admin_mapleexp_btn") {
+                dpp::interaction_modal_response modal("admin_mapleexp_modal", "管理員給養成經驗");
+                modal.add_component(dpp::component().set_type(dpp::cot_text)
+                    .set_label("目標 User ID").set_id("target_uid")
+                    .set_text_style(dpp::text_short).set_min_length(1).set_max_length(20)
+                    .set_placeholder("例：457478323665240065"));
+                modal.add_component(dpp::component().set_type(dpp::cot_text)
+                    .set_label("經驗值（正數，補償用）").set_id("exp_amount")
                     .set_text_style(dpp::text_short).set_min_length(1).set_max_length(15));
                 ev.dialog(modal);
             } else { // admin_kill_btn
@@ -3352,7 +3368,7 @@ int main(int argc, char* argv[]) {
             handle_stock_modal(ev); return;
         }
 
-        if (cid != "admin_chips_modal" && cid != "admin_item_modal" && cid != "admin_maplecoin_modal" && cid != "admin_kill_lookup_modal") return;
+        if (cid != "admin_chips_modal" && cid != "admin_item_modal" && cid != "admin_maplecoin_modal" && cid != "admin_mapleexp_modal" && cid != "admin_kill_lookup_modal") return;
         if (cfg.notify_user_id.empty() || std::to_string(issuer) != cfg.notify_user_id) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
@@ -3473,6 +3489,23 @@ int main(int argc, char* argv[]) {
                     (amount > 0 ? "新增" : "扣除") + " **" + std::to_string(std::abs(amount)) +
                     "** 瘋幣！\n目前餘額：**" + std::to_string(mv_get_coins(target_uid)) + "** 瘋幣。"
                 ).set_flags(dpp::m_ephemeral));
+
+        } else if (cid == "admin_mapleexp_modal") {
+            // fields: [target_uid, exp_amount]（僅限正數，補償用；沒有扣除/降級功能）
+            if (fields.size() < 2) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 請填寫經驗值數量！").set_flags(dpp::m_ephemeral)); return;
+            }
+            int64_t amount = 0;
+            try { amount = std::stoll(fields[1]); } catch (...) {}
+            if (amount <= 0) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 經驗值必須是正數！（沒有扣除/降級功能）").set_flags(dpp::m_ephemeral)); return;
+            }
+            std::string result = maple_admin_give_exp(target_uid, amount);
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("✅ 已為 <@" + std::to_string((uint64_t)target_uid) + "> 補發養成經驗 **" +
+                    std::to_string(amount) + "**！目前 " + result).set_flags(dpp::m_ephemeral));
 
         } else if (cid == "admin_kill_lookup_modal") {
             ev.reply(dpp::ir_channel_message_with_source, make_admin_kill_report_msg(target_uid));
@@ -3810,7 +3843,9 @@ int main(int argc, char* argv[]) {
                 return;
             }
             if (mult <= 0) {
-                { std::lock_guard<std::mutex> lk(data_mutex); if (maple_exp_event.until > time(nullptr)) maple_exp_event.until = time(nullptr); }
+                { std::lock_guard<std::mutex> lk(data_mutex);
+                  maple_exp_event_archive_current();
+                  if (maple_exp_event.until > time(nullptr)) maple_exp_event.until = time(nullptr); }
                 maple_save_exp_event();
                 ev.reply(dpp::ir_channel_message_with_source, dpp::message("✅ 經驗活動已結束。"));
                 return;

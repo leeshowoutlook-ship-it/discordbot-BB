@@ -14,6 +14,24 @@ void load_maple_all_data() {
 
 void maple_save_exp_event() { save_maple_exp_event(); }
 
+std::string maple_admin_give_exp(dpp::snowflake uid, int64_t amount) {
+    if (amount <= 0) return "";
+    int level_ups = 0, new_level = 0;
+    int64_t new_exp = 0;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto& c = maple_data[uid];
+        level_ups = maple_apply_exp(c, amount); // 內部已經會處理陣營經驗（升每一級 +N），不用再呼叫一次
+        new_level = c.level;
+        new_exp   = c.exp;
+    }
+    save_maple_data();
+    if (level_ups > 0) save_maple_faction_state();
+    std::string msg = "Lv." + std::to_string(new_level) + "，剩餘經驗 " + std::to_string(new_exp);
+    if (level_ups > 0) msg += "（升了 **" + std::to_string(level_ups) + "** 級）";
+    return msg;
+}
+
 // ─── 交易輔助（讓 !交易／/交易 支援楓之谷卷軸、裝備與瘋幣）────────────────────
 // 只有「沒點過卷軸」的裝備可交易，而且要放在背包（未穿在身上）。強化過的裝備不可交易。
 

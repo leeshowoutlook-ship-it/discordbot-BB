@@ -740,6 +740,11 @@ struct MapleExpEventState {
     time_t until = 0;   // 活動結束時間，0或已過期＝沒有活動
 };
 inline MapleExpEventState maple_exp_event;
+// 已經結束、或被下一場新活動取代掉的經驗活動視窗記錄。
+// 冒險沒有時間上限，可能橫跨好幾場活動；只保留單一個 maple_exp_event 的話，
+// 開新的一場會讓「前一場活動期間累積的倍率」在結算時被忘記，所以另外存一份歷史，結算時全部一起算重疊。
+struct MapleExpEventWindow { double mult; time_t start, until; };
+inline std::vector<MapleExpEventWindow> maple_exp_event_history;
 
 // ─── 楓之谷世界：突襲首領（多人組隊房間，開始後自動討伐，隊長結算、全員各自獨立roll掉落）──
 struct MapleRaidMember {
