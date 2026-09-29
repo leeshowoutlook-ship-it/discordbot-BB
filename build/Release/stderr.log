@@ -8,11 +8,11 @@
 [STARTUP] before cleanup_expired
 [STARTUP] before apply_daily_interest
 [STARTUP] before start_stock_price_timer
-[STARTUP] on_guild_create fired, gid=555383406830288907
+[STARTUP] after start_stock_price_timer
+[STARTUP] on_guild_create fired, gid=1383364102826496000
 [STARTUP] entering register_guild_cmds run_once block
 [STARTUP] about to call guild_bulk_command_create
 [STARTUP] guild_bulk_command_create call returned (async, callback pending)
 [STARTUP] on_guild_create handler returning
-[STARTUP] after start_stock_price_timer
-[STARTUP] on_guild_create fired, gid=1383364102826496000
+[STARTUP] on_guild_create fired, gid=555383406830288907
 [STARTUP] on_guild_create handler returning

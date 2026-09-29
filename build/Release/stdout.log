@@ -1,7 +1,139 @@
-[Mon Sep 28 01:07:07 2026] DEBUG: Cluster: 1000 of 1000 session starts remaining
-[Mon Sep 28 01:07:07 2026] INFO: Auto Shard: Bot requires 1 shard
-[Mon Sep 28 01:07:07 2026] DEBUG: Starting with 1 shards...
-[Mon Sep 28 01:07:07 2026] DEBUG: Connecting new session...
-[Mon Sep 28 01:07:09 2026] INFO: Shard id 0 (1/1) ready!
-[Mon Sep 28 01:07:09 2026] DEBUG: Resume URL for session 0e6fb0ffa54b940c532118b50cc73a72 is wss://gateway-us-east1-b.discord.gg (host: gateway-us-east1-b.discord.gg)
+[Mon Sep 28 01:15:13 2026] DEBUG: Cluster: 999 of 1000 session starts remaining
+[Mon Sep 28 01:15:13 2026] INFO: Auto Shard: Bot requires 1 shard
+[Mon Sep 28 01:15:13 2026] DEBUG: Starting with 1 shards...
+[Mon Sep 28 01:15:13 2026] DEBUG: Connecting new session...
+[Mon Sep 28 01:15:14 2026] INFO: Shard id 0 (1/1) ready!
+[Mon Sep 28 01:15:14 2026] DEBUG: Resume URL for session 51ba46f0c74831286a6d9d2725c940e9 is wss://gateway-us-east1-b.discord.gg (host: gateway-us-east1-b.discord.gg)
 Bot 已上線：分類帽
+[Mon Sep 28 01:15:18 2026] DEBUG: Shards started.
+[Mon Sep 28 02:47:44 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 02:47:44 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Mon Sep 28 02:47:52 2026] INFO: Reconnecting shard 0
+[Mon Sep 28 02:47:53 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=2498
+[Mon Sep 28 02:47:53 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 03:47:00 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 03:47:00 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Mon Sep 28 03:47:07 2026] INFO: Reconnecting shard 0
+[Mon Sep 28 03:47:08 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=3001
+[Mon Sep 28 03:47:08 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 06:07:15 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Mon Sep 28 06:07:22 2026] INFO: Reconnecting shard 0
+[Mon Sep 28 06:07:22 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=3718
+[Mon Sep 28 06:07:22 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 06:44:29 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 06:44:29 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Mon Sep 28 06:44:37 2026] INFO: Reconnecting shard 0
+[Mon Sep 28 06:44:37 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=3818
+[Mon Sep 28 06:44:37 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 09:18:14 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 09:18:14 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Mon Sep 28 09:18:22 2026] INFO: Reconnecting shard 0
+[Mon Sep 28 09:18:22 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=4510
+[Mon Sep 28 09:18:22 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 13:02:17 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 13:02:17 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Mon Sep 28 13:02:22 2026] INFO: Reconnecting shard 0
+[Mon Sep 28 13:02:23 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=8710
+[Mon Sep 28 13:02:23 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 16:49:37 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 16:49:37 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Mon Sep 28 16:49:42 2026] INFO: Reconnecting shard 0
+[Mon Sep 28 16:49:42 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=11798
+[Mon Sep 28 16:49:43 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 18:34:00 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 18:34:00 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Mon Sep 28 18:34:07 2026] INFO: Reconnecting shard 0
+[Mon Sep 28 18:34:08 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=13523
+[Mon Sep 28 18:34:08 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 19:35:14 2026] ERROR: Error: 10062: Unknown interaction
+[Mon Sep 28 20:25:09 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 20:25:09 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Mon Sep 28 20:25:17 2026] INFO: Reconnecting shard 0
+[Mon Sep 28 20:25:18 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=16348
+[Mon Sep 28 20:25:18 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 20:25:18 2026] ERROR: Error: 10062: Unknown interaction
+[Mon Sep 28 20:25:18 2026] ERROR: Error: 10062: Unknown interaction
+[Mon Sep 28 22:19:57 2026] ERROR: Uncaught exception thrown in HTTPS callback for POST discord.com:443/api/v10/interactions/1554135586690834472/aW50ZXJhY3Rpb246MTU1NDEzNTU4NjY5MDgzNDQ3Mjpyc05PSnBndFE4RDNYZ0xMb09nUmNwRWJ4OUZaZUswR0dKcHNRVmhkRjVMRTBLeDRUbTdVZEhFNzNWWDZFbDBYSU1EQnczcmwzeUFaemJ2SmNhVFVha3BFa1ltV2xFc0M2c3kxbmNsMXJMamZiN1JsQ1kwYjY1WkNXTlFPTVZZaA/callback: bad variant access
+[Mon Sep 28 22:21:07 2026] ERROR: Uncaught exception thrown in HTTPS callback for POST discord.com:443/api/v10/interactions/1554135877851283496/aW50ZXJhY3Rpb246MTU1NDEzNTg3Nzg1MTI4MzQ5NjowdXFXdlBpU3RZQWVZc003TmJFcEs3b1VVbkNLYVRmcjVxTTFCRTJXeEFsY1B3a3hGekRSeUFjYm9aVGRqRVpHWmMxTFViMXRvMDRxVnRwVUdzYmpsSXFSTUtFYUhBQmthS055b0lsVXpkQXhMUVplWEVnNlY3cFhQc3RLd2hhOA/callback: bad variant access
+[Mon Sep 28 23:31:55 2026] ERROR: Error: 10062: Unknown interaction
+[Mon Sep 28 23:43:41 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Mon Sep 28 23:43:41 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Mon Sep 28 23:43:47 2026] INFO: Reconnecting shard 0
+[Mon Sep 28 23:43:47 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=21108
+[Mon Sep 28 23:43:47 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 00:00:42 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 01:40:31 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 01:42:06 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 01:43:14 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 01:44:19 2026] ERROR: Error: 10008: Unknown Message
+[Tue Sep 29 01:49:49 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 01:49:57 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 01:57:01 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 02:04:06 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 02:21:55 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 03:43:00 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 03:43:00 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Tue Sep 29 03:43:07 2026] INFO: Reconnecting shard 0
+[Tue Sep 29 03:43:07 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=30676
+[Tue Sep 29 03:43:07 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 04:40:33 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 04:40:33 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Tue Sep 29 04:40:42 2026] INFO: Reconnecting shard 0
+[Tue Sep 29 04:40:42 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=31033
+[Tue Sep 29 04:40:43 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 05:07:04 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Tue Sep 29 05:07:12 2026] INFO: Reconnecting shard 0
+[Tue Sep 29 05:07:15 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=31239
+[Tue Sep 29 05:07:15 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 05:07:16 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 05:07:21 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 05:07:41 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 05:07:42 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 06:18:21 2026] ERROR: Error: 503: [json.exception.parse_error.101] parse error at line 1, column 1: syntax error while parsing value - invalid literal; last read: 'u' - json[0].body: upstream connect error or disconnect/reset before headers. retried and the latest reset reason: remote connection failure, transport failure reason: immediate connect error: No such file or directory (JSON_PARSE)
+[Tue Sep 29 06:34:34 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 07:54:47 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 07:54:47 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Tue Sep 29 07:54:52 2026] INFO: Reconnecting shard 0
+[Tue Sep 29 07:54:52 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=32101
+[Tue Sep 29 07:54:53 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 08:08:15 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 08:12:10 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 08:25:39 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 08:29:49 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 08:39:45 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 09:09:35 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 09:09:37 2026] ERROR: Error: 10015: Unknown Webhook
+[Tue Sep 29 09:16:13 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 10:48:08 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 10:56:05 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 10:56:05 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Tue Sep 29 10:56:12 2026] INFO: Reconnecting shard 0
+[Tue Sep 29 10:56:12 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=37919
+[Tue Sep 29 10:56:12 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 10:56:13 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 10:56:13 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 13:20:43 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 13:20:43 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Tue Sep 29 13:20:52 2026] INFO: Reconnecting shard 0
+[Tue Sep 29 13:20:53 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=40939
+[Tue Sep 29 13:20:53 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 14:06:35 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 14:06:35 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Tue Sep 29 14:06:42 2026] INFO: Reconnecting shard 0
+[Tue Sep 29 14:06:42 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=41410
+[Tue Sep 29 14:06:42 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 15:00:51 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 15:40:54 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Tue Sep 29 15:41:02 2026] INFO: Reconnecting shard 0
+[Tue Sep 29 15:41:02 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=43311
+[Tue Sep 29 15:41:02 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 16:28:20 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 16:28:20 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Tue Sep 29 16:28:27 2026] INFO: Reconnecting shard 0
+[Tue Sep 29 16:28:28 2026] DEBUG: Resuming session 51ba46f0c74831286a6d9d2725c940e9 with seq=44376
+[Tue Sep 29 16:28:28 2026] DEBUG: Successfully resumed session id 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 16:59:12 2026] ERROR: Error: 10062: Unknown interaction
+[Tue Sep 29 17:29:53 2026] DEBUG: Receiving exception: Reconnection requested, closing session 51ba46f0c74831286a6d9d2725c940e9
+[Tue Sep 29 17:29:53 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Tue Sep 29 17:30:02 2026] INFO: Reconnecting shard 0
+[Tue Sep 29 17:30:03 2026] DEBUG: Resuming session 51b

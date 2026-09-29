@@ -83,7 +83,19 @@
       "price": 14000,
       "qty": 1,
       "uid": "604244623124070423"
+    },
+    {
+      "created_at": 1790588523,
+      "currency": "chips",
+      "id": 103,
+      "is_buy": true,
+      "item_id": 70001,
+      "item_key": "star_unknown",
+      "item_name": "未知的星星",
+      "price": 40000,
+      "qty": 4,
+      "uid": "843071419671904308"
     }
   ],
-  "next_id": 102
+  "next_id": 105
 }

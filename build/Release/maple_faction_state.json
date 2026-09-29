@@ -1,14 +1,14 @@
 {
   "mushroom_baby": {
-    "exp": 494,
-    "level": 1
+    "exp": 485,
+    "level": 2
   },
   "three_eye_octopus": {
-    "exp": 390,
-    "level": 0
+    "exp": 21,
+    "level": 1
   },
   "water_spirit": {
-    "exp": 434,
-    "level": 1
+    "exp": 169,
+    "level": 3
   }
 }
