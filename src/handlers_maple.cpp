@@ -340,6 +340,12 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
+    if (cid.rfind("maple_wbrefresh_", 0) == 0) {
+        if (!check_owner("maple_wbrefresh_")) return;
+        ev.reply(dpp::ir_update_message, make_maple_wb_region_list_msg(uid));
+        return;
+    }
+
     if (cid.rfind("maple_ambush_", 0) == 0) {
         if (!check_owner("maple_ambush_")) return;
         ev.reply(dpp::ir_update_message, make_maple_ambush_msg(uid));

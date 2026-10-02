@@ -3262,6 +3262,8 @@ static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid) {
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🔄 重新整理").set_id("maple_wbrefresh_" + uid_s).set_style(dpp::cos_primary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
 
