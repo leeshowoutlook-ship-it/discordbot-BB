@@ -328,7 +328,13 @@ struct MapleEnhItem {
 };
 
 // 陣營系統：全服共用一份等級/經驗（不分玩家），加入/退出不影響陣營本身的進度。
-struct MapleFactionState { int level = 0; int64_t exp = 0; };
+// 陣營每升一級獲得1點「陣營技能點」，由該陣營的統帥（得票最多的成員）自由分配到三種增益上（只在冒險中生效）。
+struct MapleFactionState {
+    int level = 0; int64_t exp = 0;
+    int atk_pts = 0;  // 分配到「攻擊力」的點數，每點 +1 攻擊力
+    int exp_pts = 0;  // 分配到「經驗加成」的點數，每點 +1%
+    int coin_pts = 0; // 分配到「瘋幣加成」的點數，每點 +1%
+};
 inline std::map<std::string, MapleFactionState> maple_faction_state;
 
 struct MapleCharacter {
@@ -347,6 +353,7 @@ struct MapleCharacter {
     std::string    job = "beginner";      // beginner/warrior/mage/thief/archer/pirate/二轉職業key
     // 裝備欄位（攻擊力來自武器等裝備加總，未裝備武器時為0）
     std::string    eq_weapon  = "wooden_sword"; // 預設裝備新手木劍
+    std::string    eq_offhand;  // 副武器（飛鏢/雙刀/魔導書/聖典/瞄準鏡/盾牌），依主武器類型（部分再加職業）限定，空＝沒裝備
     std::string    eq_earring;
     std::string    eq_helmet;
     std::string    eq_glove;
@@ -379,6 +386,7 @@ struct MapleCharacter {
     std::string    faction_key;         // 目前所屬陣營，空字串＝沒有加入任何陣營
     int64_t        faction_donate_week_id   = 0; // 陣營捐贈：上次捐贈所屬的週次（epoch週，跟代幣商店同一套）
     int            faction_donate_week_used = 0; // 本週已捐贈次數（上限1次／2000瘋幣）
+    dpp::snowflake faction_vote_for = 0;    // 陣營統帥投票：投給的成員uid，0＝還沒投票
     time_t         created_at = 0;
 };
 

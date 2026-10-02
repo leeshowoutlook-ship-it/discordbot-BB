@@ -841,6 +841,106 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
+    if (cid.rfind("maple_factionoverview_", 0) == 0) {
+        if (!check_owner("maple_factionoverview_")) return;
+        ev.reply(dpp::ir_update_message, make_maple_faction_overview_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_factioncommander_", 0) == 0) {
+        if (!check_owner("maple_factioncommander_")) return;
+        std::string rest = cid.substr(std::string("maple_factioncommander_").size());
+        size_t sep = rest.find('_');
+        int page = 0;
+        if (sep != std::string::npos) { try { page = std::stoi(rest.substr(sep + 1)); } catch (...) {} }
+        ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, page));
+        return;
+    }
+
+    if (cid.rfind("maple_factionvote_", 0) == 0) {
+        std::string rest = cid.substr(std::string("maple_factionvote_").size());
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        dpp::snowflake target(std::stoull(rest.substr(sep + 1)));
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            auto tit = maple_data.find(target);
+            if (c.faction_key.empty()) err = "你目前沒有加入任何陣營！";
+            else if (tit == maple_data.end() || tit->second.faction_key != c.faction_key) err = "對方不是你陣營裡的成員。";
+            else c.faction_vote_for = target;
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, 0, "❌ " + err));
+            return;
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, 0, "✅ 已投票"));
+        return;
+    }
+
+    if (cid.rfind("maple_factionptsadd_", 0) == 0) {
+        std::string rest = cid.substr(std::string("maple_factionptsadd_").size());
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string type = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (c.faction_key.empty()) err = "你目前沒有加入任何陣營！";
+            else if (maple_faction_commander_locked(c.faction_key) != uid) err = "只有統帥可以分配陣營技能點。";
+            else {
+                MapleFactionState& st = maple_faction_state[c.faction_key];
+                if (maple_faction_unspent_pts(st) <= 0) err = "沒有剩餘的陣營技能點了。";
+                else if (type == "atk") st.atk_pts++;
+                else if (type == "exp") st.exp_pts++;
+                else if (type == "coin") st.coin_pts++;
+                else err = "未知的類型。";
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, 0, "❌ " + err));
+            return;
+        }
+        save_maple_faction_state();
+        ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, 0, "✅ 已分配 1 點"));
+        return;
+    }
+
+    if (cid.rfind("maple_factionptsreset_", 0) == 0) {
+        if (!check_owner("maple_factionptsreset_")) return;
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (c.faction_key.empty()) err = "你目前沒有加入任何陣營！";
+            else if (maple_faction_commander_locked(c.faction_key) != uid) err = "只有統帥可以分配陣營技能點。";
+            else {
+                MapleFactionState& st = maple_faction_state[c.faction_key];
+                st.atk_pts = 0; st.exp_pts = 0; st.coin_pts = 0;
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, 0, "❌ " + err));
+            return;
+        }
+        save_maple_faction_state();
+        ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, 0, "✅ 已重置陣營技能點"));
+        return;
+    }
+
     if (cid.rfind("maple_wbopen_", 0) == 0) {
         std::string rest = cid.substr(13);
         size_t sep = rest.find('_');
@@ -872,7 +972,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             }
             c.wb_region        = region_key;
             c.wb_started_at    = now;
-            c.wb_required_secs = maple_wb_kill_secs(c, region->boss);
+            c.wb_required_secs = maple_wb_kill_secs(c, *region);
             c.wb_epoch         = maple_wb_dead_since_locked(region_key);
         }
         save_maple_data();
@@ -1003,6 +1103,28 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
+    // 背包「卷軸」分頁翻頁：maple_bagscrollpg_<uid>_<page>_<subcat>
+    if (cid.rfind("maple_bagscrollpg_", 0) == 0) {
+        std::string rest = cid.substr(18);
+        size_t sep1 = rest.find('_');
+        if (sep1 == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep1)));
+        std::string rem = rest.substr(sep1 + 1);
+        size_t sep2 = rem.rfind('_');
+        int page = 0; std::string subcat;
+        if (sep2 == std::string::npos) { try { page = std::stoi(rem); } catch (...) {} }
+        else {
+            try { page = std::stoi(rem.substr(0, sep2)); } catch (...) {}
+            subcat = rem.substr(sep2 + 1);
+        }
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, "scroll", page, subcat));
+        return;
+    }
+
     // 背包分類切換：maple_bagcat_<uid>_<tab>_<subcat>
     if (cid.rfind("maple_bagcat_", 0) == 0) {
         std::string rest = cid.substr(13);
@@ -1056,6 +1178,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         }
         int64_t gained = 0;
         std::string err;
+        std::string scroll_subcat;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
@@ -1068,17 +1191,32 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 } else {
                     const MapleItemDef* it = maple_find_item(eit->base_key);
                     if (!it) { err = "資料異常，找不到裝備定義。"; }
+                    else if (it->slot == "offhand") { err = "副武器不能賣給遊戲換瘋幣，只能用 !交易 跟其他玩家交換。"; }
                     else {
                         gained = maple_item_sell_price(*it) + maple_enh_extra_sell_value(*eit);
                         c.coins += gained;
                         c.enh_items.erase(eit);
                     }
                 }
+            } else if (kind == "scroll") {
+                const MapleScrollDef* s = maple_find_scroll(ref);
+                auto qit = c.scrolls.find(ref);
+                if (!s || qit == c.scrolls.end() || qit->second <= 0) {
+                    err = "找不到這個卷軸，可能已經賣掉或用掉了。";
+                } else {
+                    scroll_subcat = maple_scroll_cat(*s);
+                    gained = maple_scroll_sell_price(*s);
+                    c.coins += gained;
+                    qit->second--;
+                    if (qit->second <= 0) c.scrolls.erase(qit);
+                }
             } else {
                 auto qit = c.equipment.find(ref);
                 const MapleItemDef* it = maple_find_item(ref);
                 if (qit == c.equipment.end() || qit->second <= 0 || !it) {
                     err = "找不到這件裝備，可能已經賣掉或穿上了。";
+                } else if (it->slot == "offhand") {
+                    err = "副武器不能賣給遊戲換瘋幣，只能用 !交易 跟其他玩家交換。";
                 } else {
                     gained = maple_item_sell_price(*it);
                     c.coins += gained;
@@ -1092,7 +1230,8 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
         }
         save_maple_data();
-        ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, "other"));
+        if (kind == "scroll") ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, "scroll", 0, scroll_subcat));
+        else ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, "other"));
         return;
     }
 
@@ -1155,6 +1294,47 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
+    // maple_coinexmax_<uid>：瘋幣換籌碼，兌換上限（金額伺服器端算）／maple_coinex_<uid>_<chips>：固定籌碼數
+    if (cid.rfind("maple_coinexmax_", 0) == 0 || cid.rfind("maple_coinex_", 0) == 0) {
+        bool is_max = cid.rfind("maple_coinexmax_", 0) == 0;
+        dpp::snowflake owner;
+        int64_t chips_wanted = 0;
+        if (is_max) {
+            owner = dpp::snowflake(std::stoull(cid.substr(16)));
+        } else {
+            std::string rest = cid.substr(13);
+            size_t sep = rest.rfind('_');
+            if (sep == std::string::npos) return;
+            owner       = dpp::snowflake(std::stoull(rest.substr(0, sep)));
+            chips_wanted = std::atoll(rest.substr(sep + 1).c_str());
+        }
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (is_max) chips_wanted = c.coins / MAPLE_COIN_TO_CHIP_RATE;
+            int64_t cost = maple_coins_for_chips(chips_wanted);
+            if (chips_wanted <= 0) err = "沒有可兌換的瘋幣。";
+            else if (cost > c.coins) err = "瘋幣不足。";
+            else {
+                c.coins -= cost;
+                chip_data[uid].chips += chips_wanted;
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_chips();
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
+        return;
+    }
+
     if (cid.rfind("maple_eqshop_", 0) == 0) {
         std::string rest = cid.substr(13);            // <uid>_<mode>_<cat>_<page>
         size_t s1 = rest.find('_');
@@ -1197,7 +1377,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
         }
         const MapleItemDef* it = maple_find_item(item_key);
-        if (!it || it->price <= 0) return;
+        if (!it || it->price <= 0 || !it->shop) return;
         std::string err;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
@@ -1474,6 +1654,31 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
+    if (cid.rfind("maple_skmax_", 0) == 0) {
+        std::string rest = cid.substr(12);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string skill_key = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        const MapleSkillDef* sd = maple_find_skill(skill_key);
+        if (!sd) return;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (maple_skill_visible(c, sd->job) && maple_skill_unlockable(c, *sd)) {
+                int lvl = maple_skill_level(c, skill_key);
+                while (maple_sp_unspent(c) > 0 && lvl < sd->max_level) { lvl++; c.skill_levels[skill_key] = lvl; }
+            }
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_skill_msg(uid, std::to_string(maple_skill_tab_of(*sd))));
+        return;
+    }
+
     if (cid.rfind("maple_eqopen_", 0) == 0) {
         std::string rest = cid.substr(13);
         size_t sep = rest.find('_');
@@ -1542,6 +1747,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 eqi->second--;
                 if (eqi->second <= 0) c.equipment.erase(eqi);
             }
+            if (slot == "weapon") maple_auto_unequip_invalid_offhand_locked(c);
         }
         save_maple_data();
         ev.reply(dpp::ir_update_message, make_maple_equip_slot_msg(uid, slot));
@@ -1591,6 +1797,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             if (!maple_eq_is_enh(old_raw) && !old_raw.empty() && old_raw != "wooden_sword")
                 c.equipment[old_raw]++;
             maple_set_equipped(c, slot, "#" + std::to_string(enh_id));
+            if (slot == "weapon") maple_auto_unequip_invalid_offhand_locked(c);
         }
         save_maple_data();
         ev.reply(dpp::ir_update_message, make_maple_equip_slot_msg(uid, slot));
@@ -1618,6 +1825,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             if (!maple_eq_is_enh(old_raw) && !old_raw.empty() && old_raw != "wooden_sword")
                 c.equipment[old_raw]++;
             maple_set_equipped(c, slot, slot == "weapon" ? std::string("wooden_sword") : std::string());
+            if (slot == "weapon") maple_auto_unequip_invalid_offhand_locked(c);
         }
         save_maple_data();
         ev.reply(dpp::ir_update_message, make_maple_equip_slot_msg(uid, slot));
@@ -1880,6 +2088,43 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             if (!maple_can_second_job(c) || jd->parent != c.job) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 還不能二轉！").set_flags(dpp::m_ephemeral)); return;
+            }
+            c.job = job_key;
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_home_msg(uid, dn, av));
+        return;
+    }
+
+    if (cid.rfind("maple_j3open_", 0) == 0) {
+        if (!check_owner("maple_j3open_")) return;
+        MapleCharacter c = maple_get_or_create(uid);
+        if (!maple_can_third_job(c)) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 還不能三轉！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_job3_select_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_j3pick_", 0) == 0) {
+        std::string rest = cid.substr(13);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string job_key = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        const MapleJobDef* jd = maple_find_job(job_key);
+        if (!jd || jd->tier != 3) return;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (!maple_can_third_job(c) || jd->parent != c.job) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 還不能三轉！").set_flags(dpp::m_ephemeral)); return;
             }
             c.job = job_key;
         }

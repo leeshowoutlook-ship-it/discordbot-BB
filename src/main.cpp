@@ -2280,6 +2280,190 @@ int main(int argc, char* argv[]) {
         else if (cid.rfind("maple_", 0) == 0) {
             handle_maple_button(ev); return;
         }
+        // ── 王團報名：選王 ──────────────────────────────────────────────────────
+        else if (cid.rfind("boss_", 0) == 0) {
+            std::string boss = cid.substr(5);
+            { std::lock_guard<std::mutex> lk(data_mutex); user_states[uid] = RegState{boss, 0, {}}; }
+            ev.reply(dpp::ir_update_message, make_time_msg(boss, user, 0, {}));
+        }
+        // ── 王團報名：時段切換 ──────────────────────────────────────────────────
+        else if (cid.rfind("slot_", 0) == 0) {
+            std::string tval = cid.substr(5);
+            std::string boss; int view_day;
+            std::set<std::pair<std::string,std::string>> slots;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto it = user_states.find(uid);
+                if (it == user_states.end()) return;
+                auto& state = it->second;
+                auto week = get_game_week();
+                std::string cur_label = week[state.view_day].second;
+                auto key = std::make_pair(cur_label, tval);
+                if (state.slots.count(key)) state.slots.erase(key);
+                else state.slots.insert(key);
+                boss = state.boss; view_day = state.view_day; slots = state.slots;
+            }
+            ev.reply(dpp::ir_update_message, make_time_msg(boss, user, view_day, slots));
+        }
+        // ── 王團報名：返回：時間 → 選王 ────────────────────────────────────────
+        else if (cid == "back_to_boss") {
+            { std::lock_guard<std::mutex> lk(data_mutex); user_states.erase(uid); }
+            ev.reply(dpp::ir_update_message, make_boss_msg(user));
+        }
+        // ── 王團報名：返回：位置 → 時間 ────────────────────────────────────────
+        else if (cid == "back_to_time") {
+            std::string boss; int view_day;
+            std::set<std::pair<std::string,std::string>> slots;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto it = user_states.find(uid);
+                if (it == user_states.end()) return;
+                boss = it->second.boss; view_day = it->second.view_day; slots = it->second.slots;
+            }
+            ev.reply(dpp::ir_update_message, make_time_msg(boss, user, view_day, slots));
+        }
+        // ── 王團報名：確定時段 ──────────────────────────────────────────────────
+        else if (cid == "confirm_time") {
+            std::string boss;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto it = user_states.find(uid);
+                if (it == user_states.end() || it->second.slots.empty()) {
+                    ev.reply(dpp::ir_channel_message_with_source,
+                        dpp::message("⚠️ 請先選擇至少一個時段！").set_flags(dpp::m_ephemeral));
+                    return;
+                }
+                boss = it->second.boss;
+            }
+            ev.reply(dpp::ir_update_message, make_position_msg(boss, user));
+        }
+        // ── 王團報名：選職業 → 報名完成 ────────────────────────────────────────
+        else if (cid.rfind("pos_", 0) == 0) {
+            std::string pos = cid.substr(4);
+            Registration reg;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto it = user_states.find(uid);
+                if (it == user_states.end()) return;
+                reg.id         = reg_counter++;
+                reg.user_id    = uid;
+                reg.channel_id = ev.command.channel_id;
+                reg.username   = user.username;
+                reg.boss       = it->second.boss;
+                reg.slots      = std::vector<std::pair<std::string,std::string>>(
+                                     it->second.slots.begin(), it->second.slots.end());
+                reg.position   = pos;
+                registrations.push_back(reg);
+                user_states.erase(it);
+                user_active_msg.erase(uid);
+                msg_owner.erase(ev.command.message_id);
+            }
+            save_registrations();
+            ev.reply(dpp::ir_update_message, make_success_msg(reg));
+            check_team_formation(bot, reg.boss, reg.channel_id);
+            save_proposed_teams();
+        }
+        // ── 王團報名：紀錄刪除 ──────────────────────────────────────────────────
+        else if (cid.rfind("del_", 0) == 0) {
+            if (!adm && !check_owner(ev, uid)) return;
+            uint64_t rid = std::stoull(cid.substr(4));
+            bool ok = false; std::string cur_filter;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto it = std::find_if(registrations.begin(), registrations.end(),
+                    [rid](const Registration& r){ return r.id == rid; });
+                if (it != registrations.end() && (it->user_id == uid || adm)) {
+                    ok = true; registrations.erase(it);
+                }
+                auto vf = view_filters.find(uid);
+                cur_filter = (vf != view_filters.end()) ? vf->second : "mine";
+            }
+            if (!ok) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 你只能刪除自己的報名！").set_flags(dpp::m_ephemeral));
+                return;
+            }
+            save_registrations();
+            ev.reply(dpp::ir_update_message, make_records_view_msg(cur_filter, uid, adm));
+        }
+        // ── 王團報名：紀錄返回 ──────────────────────────────────────────────────
+        else if (cid == "records_back") {
+            { std::lock_guard<std::mutex> lk(data_mutex); view_filters.erase(uid); }
+            ev.reply(dpp::ir_update_message, make_records_select_msg(user));
+        }
+        // ── 王團報名：組隊確認 ──────────────────────────────────────────────────
+        else if (cid.rfind("team_confirm_", 0) == 0 || cid.rfind("team_cancel_", 0) == 0) {
+            bool is_confirm = cid.rfind("team_confirm_", 0) == 0;
+            uint64_t tid = std::stoull(cid.substr(is_confirm ? 13 : 12));
+            bool authorized = adm ||
+                (!cfg.notify_user_id.empty() && std::to_string(uid) == cfg.notify_user_id);
+            if (!authorized) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 只有管理員可以操作！").set_flags(dpp::m_ephemeral));
+                return;
+            }
+            ProposedTeam pt; bool found = false;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto it = proposed_teams.find(tid);
+                if (it != proposed_teams.end()) {
+                    found = true; pt = it->second;
+                    proposed_teams.erase(it);
+                    proposed_slots.erase({pt.boss, pt.day, pt.time_slot});
+                }
+            }
+            if (!found) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("⚠️ 此組隊通知已失效。").set_flags(dpp::m_ephemeral));
+                return;
+            }
+            if (is_confirm) {
+                // 把確認組團的成員之前所有報名都清掉
+                {
+                    std::lock_guard<std::mutex> lk(data_mutex);
+                    std::set<dpp::snowflake> member_ids;
+                    for (auto& m : pt.members) member_ids.insert(m.user_id);
+                    registrations.erase(
+                        std::remove_if(registrations.begin(), registrations.end(),
+                            [&](const Registration& r){ return member_ids.count(r.user_id); }),
+                        registrations.end());
+                }
+
+                dpp::embed done_e;
+                done_e.set_title("✅  組隊已確認！").set_color(0x2ECC71);
+                done_e.add_field("⚔️  王",   pt.boss,                       true);
+                done_e.add_field("🕐  時間", pt.day + "  " + pt.time_slot,  true);
+                done_e.set_footer(dpp::embed_footer().set_text("王團報名系統"));
+                dpp::message done_msg; done_msg.add_embed(done_e);
+                ev.reply(dpp::ir_update_message, done_msg);
+
+                std::ostringstream ann;
+                for (auto& m : pt.members) ann << "<@" << m.user_id << "> ";
+                dpp::embed ann_e;
+                ann_e.set_title("🎉  組隊成功！").set_color(0x2ECC71);
+                if (!get_boss_img(pt.boss).empty()) ann_e.set_thumbnail(get_boss_img(pt.boss));
+                ann_e.add_field("⚔️  王",   pt.boss,                       true);
+                ann_e.add_field("🕐  時間", pt.day + "  " + pt.time_slot,  true);
+                std::ostringstream mem_oss;
+                for (size_t i = 0; i < pt.members.size(); i++)
+                    mem_oss << std::to_string(i+1) << ". **" << pt.members[i].username
+                            << "** · " << pt.members[i].position << "\n";
+                ann_e.add_field("👥  成員", mem_oss.str(), false);
+                ann_e.set_footer(dpp::embed_footer().set_text("王團報名系統"));
+                dpp::message ann_msg(ev.command.channel_id, ann.str());
+                ann_msg.add_embed(ann_e);
+                save_registrations(); save_proposed_teams();
+                bot.message_create(ann_msg);
+            } else {
+                save_proposed_teams();
+                dpp::embed cancel_e;
+                cancel_e.set_title("❌  組隊已撤銷").set_color(0x808080);
+                cancel_e.add_field("⚔️  王",   pt.boss,                       true);
+                cancel_e.add_field("🕐  時間", pt.day + "  " + pt.time_slot,  true);
+                dpp::message cancel_msg; cancel_msg.add_embed(cancel_e);
+                ev.reply(dpp::ir_update_message, cancel_msg);
+            }
+        }
         // ── 21點按鈕 → handlers_bj.cpp ──────────────────────────────────────
         else if (cid.rfind("bj_", 0) == 0) {
             handle_bj_button(ev); return;

@@ -23,6 +23,8 @@ struct MapleItemDef {
     int  item_id = 0;        // 交易用數字ID
     int  primary_generic   = 0; // 給予「穿戴者當前職業主屬性」+N（防具用，不分職業）
     int  secondary_generic = 0; // 給予「穿戴者當前職業副屬性」+N
+    std::vector<std::string> offhand_wtypes; // 副武器限定：主武器類型需符合其中之一（空＝不限；只有 slot=="offhand" 用得到）
+    bool shop = true; // 是否上架裝備商店（false＝不上架，但仍可裝備/交易/賣給系統，price 照樣算售價）
 };
 
 // 武器：8 種類型 × 7 個等級階（等級 10/30/50/70/100/120/150）
@@ -74,6 +76,31 @@ static const std::vector<MapleArmorDef> MAPLE_ARMORS = {
     { "ring",     "戒指", { 2000, 3000, 5000, 20000, 30000, 100000, 500000 }, { 1,  3,  5,  7, 10, 12, 15 }, { 1,  3,  5,  7, 10, 12, 15 }, 96710 },
     { "necklace", "項鍊", { 2000, 3000, 6000, 20000, 40000, 200000, 600000 }, { 4,  6,  8, 10, 13, 15, 18 }, { 3,  5,  7,  9, 12, 14, 17 }, 96717 },
 };
+
+// ─── 副武器：飛鏢／雙刀／魔導書／聖典／瞄準鏡／盾牌，各7階（等級同武器：10/30/50/70/100/120/150）──
+// 能不能裝備依主武器類型（魔導書/聖典再加職業）限定，判斷邏輯在 maple.h 的 maple_meets_requirement()。
+// 副屬性加成沿用跟「手套」同一套數字；攻擊力／主屬性則逐階各自設計（每階都不超過對應主武器同階數字），
+// 目標是讓 70 等、技能點滿、所有裝備都套用同一套 60% 卷軸的情況下，六種副武器對應的職業 DPM 打平。
+// 目前只有 30 等（index 1）做過這輪 DPM 計算，其餘階數的攻擊力暫時是 0、主屬性沿用舊的手套數字，之後再逐階補上。
+struct MapleOffhandDef {
+    std::string key_prefix, name;
+    std::vector<std::string> wtypes; // 主武器類型需符合其中之一
+    std::string job_req;             // 額外的職業限制（""=無）
+    int id_base;
+    int atk[7];     // 每階攻擊力加成
+    int primary[7]; // 每階主屬性加成
+    std::string name30; // 30等專屬命名（目前只有這階手工設計過名字，其餘階數還是用「階名＋種類」的預設命名）
+};
+static const std::vector<MapleOffhandDef> MAPLE_OFFHANDS = {
+    // key           name      wtypes        job_req         id_base  atk(10/30/50/70/100/120/150)   primary(同上)         name30
+    { "oh_dart",      "飛鏢",   {"拳套"},     "",           96730, {0, 10, 0,0,0,0,0}, {0, 20, 2,3,4,5,7}, "疾風飛鏢" },
+    { "oh_dualblade", "雙刀",   {"匕首"},     "",           96740, {0, 15, 0,0,0,0,0}, {0, 20, 2,3,4,5,7}, "夜梟雙刀" },
+    { "oh_grimoire",  "魔導書", {"法杖"},     "icelightning", 96750, {0, 35, 0,0,0,0,0}, {0, 20, 2,3,4,5,7}, "寒冰魔導書" },
+    { "oh_bible",     "聖典",   {"法杖"},     "priest",     96760, {0, 38, 0,0,0,0,0}, {0, 20, 2,3,4,5,7}, "聖光典籍" },
+    { "oh_scope",     "瞄準鏡", {"弓","弩"},  "",           96770, {0,  5, 0,0,0,0,0}, {0, 20, 2,3,4,5,7}, "鷹眼瞄準鏡" },
+    { "oh_shield",    "盾牌",   {"大劍"},     "",           96780, {0, 20, 0,0,0,0,0}, {0, 20, 2,3,4,5,7}, "精鋼壁盾" },
+};
+static const int     MAPLE_OFFHAND_SECONDARY[7] = { 0,  0,  1,  2,  3,  4,  6 }; // 跟手套同一套，副屬性還沒逐階重新設計
 
 static const std::vector<MapleItemDef>& maple_items() {
     static const std::vector<MapleItemDef> v = []{
@@ -131,6 +158,29 @@ static const std::vector<MapleItemDef>& maple_items() {
                 it.primary_generic   = ar.primary[t];
                 it.secondary_generic = ar.secondary[t];
                 it.item_id   = ar.id_base + t;
+                // 50等以上的戒指／項鍊不上架商店（只能靠掉落/交易取得，仍可裝備、賣給系統）
+                if ((ar.slot == "ring" || ar.slot == "necklace") && MAPLE_ARMOR_TIER_LV[t] >= 50)
+                    it.shop = false;
+                items.push_back(it);
+            }
+        }
+        // 副武器：飛鏢／雙刀／魔導書／聖典／瞄準鏡／盾牌 × 7 階
+        for (auto& oh : MAPLE_OFFHANDS) {
+            for (int t = 0; t < 7; t++) {
+                MapleItemDef it;
+                it.key   = oh.key_prefix + "_" + std::to_string(MAPLE_ARMOR_TIER_LV[t]);
+                it.name  = (t == 1 && !oh.name30.empty()) ? oh.name30 : (std::string(MAPLE_WPN_TIER_NAME[t]) + oh.name);
+                it.slot  = "offhand";
+                it.level_req     = MAPLE_ARMOR_TIER_LV[t];
+                it.secondary_req = std::max(0, MAPLE_ARMOR_TIER_LV[t] - 10);
+                it.sellable  = true;  // 仍可用 !交易 跟其他玩家交換，只是不上架商店、也不能賣給遊戲換瘋幣
+                it.price     = 0;     // 不上架裝備商店
+                it.atk_bonus = oh.atk[t];
+                it.primary_generic   = oh.primary[t];
+                it.secondary_generic = MAPLE_OFFHAND_SECONDARY[t];
+                it.job_req   = oh.job_req;
+                it.offhand_wtypes = oh.wtypes;
+                it.item_id   = oh.id_base + t;
                 items.push_back(it);
             }
         }
@@ -289,6 +339,40 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.atk_speed_sec = 60;
             e.price = 0;
             e.item_id = 96727;
+            items.push_back(e);
+        }
+        // 掌刺：匕首，限制等級40、限制副屬性70，攻擊力59、主屬性(幸運)+10。仙人長老1%掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "wpn_palm_spike";
+            e.name = "掌刺";
+            e.slot = "weapon";
+            e.level_req = 40;
+            e.secondary_req = 70;
+            e.sellable = true;
+            e.atk_bonus = 59;
+            e.atk_speed_sec = 45;
+            e.weapon_type = "匕首";
+            e.job_req = "thief";
+            e.luk_bonus = 10;
+            e.price = 0;
+            e.item_id = 96790;
+            items.push_back(e);
+        }
+        // 打狗棒：大劍，限制等級40、無副屬性限制，攻速普通(60秒)，攻擊力42。仙人娃娃1%掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "wpn_dog_beat_stick";
+            e.name = "打狗棒";
+            e.slot = "weapon";
+            e.level_req = 40;
+            e.sellable = true;
+            e.atk_bonus = 42;
+            e.atk_speed_sec = 60;
+            e.weapon_type = "大劍";
+            e.job_req = "warrior";
+            e.price = 0;
+            e.item_id = 96791;
             items.push_back(e);
         }
         return items;
