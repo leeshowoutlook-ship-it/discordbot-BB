@@ -133,3 +133,6 @@
 [1790414548] guild_bulk_command_create 成功，共註冊 87 個指令。
 [1790528830] guild_bulk_command_create 成功，共註冊 87 個指令。
 [1790529314] guild_bulk_command_create 成功，共註冊 87 個指令。
+[1790946159] guild_bulk_command_create 成功，共註冊 87 個指令。
+[1790946305] guild_bulk_command_create 成功，共註冊 87 個指令。
+[1790953062] guild_bulk_command_create 成功，共註冊 87 個指令。

@@ -1271,15 +1271,17 @@ static int64_t maple_adv_kills_done(const MapleCharacter& c, const MapleAdvRegio
     if (atk <= 0 || elapsed_sec < atk) return 0;
     return (elapsed_sec - atk) / (atk + maple_eff_rest_sec(c)) + 1;
 }
-// 冒險經驗加成合計（二段跳／瘋幣護盾），不含限時活動與陣營（那兩個在呼叫端單獨處理）；祈禱是另外的固定倍率，見 maple_adv_prayer_mult
+// 祈禱：自身冒險經驗獲得量隨等級慢慢增加，滿級(20級)時 +50%（用加算，不是乘算）
+static double maple_adv_prayer_pct(const MapleCharacter& c) {
+    int lvl = maple_skill_level(c, "bishop_prayer");
+    return 50.0 * lvl / 20.0;
+}
+// 冒險經驗加成合計（二段跳／瘋幣護盾／祈禱），不含限時活動與陣營（那兩個在呼叫端單獨處理）。
+// 全部用加算合併成同一個百分比，不分開乘算。
 static double maple_adv_exp_bonus_pct(const MapleCharacter& c) {
     return maple_buff_value(c, "dart_kid_doublejump")     // 二段跳：每級 +2%
-         + maple_buff_value(c, "dagger_kid_coinshield");  // 瘋幣護盾：跟瘋幣方向相反，每級 +2%經驗
-}
-// 祈禱：自身冒險經驗獲得量隨等級慢慢增加，滿級(20級)時到 ×1.5
-static double maple_adv_prayer_mult(const MapleCharacter& c) {
-    int lvl = maple_skill_level(c, "bishop_prayer");
-    return 1.0 + 0.5 * lvl / 20.0;
+         + maple_buff_value(c, "dagger_kid_coinshield")   // 瘋幣護盾：跟瘋幣方向相反，每級 +2%經驗
+         + maple_adv_prayer_pct(c);                       // 祈禱：滿級(20級) +50%
 }
 // 每隻平均瘋幣，套用「群體恢復」（每級+1%）＋瘋幣炸彈（每級+1%）＋藥劑精通（每級+1%）＋幸運術（每級+2%）
 // －瘋幣護盾（只要有投點就固定-30%，經驗加成則隨等級慢慢疊加，見 maple_adv_exp_bonus_pct）＋陣營瘋幣加成（每級+1%）
@@ -1298,23 +1300,25 @@ static int64_t maple_adv_coins_per_kill(const MapleCharacter& c, const MapleAdvR
 }
 
 // 估算每小時擊殺數／經驗／瘋幣（依「殺滿一隻才有收益」的離散模型）
+// 經驗活動倍率也改成加算：×3 的活動換算成 +200%，跟陣營/二段跳/祈禱等全部加在同一個百分比裡一起套用一次乘法。
 static void maple_adv_estimate(const MapleCharacter& c, const MapleAdvRegionDef& region,
                                double& kills_per_hour, double& exp_per_hour, double& coins_per_hour) {
     int64_t spk = maple_adv_seconds_per_kill(c, region);
     kills_per_hour = spk > 0 ? 3600.0 / spk : 0.0;
-    exp_per_hour   = kills_per_hour * region.monster.exp * maple_exp_event_mult()
-                    * (1.0 + (maple_faction_exp_bonus_pct(c) + maple_adv_exp_bonus_pct(c)) / 100.0)
-                    * maple_adv_prayer_mult(c); // 新手加成改為降低升級所需經驗，不在這裡放大；限時活動、陣營經驗加成則直接放大
+    double event_pct = (maple_exp_event_mult() - 1.0) * 100.0;
+    exp_per_hour   = kills_per_hour * region.monster.exp
+                    * (1.0 + (event_pct + maple_faction_exp_bonus_pct(c) + maple_adv_exp_bonus_pct(c)) / 100.0);
     coins_per_hour = kills_per_hour * maple_adv_coins_per_kill(c, region);
 }
 
 static bool maple_is_adventuring(const MapleCharacter& c) { return !c.adv_region.empty(); }
 
 // 目前這場冒險已累積多少經驗／瘋幣：只計「已經殺滿的怪物數」，還在打的那隻不算
-// 這趟冒險的擊殺，只有「跟經驗活動視窗有重疊的那一段時間內完成的」才吃得到倍率——
+// 這趟冒險的擊殺，只有「跟經驗活動視窗有重疊的那一段時間內完成的」才吃得到活動加成——
 // 出發前活動才開始、或活動中途結束你還沒結算，都只有重疊的那部分算數，不是全有全無。
 // 冒險沒有時間上限，可能橫跨好幾場活動（開新一場、或手動結束舊的一場），所以連同歷史紀錄
 // （maple_exp_event_history）一起算重疊，不然開下一場活動會讓前一場已經跑掉的倍率被忘記。
+// 活動倍率也改成加算：×3 換算成 +200%，跟陣營/二段跳/祈禱等固定加成全部加在同一個百分比裡，只套用一次乘法。
 static void maple_adv_progress(const MapleCharacter& c, int64_t& exp_out, int64_t& coins_out, int64_t& seconds_out) {
     exp_out = 0; coins_out = 0; seconds_out = 0;
     if (!maple_is_adventuring(c)) return;
@@ -1324,6 +1328,8 @@ static void maple_adv_progress(const MapleCharacter& c, int64_t& exp_out, int64_
     seconds_out = std::max((time_t)0, now - c.adv_started_at);
     int64_t kills = maple_adv_kills_done(c, *region, seconds_out); // 還在打的那隻、休息中都不算
     coins_out = kills * maple_adv_coins_per_kill(c, *region);
+
+    double fixed_pct = maple_faction_exp_bonus_pct(c) + maple_adv_exp_bonus_pct(c); // 陣營經驗%／二段跳／瘋幣護盾／祈禱
 
     std::vector<MapleExpEventWindow> windows = maple_exp_event_history;
     if (maple_exp_event.mult > 1.0 && maple_exp_event.start > 0)
@@ -1339,13 +1345,13 @@ static void maple_adv_progress(const MapleCharacter& c, int64_t& exp_out, int64_
         int64_t kills_upto   = maple_adv_kills_done(c, *region, win_end - c.adv_started_at);
         int64_t win_kills = kills_upto - kills_before;
         if (win_kills <= 0) continue;
-        boosted_exp += (double)win_kills * region->monster.exp * w.mult;
+        double event_pct = (w.mult - 1.0) * 100.0;
+        boosted_exp += (double)win_kills * region->monster.exp * (1.0 + (fixed_pct + event_pct) / 100.0);
         boosted_kills_total += win_kills;
     }
     int64_t normal_kills = std::max((int64_t)0, kills - boosted_kills_total);
-    double extra_mult = (1.0 + (maple_faction_exp_bonus_pct(c) + maple_adv_exp_bonus_pct(c)) / 100.0)
-                       * maple_adv_prayer_mult(c);
-    exp_out = (int64_t)llround((normal_kills * region->monster.exp + boosted_exp) * extra_mult);
+    double normal_exp = normal_kills * region->monster.exp * (1.0 + fixed_pct / 100.0);
+    exp_out = (int64_t)llround(normal_exp + boosted_exp);
 }
 
 // ─── 野外首領：全服共用一隻，先搶先贏；用你的攻擊力決定要打多久，
@@ -1735,7 +1741,7 @@ static const std::vector<MapleRaidBossDef> MAPLE_RAID_BOSSES = {
         {50,  {"sc_necklace100"}},
         {30,  {"sc_necklace60"}},
         {10,  {"sc_necklace20"}},
-        {50,  MAPLE_OFFHAND_LV50_SET},
+        {20,  MAPLE_OFFHAND_LV50_SET},
     }, true},
 };
 
@@ -3660,20 +3666,23 @@ static dpp::message make_maple_faction_msg(dpp::snowflake uid) {
             .set_label("✨ 增益").set_id("maple_factionbuff_" + uid_s).set_style(dpp::cos_secondary));
         row1.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🎁 捐贈").set_id("maple_factiondonate_" + uid_s).set_style(dpp::cos_secondary));
-        row1.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("👑 統帥").set_id("maple_factioncommander_" + uid_s + "_0").set_style(dpp::cos_secondary));
-        row1.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("🌐 總覽").set_id("maple_factionoverview_" + uid_s).set_style(dpp::cos_secondary));
         msg.add_component_v2(row1);
 
         dpp::component row2; row2.set_type(dpp::cot_action_row);
         row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("👑 統帥").set_id("maple_factioncommander_" + uid_s + "_0").set_style(dpp::cos_secondary));
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🌐 總覽").set_id("maple_factionoverview_" + uid_s).set_style(dpp::cos_secondary));
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🔄 改選陣營").set_id("maple_factionpick_" + uid_s).set_style(dpp::cos_primary));
-        row2.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("🚪 退出陣營").set_id("maple_factionleaveconfirm_" + uid_s).set_style(dpp::cos_danger));
-        row2.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
         msg.add_component_v2(row2);
+
+        dpp::component row3; row3.set_type(dpp::cot_action_row);
+        row3.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🚪 退出陣營").set_id("maple_factionleaveconfirm_" + uid_s).set_style(dpp::cos_danger));
+        row3.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
+        msg.add_component_v2(row3);
     }
     return msg;
 }
@@ -3880,7 +3889,9 @@ static dpp::message make_maple_faction_overview_msg(dpp::snowflake uid) {
 }
 
 // 統帥：投票 + (統帥限定)陣營技能點分配
-static const int MAPLE_FACTION_COMMANDER_PAGE_SIZE = 10;
+// 統帥檢視這個畫面時會多一排「分配陣營技能點」按鈕，元件數比一般成員多；
+// 每頁人數要留夠餘裕，不然統帥本人看自己陣營（超過10人、會分頁）時，總元件數會超過 Discord 訊息上限、整則被拒收。
+static const int MAPLE_FACTION_COMMANDER_PAGE_SIZE = 8;
 
 static dpp::message make_maple_faction_commander_msg(dpp::snowflake uid, int page = 0, const std::string& result_note = "") {
     MapleCharacter c = maple_get_or_create(uid);

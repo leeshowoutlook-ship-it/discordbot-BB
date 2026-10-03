@@ -1,8 +1,56 @@
 {
   "1036953796007448606": {
     "ch": 1516832192284852316,
+    "duration_hours": 12,
+    "end_time": 1791034321,
+    "finish_notified": false,
+    "funds": 3750,
+    "no_interest": false,
+    "notify_on_finish": true,
+    "pet_along": true,
+    "pet_stage": 3,
+    "pet_talent1": "招人喜歡",
+    "pet_talent2": "膽小鬼",
+    "region_key": "twisted_jungle",
+    "star_boost": false,
+    "start_time": 1790998897
+  },
+  "1115212853289427004": {
+    "ch": 1516835156713934929,
+    "duration_hours": 2,
+    "end_time": 1791023182,
+    "finish_notified": false,
+    "funds": 0,
+    "no_interest": false,
+    "notify_on_finish": true,
+    "pet_along": false,
+    "pet_stage": 0,
+    "pet_talent1": "",
+    "pet_talent2": "",
+    "region_key": "bb_museum",
+    "star_boost": false,
+    "start_time": 1791016198
+  },
+  "1367598479110836335": {
+    "ch": 1516863443817201927,
     "duration_hours": 4,
-    "end_time": 1790700138,
+    "end_time": 1791033385,
+    "finish_notified": false,
+    "funds": 7750,
+    "no_interest": false,
+    "notify_on_finish": true,
+    "pet_along": true,
+    "pet_stage": 3,
+    "pet_talent1": "尋寶專家",
+    "pet_talent2": "求生專家",
+    "region_key": "twisted_jungle",
+    "star_boost": false,
+    "start_time": 1791016537
+  },
+  "1376834202275676170": {
+    "ch": 1516831527156322427,
+    "duration_hours": 6,
+    "end_time": 1791021782,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -13,60 +61,12 @@
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1790686170
-  },
-  "1115212853289427004": {
-    "ch": 1516835156713934929,
-    "duration_hours": 2,
-    "end_time": 1790698396,
-    "finish_notified": false,
-    "funds": 0,
-    "no_interest": false,
-    "notify_on_finish": true,
-    "pet_along": false,
-    "pet_stage": 0,
-    "pet_talent1": "",
-    "pet_talent2": "",
-    "region_key": "bb_museum",
-    "star_boost": false,
-    "start_time": 1790691412
-  },
-  "1367598479110836335": {
-    "ch": 1516863443817201927,
-    "duration_hours": 10,
-    "end_time": 1790732170,
-    "finish_notified": false,
-    "funds": 5750,
-    "no_interest": false,
-    "notify_on_finish": true,
-    "pet_along": true,
-    "pet_stage": 3,
-    "pet_talent1": "尋寶專家",
-    "pet_talent2": "求生專家",
-    "region_key": "bb_museum",
-    "star_boost": false,
-    "start_time": 1790690050
-  },
-  "1376834202275676170": {
-    "ch": 1518445582488961034,
-    "duration_hours": 9,
-    "end_time": 1790603003,
-    "finish_notified": false,
-    "funds": 0,
-    "no_interest": false,
-    "notify_on_finish": false,
-    "pet_along": false,
-    "pet_stage": 0,
-    "pet_talent1": "",
-    "pet_talent2": "",
-    "region_key": "bb_museum",
-    "star_boost": false,
-    "start_time": 1790570927
+    "start_time": 1791000398
   },
   "1390285382381338627": {
     "ch": 1516835999290757312,
     "duration_hours": 12,
-    "end_time": 1790736062,
+    "end_time": 1791041042,
     "finish_notified": false,
     "funds": 10000,
     "no_interest": false,
@@ -77,28 +77,28 @@
     "pet_talent2": "",
     "region_key": "bb_museum",
     "star_boost": false,
-    "start_time": 1790694158
+    "start_time": 1790999138
   },
   "1393804953516118066": {
     "ch": 1517075466450636832,
-    "duration_hours": 10,
-    "end_time": 1790732385,
+    "duration_hours": 4,
+    "end_time": 1791033217,
     "finish_notified": false,
-    "funds": 5750,
+    "funds": 7750,
     "no_interest": false,
     "notify_on_finish": true,
     "pet_along": true,
     "pet_stage": 3,
     "pet_talent1": "尋寶專家",
     "pet_talent2": "求生專家",
-    "region_key": "bb_museum",
+    "region_key": "twisted_jungle",
     "star_boost": false,
-    "start_time": 1790690265
+    "start_time": 1791016369
   },
   "1396006204802728062": {
     "ch": 1518445582488961034,
-    "duration_hours": 8,
-    "end_time": 1790722151,
+    "duration_hours": 10,
+    "end_time": 1790985928,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -109,12 +109,12 @@
     "pet_talent2": "",
     "region_key": "twisted_jungle",
     "star_boost": false,
-    "start_time": 1790693351
+    "start_time": 1790949928
   },
   "1506454940221177958": {
     "ch": 1516713893588635689,
     "duration_hours": 2,
-    "end_time": 1790676274,
+    "end_time": 1790993269,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -123,14 +123,14 @@
     "pet_stage": 0,
     "pet_talent1": "",
     "pet_talent2": "",
-    "region_key": "bb_museum",
+    "region_key": "water_spirit_cave",
     "star_boost": false,
-    "start_time": 1790669074
+    "start_time": 1790986069
   },
   "308970166287466497": {
     "ch": 1516826515562823872,
     "duration_hours": 2,
-    "end_time": 1790701490,
+    "end_time": 1791021260,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -141,13 +141,13 @@
     "pet_talent2": "迅捷",
     "region_key": "twisted_jungle",
     "star_boost": false,
-    "start_time": 1790694506
+    "start_time": 1791014276
   },
   "353567910285017090": {
     "ch": 1516827526356271164,
     "duration_hours": 2,
-    "end_time": 1790673349,
-    "finish_notified": true,
+    "end_time": 1791021640,
+    "finish_notified": false,
     "funds": 0,
     "no_interest": false,
     "notify_on_finish": true,
@@ -157,7 +157,7 @@
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1790666365
+    "start_time": 1791014656
   },
   "457478323665240065": {
     "ch": 1516826491395248349,
@@ -178,8 +178,8 @@
   "470149299934593024": {
     "ch": 1516826407001391138,
     "duration_hours": 2,
-    "end_time": 1790693663,
-    "finish_notified": true,
+    "end_time": 1791023847,
+    "finish_notified": false,
     "funds": 0,
     "no_interest": false,
     "notify_on_finish": true,
@@ -189,7 +189,7 @@
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1790686679
+    "start_time": 1791016863
   },
   "479900597013708802": {
     "ch": 1516713893588635689,
@@ -210,7 +210,7 @@
   "502887336531591168": {
     "ch": 1518445582488961034,
     "duration_hours": 12,
-    "end_time": 1790660282,
+    "end_time": 1790991942,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -221,12 +221,12 @@
     "pet_talent2": "",
     "region_key": "bb_museum",
     "star_boost": true,
-    "start_time": 1790617082
+    "start_time": 1790948742
   },
   "519124245150957578": {
     "ch": 1516826582482686054,
     "duration_hours": 2,
-    "end_time": 1790696922,
+    "end_time": 1791021697,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -237,12 +237,12 @@
     "pet_talent2": "",
     "region_key": "bb_museum",
     "star_boost": false,
-    "start_time": 1790689938
+    "start_time": 1791014713
   },
   "558513044632895509": {
     "ch": 1518941432918966294,
-    "duration_hours": 12,
-    "end_time": 1790744489,
+    "duration_hours": 5,
+    "end_time": 1791036491,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -253,12 +253,12 @@
     "pet_talent2": "求生專家",
     "region_key": "twisted_jungle",
     "star_boost": false,
-    "start_time": 1790693945
+    "start_time": 1791015431
   },
   "559287346131107861": {
     "ch": 1519001256155283527,
     "duration_hours": 2,
-    "end_time": 1790524438,
+    "end_time": 1790884241,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -269,12 +269,12 @@
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1790517310
+    "start_time": 1790877113
   },
   "560474152755134464": {
     "ch": 1518445582488961034,
     "duration_hours": 2,
-    "end_time": 1790691530,
+    "end_time": 1791016267,
     "finish_notified": true,
     "funds": 0,
     "no_interest": false,
@@ -285,13 +285,13 @@
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1790684474
+    "start_time": 1791009211
   },
   "592404587248615458": {
     "ch": 1518275241036615781,
-    "duration_hours": 2,
-    "end_time": 1790696983,
-    "finish_notified": false,
+    "duration_hours": 12,
+    "end_time": 1790981221,
+    "finish_notified": true,
     "funds": 0,
     "no_interest": false,
     "notify_on_finish": true,
@@ -301,13 +301,13 @@
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1790689999
+    "start_time": 1790939317
   },
   "592685139717390346": {
     "ch": 1516828593819226272,
     "duration_hours": 2,
-    "end_time": 1790693910,
-    "finish_notified": true,
+    "end_time": 1791023981,
+    "finish_notified": false,
     "funds": 0,
     "no_interest": false,
     "notify_on_finish": true,
@@ -317,13 +317,13 @@
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1790686926
+    "start_time": 1791016997
   },
   "604244623124070423": {
     "ch": 1516826709335212174,
-    "duration_hours": 2,
-    "end_time": 1790694878,
-    "finish_notified": false,
+    "duration_hours": 8,
+    "end_time": 1790979891,
+    "finish_notified": true,
     "funds": 0,
     "no_interest": false,
     "notify_on_finish": true,
@@ -333,7 +333,7 @@
     "pet_talent2": "",
     "region_key": "bb_museum",
     "star_boost": false,
-    "start_time": 1790687822
+    "start_time": 1790951667
   },
   "651090037102084096": {
     "ch": 1516713672410660969,
@@ -383,21 +383,37 @@
     "star_boost": false,
     "start_time": 1790350571
   },
+  "724983832788598805": {
+    "ch": 1517517762833027072,
+    "duration_hours": 8,
+    "end_time": 1791035612,
+    "finish_notified": false,
+    "funds": 0,
+    "no_interest": false,
+    "notify_on_finish": false,
+    "pet_along": true,
+    "pet_stage": 3,
+    "pet_talent1": "幸運",
+    "pet_talent2": "",
+    "region_key": "red_dragon_range",
+    "star_boost": false,
+    "start_time": 1791007100
+  },
   "811232678590152790": {
     "ch": 1516826576669507876,
     "duration_hours": 12,
-    "end_time": 1790736442,
-    "finish_notified": false,
-    "funds": 4900,
+    "end_time": 1790948530,
+    "finish_notified": true,
+    "funds": 7350,
     "no_interest": false,
     "notify_on_finish": true,
-    "pet_along": false,
-    "pet_stage": 0,
-    "pet_talent1": "",
-    "pet_talent2": "",
+    "pet_along": true,
+    "pet_stage": 3,
+    "pet_talent1": "招人喜歡",
+    "pet_talent2": "迅捷",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1790694538
+    "start_time": 1790906626
   },
   "832619316042137630": {
     "ch": 0,
@@ -418,9 +434,9 @@
   "843071419671904308": {
     "ch": 1516835735322230956,
     "duration_hours": 12,
-    "end_time": 1790719108,
+    "end_time": 1791020511,
     "finish_notified": false,
-    "funds": 2000,
+    "funds": 3000,
     "no_interest": false,
     "notify_on_finish": false,
     "pet_along": true,
@@ -429,29 +445,29 @@
     "pet_talent2": "膽小鬼",
     "region_key": "twisted_jungle",
     "star_boost": false,
-    "start_time": 1790683684
+    "start_time": 1790985087
   },
   "850359830404661258": {
     "ch": 1517890241673953511,
     "duration_hours": 2,
-    "end_time": 1790698366,
+    "end_time": 1791013980,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
-    "notify_on_finish": true,
+    "notify_on_finish": false,
     "pet_along": false,
     "pet_stage": 0,
     "pet_talent1": "",
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1790691382
+    "start_time": 1791006996
   },
   "856481432581701643": {
     "ch": 1531291947040243773,
-    "duration_hours": 8,
-    "end_time": 1790720614,
-    "finish_notified": false,
+    "duration_hours": 3,
+    "end_time": 1791012816,
+    "finish_notified": true,
     "funds": 0,
     "no_interest": false,
     "notify_on_finish": true,
@@ -461,14 +477,14 @@
     "pet_talent2": "",
     "region_key": "bb_museum",
     "star_boost": false,
-    "start_time": 1790692678
+    "start_time": 1791002340
   },
   "876757185152028692": {
     "ch": 1516833771041722439,
-    "duration_hours": 6,
-    "end_time": 1790692538,
+    "duration_hours": 2,
+    "end_time": 1791012748,
     "finish_notified": false,
-    "funds": 4000,
+    "funds": 0,
     "no_interest": true,
     "notify_on_finish": false,
     "pet_along": true,
@@ -477,22 +493,38 @@
     "pet_talent2": "求生專家",
     "region_key": "twisted_jungle",
     "star_boost": false,
-    "start_time": 1790674610
+    "start_time": 1791006771
+  },
+  "959450115007975444": {
+    "ch": 1518445582488961034,
+    "duration_hours": 12,
+    "end_time": 1791048242,
+    "finish_notified": false,
+    "funds": 0,
+    "no_interest": true,
+    "notify_on_finish": true,
+    "pet_along": true,
+    "pet_stage": 3,
+    "pet_talent1": "尋寶專家",
+    "pet_talent2": "膽小鬼",
+    "region_key": "twisted_jungle",
+    "star_boost": false,
+    "start_time": 1791004178
   },
   "978574913306755084": {
     "ch": 1518275241149989036,
-    "duration_hours": 9,
-    "end_time": 1790726223,
+    "duration_hours": 2,
+    "end_time": 1791025965,
     "finish_notified": false,
-    "funds": 4000,
-    "no_interest": false,
+    "funds": 8000,
+    "no_interest": true,
     "notify_on_finish": true,
     "pet_along": true,
     "pet_stage": 3,
     "pet_talent1": "尋寶專家",
     "pet_talent2": "求生專家",
-    "region_key": "red_dragon_range",
+    "region_key": "twisted_jungle",
     "star_boost": false,
-    "start_time": 1790689935
+    "start_time": 1791017900
   }
 }

@@ -899,8 +899,8 @@ inline void apply_pet_basic_set_bonus(dpp::snowflake uid, const Pet& pet, int& a
     hp_mult  += pet.enh_hp  * 0.01;
     if (atk_mult > 0) atk = (int)std::ceil(atk * (1.0 + atk_mult));
     if (hp_mult  > 0) { hp = (int)std::ceil(hp * (1.0 + hp_mult)); max_hp = (int)std::ceil(max_hp * (1.0 + hp_mult)); }
+    def += enh_def_eff / 2; // 強化的固定值先併入基礎防禦力，收藏的 % 加成才會一起吃到這部分
     if (def_mult > 0) def = (int)std::ceil(def * (1.0 + def_mult));
-    def += enh_def_eff / 2;
 }
 
 // 背包分頁的返回按鈕（V2 訊息用）
