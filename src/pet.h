@@ -66,6 +66,7 @@ static const std::vector<VirtualShopItem> VIRTUAL_ITEMS = {
     {"half_refund",        "對不起我錯了",      0, "special", "輸掉任何小遊戲後可按下「對不起我錯了！！」返還一半輸掉的籌碼。組隊遠征（拉圖斯/暗黑龍王）極低機率掉落。", 97003},
     {"latus_chest",      "拉圖斯寶箱",        0, "consumable", "使用後立即獲得一次組隊遠征（拉圖斯）通關等同獎勵，無需消耗狩獵卷。", 97004},
     {"darkdragon_chest", "龍王寶箱",           0, "consumable", "使用後立即獲得一次龍王遠征通關等同獎勵，無需消耗狩獵卷。",           97005},
+    {"lottery_ticket",   "彩券",              0, "special",    "在高額ALLIN房間下注時獲得，不論輸贏都會拿到一張。",                 97006},
     // ── Recovery items ────────────────────────────────────────────────────────
     {"recover_depress", "抗憂鬱藥物",  2000, "recovery", "解除負面狀態「憂鬱」",                      81001},
     {"recover_injury",  "高級傷藥",    2000, "recovery", "解除負面狀態「受傷」",                      81002},
@@ -1566,6 +1567,7 @@ static dpp::message make_pet_other_msg(dpp::snowflake uid) {
     std::vector<ItemEntry> entries;
     for (auto& vi : VIRTUAL_ITEMS) {
         if (!bag_item_is_other(vi)) continue;
+        if (vi.key == "lottery_ticket") continue; // 改顯示在「特殊」分頁（見 SPECIAL_COL_ITEMS）
         auto it = inv.find(vi.key);
         if (it != inv.end() && it->second > 0)
             entries.push_back({vi.key, it->second});

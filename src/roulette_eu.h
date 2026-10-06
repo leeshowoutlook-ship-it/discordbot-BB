@@ -444,6 +444,8 @@ static dpp::message make_eu_multi_lobby_msg(const EuRouletteMultiGame& g) {
         .set_disabled(!can_start));
     row1.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("❌ 取消（房主）").set_id("er_mcancel_" + gid_s).set_style(dpp::cos_danger));
+    row1.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🔄 刷新").set_id("er_mrefresh_" + gid_s).set_style(dpp::cos_secondary));
     msg.add_component(row1);
 
     return msg;

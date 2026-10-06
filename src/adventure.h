@@ -282,9 +282,10 @@ static const std::map<std::string, LimitedMaxRule> LIMITED_MAX_COUNT = {
     // 因為藥水會被喝掉消耗，不能用「目前持有總數」估算上限（否則喝掉會釋出名額，變成能一直補貨）。
 };
 
-// 「特殊」分頁：可使用的消耗型道具（風險骰子）
+// 「特殊」分頁：可使用的消耗型道具（風險骰子）＋限定票券（彩券）
 static const std::set<std::string> SPECIAL_COL_ITEMS = {
     "col_bb_risk_dice", "col_rd_lovebook", "col_rd_simpmanual", "col_rd_dogbook",
+    "lottery_ticket",
 };
 
 // ─── Collectible selling（限定收藏品全球唯一，不可售出，只能 !交易）──────────────

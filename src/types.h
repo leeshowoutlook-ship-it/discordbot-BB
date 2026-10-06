@@ -17,8 +17,9 @@ struct Config {
     std::string img_normal;
     std::string img_hard;
     std::string img_flame;
-    std::string min_bet_thread_id;  // thread that enforces 1000 minimum bet
-    std::string allin_thread_id;    // thread that enforces ALLIN (full balance, min 5000)
+    std::string min_bet_thread_id;  // thread that enforces 5000 minimum bet
+    std::string allin_thread_id;    // thread that enforces ALLIN (full balance, min 20000)
+    std::string allin_500k_thread_id; // thread that enforces ALLIN (full balance, min 500000)；下注會發一張彩券，不論輸贏
 };
 
 struct RegState {

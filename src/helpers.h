@@ -62,6 +62,7 @@ static Config load_config() {
         parse("IMG_FLAME",          c.img_flame);
         parse("MIN_BET_THREAD_ID",  c.min_bet_thread_id);
         parse("ALLIN_THREAD_ID",    c.allin_thread_id);
+        parse("ALLIN_500K_THREAD_ID", c.allin_500k_thread_id);
     }
     return c;
 }
@@ -233,18 +234,22 @@ static void invalidate_old_msg(dpp::cluster& bot, dpp::snowflake uid) {
 }
 
 // Helper used by game message commands: create msg, track active message.
+// on_error：訊息實際送出失敗時呼叫（例如私訊被拒收），讓呼叫端可以把已經落地存檔的遊戲狀態復原，
+// 不然玩家會卡在「有進行中的遊戲」但根本沒收到訊息可以互動，之後每次都會被擋下來。
 static void start_cmd(dpp::cluster& bot, dpp::snowflake uid,
                       dpp::snowflake channel_id, dpp::message msg,
-                      dpp::snowflake reply_to = 0) {
+                      dpp::snowflake reply_to = 0, std::function<void()> on_error = nullptr) {
     invalidate_old_msg(bot, uid);
     if (reply_to) msg.set_reference(reply_to);
     msg.channel_id = channel_id;
-    bot.message_create(msg, [uid, channel_id](const dpp::confirmation_callback_t& cb) {
+    bot.message_create(msg, [uid, channel_id, on_error](const dpp::confirmation_callback_t& cb) {
         if (!cb.is_error()) {
             auto& m = std::get<dpp::message>(cb.value);
             std::lock_guard<std::mutex> lk(data_mutex);
             msg_owner[m.id] = uid;
             user_active_msg[uid] = {m.id, channel_id};
+        } else if (on_error) {
+            on_error();
         }
     });
 }

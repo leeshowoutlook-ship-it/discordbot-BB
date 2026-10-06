@@ -62,22 +62,15 @@ void handle_bj_message(const dpp::message_create_t& ev, const std::string& conte
     bool is_all = (rest_lo == "all");
     int64_t bet = is_all ? get_chips(uid) : (rest.empty() ? 0 : std::atoll(rest.c_str()));
 
-    if (!cfg.allin_thread_id.empty() && std::to_string((uint64_t)ch) == cfg.allin_thread_id) {
-        bet = get_chips(uid);
-        if (bet < 5000) {
-            dpp::message m; m.set_content("❌ 此房間需持有至少 **5,000** 碼才能 ALLIN！");
-            m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
-        }
-    } else {
-        if (bet <= 0) {
-            dpp::message m; m.set_content("用法：`!21 <籌碼量>`  例：`!21 100` 或 `!21 ALL`");
-            m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
-        }
-        if (!cfg.min_bet_thread_id.empty() && std::to_string((uint64_t)ch) == cfg.min_bet_thread_id && bet < 1000) {
-            dpp::message m; m.set_content("❌ 此討論串最低下注為 **1,000** 碼！");
+    bool got_ticket_ = false;
+    {
+        BetRoomCheck r = resolve_bet_room(uid, ch, bet, got_ticket_);
+        if (r != BetRoomCheck::OK) {
+            dpp::message m; m.set_content(bet_room_check_msg(r, "用法：`!21 <籌碼量>`  例：`!21 100` 或 `!21 ALL`"));
             m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
         }
     }
+    grant_lottery_ticket_if_needed(uid, got_ticket_);
     int64_t bal = get_chips(uid);
     if (bal < bet) {
         dpp::embed e; e.set_title("❌  籌碼不足").set_color(0xE74C3C);
@@ -119,14 +112,19 @@ void handle_bj_button(const dpp::button_click_t& ev)
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
         }
-        if (!cfg.allin_thread_id.empty() && std::to_string((uint64_t)ev.command.channel_id) == cfg.allin_thread_id) {
-            bet = get_chips(uid);
-            if (bet < 5000) { ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 此房間需持有至少 **5,000** 碼才能 ALLIN！").set_flags(dpp::m_ephemeral)); return; }
-        } else if (get_chips(uid) < bet) {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 籌碼不足 " + std::to_string(bet) + " 碼！").set_flags(dpp::m_ephemeral)); return;
+        bool got_ticket_ = false;
+        {
+            BetRoomCheck r = resolve_bet_room(uid, ev.command.channel_id, bet, got_ticket_);
+            if (r != BetRoomCheck::OK) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message(bet_room_check_msg(r, "")).set_flags(dpp::m_ephemeral)); return;
+            }
+            if (get_chips(uid) < bet) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 籌碼不足 " + std::to_string(bet) + " 碼！").set_flags(dpp::m_ephemeral)); return;
+            }
         }
+        grant_lottery_ticket_if_needed(uid, got_ticket_);
         const dpp::user& u = ev.command.get_issuing_user();
         auto [g, status] = bj_start_game(uid, ev.command.channel_id, bet, u.get_avatar_url(), u.username);
         ev.reply(dpp::ir_channel_message_with_source, make_bj_msg(g, status));
@@ -196,17 +194,15 @@ void handle_bj_slash(const dpp::slashcommand_t& ev, const std::string& cmd_name,
     bool is_all = (bet_lo == "all");
     bet = is_all ? get_chips(uid) : (bet_str.empty() ? 0 : std::atoll(bet_str.c_str()));
 
-    if (!cfg.allin_thread_id.empty() && std::to_string((uint64_t)ch) == cfg.allin_thread_id) {
-        bet = get_chips(uid);
-        if (bet < 5000) { ev.reply(dpp::ir_channel_message_with_source,
-            dpp::message("❌ 此房間需持有至少 **5,000** 碼才能 ALLIN！").set_flags(dpp::m_ephemeral)); return; }
-    } else {
-        if (bet <= 0) { ev.reply(dpp::ir_channel_message_with_source,
-            dpp::message("用法：`/21 籌碼:100` 或 `/21 籌碼:ALL`").set_flags(dpp::m_ephemeral)); return; }
-        if (!cfg.min_bet_thread_id.empty() && std::to_string((uint64_t)ch) == cfg.min_bet_thread_id && bet < 1000) {
+    bool got_ticket_ = false;
+    {
+        BetRoomCheck r = resolve_bet_room(uid, ch, bet, got_ticket_);
+        if (r != BetRoomCheck::OK) {
             ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 此討論串最低下注為 **1,000** 碼！").set_flags(dpp::m_ephemeral)); return; }
+                dpp::message(bet_room_check_msg(r, "用法：`/21 籌碼:100` 或 `/21 籌碼:ALL`")).set_flags(dpp::m_ephemeral)); return;
+        }
     }
+    grant_lottery_ticket_if_needed(uid, got_ticket_);
     int64_t bal = get_chips(uid);
     if (bal < bet) {
         dpp::embed e; e.set_title("❌  籌碼不足").set_color(0xE74C3C);

@@ -82,6 +82,12 @@ static double sh_payout(int gap) {
     }
 }
 
+// 射柱子：賭中「柱」（命中已開出的兩張牌中任一點數），不分射偏/撞柱，只有中/沒中兩種結果。
+// 兩張牌點數不同時 6 倍；兩張牌點數相同時（只剩牌庫中同點數的 2 張能中）25 倍。
+static double sh_payout_pillar(int gap) {
+    return (gap == 0) ? 25.0 : 6.0;
+}
+
 // ─── Dealing ──────────────────────────────────────────────────────────────────
 
 static std::mt19937& sh_rng() {
@@ -141,6 +147,9 @@ static dpp::message make_shoot_start_msg(const ShootGame& sg) {
     int lo = lo_c/4+1, hi = hi_c/4+1;
     int gap = hi - lo;
     double pay = sh_payout(gap);
+    double pillar_pay = sh_payout_pillar(gap);
+    bool no_pass = !cfg.allin_500k_thread_id.empty() &&
+                   std::to_string((uint64_t)sg.channel_id) == cfg.allin_500k_thread_id;
 
     dpp::embed e;
     e.set_title("🃏  射龍門").set_color(0xE67E22);
@@ -157,7 +166,10 @@ static dpp::message make_shoot_start_msg(const ShootGame& sg) {
     desc << "✅ 射中  **+" << (int64_t)(sg.bet*(pay-1)) << "** 碼\n";
     desc << "❌ 射偏  **-" << sg.bet << "** 碼\n";
     desc << bump_label << "  **-" << bump_penalty << "** 碼\n";
-    desc << "🙅 PASS  **-" << pass_cost << "** 碼（退還 80%）";
+    desc << "🏛️ 射柱子（賠率 **" << (int)pillar_pay << "x**）：賭中牌面點數，命中 **+"
+         << (int64_t)(sg.bet*(pillar_pay-1)) << "** 碼，沒中 **-" << sg.bet << "** 碼\n";
+    if (no_pass) desc << "🙅 此房間下柱不可 PASS！";
+    else         desc << "🙅 PASS  **-" << pass_cost << "** 碼（退還 80%）";
     e.set_description(desc.str());
     sh_set_user(e, sg);
 
@@ -176,6 +188,8 @@ static dpp::message make_shoot_start_msg(const ShootGame& sg) {
             .set_label("射！🎯").set_id("shoot_go_" + sid).set_style(dpp::cos_danger));
     }
     row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("射柱 🏛️").set_id("shoot_pillar_" + sid).set_style(dpp::cos_primary));
+    if (!no_pass) row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("PASS").set_id("shoot_pass_" + sid).set_style(dpp::cos_secondary));
 
     dpp::message msg;
@@ -307,6 +321,81 @@ static dpp::message make_shoot_result_msg(const ShootGame& sg, int direction) {
             if (hr > 0) gc_row.add_component(dpp::component().set_type(dpp::cot_button)
                 .set_label("對不起我錯了！！")
                 .set_id("half_refund_" + sh_uid_s + "_sh" + stat_type + "_" + sh_loss_s)
+                .set_style(dpp::cos_primary));
+            msg.add_component(gc_row);
+        }
+    }
+    return msg;
+}
+
+// ─── Pillar-shot result ────────────────────────────────────────────────────────
+// 射柱子：只有中/沒中兩種結果，命中「柱」（已開出的兩張牌中任一點數）即贏，否則輸掉下柱。
+// Caller must NOT hold data_mutex (add_chips acquires it internally)
+
+static dpp::message make_shoot_pillar_msg(const ShootGame& sg) {
+    int r1 = sg.c1/4+1, r2 = sg.c2/4+1;
+    int lo_c = (r1 <= r2) ? sg.c1 : sg.c2;
+    int hi_c = (r1 <= r2) ? sg.c2 : sg.c1;
+    int lo = lo_c/4+1, hi = hi_c/4+1;
+    int gap = hi - lo;
+    double pay = sh_payout_pillar(gap);
+
+    int c3 = sh_draw_third(sg.c1, sg.c2);
+    int r3 = c3/4+1;
+    bool win = (gap == 0) ? (r3 == lo) : (r3 == lo || r3 == hi);
+
+    int64_t delta = win ? (int64_t)(sg.bet * (pay - 1)) : -sg.bet;
+    std::string title = win ? "🎯  射中柱子！" : "❌  沒中柱子！";
+    uint32_t color = win ? 0x2ECC71 : 0x95A5A6;
+
+    add_chips(sg.uid, delta);
+    int64_t new_chips = get_chips(sg.uid);
+    if (delta < 0 && new_chips <= 0) announce_bankrupt(sg.uid, sg.channel_id);
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto& st = shoot_stats_data[sg.uid];
+        if (win) st.wins++; else st.losses++;
+        st.profit += delta;
+    }
+    save_shootstats();
+
+    dpp::embed e;
+    e.set_title(title).set_color(color);
+    std::string cards = sh_card(lo_c) + "  " + sh_card(c3) + "  " + sh_card(hi_c);
+
+    std::ostringstream desc;
+    desc << "下柱：**" << sg.bet << "** 碼　（射柱子　賠率 **" << (int)pay << "x**）\n";
+    if (delta > 0) desc << "💰 贏得 **+" << delta << "** 碼";
+    else           desc << "💸 **" << delta << "** 碼";
+    desc << "　餘額：**" << new_chips << "** 碼\n";
+    desc << sh_stats_line(sg.uid);
+    e.set_description(desc.str());
+    sh_set_user(e, sg);
+
+    dpp::message msg;
+    msg.set_content(cards);
+    msg.add_embed(e);
+    sh_add_replay_row(msg, (uint64_t)sg.uid, sg.bet, new_chips);
+    if (delta < 0) {
+        int gc = 0, hr = 0;
+        { std::lock_guard<std::mutex> lk(data_mutex);
+          if (inventory_data.count(sg.uid)) {
+              auto& inv = inventory_data[sg.uid];
+              gc = inv.count("game_cancel") ? inv["game_cancel"] : 0;
+              hr = inv.count("half_refund") ? inv["half_refund"] : 0;
+          }
+        }
+        if (gc > 0 || hr > 0) {
+            std::string sh_uid_s = std::to_string((uint64_t)sg.uid);
+            std::string sh_loss_s = std::to_string(-delta);
+            dpp::component gc_row; gc_row.set_type(dpp::cot_action_row);
+            if (gc > 0) gc_row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("這局不算!!")
+                .set_id("game_cancel_" + sh_uid_s + "_shl_" + sh_loss_s)
+                .set_style(dpp::cos_success));
+            if (hr > 0) gc_row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("對不起我錯了！！")
+                .set_id("half_refund_" + sh_uid_s + "_shl_" + sh_loss_s)
                 .set_style(dpp::cos_primary));
             msg.add_component(gc_row);
         }

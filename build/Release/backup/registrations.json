@@ -1,5 +1,5 @@
 {
-  "max_id": 32,
+  "max_id": 33,
   "records": [
     {
       "boss": "普通拉圖斯",
@@ -18,6 +18,20 @@
       ],
       "user_id": 558513044632895509,
       "username": "iwinwarning"
+    },
+    {
+      "boss": "殘暴炎魔",
+      "channel_id": 1521701652401361187,
+      "id": 33,
+      "position": "不需要火的輸出",
+      "slots": [
+        [
+          "10/4(日)",
+          "20:00"
+        ]
+      ],
+      "user_id": 321579120938975233,
+      "username": "yihuaaaa"
     }
   ]
 }

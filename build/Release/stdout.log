@@ -1,55 +1,7 @@
-[Fri Oct  2 22:57:40 2026] DEBUG: Cluster: 998 of 1000 session starts remaining
-[Fri Oct  2 22:57:40 2026] INFO: Auto Shard: Bot requires 1 shard
-[Fri Oct  2 22:57:40 2026] DEBUG: Starting with 1 shards...
-[Fri Oct  2 22:57:40 2026] DEBUG: Connecting new session...
-[Fri Oct  2 22:57:41 2026] INFO: Shard id 0 (1/1) ready!
-[Fri Oct  2 22:57:41 2026] DEBUG: Resume URL for session cdc217c4eff011eeeeb0fa051987347b is wss://gateway-us-east1-c.discord.gg (host: gateway-us-east1-c.discord.gg)
+[Wed Oct  7 00:41:33 2026] DEBUG: Cluster: 999 of 1000 session starts remaining
+[Wed Oct  7 00:41:33 2026] INFO: Auto Shard: Bot requires 1 shard
+[Wed Oct  7 00:41:33 2026] DEBUG: Starting with 1 shards...
+[Wed Oct  7 00:41:33 2026] DEBUG: Connecting new session...
+[Wed Oct  7 00:41:34 2026] INFO: Shard id 0 (1/1) ready!
+[Wed Oct  7 00:41:34 2026] DEBUG: Resume URL for session 92c1b9bf9fe91b85671aba034ecf3dda is wss://gateway-us-east1-d.discord.gg (host: gateway-us-east1-d.discord.gg)
 Bot 已上線：分類帽
-[Fri Oct  2 22:57:45 2026] DEBUG: Shards started.
-[Fri Oct  2 23:49:34 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 00:15:23 2026] DEBUG: Receiving exception: Reconnection requested, closing session cdc217c4eff011eeeeb0fa051987347b
-[Sat Oct  3 00:15:23 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
-[Sat Oct  3 00:15:29 2026] INFO: Reconnecting shard 0
-[Sat Oct  3 00:15:30 2026] DEBUG: Resuming session cdc217c4eff011eeeeb0fa051987347b with seq=2881
-[Sat Oct  3 00:15:30 2026] DEBUG: Successfully resumed session id cdc217c4eff011eeeeb0fa051987347b
-[Sat Oct  3 00:51:37 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 00:52:28 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 01:43:37 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 02:17:42 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 02:17:49 2026] ERROR: Error: 50035: Invalid Form Body - data.flags: The MessageFlags.IS_COMPONENTS_V2 flag cannot be removed from a message once it has been set. (MESSAGE_CANNOT_REMOVE_COMPONENTS_V2_FLAG)
-[Sat Oct  3 02:22:20 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 03:19:59 2026] DEBUG: Receiving exception: Reconnection requested, closing session cdc217c4eff011eeeeb0fa051987347b
-[Sat Oct  3 03:19:59 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
-[Sat Oct  3 03:20:04 2026] INFO: Reconnecting shard 0
-[Sat Oct  3 03:20:04 2026] DEBUG: Resuming session cdc217c4eff011eeeeb0fa051987347b with seq=6055
-[Sat Oct  3 03:20:04 2026] DEBUG: Successfully resumed session id cdc217c4eff011eeeeb0fa051987347b
-[Sat Oct  3 03:31:04 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 05:01:56 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
-[Sat Oct  3 05:02:04 2026] INFO: Reconnecting shard 0
-[Sat Oct  3 05:02:07 2026] DEBUG: Resuming session cdc217c4eff011eeeeb0fa051987347b with seq=6267
-[Sat Oct  3 05:02:07 2026] DEBUG: Successfully resumed session id cdc217c4eff011eeeeb0fa051987347b
-[Sat Oct  3 05:02:40 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 05:02:40 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 05:02:40 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 05:02:40 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 05:02:40 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 05:02:40 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 05:23:24 2026] DEBUG: Receiving exception: Reconnection requested, closing session cdc217c4eff011eeeeb0fa051987347b
-[Sat Oct  3 05:23:24 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
-[Sat Oct  3 05:23:29 2026] INFO: Reconnecting shard 0
-[Sat Oct  3 05:23:30 2026] DEBUG: Resuming session cdc217c4eff011eeeeb0fa051987347b with seq=6337
-[Sat Oct  3 05:23:30 2026] DEBUG: Successfully resumed session id cdc217c4eff011eeeeb0fa051987347b
-[Sat Oct  3 05:23:30 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 05:53:13 2026] DEBUG: Receiving exception: Reconnection requested, closing session cdc217c4eff011eeeeb0fa051987347b
-[Sat Oct  3 05:53:13 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
-[Sat Oct  3 05:53:19 2026] INFO: Reconnecting shard 0
-[Sat Oct  3 05:53:19 2026] DEBUG: Resuming session cdc217c4eff011eeeeb0fa051987347b with seq=6392
-[Sat Oct  3 05:53:19 2026] DEBUG: Successfully resumed session id cdc217c4eff011eeeeb0fa051987347b
-[Sat Oct  3 08:01:51 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 08:42:22 2026] DEBUG: Receiving exception: Reconnection requested, closing session cdc217c4eff011eeeeb0fa051987347b
-[Sat Oct  3 08:42:22 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
-[Sat Oct  3 08:42:29 2026] INFO: Reconnecting shard 0
-[Sat Oct  3 08:42:29 2026] DEBUG: Resuming session cdc217c4eff011eeeeb0fa051987347b with seq=7870
-[Sat Oct  3 08:42:30 2026] DEBUG: Successfully resumed session id cdc217c4eff011eeeeb0fa051987347b
-[Sat Oct  3 08:42:30 2026] ERROR: Error: 10062: Unknown interaction
-[Sat Oct  3 08:42:30 2026] ERROR: Error: 10062: U
