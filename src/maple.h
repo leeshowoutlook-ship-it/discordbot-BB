@@ -4186,8 +4186,6 @@ static dpp::message make_maple_tokenshop_msg(dpp::snowflake uid) {
             .set_id("maple_tokenexmax_" + uid_s)
             .set_style(dpp::cos_primary).set_disabled(mx <= 0));
     }
-    row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("↩ 返回商店").set_id("maple_shop_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row2);
 
     dpp::component container2;
@@ -4215,7 +4213,66 @@ static dpp::message make_maple_tokenshop_msg(dpp::snowflake uid) {
             .set_id("maple_coinexmax_" + uid_s)
             .set_style(dpp::cos_primary).set_disabled(mx_chips <= 0));
     }
+    row4.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回商店").set_id("maple_shop_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row4);
+
+    return msg;
+}
+
+// 「兌換上限」二階段確認：先顯示實際金額再讓玩家確定，避免誤觸一次兌換掉全部籌碼/瘋幣
+static dpp::message make_maple_tokenexmax_confirm_msg(dpp::snowflake uid) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    MapleCharacter c = maple_get_or_create(uid);
+    int64_t chips = get_chips(uid);
+    int64_t remain = maple_token_remaining(c);
+    int64_t amount = std::min(remain, chips);
+    int64_t coins_get = maple_token_coins_for(amount);
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## ⚠️ 確認兌換上限\n用 **" + std::to_string(amount) + "** 籌碼兌換 **"
+                     + std::to_string(coins_get) + "** 瘋幣。確定嗎？"));
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label(amount > 0 ? "✅ 確定兌換" : "沒有可兌換的額度")
+        .set_id("maple_tokenexmaxok_" + uid_s).set_style(dpp::cos_success).set_disabled(amount <= 0));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("❌ 取消").set_id("maple_tokenshop_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
+
+    return msg;
+}
+
+static dpp::message make_maple_coinexmax_confirm_msg(dpp::snowflake uid) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    MapleCharacter c = maple_get_or_create(uid);
+    int64_t mx_chips = c.coins / MAPLE_COIN_TO_CHIP_RATE;
+    int64_t cost = maple_coins_for_chips(mx_chips);
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## ⚠️ 確認兌換上限\n用 **" + std::to_string(cost) + "** 瘋幣兌換 **"
+                     + std::to_string(mx_chips) + "** 籌碼。確定嗎？"));
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label(mx_chips > 0 ? "✅ 確定兌換" : "瘋幣不足")
+        .set_id("maple_coinexmaxok_" + uid_s).set_style(dpp::cos_success).set_disabled(mx_chips <= 0));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("❌ 取消").set_id("maple_tokenshop_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
 
     return msg;
 }
@@ -4393,6 +4450,43 @@ static dpp::message make_maple_scbuy_confirm_msg(dpp::snowflake uid, const std::
             .set_label("↩ 返回").set_id("maple_scshop_" + uid_s + "_0").set_style(dpp::cos_secondary));
         msg.add_component_v2(row);
     }
+
+    return msg;
+}
+
+// 「買到上限」二階段確認：先顯示實際數量與總花費再讓玩家確定，避免誤觸一次花光瘋幣
+static dpp::message make_maple_scbuymax_confirm_msg(dpp::snowflake uid, const std::string& scroll_key) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    const MapleScrollDef* s = maple_find_scroll(scroll_key);
+    MapleCharacter c = maple_get_or_create(uid);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    int64_t max_afford = 0;
+    std::string body;
+    if (!s) {
+        body = "## ❌ 找不到這個卷軸";
+    } else {
+        max_afford = s->price > 0 ? std::min((int64_t)999, c.coins / s->price) : 0;
+        int64_t cost = max_afford * s->price;
+        body = "## ⚠️ 確認買到上限\n**" + s->name + "** ×" + std::to_string(max_afford)
+             + "　共 **" + std::to_string(cost) + "** 瘋幣。確定嗎？";
+    }
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(body));
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    if (s) {
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label(max_afford > 0 ? "✅ 確定購買 ×" + std::to_string(max_afford) : "瘋幣不足")
+            .set_id("maple_scbuymaxok_" + uid_s + "_" + scroll_key)
+            .set_style(dpp::cos_success).set_disabled(max_afford <= 0));
+    }
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("❌ 取消").set_id("maple_scbuy_" + uid_s + "_" + scroll_key).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
 
     return msg;
 }
@@ -4627,6 +4721,43 @@ static dpp::message make_maple_eqbuy_confirm_msg(dpp::snowflake uid, const std::
     }
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("❌ 取消").set_id("maple_eqshop_" + uid_s + "_" + mode + "_" + cat + "_0").set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
+
+    return msg;
+}
+
+// 「買到上限」二階段確認：先顯示實際數量與總花費再讓玩家確定，避免誤觸一次花光瘋幣
+static dpp::message make_maple_eqbuymax_confirm_msg(dpp::snowflake uid, const std::string& item_key) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    const MapleItemDef* it = maple_find_item(item_key);
+    MapleCharacter c = maple_get_or_create(uid);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    int64_t max_afford = 0;
+    std::string body;
+    if (!it) {
+        body = "## ❌ 找不到這件裝備";
+    } else {
+        max_afford = it->price > 0 ? std::min((int64_t)999, c.coins / it->price) : 0;
+        int64_t cost = max_afford * it->price;
+        body = "## ⚠️ 確認買到上限\n**" + it->name + "** ×" + std::to_string(max_afford)
+             + "　共 **" + std::to_string(cost) + "** 瘋幣。確定嗎？";
+    }
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(body));
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    if (it) {
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label(max_afford > 0 ? "✅ 確定購買 ×" + std::to_string(max_afford) : "瘋幣不足")
+            .set_id("maple_eqbuymaxok_" + uid_s + "_" + item_key)
+            .set_style(dpp::cos_success).set_disabled(max_afford <= 0));
+    }
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("❌ 取消").set_id("maple_eqbuy_" + uid_s + "_" + item_key).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
 
     return msg;

@@ -1254,13 +1254,24 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
-    // maple_tokenexmax_<uid>：兌換上限（金額伺服器端算）／maple_tokenex_<uid>_<amount>：固定金額
-    if (cid.rfind("maple_tokenexmax_", 0) == 0 || cid.rfind("maple_tokenex_", 0) == 0) {
-        bool is_max = cid.rfind("maple_tokenexmax_", 0) == 0;
+    // maple_tokenexmax_<uid>：顯示兌換上限二階段確認視窗（不直接執行）
+    if (cid.rfind("maple_tokenexmax_", 0) == 0) {
+        dpp::snowflake owner(std::stoull(cid.substr(17)));
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_tokenexmax_confirm_msg(uid));
+        return;
+    }
+
+    // maple_tokenexmaxok_<uid>：確認後真正執行兌換上限（金額伺服器端算）／maple_tokenex_<uid>_<amount>：固定金額
+    if (cid.rfind("maple_tokenexmaxok_", 0) == 0 || cid.rfind("maple_tokenex_", 0) == 0) {
+        bool is_max = cid.rfind("maple_tokenexmaxok_", 0) == 0;
         dpp::snowflake owner;
         int64_t amount = 0;
         if (is_max) {
-            owner = dpp::snowflake(std::stoull(cid.substr(17)));
+            owner = dpp::snowflake(std::stoull(cid.substr(19)));
         } else {
             std::string rest = cid.substr(14);
             size_t sep = rest.rfind('_');
@@ -1300,13 +1311,24 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
-    // maple_coinexmax_<uid>：瘋幣換籌碼，兌換上限（金額伺服器端算）／maple_coinex_<uid>_<chips>：固定籌碼數
-    if (cid.rfind("maple_coinexmax_", 0) == 0 || cid.rfind("maple_coinex_", 0) == 0) {
-        bool is_max = cid.rfind("maple_coinexmax_", 0) == 0;
+    // maple_coinexmax_<uid>：顯示兌換上限二階段確認視窗（不直接執行）
+    if (cid.rfind("maple_coinexmax_", 0) == 0) {
+        dpp::snowflake owner(std::stoull(cid.substr(16)));
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_coinexmax_confirm_msg(uid));
+        return;
+    }
+
+    // maple_coinexmaxok_<uid>：確認後真正執行瘋幣換籌碼上限（金額伺服器端算）／maple_coinex_<uid>_<chips>：固定籌碼數
+    if (cid.rfind("maple_coinexmaxok_", 0) == 0 || cid.rfind("maple_coinex_", 0) == 0) {
+        bool is_max = cid.rfind("maple_coinexmaxok_", 0) == 0;
         dpp::snowflake owner;
         int64_t chips_wanted = 0;
         if (is_max) {
-            owner = dpp::snowflake(std::stoull(cid.substr(16)));
+            owner = dpp::snowflake(std::stoull(cid.substr(18)));
         } else {
             std::string rest = cid.substr(13);
             size_t sep = rest.rfind('_');
@@ -1360,11 +1382,26 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
-    // maple_eqbuyok_<uid>_<qty>_<key>：固定數量／maple_eqbuymax_<uid>_<key>：買到上限（數量伺服器端算）
+    // maple_eqbuymax_<uid>_<key>：顯示買到上限二階段確認視窗（不直接執行）
+    if (cid.rfind("maple_eqbuymax_", 0) == 0) {
+        std::string rest = cid.substr(15);
+        size_t s1 = rest.find('_');
+        if (s1 == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, s1)));
+        std::string item_key = rest.substr(s1 + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_eqbuymax_confirm_msg(uid, item_key));
+        return;
+    }
+
+    // maple_eqbuyok_<uid>_<qty>_<key>：固定數量／maple_eqbuymaxok_<uid>_<key>：確認後真正買到上限（數量伺服器端算）
     // 相容舊格式 maple_eqbuyok_<uid>_<key>（舊訊息上的按鈕）：數量欄位不是純數字時當作買 1 件
-    if (cid.rfind("maple_eqbuyok_", 0) == 0 || cid.rfind("maple_eqbuymax_", 0) == 0) {
-        bool is_max = cid.rfind("maple_eqbuymax_", 0) == 0;
-        std::string rest = cid.substr(is_max ? 15 : 14);
+    if (cid.rfind("maple_eqbuyok_", 0) == 0 || cid.rfind("maple_eqbuymaxok_", 0) == 0) {
+        bool is_max = cid.rfind("maple_eqbuymaxok_", 0) == 0;
+        std::string rest = cid.substr(is_max ? 17 : 14);
         size_t s1 = rest.find('_');
         if (s1 == std::string::npos) return;
         dpp::snowflake owner(std::stoull(rest.substr(0, s1)));
@@ -1436,14 +1473,29 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
-    // maple_scbuyok_<uid>_<key>_<qty>：固定數量／maple_scbuymax_<uid>_<key>：買到上限（數量伺服器端算）
-    if (cid.rfind("maple_scbuyok_", 0) == 0 || cid.rfind("maple_scbuymax_", 0) == 0) {
-        bool is_max = cid.rfind("maple_scbuymax_", 0) == 0;
+    // maple_scbuymax_<uid>_<key>：顯示買到上限二階段確認視窗（不直接執行）
+    if (cid.rfind("maple_scbuymax_", 0) == 0) {
+        std::string rest = cid.substr(15);          // <uid>_<key>
+        size_t s1 = rest.find('_');
+        if (s1 == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, s1)));
+        std::string scroll_key = rest.substr(s1 + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_scbuymax_confirm_msg(uid, scroll_key));
+        return;
+    }
+
+    // maple_scbuyok_<uid>_<key>_<qty>：固定數量／maple_scbuymaxok_<uid>_<key>：確認後真正買到上限（數量伺服器端算）
+    if (cid.rfind("maple_scbuyok_", 0) == 0 || cid.rfind("maple_scbuymaxok_", 0) == 0) {
+        bool is_max = cid.rfind("maple_scbuymaxok_", 0) == 0;
         dpp::snowflake owner;
         std::string scroll_key;
         int64_t qty = 0;
         if (is_max) {
-            std::string rest = cid.substr(15);          // <uid>_<key>
+            std::string rest = cid.substr(17);          // <uid>_<key>
             size_t s1 = rest.find('_');
             if (s1 == std::string::npos) return;
             owner      = dpp::snowflake(std::stoull(rest.substr(0, s1)));

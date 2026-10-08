@@ -4,12 +4,8 @@
 #include <nlohmann/json.hpp>
 
 struct ShopItem { std::string name; int64_t price; int total; int sold; };
+// 楓之谷商店（一般商店內的分館）目前沒有上架商品，之後要新增就往這裡加。
 static std::vector<ShopItem> maple_items = {
-    {"中華拉麵500份",  20000,  -1, 0},
-    {"棒冰棒500份",    30000,  -1, 0},
-    {"紅豆刨冰500份",  50000,  -1, 0},
-    {"瞬移石10個",    120000,  -1, 0},
-    {"突襲卷7張",     250000,  -1, 0},
 };
 static const std::string SHOP_FILE      = "shop.json";
 static const std::string PURCHASES_FILE = "purchases.json";
@@ -291,16 +287,20 @@ static dpp::message make_shop_main_msg(const std::string& back_uid = "") {
 
 static dpp::message make_maple_shop_msg(int page = 0) {
     const int PAGE_SIZE = 5;
-    int total_pages = ((int)maple_items.size() + PAGE_SIZE - 1) / PAGE_SIZE;
+    int total_pages = std::max(1, ((int)maple_items.size() + PAGE_SIZE - 1) / PAGE_SIZE);
     page = std::max(0, std::min(page, total_pages - 1));
     int start = page * PAGE_SIZE;
     int end   = std::min(start + PAGE_SIZE, (int)maple_items.size());
 
     std::string content = "## 🍁 楓之谷商店\n";
-    for (int i = start; i < end; i++) {
-        auto& item = maple_items[i];
-        std::string remain_str = (item.total == -1) ? "∞" : std::to_string(item.total - item.sold);
-        content += "**" + item.name + "** 💰 **" + std::to_string(item.price) + "** 碼  |  剩餘：**" + remain_str + "**\n";
+    if (maple_items.empty()) {
+        content += "目前沒有上架商品。\n";
+    } else {
+        for (int i = start; i < end; i++) {
+            auto& item = maple_items[i];
+            std::string remain_str = (item.total == -1) ? "∞" : std::to_string(item.total - item.sold);
+            content += "**" + item.name + "** 💰 **" + std::to_string(item.price) + "** 碼  |  剩餘：**" + remain_str + "**\n";
+        }
     }
     content += "\n-# 第 " + std::to_string(page+1) + "/" + std::to_string(total_pages) + " 頁";
 
