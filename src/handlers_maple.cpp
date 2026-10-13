@@ -2050,11 +2050,11 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
             maple_raid_week_reset_if_needed(c);
-            if (c.raid_week_extra > 0) err = "這週已經買過額外次數了！";
+            if (c.raid_week_extra >= MAPLE_RAID_EXTRA_ATTEMPT_MAX_BUYS) err = "這週的額外次數已經買滿了！";
             else if (c.coins < MAPLE_RAID_EXTRA_ATTEMPT_PRICE) err = "瘋幣不足！";
             else {
                 c.coins -= MAPLE_RAID_EXTRA_ATTEMPT_PRICE;
-                c.raid_week_extra = 1;
+                c.raid_week_extra += 1;
             }
         }
         if (!err.empty()) {

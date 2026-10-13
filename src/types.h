@@ -383,7 +383,7 @@ struct MapleCharacter {
     std::string    raid_room_id;    // 目前所在的突襲首領房間ID，空字串＝沒有在房間裡
     int64_t        raid_week_id    = 0; // 突襲首領：上次計算所屬的週次（epoch週，跟代幣商店同一套）
     int            raid_week_used  = 0; // 本週已經完成結算的突襲次數
-    int            raid_week_extra = 0; // 本週從特殊商店買到的額外次數（一週限購1次，固定+1）
+    int            raid_week_extra = 0; // 本週從特殊商店買到的額外次數（每次+1，一週最多買2次）
     std::string    faction_key;         // 目前所屬陣營，空字串＝沒有加入任何陣營
     int64_t        faction_donate_week_id   = 0; // 陣營捐贈：上次捐贈所屬的週次（epoch週，跟代幣商店同一套）
     int            faction_donate_week_used = 0; // 本週已捐贈次數（上限1次／2000瘋幣）

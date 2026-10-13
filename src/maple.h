@@ -1167,6 +1167,10 @@ static const std::vector<MapleAdvRegionDef> MAPLE_ADV_REGIONS = {
     {"lab_c1",               "研究所C-1",     50, true, {"洛伊德",    4400, 168, 210, 260}},
     {"silent_graveyard",     "死靜墓地",     55, true, {"遊魂",       7100, 220, 220, 290}, {"icelightning", "priest"}, 1.5},
     {"lab_201",              "研究所201號房", 60, true, {"燒杯怪",   11000, 255, 305, 380}},
+    {"noble_ave_east",       "名人大道東部區域", 65, true, {"搞怪CD",     7900,  400, 217, 411}},
+    {"ruin_cliff",           "遺跡峭壁",     70, true, {"骷髏指揮官", 15300,  700, 470, 611}, {"icelightning"}, 0.5},
+    {"forgotten_road3",      "遺忘的時間之路3", 80, true, {"怨靈發條熊", 32000, 1300, 364, 546}, {"priest"}, 2.0},
+    {"trial_cave3",          "試煉洞窟III",  85, true, {"煉獄獵犬",   45000, 1800, 640, 960}, {"icelightning"}, 2.0},
     {"forgotten_road5",      "忘卻之路V",   120, true, {"忘卻的守護兵隊長", 141000, 7060, 8000, 10000}},
 };
 
@@ -1432,10 +1436,10 @@ static const std::vector<MapleWbRegionDef> MAPLE_WB_REGIONS = {
     {"cactus_desert", "仙人掌沙漠", 35, 68, 90, true, {"仙人長老", 7327, 110, 300, 420, {
         {450, MAPLE_WB_WPN60_20_SET_3TYPE},
         {100, MAPLE_WB_WPN_CURSE50_SET_3TYPE},
-        {10,  {"wpn_palm_spike"}},
-        {1,   {"oh_shield_30"}},
-        {1,   {"oh_bible_30"}},
-        {1,   {"oh_grimoire_30"}},
+        {20,  {"wpn_palm_spike"}},
+        {2,   {"oh_shield_30"}},
+        {2,   {"oh_bible_30"}},
+        {2,   {"oh_grimoire_30"}},
     }}},
     {"ice_canyon2", "冰雪峽谷II", 40, 120, 180, true, {"雪山巨狼", 8000, 115, 320, 460, {
         {250, {"sc_shoes20"}},
@@ -1451,10 +1455,10 @@ static const std::vector<MapleWbRegionDef> MAPLE_WB_REGIONS = {
         {200, {"sc_helmet20"}},
         {100, {"sc_helmet_curse50"}},
         {40,  {"sc_glove_atk_curse50"}},
-        {10,  {"wpn_dog_beat_stick"}},
-        {1,   {"oh_scope_30"}},
-        {1,   {"oh_dart_30"}},
-        {1,   {"oh_dualblade_30"}},
+        {20,  {"wpn_dog_beat_stick"}},
+        {2,   {"oh_scope_30"}},
+        {2,   {"oh_dart_30"}},
+        {2,   {"oh_dualblade_30"}},
     }}},
     {"dead_forest4", "亡者之林IV", 65, 50, 120, true, {"厄運死神", 40000, 500, 1350, 2000, {
         {300, {"sc_clothes_curse50"}},
@@ -1683,9 +1687,10 @@ void maple_exp_event_archive_current() {
 static const int     MAPLE_RAID_ROOM_MAX_MEMBERS      = 6;
 static const int64_t MAPLE_RAID_CHECKIN_INTERVAL_SEC  = 300; // 每 5 分鐘
 
-// 每人每週只能「完成結算」1 場突襲首領；可以花瘋幣在特殊商店買額外次數（一週限購一次，固定+1次）
+// 每人每週只能「完成結算」1 場突襲首領；可以花瘋幣在特殊商店買額外次數（一週最多買2次，每次+1）
 static const int     MAPLE_RAID_WEEKLY_BASE_ATTEMPTS = 1;
 static const int64_t MAPLE_RAID_EXTRA_ATTEMPT_PRICE  = 100000;
+static const int     MAPLE_RAID_EXTRA_ATTEMPT_MAX_BUYS = 2; // 一週最多購買次數（每次都是 +1 次突襲）
 // 跟代幣商店同一套週次算法：每週二早上08:00(UTC+8) = 週二00:00 UTC 重置
 static int64_t maple_raid_week_now() { return ((int64_t)time(nullptr) - 5 * 86400) / 604800; }
 // 如果角色記錄的還是舊的一週，重置本週已使用次數／已購買額外次數
@@ -1727,11 +1732,6 @@ struct MapleRaidBossDef {
     bool open;
 };
 
-// 冰雪狼王掉落用：隨機一件 Lv50 副武器（六種各一階，開出來哪一種全靠運氣）
-static const std::vector<std::string> MAPLE_OFFHAND_LV50_SET = {
-    "oh_dart_50", "oh_dualblade_50", "oh_grimoire_50", "oh_bible_50", "oh_scope_50", "oh_shield_50",
-};
-
 static const std::vector<MapleRaidBossDef> MAPLE_RAID_BOSSES = {
     {"ice_wolf_king", "冰雪狼王", 50, 600000, true, 0, 20, 3000, 5000, {
         {400, {"mat_wolf_king_token"}},
@@ -1741,7 +1741,13 @@ static const std::vector<MapleRaidBossDef> MAPLE_RAID_BOSSES = {
         {50,  {"sc_necklace100"}},
         {30,  {"sc_necklace60"}},
         {10,  {"sc_necklace20"}},
-        {20,  MAPLE_OFFHAND_LV50_SET},
+        // Lv50 副武器：總機率 4%，組內魔導書／聖典各佔 10%（0.4%），其餘四種各佔 20%（0.8%）
+        {8,   {"oh_dart_50"}},
+        {8,   {"oh_dualblade_50"}},
+        {4,   {"oh_grimoire_50"}},
+        {4,   {"oh_bible_50"}},
+        {8,   {"oh_scope_50"}},
+        {8,   {"oh_shield_50"}},
     }, true},
 };
 
@@ -3364,7 +3370,8 @@ static dpp::message make_maple_raid_boss_list_msg(dpp::snowflake uid) {
                      std::to_string(MAPLE_RAID_ROOM_MAX_MEMBERS) + " 人。開始討伐後會自動計算進度，"
                      "每討伐 " + std::to_string(MAPLE_RAID_CHECKIN_INTERVAL_SEC / 60) + " 分鐘需要任一人簽到才會繼續累計。\n"
                      "📅 本週已挑戰：**" + std::to_string(maple_raid_week_used(c)) + " / " + std::to_string(maple_raid_week_allowed(c))
-                     + "** 次（可到商店的特殊商店花 " + std::to_string(MAPLE_RAID_EXTRA_ATTEMPT_PRICE) + " 瘋幣買額外 1 次，一週限購一次）"));
+                     + "** 次（可到商店的特殊商店花 " + std::to_string(MAPLE_RAID_EXTRA_ATTEMPT_PRICE) + " 瘋幣買額外 1 次，一週最多買 "
+                     + std::to_string(MAPLE_RAID_EXTRA_ATTEMPT_MAX_BUYS) + " 次）"));
     container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
         .set_spacing(dpp::sep_small).set_divider(true));
 
@@ -4151,18 +4158,21 @@ static dpp::message make_maple_tokenshop_msg(dpp::snowflake uid) {
             .set_style(dpp::cos_danger)
             .set_disabled(c.coins < MAPLE_SP_BUYRESET_COST)));
     {
-        bool bought = c.raid_week_id == maple_raid_week_now() && c.raid_week_extra > 0;
+        int bought_times = c.raid_week_id == maple_raid_week_now() ? c.raid_week_extra : 0;
+        bool maxed = bought_times >= MAPLE_RAID_EXTRA_ATTEMPT_MAX_BUYS;
         container.add_component_v2(dpp::component()
             .set_type(dpp::cot_section)
             .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-                .set_content("**🎫 突襲首領額外次數**\n本週再多打 1 場突襲首領（一週限購 1 次）\n本週已挑戰："
+                .set_content("**🎫 突襲首領額外次數**\n每次花瘋幣可多打 1 場突襲首領（一週最多買 "
+                             + std::to_string(MAPLE_RAID_EXTRA_ATTEMPT_MAX_BUYS) + " 次）\n本週已挑戰："
                              + std::to_string(maple_raid_week_used(c)) + " / " + std::to_string(maple_raid_week_allowed(c))
+                             + "　已購買：" + std::to_string(bought_times) + " / " + std::to_string(MAPLE_RAID_EXTRA_ATTEMPT_MAX_BUYS)
                              + "\n🪙 " + std::to_string(MAPLE_RAID_EXTRA_ATTEMPT_PRICE) + " 瘋幣"))
             .set_accessory(dpp::component().set_type(dpp::cot_button)
-                .set_label(bought ? "本週已購買" : "購買")
+                .set_label(maxed ? "本週已買滿" : "購買")
                 .set_id("maple_raidbuyattempt_" + uid_s)
                 .set_style(dpp::cos_primary)
-                .set_disabled(bought || c.coins < MAPLE_RAID_EXTRA_ATTEMPT_PRICE)));
+                .set_disabled(maxed || c.coins < MAPLE_RAID_EXTRA_ATTEMPT_PRICE)));
     }
     msg.add_component_v2(container);
 
