@@ -63,6 +63,8 @@ static Config load_config() {
         parse("MIN_BET_THREAD_ID",  c.min_bet_thread_id);
         parse("ALLIN_THREAD_ID",    c.allin_thread_id);
         parse("ALLIN_500K_THREAD_ID", c.allin_500k_thread_id);
+        parse("CLAIM_BLOCKED_THREAD_ID", c.claim_blocked_thread_id);
+        parse("LOTTERY_THREAD2_ID", c.lottery_thread2_id);
     }
     return c;
 }

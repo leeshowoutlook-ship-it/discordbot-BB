@@ -14,6 +14,22 @@ void load_maple_all_data() {
 
 void maple_save_exp_event() { save_maple_exp_event(); }
 
+// 換下一場活動、或手動提前結束前呼叫：把目前這場（如果真的曾經生效過）存進歷史，
+// until 夾到「現在」避免超出實際生效時間；同時順手清掉超過30天的舊紀錄。呼叫前需持有 data_mutex。
+void maple_exp_event_archive_current() {
+    time_t now = time(nullptr);
+    if (maple_exp_event.mult > 1.0 && maple_exp_event.start > 0) {
+        time_t until = std::min(maple_exp_event.until, now);
+        if (until > maple_exp_event.start)
+            maple_exp_event_history.push_back({maple_exp_event.mult, maple_exp_event.start, until});
+    }
+    const time_t MAX_AGE = 30 * 86400;
+    maple_exp_event_history.erase(
+        std::remove_if(maple_exp_event_history.begin(), maple_exp_event_history.end(),
+                        [&](const MapleExpEventWindow& w) { return w.until < now - MAX_AGE; }),
+        maple_exp_event_history.end());
+}
+
 std::string maple_admin_give_exp(dpp::snowflake uid, int64_t amount) {
     if (amount <= 0) return "";
     int level_ups = 0, new_level = 0;
@@ -32,8 +48,12 @@ std::string maple_admin_give_exp(dpp::snowflake uid, int64_t amount) {
     return msg;
 }
 
-// ─── 交易輔助（讓 !交易／/交易 支援楓之谷卷軸、裝備與瘋幣）────────────────────
-// 只有「沒點過卷軸」的裝備可交易，而且要放在背包（未穿在身上）。強化過的裝備不可交易。
+// ─── 交易輔助（讓 !交易／/交易 支援楓之谷卷軸、裝備、強化實例與瘋幣）──────────────
+// 純裝備（沒點過卷軸）：這裡的 mv_item_info/mv_is_item_key/mv_locked_has_item/mv_locked_transfer_item
+// 負責，一樣要放在背包（未穿在身上）才能交易。
+// 強化過的裝備（點過卷軸）：另外一套（mv_resolve_enh_item/mv_locked_has_enh_item/
+// mv_locked_transfer_enh_item，往下看「強化裝備交易」區塊），因為每件強化實例有自己的加成，
+// 不是靠數量計數，需要用交易用臨時ID（見 types.h 的 MV_ENH_TRADE_ID_BASE）指定是哪一件。
 
 bool mv_item_info(int id, std::string& key_out, std::string& name_out) {
     if (const MapleScrollDef* s = maple_find_scroll_by_id(id)) {
@@ -51,7 +71,7 @@ bool mv_is_item_key(const std::string& key) {
     return it && it->sellable;
 }
 
-// 強化過（點過卷軸）的裝備不可交易，只算背包裡「純裝備」的份數。
+// 只算背包裡「純裝備」的份數（強化過的裝備走 mv_locked_has_enh_item，不是這個函式管）。
 bool mv_locked_has_item(dpp::snowflake uid, const std::string& key, int64_t qty) {
     auto it = maple_data.find(uid);
     if (it == maple_data.end()) return false;
@@ -87,6 +107,60 @@ void mv_locked_add_coins(dpp::snowflake uid, int64_t delta) {
     if (maple_data[uid].coins < 0) maple_data[uid].coins = 0;
 }
 void mv_save_data() { save_maple_data(); }
+
+// ─── 強化裝備交易 ──────────────────────────────────────────────────────────────
+// 共用：這個強化實例目前能不能交易（存在／沒穿在身上／底子本身可交易），呼叫前需持有 data_mutex。
+// 可以的話把顯示名稱（含強化徽章與加成文字）填進 name_out，回傳該實例指標；不行回傳 nullptr。
+static const MapleEnhItem* mv_enh_tradeable_locked(MapleCharacter& c, int enh_id, std::string* name_out = nullptr) {
+    MapleEnhItem* e = maple_find_enh(c, enh_id);
+    if (!e) return nullptr;
+    if (maple_enh_is_equipped(c, enh_id)) return nullptr; // 穿在身上要先卸下才能交易，跟純裝備規則一致
+    const MapleItemDef* def = maple_find_item(e->base_key);
+    if (!def || !def->sellable) return nullptr; // 新手木劍等不可交易的底子，強化版也一樣不行
+    if (name_out) {
+        *name_out = def->name + maple_enh_badge(*e, def->slot);
+        if (maple_enh_has_bonus(*e)) *name_out += "（" + maple_enh_bonus_text(*e) + "）";
+    }
+    return e;
+}
+
+bool mv_locked_has_enh_item(dpp::snowflake uid, int enh_id) {
+    auto it = maple_data.find(uid);
+    if (it == maple_data.end()) return false;
+    return mv_enh_tradeable_locked(it->second, enh_id) != nullptr;
+}
+
+// 呼叫前必須持有 data_mutex（trade 執行流程在同一個鎖裡面驗證時用這個版本，避免重複上鎖死鎖）
+bool mv_locked_resolve_enh_item(dpp::snowflake owner_uid, int enh_id, std::string& key_out, std::string& name_out) {
+    auto it = maple_data.find(owner_uid);
+    if (it == maple_data.end()) return false;
+    std::string name;
+    if (!mv_enh_tradeable_locked(it->second, enh_id, &name)) return false;
+    key_out  = "mvenh:" + std::to_string(enh_id);
+    name_out = name;
+    return true;
+}
+bool mv_resolve_enh_item(dpp::snowflake owner_uid, int enh_id, std::string& key_out, std::string& name_out) {
+    std::lock_guard<std::mutex> lk(data_mutex);
+    return mv_locked_resolve_enh_item(owner_uid, enh_id, key_out, name_out);
+}
+
+// 轉移一件強化實例：從 from 的 enh_items 移除，用 to 的 enh_next_id 重新編號後加進 to 的 enh_items。
+// 呼叫前必須持有 data_mutex。呼叫前應該已經用 mv_locked_has_enh_item 確認過存在且未裝備中。
+void mv_locked_transfer_enh_item(dpp::snowflake from, dpp::snowflake to, int enh_id) {
+    auto fit = maple_data.find(from);
+    if (fit == maple_data.end()) return;
+    auto& fvec = fit->second.enh_items;
+    for (size_t i = 0; i < fvec.size(); i++) {
+        if (fvec[i].id != enh_id) continue;
+        MapleEnhItem moved = fvec[i];
+        fvec.erase(fvec.begin() + i);
+        auto& tc = maple_data[to];
+        moved.id = tc.enh_next_id++;
+        tc.enh_items.push_back(moved);
+        break;
+    }
+}
 
 // 管理員給道具用：接受道具ID（數字）或 key 字串，找楓之谷卷軸／裝備
 bool mv_resolve_item(const std::string& raw, std::string& key_out, std::string& name_out) {
@@ -124,6 +198,11 @@ std::vector<MvOwnedItem> mv_list_owned_items(dpp::snowflake uid) {
     for (auto& [key, qty] : it->second.equipment) {
         if (qty <= 0) continue;
         if (auto* i = maple_find_item(key)) out.push_back({key, i->name, i->item_id, qty});
+    }
+    for (auto& e : it->second.enh_items) {
+        std::string name;
+        if (!mv_enh_tradeable_locked(it->second, e.id, &name)) continue; // 穿在身上的不會出現在這份清單
+        out.push_back({"mvenh:" + std::to_string(e.id), name, mv_enh_trade_id(e.id), 1});
     }
     return out;
 }

@@ -88,6 +88,7 @@ static void save_scratch_games() {
                 {"extra_count",    g.extra_count},
                 {"avatar_url",     g.avatar_url},
                 {"display_name",   g.display_name},
+                {"created_at",     (int64_t)g.created_at},
             };
         }
     }
@@ -114,6 +115,7 @@ static void load_scratch_games() {
             g.extra_count    = v.value("extra_count",    0);
             g.avatar_url     = v.value("avatar_url",     std::string{});
             g.display_name   = v.value("display_name",   std::string{});
+            g.created_at     = (time_t)v.value("created_at", (int64_t)0); // 舊存檔沒有這欄位＝0＝視為已經很久，下次會被判定卡住自動清除
             if (v.contains("sq")) {
                 int i = 0;
                 for (auto& sv : v["sq"]) { if (i < 9) g.sq[i++] = sv.get<int>(); }
@@ -451,16 +453,33 @@ static dpp::message make_scratch_cash_msg(const ScratchGame& g) {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
+// 超過這個時間沒有任何操作，視為卡住的殘留遊戲（例如訊息發送失敗，玩家完全沒收到可互動的畫面），
+// 下次呼叫時自動退款、清除，讓玩家可以直接開新的一局，不用卡死在「你有未完成的刮刮樂」。
+static const time_t SCRATCH_STALE_SECS = 10 * 60;
+
+// started_new_out：這次呼叫是否真的建立了新的一局（送到一半失敗時，呼叫端要不要 rollback 要看這個，
+// 不能只看「呼叫前是否已經有進行中的遊戲」——卡住的殘留遊戲會在這裡被清掉重新開始，所以也算「新建」）
 static dpp::message handle_scratch_start(dpp::snowflake uid, dpp::snowflake ch, int64_t bet,
                                           const std::string& avatar_url = "",
-                                          const std::string& display_name = "") {
+                                          const std::string& display_name = "",
+                                          bool* started_new_out = nullptr) {
+    if (started_new_out) *started_new_out = false;
+    int64_t stale_refund = 0;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
-        if (scratch_games.count(uid))
-            return dpp::message().add_embed(
-                dpp::embed().set_title("⚠️  你有未完成的刮刮樂！").set_color(0xE67E22)
-                    .set_description("請先刮完或點「💰 收手」結算後再買新的。"));
+        auto it = scratch_games.find(uid);
+        if (it != scratch_games.end()) {
+            if (time(nullptr) - it->second.created_at < SCRATCH_STALE_SECS) {
+                return dpp::message().add_embed(
+                    dpp::embed().set_title("⚠️  你有未完成的刮刮樂！").set_color(0xE67E22)
+                        .set_description("請先刮完或點「💰 收手」結算後再買新的。"));
+            }
+            // 卡住超過10分鐘：視為殘留，退還已花費的籌碼並清除，讓這次呼叫直接開新的一局
+            stale_refund = it->second.total_paid;
+            scratch_games.erase(it);
+        }
     }
+    if (stale_refund > 0) { add_chips(uid, stale_refund); save_scratch_games(); }
 
     int64_t bal = get_chips(uid);
     if (bal < bet)
@@ -479,6 +498,7 @@ static dpp::message handle_scratch_start(dpp::snowflake uid, dpp::snowflake ch, 
     g.extra_mode   = false;
     g.avatar_url   = avatar_url;
     g.display_name = display_name;
+    g.created_at   = time(nullptr);
     g.sq = SK_TEMPLATE;
     std::shuffle(g.sq.begin(), g.sq.end(), sk_rng());
 
@@ -487,5 +507,6 @@ static dpp::message handle_scratch_start(dpp::snowflake uid, dpp::snowflake ch, 
         scratch_games[uid] = g;
     }
     save_scratch_games();
+    if (started_new_out) *started_new_out = true;
     return make_scratch_play_msg(g);
 }

@@ -1659,21 +1659,10 @@ static void load_maple_exp_event() {
         }
     } catch (...) {}
 }
-// 換下一場活動、或手動提前結束前呼叫：把目前這場（如果真的曾經生效過）存進歷史，
-// until 夾到「現在」避免超出實際生效時間；同時順手清掉超過30天的舊紀錄。呼叫前需持有 data_mutex。
-void maple_exp_event_archive_current() {
-    time_t now = time(nullptr);
-    if (maple_exp_event.mult > 1.0 && maple_exp_event.start > 0) {
-        time_t until = std::min(maple_exp_event.until, now);
-        if (until > maple_exp_event.start)
-            maple_exp_event_history.push_back({maple_exp_event.mult, maple_exp_event.start, until});
-    }
-    const time_t MAX_AGE = 30 * 86400;
-    maple_exp_event_history.erase(
-        std::remove_if(maple_exp_event_history.begin(), maple_exp_event_history.end(),
-                        [&](const MapleExpEventWindow& w) { return w.until < now - MAX_AGE; }),
-        maple_exp_event_history.end());
-}
+// maple_exp_event_archive_current() 的實作移到 handlers_maple.cpp（這裡只保留 forward
+// declaration via handler_decls.h）——因為它是非 static/inline 的一般函式，maple.h 現在
+// 會被 handlers_games.cpp（!摸彩 需要 maple_data/save_maple_data）也 include 一次，
+// 留在這裡會造成重複定義（LNK2005）。
 
 // ─── 突襲首領（多人組隊房間）────────────────────────────────────────────────────
 // 選王 → 開房間／加入房間（上限6人，同一隻可以多間並行）→ 隊長開始討伐（自動計算，不用一直點）
@@ -4876,28 +4865,29 @@ static dpp::message make_maple_bag_msg(dpp::snowflake uid, const std::string& ta
             .set_content(head + "\n\n**📦 " + cat_label + "（未穿在身上）**"));
 
         // 先收集全部項目再分頁顯示，避免裝備/強化實例太多時一次塞爆 Discord 訊息的元件上限（背包打不開）
-        struct BagEntry { std::string text, sell_id; };
+        struct BagEntry { std::string text, sell_id; bool can_sell; };
         std::vector<BagEntry> entries;
         for (auto& [k, n] : c.equipment) {
             if (n <= 0) continue;
             const MapleItemDef* it = maple_find_item(k);
             if (!it || maple_item_cat(it->slot) != subcat) continue;
-            if (it->slot == "offhand") continue; // 副武器不能賣給遊戲換瘋幣，只能 !交易
+            bool is_offhand = (it->slot == "offhand"); // 副武器不能賣給遊戲換瘋幣，只能 !交易，但仍要顯示在這裡
             int64_t sell = maple_item_sell_price(*it);
-            std::string text = "**" + it->name + "**　ID:`" + std::to_string(it->item_id) + "`　×" + std::to_string(n)
-                              + "\n　售出單價：🪙" + std::to_string(sell);
-            entries.push_back({text, "maple_sellconfirm_" + uid_s + "_item_" + k});
+            std::string text = "**" + it->name + "**　ID:`" + std::to_string(it->item_id) + "`　×" + std::to_string(n);
+            text += is_offhand ? "\n　只能用 `!交易`／`/交易` 交換" : ("\n　售出單價：🪙" + std::to_string(sell));
+            entries.push_back({text, "maple_sellconfirm_" + uid_s + "_item_" + k, !is_offhand});
         }
         for (auto& e : c.enh_items) {
             if (maple_enh_is_equipped(c, e.id)) continue;
             const MapleItemDef* it = maple_find_item(e.base_key);
             if (!it || maple_item_cat(it->slot) != subcat) continue;
-            if (it->slot == "offhand") continue; // 副武器不能賣給遊戲換瘋幣，只能 !交易
+            bool is_offhand = (it->slot == "offhand");
             int64_t sell = maple_item_sell_price(*it) + maple_enh_extra_sell_value(e);
-            std::string text = "**" + it->name + "**" + maple_enh_badge(e, it->slot) + "　🚫不可交易";
+            std::string text = "**" + it->name + "**" + maple_enh_badge(e, it->slot)
+                              + "　ID:`" + std::to_string(mv_enh_trade_id(e.id)) + "`";
             if (maple_enh_has_bonus(e)) text += "（" + maple_enh_bonus_text(e) + "）";
-            text += "\n　售出單價：🪙" + std::to_string(sell);
-            entries.push_back({text, "maple_sellconfirm_" + uid_s + "_enh_" + std::to_string(e.id)});
+            text += is_offhand ? "\n　只能用 `!交易`／`/交易` 交換" : ("\n　售出單價：🪙" + std::to_string(sell));
+            entries.push_back({text, "maple_sellconfirm_" + uid_s + "_enh_" + std::to_string(e.id), !is_offhand});
         }
 
         const int PAGE_SIZE = 8;
@@ -4913,14 +4903,15 @@ static dpp::message make_maple_bag_msg(dpp::snowflake uid, const std::string& ta
                     .set_type(dpp::cot_section)
                     .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(entries[i].text))
                     .set_accessory(dpp::component().set_type(dpp::cot_button)
-                        .set_label("賣出").set_id(entries[i].sell_id).set_style(dpp::cos_danger)));
+                        .set_label(entries[i].can_sell ? "賣出" : "🚫 只能交易").set_id(entries[i].sell_id)
+                        .set_style(dpp::cos_danger).set_disabled(!entries[i].can_sell)));
             }
             if (total_pages > 1)
                 container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
                     .set_content("-# 第 " + std::to_string(page + 1) + "/" + std::to_string(total_pages) + " 頁"));
         }
         container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-            .set_content("-# 純裝備可用 `!交易` 交換（帶上 ID）；**點過卷軸的裝備不可交易，只能賣出換瘋幣**"));
+            .set_content("-# 純裝備／強化裝備都可以用 `!交易`／`/交易` 交換（帶上 ID）"));
 
         dpp::message msg;
         msg.set_flags(dpp::m_using_components_v2);

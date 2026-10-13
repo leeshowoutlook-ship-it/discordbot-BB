@@ -300,6 +300,20 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
         content += "**✊ 猜拳** 尚無紀錄\n";
     }
 
+    // 摸彩
+    LotteryStats lot;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        auto it = lottery_stats_data.find(uid);
+        if (it != lottery_stats_data.end()) lot = it->second;
+    }
+    if (lot.draws > 0) {
+        content += "**🎰 摸彩** 摸彩/中獎 **" + std::to_string(lot.draws) + "/" + std::to_string(lot.wins) + "**"
+            + "　中獎率 **" + fmt_rate(lot.wins, lot.draws) + "**　累積獲得 **+" + std::to_string(lot.chips_won) + " 碼**\n";
+    } else {
+        content += "**🎰 摸彩** 尚無紀錄\n";
+    }
+
     std::string sid = std::to_string((uint64_t)uid);
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));

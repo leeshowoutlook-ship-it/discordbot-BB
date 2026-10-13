@@ -20,6 +20,8 @@ struct Config {
     std::string min_bet_thread_id;  // thread that enforces 5000 minimum bet
     std::string allin_thread_id;    // thread that enforces ALLIN (full balance, min 20000)
     std::string allin_500k_thread_id; // thread that enforces ALLIN (full balance, min 500000)；下注會發一張彩券，不論輸贏
+    std::string claim_blocked_thread_id; // 這個討論串禁止 !領取／/領取，誤用會自動警告
+    std::string lottery_thread2_id; // 除了 allin_500k_thread_id 之外，另一個也可以 !摸彩／/摸彩 的討論串
 };
 
 struct RegState {
@@ -660,6 +662,34 @@ struct ScratchStats {
     int64_t profit = 0;
 };
 
+// ─── 摸彩 ──────────────────────────────────────────────────────────────────
+
+struct LotteryStats {
+    int     draws     = 0;   // 摸彩總次數
+    int     wins      = 0;   // 非空包次數
+    int64_t chips_won = 0;   // 累積獲得籌碼（不含隱藏的瘋幣加碼）
+};
+
+struct LotteryGame {
+    dpp::snowflake uid;
+    dpp::snowflake channel_id;
+    dpp::snowflake msg_id;
+    int         prize_idx    = 0;   // 已預先決定的中獎結果（LOTTERY_PRIZES 索引）
+    int         spin_frame   = 0;
+    int         last_display = -1;  // 上一個動畫格子索引，避免連續兩格一樣
+    dpp::timer  timer_id     = 0;
+    std::string avatar_url;
+    std::string display_name;
+};
+
+// 摸彩單次紀錄（!摸彩紀錄／/摸彩紀錄 用）：記錄當下的獎品名稱/emoji，不是存 LOTTERY_PRIZES 的索引，
+// 這樣就算獎品池以後調整，舊紀錄顯示的名稱還是當初實際抽到的那個，不會因為獎品池改版跟著變。
+struct LotteryDrawRecord {
+    time_t      ts = 0;
+    std::string name;
+    std::string emoji;
+};
+
 struct WolfPlayerStats {
     int good_games = 0;
     int good_wins  = 0;
@@ -689,6 +719,7 @@ struct ScratchGame {
     int                extra_count   = 0;    // how many extra scratches used (max 4)
     std::string        avatar_url;
     std::string        display_name;
+    time_t             created_at    = 0; // 用於偵測卡住的殘留遊戲（例如私訊拒收導致訊息沒送到玩家手上）
 };
 
 // ─── Global state ─────────────────────────────────────────────────────────────
@@ -732,6 +763,17 @@ inline std::map<dpp::snowflake, EuRouletteStats> euroulette_stats_data;
 inline std::map<uint64_t, EuRouletteMultiGame>  euroulette_multi_games;
 inline std::atomic<uint64_t>                    euroulette_multi_counter{1};
 inline std::map<dpp::snowflake, MapleCharacter> maple_data;
+
+// 強化裝備交易用：enh_items[].id 只在「同一個角色內」唯一，不是全域唯一道具ID，不能直接塞進
+// !交易／/交易 既有的「整數道具ID」協議裡——用一個遠高於任何真實道具ID的區段，編成
+// 「交易用臨時ID」(MV_ENH_TRADE_ID_BASE + enh_id)，只在交易當下搭配「是誰的」uid 解讀，
+// 交易成立後這個臨時ID就沒意義了（對方會拿到一個全新的 enh_items[].id）。
+// 放在 types.h（不是 handler_decls.h）是因為 maple.h 也會用到，而大部分 .cpp 的 include
+// 順序是 maple.h 排在 handler_decls.h 前面，放那裡會變成「用到還沒宣告的東西」。
+static const int MV_ENH_TRADE_ID_BASE = 900000000;
+inline bool mv_is_enh_trade_id(int id)      { return id >= MV_ENH_TRADE_ID_BASE; }
+inline int  mv_enh_id_from_trade_id(int id) { return id - MV_ENH_TRADE_ID_BASE; }
+inline int  mv_enh_trade_id(int enh_id)     { return MV_ENH_TRADE_ID_BASE + enh_id; }
 
 // ─── 楓之谷世界：野外首領（全服共用一隻，前3個擊殺完成的人獲得獎勵，湊滿3人才開始算重生）───
 struct MapleWorldBossState {
@@ -788,6 +830,9 @@ inline std::map<dpp::snowflake, RocketGame>     rocket_games;
 inline std::map<dpp::snowflake, RocketStats>    rocket_stats_data;
 inline std::map<dpp::snowflake, ScratchGame>    scratch_games;
 inline std::map<dpp::snowflake, ScratchStats>   scratch_stats_data;
+inline std::map<dpp::snowflake, LotteryGame>    lottery_games;
+inline std::map<dpp::snowflake, LotteryStats>   lottery_stats_data;
+inline std::map<dpp::snowflake, std::vector<LotteryDrawRecord>> lottery_history; // 每人最近N筆摸彩紀錄
 inline std::map<dpp::snowflake, WolfPlayerStats> wolf_player_stats_data;
 inline std::map<dpp::snowflake, ONWStats>           onw_stats_data;
 inline std::map<dpp::snowflake, PlayerEquipment>    equipped_data;
