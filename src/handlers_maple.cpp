@@ -732,6 +732,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         }
         std::string err, summary, boss_name;
         dpp::snowflake announce_ch = 0;
+        std::vector<dpp::snowflake> member_uids; // 公告頻道發送失敗時，備援私訊每個隊員用
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             MapleRaidRoom* room = maple_find_raid_room(room_id);
@@ -744,6 +745,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 else {
                     boss_name = boss ? boss->name : room->boss_key;
                     announce_ch = room->channel_id;
+                    for (auto& m : room->members) member_uids.push_back(m.uid);
                     std::mt19937& rng = maple_wb_rng();
                     summary = "## 🏆 " + boss_name + " 討伐成功！\n";
                     for (auto& m : room->members) {
@@ -794,7 +796,21 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         result.set_content(summary);
         if (announce_ch) result.channel_id = announce_ch;
         ev.reply(dpp::ir_update_message, make_maple_ambush_msg(uid));
-        if (announce_ch) g_bot->message_create(result);
+        if (announce_ch) {
+            g_bot->message_create(result, [announce_ch, summary, member_uids](const dpp::confirmation_callback_t& cb) {
+                if (cb.is_error()) {
+                    auto err = cb.get_error();
+                    fprintf(stderr, "[突襲結算] 公告發送失敗 ch=%llu http=%d code=%d msg=%s，改私訊每位隊員\n",
+                        (unsigned long long)(uint64_t)announce_ch, cb.http_info.status, err.code, err.message.c_str());
+                    fflush(stderr);
+                    // 頻道發送失敗（權限／討論串被封存等），改私訊每個隊員，確保獎勵結果不會完全沒人看到
+                    for (auto mu : member_uids) {
+                        dpp::message dm(summary);
+                        g_bot->direct_message_create(mu, dm);
+                    }
+                }
+            });
+        }
         return;
     }
 

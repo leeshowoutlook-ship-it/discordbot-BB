@@ -933,8 +933,26 @@ static int maple_effective_hits(const MapleCharacter& c, const MapleSkillDef& sd
     if (sd.key == "il_wizard_combo" && maple_skill_maxed(c, "il_wizard_thunder")) return sd.hits * 2;
     return sd.hits;
 }
-// 攻擊力是一個範圍：最大＝主屬性係數全開；最小＝主屬性係數只算 0.9*熟練度（基礎10%，武器精通每級+5%）
-// 兩者最後都要 /100。若玩家選擇了攻擊技能：damage_coef 套用技能係數取代基礎100%；
+// 顯示用（養成主畫面的「攻擊力 X~Y」）：只算基礎公式 (主屬性*武器係數+副屬性*副屬性係數)×裝備攻擊力，
+// 不疊加技能係數、也不疊加二轉職業的固定/百分比/倍率加成——那些只在實際戰鬥（冒險/野王/突襲）的傷害
+// 計算裡才套用，見下面 maple_atk_power_max/min。
+static int64_t maple_atk_power_base_max(const MapleCharacter& c) {
+    const MapleJobDef& j = maple_job_of(c);
+    double primary   = maple_stat_value(c, j.primary_stat);
+    double secondary = maple_stat_value(c, j.secondary_stat);
+    return (int64_t)std::ceil((j.primary_coef * primary + j.secondary_coef * secondary) * maple_total_atk(c) / 100.0);
+}
+static int64_t maple_atk_power_base_min(const MapleCharacter& c) {
+    const MapleJobDef& j = maple_job_of(c);
+    double primary   = maple_stat_value(c, j.primary_stat);
+    double secondary = maple_stat_value(c, j.secondary_stat);
+    double mastery = maple_eff_weapon_mastery(c);
+    return (int64_t)std::ceil((j.primary_coef * 0.9 * mastery * primary + j.secondary_coef * secondary) * maple_total_atk(c) / 100.0);
+}
+
+// 戰鬥用（冒險/野王/突襲傷害計算）：攻擊力是一個範圍：最大＝主屬性係數全開；
+// 最小＝主屬性係數只算 0.9*熟練度（基礎10%，武器精通每級+5%）。兩者最後都要 /100。
+// 若玩家選擇了攻擊技能：damage_coef 套用技能係數取代基礎100%；
 // damage_fixed 直接固定傷害（不吃屬性，最大最小相同）。算完後再疊加二轉職業技能的固定/百分比/倍率加成。
 static int64_t maple_atk_power_max(const MapleCharacter& c, double angel_override = -1.0) {
     const MapleJobDef& j = maple_job_of(c);
@@ -2076,7 +2094,7 @@ static dpp::message make_maple_home_msg(dpp::snowflake uid, const std::string& d
     content += "**⚔️ 屬性**\n";
     content += "主屬性：" + maple_stat_name(job.primary_stat) + " **" + maple_stat_breakdown(c, job.primary_stat) + "**　"
              + "副屬性：" + maple_stat_name(job.secondary_stat) + " **" + maple_stat_breakdown(c, job.secondary_stat) + "**\n";
-    content += "攻擊力 **" + std::to_string(maple_atk_power_min(c)) + " ~ " + std::to_string(maple_atk_power_max(c)) + "**\n";
+    content += "攻擊力 **" + std::to_string(maple_atk_power_base_min(c)) + " ~ " + std::to_string(maple_atk_power_base_max(c)) + "**\n";
     {
         int spd = maple_atk_speed_sec(c);
         int eff = maple_eff_atk_interval(c);
