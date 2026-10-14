@@ -572,6 +572,10 @@ void handle_games_button(const dpp::button_click_t& ev)
 
     // ── 轉盤：開啟多人模式（把目前這局轉成多人房間，房主的下注直接算第一筆）──
     if (cid.rfind("er_multi_open_", 0) == 0) {
+        if (is_allin_room(ev.command.channel_id)) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ ALLIN 房不能開多人轉盤！").set_flags(dpp::m_ephemeral)); return;
+        }
         uint64_t gid = std::stoull(cid.substr(14));
         EuRouletteMultiGame ng; bool ok = false;
         {

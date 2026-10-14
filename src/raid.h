@@ -791,7 +791,7 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
         g.poison_dmg = std::max(1, (int)(base_atk * (1.0 + atk_bonus) * 0.10));
         log += " 🐍（劇毒附著！）";
     }
-    // 呀呀撕裂的部分衣角／呀呀的星輝霓裳：攻擊時機率讓 boss 下回合無法行動（不會疊加，戰損版每個0.5%、完整版每個3%）
+    // 呀呀撕裂的部分衣角／呀呀的星輝霓裳：攻擊時機率讓 boss 下回合無法行動（機率可疊加，戰損版每個0.5%、完整版每個3%）
     if (!g.game_over && !g.boss_stunned) {
         auto wi = inventory_data.find(cp.uid);
         int yaya_broken = (wi != inventory_data.end() && wi->second.count("col_yaya_torn_cloth")) ? wi->second.at("col_yaya_torn_cloth") : 0;

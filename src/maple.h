@@ -338,12 +338,12 @@ static const std::vector<MapleSkillDef> MAPLE_SKILLS = {
     // ── 二轉：職業專屬技能（每職業 15 點：1~5 一組、1~10 一組）───────────────
     {"frenzy_berserker", "狂躁", "陷入戰鬥的狂熱，攻擊會不定期附加一次額外攻擊（1級每9下觸發一次、5級每5下觸發一次，此處數值換算成平均加成%）",
         "berserker", 5, "buff_pct", {11.1,12.5,14.3,16.7,20.0}, "", {}},
-    {"strong_berserker", "遇強則強", "在野外首領戰中，找到首領後能挑戰的時間跟著延長", "berserker", 10, "buff_pct",
+    {"strong_berserker", "遇強則強", "在野外首領戰與突襲首領戰中，討伐所需的時間縮短（每級 -1%，滿級 -10%）", "berserker", 10, "buff_pct",
         {1,2,3,4,5,6,7,8,9,10}, "", {}},
 
     {"element_page", "屬性賦予", "初步掌握屬性的使用方式，根據點數增強自己的輸出能力（每級 +4%）", "page", 5, "buff_pct",
         {4,8,12,16,20}, "", {}},
-    {"strong_page", "遇強則強", "在野外首領戰中，找到首領後能挑戰的時間跟著延長", "page", 10, "buff_pct",
+    {"strong_page", "遇強則強", "在野外首領戰與突襲首領戰中，討伐所需的時間縮短（每級 -1%，滿級 -10%）", "page", 10, "buff_pct",
         {1,2,3,4,5,6,7,8,9,10}, "", {}},
 
     {"mana_boost_ice", "魔力強化", "熟練掌握魔力的運行法則，根據點數強化魔力流動（每級 +2 攻擊力、魔力爪技能係數 +10%），點滿十級時額外永久提升法杖一階攻速", "icelightning", 10, "buff_pct",
@@ -1171,6 +1171,9 @@ static const std::vector<MapleAdvRegionDef> MAPLE_ADV_REGIONS = {
     {"ruin_cliff",           "遺跡峭壁",     70, true, {"骷髏指揮官", 15300,  700, 470, 611}, {"icelightning"}, 0.5},
     {"forgotten_road3",      "遺忘的時間之路3", 80, true, {"怨靈發條熊", 32000, 1300, 364, 546}, {"priest"}, 1.5},
     {"trial_cave3",          "試煉洞窟III",  85, true, {"煉獄獵犬",   45000, 1800, 640, 960}, {"icelightning"}, 1.5},
+    // 碼數範圍未指定，用85等(640~960)跟95等(697~1020)內插抓暫定值
+    {"forgotten_road4",      "遺忘的時間之路4", 90, true, {"怨靈女巫",   53000, 2300, 668, 990}, {"priest"}, 1.5},
+    {"buddha_encounter",     "與大佛的邂逅", 95, true, {"雪女",       78500, 3200, 697, 1020}, {"priest"}, 1.5},
     {"forgotten_road5",      "忘卻之路V",   120, true, {"忘卻的守護兵隊長", 141000, 7060, 8000, 10000}},
 };
 
@@ -1730,13 +1733,13 @@ static const std::vector<MapleRaidBossDef> MAPLE_RAID_BOSSES = {
         {50,  {"sc_necklace100"}},
         {30,  {"sc_necklace60"}},
         {10,  {"sc_necklace20"}},
-        // Lv50 副武器：總機率 4%，組內魔導書／聖典各佔 10%（0.4%），其餘四種各佔 20%（0.8%）
-        {8,   {"oh_dart_50"}},
-        {8,   {"oh_dualblade_50"}},
-        {4,   {"oh_grimoire_50"}},
-        {4,   {"oh_bible_50"}},
-        {8,   {"oh_scope_50"}},
-        {8,   {"oh_shield_50"}},
+        // 副武器（只有30等版本）：總機率 4%，組內魔導書／聖典各佔 10%（0.4%），其餘四種各佔 20%（0.8%）
+        {8,   {"oh_dart_30"}},
+        {8,   {"oh_dualblade_30"}},
+        {4,   {"oh_grimoire_30"}},
+        {4,   {"oh_bible_30"}},
+        {8,   {"oh_scope_30"}},
+        {8,   {"oh_shield_30"}},
     }, true},
 };
 
@@ -1788,7 +1791,12 @@ static double maple_raid_member_dps_locked(const MapleCharacter& c, const MapleR
     double avg_dmg = std::max(1.0, maple_atk_power_avg(c, team_angel) * maple_crit_avg_mult(c, team_angel)
                                   * (1.0 + boss_dmg_bonus / 100.0) * ul_mult);
     int interval = maple_eff_atk_interval(c, team_haste);
-    return avg_dmg / interval;
+    double dps = avg_dmg / interval;
+    // 遇強則強／續能激發：討伐所需時間縮短，換算成等比例的 DPS 加成（跟野外首領那邊的算法一致）
+    double time_bonus = maple_buff_value(c, "strong_berserker") + maple_buff_value(c, "strong_page")
+                       + maple_buff_value(c, "disguise_brawler");
+    if (time_bonus > 0) dps /= (1.0 - std::min(70.0, time_bonus) / 100.0);
+    return dps;
 }
 // 整個房間目前鎖定的隊伍總 DPS；呼叫前必須持有 data_mutex
 static double maple_raid_team_total_dps_locked(const MapleRaidRoom& room) {

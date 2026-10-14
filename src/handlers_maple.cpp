@@ -753,6 +753,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                         int64_t exp_gain = boss ? boss->exp : 0;
                         int64_t coin_gain = boss ? std::uniform_int_distribution<int64_t>(boss->coin_min, boss->coin_max)(rng) : 0;
                         c.coins += coin_gain;
+                        c.monsters_defeated++;
                         int level_ups = maple_apply_exp(c, exp_gain);
                         if (boss && boss->faction_exp > 0) maple_faction_apply_exp(c.faction_key, boss->faction_exp);
                         std::vector<std::string> drops;

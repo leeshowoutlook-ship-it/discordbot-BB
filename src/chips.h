@@ -142,6 +142,14 @@ static bool is_lottery_room(dpp::snowflake ch) {
         || (!cfg.lottery_thread2_id.empty()  && ch_s == cfg.lottery_thread2_id);
 }
 
+// ALLIN 房＝強制全押的兩種討論串（20k／500k 門檻）。
+// 轉盤的多人模式讓其他人用各自的下注加入同一局，跟 ALLIN 房「只能押自己全部籌碼」的規則衝突，所以 ALLIN 房禁止開多人轉盤。
+static bool is_allin_room(dpp::snowflake ch) {
+    std::string ch_s = std::to_string((uint64_t)ch);
+    return (!cfg.allin_thread_id.empty()      && ch_s == cfg.allin_thread_id)
+        || (!cfg.allin_500k_thread_id.empty() && ch_s == cfg.allin_500k_thread_id);
+}
+
 // 在 500k ALLIN 房間下注成功發送前呼叫：不論輸贏都發一張彩券
 static void grant_lottery_ticket_if_needed(dpp::snowflake uid, bool got_ticket) {
     if (!got_ticket) return;
