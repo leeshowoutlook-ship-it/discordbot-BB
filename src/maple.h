@@ -1169,8 +1169,8 @@ static const std::vector<MapleAdvRegionDef> MAPLE_ADV_REGIONS = {
     {"lab_201",              "研究所201號房", 60, true, {"燒杯怪",   11000, 255, 305, 380}},
     {"noble_ave_east",       "名人大道東部區域", 65, true, {"搞怪CD",     7900,  400, 217, 411}},
     {"ruin_cliff",           "遺跡峭壁",     70, true, {"骷髏指揮官", 15300,  700, 470, 611}, {"icelightning"}, 0.5},
-    {"forgotten_road3",      "遺忘的時間之路3", 80, true, {"怨靈發條熊", 32000, 1300, 364, 546}, {"priest"}, 2.0},
-    {"trial_cave3",          "試煉洞窟III",  85, true, {"煉獄獵犬",   45000, 1800, 640, 960}, {"icelightning"}, 2.0},
+    {"forgotten_road3",      "遺忘的時間之路3", 80, true, {"怨靈發條熊", 32000, 1300, 364, 546}, {"priest"}, 1.5},
+    {"trial_cave3",          "試煉洞窟III",  85, true, {"煉獄獵犬",   45000, 1800, 640, 960}, {"icelightning"}, 1.5},
     {"forgotten_road5",      "忘卻之路V",   120, true, {"忘卻的守護兵隊長", 141000, 7060, 8000, 10000}},
 };
 

@@ -134,6 +134,14 @@ static std::string bet_room_check_msg(BetRoomCheck r, const std::string& usage) 
     }
 }
 
+// 摸彩房＝發放彩券的 500k ALLIN 討論串，或另一個也能 !摸彩 的討論串。
+// 火箭升空可以隨時收手兌現，跟 ALLIN 房間「全押全贏/全輸」的設計衝突，所以摸彩房禁止玩火箭。
+static bool is_lottery_room(dpp::snowflake ch) {
+    std::string ch_s = std::to_string((uint64_t)ch);
+    return (!cfg.allin_500k_thread_id.empty() && ch_s == cfg.allin_500k_thread_id)
+        || (!cfg.lottery_thread2_id.empty()  && ch_s == cfg.lottery_thread2_id);
+}
+
 // 在 500k ALLIN 房間下注成功發送前呼叫：不論輸贏都發一張彩券
 static void grant_lottery_ticket_if_needed(dpp::snowflake uid, bool got_ticket) {
     if (!got_ticket) return;

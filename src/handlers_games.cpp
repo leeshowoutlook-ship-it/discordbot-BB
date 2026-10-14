@@ -84,6 +84,10 @@ void handle_games_message(const dpp::message_create_t& ev,
 
     // !火箭 <碼|ALL>
     if (content.rfind("!火箭", 0) == 0 && (content.size() == 7 || content[7] == ' ')) {
+        if (is_lottery_room(ch)) {
+            dpp::message m; m.set_content("❌ 摸彩房不能玩火箭升空！");
+            m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
+        }
         size_t sp = content.find(' ');
         std::string rest = (sp != std::string::npos) ? content.substr(sp + 1) : "";
         std::string rest_lo = rest;
@@ -1317,6 +1321,10 @@ void handle_games_slash(const dpp::slashcommand_t& ev,
         });
     }
     else if (cmd_name == "火箭" || cmd_name == "rocket") {
+        if (is_lottery_room(ch)) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 摸彩房不能玩火箭升空！").set_flags(dpp::m_ephemeral)); return;
+        }
         int64_t bet = get_bet();
         if (!check_allin_min(bet, "用法：`/火箭 籌碼:100` 或 `/火箭 籌碼:ALL`")) return;
         ev.reply(dpp::ir_channel_message_with_source,
