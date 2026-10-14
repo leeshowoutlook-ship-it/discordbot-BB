@@ -164,25 +164,24 @@ static const std::vector<MapleItemDef>& maple_items() {
                 items.push_back(it);
             }
         }
-        // 副武器：飛鏢／雙刀／魔導書／聖典／瞄準鏡／盾牌 × 7 階
+        // 副武器：飛鏢／雙刀／魔導書／聖典／瞄準鏡／盾牌，只有 30 等這一個版本（不分階）
         for (auto& oh : MAPLE_OFFHANDS) {
-            for (int t = 0; t < 7; t++) {
-                MapleItemDef it;
-                it.key   = oh.key_prefix + "_" + std::to_string(MAPLE_ARMOR_TIER_LV[t]);
-                it.name  = (t == 1 && !oh.name30.empty()) ? oh.name30 : (std::string(MAPLE_WPN_TIER_NAME[t]) + oh.name);
-                it.slot  = "offhand";
-                it.level_req     = MAPLE_ARMOR_TIER_LV[t];
-                it.secondary_req = std::max(0, MAPLE_ARMOR_TIER_LV[t] - 10);
-                it.sellable  = true;  // 仍可用 !交易 跟其他玩家交換，只是不上架商店、也不能賣給遊戲換瘋幣
-                it.price     = 0;     // 不上架裝備商店
-                it.atk_bonus = oh.atk[t];
-                it.primary_generic   = oh.primary[t];
-                it.secondary_generic = MAPLE_OFFHAND_SECONDARY[t];
-                it.job_req   = oh.job_req;
-                it.offhand_wtypes = oh.wtypes;
-                it.item_id   = oh.id_base + t;
-                items.push_back(it);
-            }
+            const int t = 1; // MAPLE_ARMOR_TIER_LV[1] == 30
+            MapleItemDef it;
+            it.key   = oh.key_prefix + "_" + std::to_string(MAPLE_ARMOR_TIER_LV[t]);
+            it.name  = !oh.name30.empty() ? oh.name30 : (std::string(MAPLE_WPN_TIER_NAME[t]) + oh.name);
+            it.slot  = "offhand";
+            it.level_req     = MAPLE_ARMOR_TIER_LV[t];
+            it.secondary_req = std::max(0, MAPLE_ARMOR_TIER_LV[t] - 10);
+            it.sellable  = true;  // 仍可用 !交易 跟其他玩家交換，只是不上架商店、也不能賣給遊戲換瘋幣
+            it.price     = 0;     // 不上架裝備商店
+            it.atk_bonus = oh.atk[t];
+            it.primary_generic   = oh.primary[t];
+            it.secondary_generic = MAPLE_OFFHAND_SECONDARY[t];
+            it.job_req   = oh.job_req;
+            it.offhand_wtypes = oh.wtypes;
+            it.item_id   = oh.id_base + t;
+            items.push_back(it);
         }
         // 特殊裝備：蝸牛殼耳環，無職業／等級／屬性要求，全屬性+3（不在商店販售，price=0）
         {

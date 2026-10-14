@@ -205,7 +205,8 @@ static void load_euroulette_multi_games() {
 static dpp::message make_euroulette_pick_msg(uint64_t gid, int64_t bet,
                                              const std::string& avatar_url,
                                              const std::string& display_name,
-                                             dpp::snowflake uid) {
+                                             dpp::snowflake uid,
+                                             dpp::snowflake ch = 0) {
     dpp::embed e;
     e.set_title("🎡  迷你輪盤").set_color(0x27AE60);
     e.set_description("**下注：" + std::to_string(bet) + " 碼**\n"
@@ -232,10 +233,12 @@ static dpp::message make_euroulette_pick_msg(uint64_t gid, int64_t bet,
     btn1("🟡 黃", "yellow", dpp::cos_primary);
     msg.add_component(row1);
 
-    dpp::component row2; row2.set_type(dpp::cot_action_row);
-    row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("👥 開啟多人模式").set_id("er_multi_open_" + gid_s).set_style(dpp::cos_secondary));
-    msg.add_component(row2);
+    if (!is_allin_room(ch)) {
+        dpp::component row2; row2.set_type(dpp::cot_action_row);
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("👥 開啟多人模式").set_id("er_multi_open_" + gid_s).set_style(dpp::cos_secondary));
+        msg.add_component(row2);
+    }
 
     return msg;
 }
@@ -259,7 +262,7 @@ static dpp::message start_euroulette(dpp::snowflake uid, dpp::snowflake ch, int6
     }
     add_chips(uid, -bet);
     save_euroulette_games();
-    return make_euroulette_pick_msg(gid, bet, avatar_url, display_name, uid);
+    return make_euroulette_pick_msg(gid, bet, avatar_url, display_name, uid, ch);
 }
 
 // ─── Spin animation frame ──────────────────────────────────────────────────────

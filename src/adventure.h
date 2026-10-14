@@ -1971,13 +1971,30 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
                 {"status_depress", "憂鬱"}, {"status_injured", "受傷"}, {"status_no_interest", "毫無興致"},
             };
             bool has_compass = owned("col_tj_thorn_compass") > 0;
-            item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
-            for (int _sr = 0; _sr < 20; _sr++) {
-                auto sit = ADV_STATUS_ROLL_MAP.find(item_key);
-                if (sit == ADV_STATUS_ROLL_MAP.end()) break;
-                if (!has_compass) status_hits.push_back(sit->second);
-                item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
+            // 骰到負面狀態詞條的話記錄下來、並重骰一次拿真正的獎勵，直到骰出非狀態詞條（或重骰次數用完）為止。
+            // 星星加成的保底重骰、尋寶專家的額外判定，骰到的結果也可能是狀態詞條，所以都要共用這個函式，
+            // 否則狀態詞條會被當成「道具」直接塞進背包（背包多一個查無此物的髒資料）、顯示也會變成找不到名字的空白道具。
+            auto roll_real_item = [&]() -> std::string {
+                std::string key = roll_adv_loot(g.region_key, progress, claimed_limited);
+                for (int _sr = 0; _sr < 20; _sr++) {
+                    auto sit = ADV_STATUS_ROLL_MAP.find(key);
+                    if (sit == ADV_STATUS_ROLL_MAP.end()) break;
+                    if (!has_compass) status_hits.push_back(sit->second);
+                    key = roll_adv_loot(g.region_key, progress, claimed_limited);
+                }
+                return key;
+            };
+            item_key = roll_real_item();
+            if (item_key.empty() && g.star_boost) {
+                for (int _r = 0; _r < 50 && item_key.empty(); _r++)
+                    item_key = roll_real_item();
+                star_rerolled = true;
+            } else if (item_key.empty() && has_treasure_expert) {
+                // 尋寶專家：沒收穫時額外多判定一次（不像星星加成保底重骰到中為止，只多一次機會）
+                item_key = roll_real_item();
+                treasure_rerolled = true;
             }
+            // 保底重骰／額外判定過程中也可能再骰到狀態詞條，所以要等所有重骰都結束才套用，不然後面骰到的會被漏掉
             if (!status_hits.empty()) {
                 auto& p = pet_data[uid];
                 for (auto& st : status_hits) {
@@ -1985,15 +2002,6 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
                     for (auto& s : p.statuses) if (s == st) { already = true; break; }
                     if (!already) p.statuses.push_back(st);
                 }
-            }
-            if (item_key.empty() && g.star_boost) {
-                for (int _r = 0; _r < 50 && item_key.empty(); _r++)
-                    item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
-                star_rerolled = true;
-            } else if (item_key.empty() && has_treasure_expert) {
-                // 尋寶專家：沒收穫時額外多判定一次（不像星星加成保底重骰到中為止，只多一次機會）
-                item_key = roll_adv_loot(g.region_key, progress, claimed_limited);
-                treasure_rerolled = true;
             }
             if (!item_key.empty()) {
                 inv[item_key]++; item_added = true;
