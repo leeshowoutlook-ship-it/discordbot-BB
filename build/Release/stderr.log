@@ -7,12 +7,17 @@
 [STARTUP] entering on_ready_once block
 [STARTUP] before cleanup_expired
 [STARTUP] before apply_daily_interest
+[STARTUP] before lot_settle_orphaned_games
 [STARTUP] before start_stock_price_timer
-[STARTUP] on_guild_create fired, gid=555383406830288907
+[STARTUP] after start_stock_price_timer
+[STARTUP] on_guild_create fired, gid=1383364102826496000
 [STARTUP] entering register_guild_cmds run_once block
 [STARTUP] about to call guild_bulk_command_create
 [STARTUP] guild_bulk_command_create call returned (async, callback pending)
-[STARTUP] after start_stock_price_timer
 [STARTUP] on_guild_create handler returning
-[STARTUP] on_guild_create fired, gid=1383364102826496000
+[STARTUP] on_guild_create fired, gid=555383406830288907
 [STARTUP] on_guild_create handler returning
+[摸彩] 結算 message_edit 失敗，改發新訊息 uid=592685139717390346 http=429 code=0 msg=You are being rate limited.
+[摸彩] 動畫中途 message_edit 失敗 uid=592685139717390346 http=429 code=0 msg=You are being rate limited.
+[摸彩] 動畫中途 message_edit 失敗 uid=592685139717390346 http=429 code=0 msg=You are being rate limited.
+[摸彩] 結算 message_edit 失敗，改發新訊息 uid=592685139717390346 http=429 code=0 msg=You are being rate limited.

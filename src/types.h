@@ -833,6 +833,7 @@ inline std::map<dpp::snowflake, ScratchStats>   scratch_stats_data;
 inline std::map<dpp::snowflake, LotteryGame>    lottery_games;
 inline std::map<dpp::snowflake, LotteryStats>   lottery_stats_data;
 inline std::map<dpp::snowflake, std::vector<LotteryDrawRecord>> lottery_history; // 每人最近N筆摸彩紀錄
+inline std::map<std::string, int> lottery_stock; // 限量獎品全服共用剩餘組數，key=LotteryPrize.key
 inline std::map<dpp::snowflake, WolfPlayerStats> wolf_player_stats_data;
 inline std::map<dpp::snowflake, ONWStats>           onw_stats_data;
 inline std::map<dpp::snowflake, PlayerEquipment>    equipped_data;

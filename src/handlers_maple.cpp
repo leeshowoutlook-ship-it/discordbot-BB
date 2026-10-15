@@ -332,6 +332,10 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 正在挑戰野外首領，無法同時出發冒險！").set_flags(dpp::m_ephemeral)); return;
             }
+            if (!c.raid_room_id.empty() && maple_find_raid_room(c.raid_room_id)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 正在突襲首領房間裡，無法同時出發冒險！").set_flags(dpp::m_ephemeral)); return;
+            }
             c.adv_region = region_key;
             c.adv_started_at = time(nullptr);
         }
@@ -1071,6 +1075,10 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             if (maple_is_wb_fighting(c)) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 已經在挑戰野外首領了！").set_flags(dpp::m_ephemeral)); return;
+            }
+            if (!c.raid_room_id.empty() && maple_find_raid_room(c.raid_room_id)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 正在突襲首領房間裡，無法挑戰野外首領！").set_flags(dpp::m_ephemeral)); return;
             }
             c.wb_region        = region_key;
             c.wb_started_at    = now;

@@ -14,7 +14,7 @@
 
 // main.cpp 啟動時透過 handler_decls.h 的宣告呼叫（main.cpp 不直接 include lottery.h，
 // 避免 maple.h 被編進第三個 TU）
-void load_lotterystats() { lot_load_stats_impl(); lot_load_games_impl(); lot_load_history_impl(); }
+void load_lotterystats() { lot_load_stats_impl(); lot_load_games_impl(); lot_load_history_impl(); lot_load_stock_impl(); }
 // on_ready_once（main.cpp，bot 連線後）呼叫：把啟動前卡在動畫中的摸彩直接結算掉
 void lot_settle_orphaned_games() { lot_settle_orphaned_games_impl(); }
 

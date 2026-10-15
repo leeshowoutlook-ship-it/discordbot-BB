@@ -1,7 +1,39 @@
-[Wed Oct  7 00:41:33 2026] DEBUG: Cluster: 999 of 1000 session starts remaining
-[Wed Oct  7 00:41:33 2026] INFO: Auto Shard: Bot requires 1 shard
-[Wed Oct  7 00:41:33 2026] DEBUG: Starting with 1 shards...
-[Wed Oct  7 00:41:33 2026] DEBUG: Connecting new session...
-[Wed Oct  7 00:41:34 2026] INFO: Shard id 0 (1/1) ready!
-[Wed Oct  7 00:41:34 2026] DEBUG: Resume URL for session 92c1b9bf9fe91b85671aba034ecf3dda is wss://gateway-us-east1-d.discord.gg (host: gateway-us-east1-d.discord.gg)
+[Thu Oct 15 00:29:48 2026] DEBUG: Cluster: 996 of 1000 session starts remaining
+[Thu Oct 15 00:29:48 2026] INFO: Auto Shard: Bot requires 1 shard
+[Thu Oct 15 00:29:48 2026] DEBUG: Starting with 1 shards...
+[Thu Oct 15 00:29:48 2026] DEBUG: Connecting new session...
+[Thu Oct 15 00:29:49 2026] INFO: Shard id 0 (1/1) ready!
+[Thu Oct 15 00:29:49 2026] DEBUG: Resume URL for session 4c4892b4c9361c3c3d7c3357d2f381e9 is wss://gateway-us-east1-d.discord.gg (host: gateway-us-east1-d.discord.gg)
 Bot 已上線：分類帽
+[Thu Oct 15 00:29:53 2026] DEBUG: Shards started.
+[Thu Oct 15 00:30:46 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559966676760399995 rate limit, next request in 4s
+[Thu Oct 15 00:30:46 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559966674319446127 rate limit, next request in 4s
+[Thu Oct 15 00:30:51 2026] WARN: Rate limited on endpoint /api/v10/channels/1556967063799595108/messages/1559966676760399995, reset after 4s!
+[Thu Oct 15 00:30:51 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559966676760399995 rate limit, next request in 4s
+[Thu Oct 15 00:30:51 2026] WARN: Rate limited on endpoint /api/v10/channels/1556967063799595108/messages/1559966676760399995, reset after 4s!
+[Thu Oct 15 00:30:51 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559966676760399995 rate limit, next request in 4s
+[Thu Oct 15 00:30:51 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559966674319446127 rate limit, next request in 4s
+[Thu Oct 15 00:30:55 2026] ERROR: Error: 10062: Unknown interaction
+[Thu Oct 15 00:32:11 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967042101313538 rate limit, next request in 4s
+[Thu Oct 15 00:32:17 2026] WARN: Rate limited on endpoint /api/v10/channels/1556967063799595108/messages/1559967042101313538, reset after 4s!
+[Thu Oct 15 00:32:17 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967042101313538 rate limit, next request in 4s
+[Thu Oct 15 00:32:17 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967026414493767 rate limit, next request in 4s
+[Thu Oct 15 00:32:17 2026] WARN: Rate limited on endpoint /api/v10/channels/1556967063799595108/messages/1559967042101313538, reset after 4s!
+[Thu Oct 15 00:32:17 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967042101313538 rate limit, next request in 4s
+[Thu Oct 15 00:32:54 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967204068302873 rate limit, next request in 4s
+[Thu Oct 15 00:33:00 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967223957819486 rate limit, next request in 4s
+[Thu Oct 15 00:33:06 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967264822792293 rate limit, next request in 4s
+[Thu Oct 15 00:33:11 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967264822792293 rate limit, next request in 4s
+[Thu Oct 15 00:33:13 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967299644035093 rate limit, next request in 4s
+[Thu Oct 15 00:33:18 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967299644035093 rate limit, next request in 4s
+[Thu Oct 15 00:33:19 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967299644035093 rate limit, next request in 4s
+[Thu Oct 15 00:33:48 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967418862927964 rate limit, next request in 4s
+[Thu Oct 15 00:33:48 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967422839128115 rate limit, next request in 4s
+[Thu Oct 15 00:33:49 2026] DEBUG: Waiting for endpoint /api/v10/channels/1556967063799595108/messages/1559967456276123712 rate limit, next request in 4s
+[Thu Oct 15 00:35:58 2026] ERROR: Error: 10062: Unknown interaction
+[Thu Oct 15 01:02:42 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Thu Oct 15 01:02:48 2026] INFO: Reconnecting shard 0
+[Thu Oct 15 01:02:49 2026] DEBUG: Resuming session 4c4892b4c9361c3c3d7c3357d2f381e9 with seq=2063
+[Thu Oct 15 01:02:49 2026] DEBUG: Successfully resumed session id 4c4892b4c9361c3c3d7c3357d2f381e9
+[Thu Oct 15 01:02:49 2026] ERROR: Error: 10062: Unknown interaction
+[Thu Oct 15 01:24:14 2026

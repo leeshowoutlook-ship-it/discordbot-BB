@@ -10,6 +10,10 @@
 // 「一組X」／「X張突襲」這幾個獎目前只顯示文字，不實際發放任何東西（不給瘋幣、不給突襲
 // 次數、不給道具）——只有籌碼類獎品是真的會發放。日後要真的發放可以把 coins/raid_extra/
 // item_key 填回去。
+//
+// stock/fallback_chips：部分「一組X」／「X張突襲」只有限量供應（全服共用一份計數，見
+// lottery_stock），每被抽中一次就扣一組；扣到 0 之後，同一個機率格之後抽到都改發
+// fallback_chips 籌碼（顯示名稱也會跟著變成「N萬籌碼」，見 lot_resolve_prize）。
 
 struct LotteryPrize {
     std::string key;         // 空字串＝空包（無任何效果）
@@ -20,6 +24,8 @@ struct LotteryPrize {
     int64_t     coins   = 0; // 悄悄加碼瘋幣，不會顯示在結果訊息（0＝無）
     int         raid_extra = 0; // 本週突襲首領額外次數（0＝無）
     std::string item_key;    // 發放的背包道具 key（空字串＝無）
+    int         stock = -1;         // -1＝不限量；>=0＝全服共用的初始庫存組數（之後實際剩餘量存在 lottery_stock）
+    int64_t     fallback_chips = 0; // stock 用完之後，這個機率格改發的籌碼數
 };
 
 // 權重合計 1000：65% / 17% / 5% / 3% / 3% / 1% / 1% / 1% / 1% / 1% / 1% / 0.5% / 0.3% / 0.1% / 0.1%
@@ -27,18 +33,18 @@ static const std::vector<LotteryPrize> LOTTERY_PRIZES = {
     {"",              "空包",         "🍞", 650,        0, 0, 0, ""},
     {"chip_50k",      "5萬籌碼",      "💸", 170,    50000, 0, 0, ""},
     {"chip_250k",     "25萬籌碼",     "🤑",  50,   250000, 0, 0, ""},
-    {"prize_satay",   "一組沙嗲",     "⚽",  30,        0, 0, 0, ""},
-    {"prize_cherry",  "一組櫻桃派",   "🏀",  30,        0, 0, 0, ""},
-    {"prize_redbean", "一組紅豆刨冰", "🏈",  10,        0, 0, 0, ""},
-    {"prize_cheese",  "一組乳酪",     "🎾",  10,        0, 0, 0, ""},
-    {"prize_dew",     "一組清晨之露", "🏐",  10,        0, 0, 0, ""},
-    {"prize_raid7",   "七張突襲",     "🥎",  10,        0, 0, 0, ""},
-    {"prize_raid4",   "四張突襲",     "🧊",  10,        0, 0, 0, ""},
+    {"prize_satay",   "20萬籌碼",     "⚽",  30,   200000, 0, 0, ""},
+    {"prize_cherry",  "一組櫻桃派",   "🏀",  30,        0, 0, 0, "", 3,  200000},
+    {"prize_redbean", "一組紅豆刨冰", "🏈",  10,        0, 0, 0, "", 1,  200000},
+    {"prize_cheese",  "20萬籌碼",     "🎾",  10,   200000, 0, 0, ""},
+    {"prize_dew",     "一組清晨之露", "🏐",  10,        0, 0, 0, "", 1,  200000},
+    {"prize_raid7",   "七張突襲",     "🥎",  10,        0, 0, 0, "", 2, 1000000},
+    {"prize_raid4",   "四張突襲",     "🧊",  10,        0, 0, 0, "", 3,  800000},
     {"chip_2m",       "兩百萬籌碼",   "🐥",  10,  2000000, 0, 0, ""},
     {"chip_3m",       "三百萬籌碼",   "☃️",   5,  3000000, 0, 0, ""},
     {"chip_5m",       "五百萬籌碼",   "🌈",   3,  5000000, 0, 0, ""},
-    {"prize_raid14",  "14張突襲",     "🗿",   1,        0, 0, 0, ""},
-    {"chip_10m",      "一千萬籌碼",   "🚀",   1, 10000000, 0, 0, ""},
+    {"prize_raid14",  "14張突襲",     "🗿",   1,        0, 0, 0, "", 3, 7770000},
+    {"chip_10m",      "兩千萬籌碼",   "🚀",   1, 20000000, 0, 0, ""},
 };
 
 static std::mt19937& lot_rng() {
@@ -191,6 +197,65 @@ static void lot_load_history_impl() {
     } catch (...) {}
 }
 
+// ─── 限量獎品庫存（全服共用）───────────────────────────────────────────────────
+
+static const std::string LOTTERY_STOCK_FILE = "lottery_stock.json";
+
+static void save_lottery_stock() {
+    nlohmann::json j;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& [k, v] : lottery_stock) j[k] = v;
+    }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
+    atomic_write(LOTTERY_STOCK_FILE, j.dump(2));
+}
+
+// 先讀存檔（如果有的話），再用 LOTTERY_PRIZES 的初始庫存補上「存檔裡還沒出現過」的獎項
+// （第一次上線這個機制、或日後新增限量獎都會吃到這段，不會動到已經在追蹤中的剩餘量）。
+static void lot_load_stock_impl() {
+    {
+        std::ifstream f(LOTTERY_STOCK_FILE);
+        if (f.is_open()) {
+            try {
+                nlohmann::json j; f >> j;
+                std::lock_guard<std::mutex> lk(data_mutex);
+                for (auto& [k, v] : j.items()) lottery_stock[k] = v.get<int>();
+            } catch (...) {}
+        }
+    }
+    bool need_save = false;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& p : LOTTERY_PRIZES) {
+            if (p.stock < 0) continue;
+            if (!lottery_stock.count(p.key)) { lottery_stock[p.key] = p.stock; need_save = true; }
+        }
+    }
+    if (need_save) save_lottery_stock();
+}
+
+// 把中獎格換成「實際要發放的獎品」：不限量就直接回傳原樣；限量的話扣一組庫存，
+// 扣到 0 之後，之後都回傳一個「改發籌碼」的虛擬獎品（名稱直接顯示金額，比照其他籌碼類獎品）。
+// 呼叫前不可持有 data_mutex（自己上鎖＋存檔）。
+static LotteryPrize lot_resolve_prize(const LotteryPrize& p) {
+    if (p.stock < 0) return p;
+    bool depleted;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        int& remain = lottery_stock[p.key];
+        if (remain > 0) { remain--; depleted = false; }
+        else depleted = true;
+    }
+    save_lottery_stock();
+    if (!depleted) return p;
+    LotteryPrize fallback = p;
+    fallback.name = std::to_string(p.fallback_chips / 10000) + "萬籌碼";
+    fallback.chips = p.fallback_chips;
+    fallback.item_key.clear();
+    return fallback;
+}
+
 // 記一筆摸彩紀錄；呼叫前不可持有 data_mutex（自己上鎖）。
 static void lot_record_history(dpp::snowflake uid, const LotteryPrize& p) {
     {
@@ -262,7 +327,7 @@ static dpp::message make_lottery_spin_frame_msg(const LotteryGame& g, int displa
 // Caller must NOT hold data_mutex（add_chips／save_* 內部會自己上鎖）
 
 static dpp::message make_lottery_result_msg(const LotteryGame& g) {
-    const LotteryPrize& p = LOTTERY_PRIZES[g.prize_idx];
+    LotteryPrize p = lot_resolve_prize(LOTTERY_PRIZES[g.prize_idx]); // 限量獎可能在這裡被換成「改發籌碼」
     bool win = (g.prize_idx != 0); // index 0 固定是空包
 
     if (p.chips > 0) add_chips(g.uid, p.chips);
@@ -318,7 +383,7 @@ static dpp::message make_lottery_result_msg(const LotteryGame& g) {
     return msg;
 }
 
-// ─── Spin loop（跟 /轉 的單人動畫走同一套：每秒編輯一次訊息，最後一格揭曉真正結果）──
+// ─── Spin loop（跟 /轉 的單人動畫走同一套：每隔幾秒編輯一次訊息，最後一格揭曉真正結果）──
 
 static const int LOTTERY_SPIN_FRAMES = 6;
 
@@ -372,13 +437,20 @@ static void lot_start_spin(dpp::snowflake uid) {
                 fprintf(stderr, "[摸彩] 結算 message_edit 失敗，改發新訊息 uid=%llu http=%d code=%d msg=%s\n",
                     (unsigned long long)(uint64_t)uid, cb.http_info.status, err.code, err.message.c_str());
                 fflush(stderr);
-                // 編輯失敗（可能是訊息已被刪除／權限問題），改發一則新訊息，確保玩家一定看得到結果
+                // 編輯失敗（常見原因是連續編輯太快被 Discord 限流429），改發一則新訊息，確保玩家一定看得到結果
                 dpp::message newmsg = fmsg;
                 newmsg.id = 0; newmsg.channel_id = fallback_ch;
-                g_bot->message_create(newmsg);
+                g_bot->message_create(newmsg, [uid](const dpp::confirmation_callback_t& cb2) {
+                    if (cb2.is_error()) {
+                        auto err2 = cb2.get_error();
+                        fprintf(stderr, "[摸彩] 補發新訊息也失敗 uid=%llu http=%d code=%d msg=%s\n",
+                            (unsigned long long)(uint64_t)uid, cb2.http_info.status, err2.code, err2.message.c_str());
+                        fflush(stderr);
+                    }
+                });
             }
         });
-    }, 1);
+    }, 2); // 原本是每秒編輯一次，連續6-7次很容易被 Discord 限流(429)；拉長到每2秒一次降低頻率
     std::lock_guard<std::mutex> lk(data_mutex);
     auto it = lottery_games.find(uid);
     if (it != lottery_games.end()) it->second.timer_id = tid;

@@ -101,17 +101,16 @@ static void add_chips(dpp::snowflake uid, int64_t delta) {
 
 // ─── 討論串下注門檻（三階）───────────────────────────────────────────────────
 // 一般頻道：bet<=0 擋掉；min_bet_thread_id：最低 5,000；
-// allin_thread_id：強制 ALLIN，持有需 >=20,000；allin_500k_thread_id：強制 ALLIN，持有需 >=500,000（每次下注發一張彩券，不論輸贏）。
-enum class BetRoomCheck { OK, NEED_USAGE, FAIL_MIN_BET, FAIL_ALLIN, FAIL_ALLIN_500K };
+// allin_thread_id：強制 ALLIN，持有需 >=20,000。
+// allin_500k_thread_id 現在改成「只能摸彩，不能玩遊戲」的房間（跟 lottery_thread2_id 一樣），
+// 不再開放下注、也不再靠下注發彩券。
+enum class BetRoomCheck { OK, NEED_USAGE, FAIL_MIN_BET, FAIL_ALLIN, FAIL_LOTTERY_ONLY };
 
 static BetRoomCheck resolve_bet_room(dpp::snowflake uid, dpp::snowflake ch, int64_t& bet, bool& got_ticket) {
     got_ticket = false;
     std::string ch_s = std::to_string((uint64_t)ch);
     if (!cfg.allin_500k_thread_id.empty() && ch_s == cfg.allin_500k_thread_id) {
-        bet = get_chips(uid);
-        if (bet < 500000) return BetRoomCheck::FAIL_ALLIN_500K;
-        got_ticket = true;
-        return BetRoomCheck::OK;
+        return BetRoomCheck::FAIL_LOTTERY_ONLY;
     }
     if (!cfg.allin_thread_id.empty() && ch_s == cfg.allin_thread_id) {
         bet = get_chips(uid);
@@ -126,11 +125,11 @@ static BetRoomCheck resolve_bet_room(dpp::snowflake uid, dpp::snowflake ch, int6
 
 static std::string bet_room_check_msg(BetRoomCheck r, const std::string& usage) {
     switch (r) {
-        case BetRoomCheck::NEED_USAGE:      return usage;
-        case BetRoomCheck::FAIL_MIN_BET:    return "❌ 此討論串最低下注為 **5,000** 碼！";
-        case BetRoomCheck::FAIL_ALLIN:      return "❌ 此房間需持有至少 **20,000** 碼才能 ALLIN！";
-        case BetRoomCheck::FAIL_ALLIN_500K: return "❌ 此房間需持有至少 **500,000** 碼才能 ALLIN！";
-        default:                            return "";
+        case BetRoomCheck::NEED_USAGE:       return usage;
+        case BetRoomCheck::FAIL_MIN_BET:     return "❌ 此討論串最低下注為 **5,000** 碼！";
+        case BetRoomCheck::FAIL_ALLIN:       return "❌ 此房間需持有至少 **20,000** 碼才能 ALLIN！";
+        case BetRoomCheck::FAIL_LOTTERY_ONLY:return "❌ 此討論串只能 `!摸彩`，不能玩遊戲！";
+        default:                             return "";
     }
 }
 
@@ -859,10 +858,19 @@ static dpp::message handle_transfer_cancel(uint64_t tid, dpp::snowflake uid) {
 
 // ─── Bankruptcy announcement ──────────────────────────────────────────────────
 
+// 破產圖片改成本機檔案附件（truck.png，放在跟 exe 同一層目錄），不再依賴外部 Discord CDN 連結。
+static const std::string& bankrupt_img_bytes() {
+    static const std::string bytes = []() {
+        std::ifstream f("truck.png", std::ios::binary);
+        if (!f.is_open()) return std::string();
+        std::ostringstream oss; oss << f.rdbuf();
+        return oss.str();
+    }();
+    return bytes;
+}
+
 inline void announce_bankrupt(dpp::snowflake uid, dpp::snowflake channel_id) {
     if (!g_bot || !channel_id) return;
-    static const std::string IMG =
-        "https://media.discordapp.net/attachments/1514918524164898966/1518545976535814144/flipped-image.webp";
     bool has_loan = false;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
@@ -872,10 +880,13 @@ inline void announce_bankrupt(dpp::snowflake uid, dpp::snowflake channel_id) {
     std::string text = "<@" + std::to_string((uint64_t)uid) + "> ";
     text += has_loan
         ? "你都有欠債了還敢賭博? 快去好好工作!"
-        : "哎呀破產了阿 要不要試試看我們的銀行系統呢? 輸入 !銀行";
+        : "叭叭 貨車來瞜";
     g_bot->start_timer([channel_id, text](dpp::timer t) {
         g_bot->stop_timer(t);
-        g_bot->message_create(dpp::message(channel_id, IMG),
+        dpp::message img_msg(channel_id, "");
+        const std::string& img = bankrupt_img_bytes();
+        if (!img.empty()) img_msg.add_file("truck.png", img, "image/png");
+        g_bot->message_create(img_msg,
             [channel_id, text](const dpp::confirmation_callback_t&) {
                 g_bot->message_create(dpp::message(channel_id, text));
             });
