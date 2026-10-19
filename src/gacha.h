@@ -1266,7 +1266,7 @@ static dpp::message make_craft_msg(dpp::snowflake uid) {
     }
     content += "**Zoey散發氣味的秀髮** 戰損版：**" + std::to_string(wig_cnt) + " / 5**　效果：探索額外骰一次戰利品 10%（可疊加）\n";
     content += "**皮包遺失的粉紅內衣** 戰損版：**" + std::to_string(undies_cnt) + " / 5**　效果：探索完成返還資金 20%（可疊加）\n";
-    content += "**呀呀撕裂的部分衣角** 戰損版：**" + std::to_string(yaya_cnt) + " / 5**　效果：組隊遠征攻擊時 0.5% 機率讓boss下回合無法行動（可疊加）\n";
+    content += "**呀呀撕裂的部分衣角** 戰損版：**" + std::to_string(yaya_cnt) + " / 5**　效果：組隊遠征攻擊時 0.5% 機率讓boss下回合無法行動（不可疊加）\n";
 
     int oracle_cnt = sc("oracle_fragment");
     std::string awaken_content = "## ✨ 神名解放\n";

@@ -410,12 +410,12 @@ static std::string dd_do_attack(DDGame& g, int attack_type) {
         h.poison_dmg = std::max(1, (int)(eff_atk * 0.10));
         log += " 🐍（劇毒附著！）";
     }
-    // 呀呀撕裂的部分衣角／呀呀的星輝霓裳：攻擊時機率讓 boss 下回合全部無法行動（機率可疊加，戰損版每個0.5%、完整版每個3%）
+    // 呀呀撕裂的部分衣角／呀呀的星輝霓裳：攻擊時機率讓 boss 下回合全部無法行動（不疊加：持有完整版 3%，否則持有戰損版 0.5%）
     if (h.alive && !g.boss_stunned) {
         auto wi2 = inventory_data.find(cp.uid);
         int yaya_broken = (wi2 != inventory_data.end() && wi2->second.count("col_yaya_torn_cloth")) ? wi2->second.at("col_yaya_torn_cloth") : 0;
         int yaya_full   = (wi2 != inventory_data.end() && wi2->second.count("col_yaya_starlight_dress")) ? wi2->second.at("col_yaya_starlight_dress") : 0;
-        int yaya_permille = yaya_broken * 5 + yaya_full * 30;
+        int yaya_permille = yaya_full > 0 ? 30 : (yaya_broken > 0 ? 5 : 0);
         if (yaya_permille > 0 && dd_rand(1, 1000) <= yaya_permille) {
             g.boss_stunned = true;
             log += "\n🌸 **香噴噴的呀呀衣角發威！** 暗黑龍王下回合無法行動！";
@@ -479,7 +479,7 @@ static std::string dd_do_boss_turn(DDGame& g) {
         log += "🐍 劇毒發作，對 **" + hd.name + "** 造成 **" + std::to_string(hd.poison_dmg) + "** 傷害！\n";
         if (hd.hp <= 0) { hd.hp = 0; hd.alive = false; log += "💥 **" + hd.name + "** 被擊倒！\n"; }
     }
-    // 呀呀撕裂的部分衣角／星輝霓裳：boss 被封鎖，這回合整輪無法行動（不會疊加，用完立刻清掉）
+    // 呀呀撕裂的部分衣角／星輝霓裳觸發的定身：boss 這回合整輪無法行動，跳過後定身狀態解除（道具本身不消耗）
     if (g.boss_stunned) {
         g.boss_stunned = false;
         return log + "🌸 暗黑龍王香噴噴地愣住了，這回合無法行動！";

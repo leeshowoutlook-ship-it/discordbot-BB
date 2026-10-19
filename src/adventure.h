@@ -278,6 +278,8 @@ struct LimitedMaxRule { int cap; std::string crafted_key; int craft_ratio; };
 static const std::map<std::string, LimitedMaxRule> LIMITED_MAX_COUNT = {
     {"col_bb_wig_broken",    {5, "col_bb_wig_full",    5}},
     {"col_bb_undies_broken", {5, "col_bb_undies_full", 5}},
+    // 呀呀撕裂的部分衣角：全球限量 15 份（合成的星輝霓裳每件算 5 份）
+    {"col_yaya_torn_cloth",  {15, "col_yaya_starlight_dress", 5}},
     // 華瑄的變身密藥的上限改用 g_tj_potion_granted 這個全域歷史計數器處理（見 adv_collect_ handler），
     // 因為藥水會被喝掉消耗，不能用「目前持有總數」估算上限（否則喝掉會釋出名額，變成能一直補貨）。
 };
@@ -285,7 +287,7 @@ static const std::map<std::string, LimitedMaxRule> LIMITED_MAX_COUNT = {
 // 「特殊」分頁：可使用的消耗型道具（風險骰子）＋限定票券（彩券）
 static const std::set<std::string> SPECIAL_COL_ITEMS = {
     "col_bb_risk_dice", "col_rd_lovebook", "col_rd_simpmanual", "col_rd_dogbook",
-    "lottery_ticket",
+    "lottery_ticket", "col_tj_transform_potion",
 };
 
 // ─── Collectible selling（限定收藏品全球唯一，不可售出，只能 !交易）──────────────
@@ -1107,6 +1109,17 @@ static dpp::message make_bag_special_msg(dpp::snowflake uid,
             .set_id("adv_dogbook_draw_" + uid_s)
             .set_style(dpp::cos_danger)
             .set_disabled(!can_draw));
+        msg.add_component_v2(row);
+    }
+
+    // 華瑄的變身密藥：交給寵物背包的使用流程（持有多瓶時會先選數量）
+    bool has_potion = inv.count("col_tj_transform_potion") && inv.at("col_tj_transform_potion") > 0;
+    if (has_potion) {
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🧪 喝下變身密藥（持有 " + std::to_string(inv.at("col_tj_transform_potion")) + " 瓶）")
+            .set_id("pet_use_" + uid_s + "_col_tj_transform_potion")
+            .set_style(dpp::cos_success));
         msg.add_component_v2(row);
     }
 
@@ -1937,6 +1950,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             // 限定收藏品全球唯一：先找出已被拿走的，骰的時候直接排除、在剩下道具間重骰
             std::set<std::string> claimed_limited;
             for (auto& lk2 : LIMITED_COL_ITEMS) {
+                if (LIMITED_MAX_COUNT.count(lk2)) continue; // 限量 N 份的另外算，不是全球唯一
                 for (auto& [oid, oinv] : inventory_data) {
                     auto jt = oinv.find(lk2);
                     if (jt != oinv.end() && jt->second > 0) { claimed_limited.insert(lk2); break; }
@@ -2006,6 +2020,20 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             if (!item_key.empty()) {
                 inv[item_key]++; item_added = true;
                 if (item_key == "col_tj_transform_potion") { g_tj_potion_granted++; potion_granted_this_round = true; }
+                // 這次拿到的若是限定／限量道具，下面的額外骰（假髮效果）不能再骰到超過上限
+                if (LIMITED_COL_ITEMS.count(item_key) && !LIMITED_MAX_COUNT.count(item_key)) claimed_limited.insert(item_key);
+                auto rit = LIMITED_MAX_COUNT.find(item_key);
+                if (rit != LIMITED_MAX_COUNT.end()) {
+                    int64_t total = 0;
+                    for (auto& [oid, oinv] : inventory_data) {
+                        auto jt = oinv.find(item_key);
+                        if (jt != oinv.end()) total += jt->second;
+                        auto jt2 = oinv.find(rit->second.crafted_key);
+                        if (jt2 != oinv.end()) total += (int64_t)jt2->second * rit->second.craft_ratio;
+                    }
+                    if (total >= rit->second.cap) claimed_limited.insert(item_key);
+                }
+                if (g_tj_potion_granted >= 100) claimed_limited.insert("col_tj_transform_potion");
             }
 
             static std::mt19937 bb_effect_rng(std::random_device{}());

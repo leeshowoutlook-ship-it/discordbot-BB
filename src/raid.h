@@ -501,7 +501,7 @@ static std::string raid_do_boss_turn(RaidGame& g) {
             return poison_log + " 🏆 Boss 倒下！";
         }
     }
-    // 呀呀撕裂的部分衣角／星輝霓裳：boss 被封鎖，這回合直接跳過（不會疊加，用完立刻清掉）
+    // 呀呀撕裂的部分衣角／星輝霓裳觸發的定身：boss 這回合直接跳過，跳過後定身狀態解除（道具本身不消耗）
     if (g.boss_stunned) {
         g.boss_stunned = false;
         std::string l = poison_log.empty() ? "" : (poison_log + "\n");
@@ -791,12 +791,12 @@ static std::string raid_do_player_attack(RaidGame& g, int attack_type) {
         g.poison_dmg = std::max(1, (int)(base_atk * (1.0 + atk_bonus) * 0.10));
         log += " 🐍（劇毒附著！）";
     }
-    // 呀呀撕裂的部分衣角／呀呀的星輝霓裳：攻擊時機率讓 boss 下回合無法行動（機率可疊加，戰損版每個0.5%、完整版每個3%）
+    // 呀呀撕裂的部分衣角／呀呀的星輝霓裳：攻擊時機率讓 boss 下回合無法行動（不疊加：持有完整版 3%，否則持有戰損版 0.5%）
     if (!g.game_over && !g.boss_stunned) {
         auto wi = inventory_data.find(cp.uid);
         int yaya_broken = (wi != inventory_data.end() && wi->second.count("col_yaya_torn_cloth")) ? wi->second.at("col_yaya_torn_cloth") : 0;
         int yaya_full   = (wi != inventory_data.end() && wi->second.count("col_yaya_starlight_dress")) ? wi->second.at("col_yaya_starlight_dress") : 0;
-        int yaya_permille = yaya_broken * 5 + yaya_full * 30; // 0.5% = 5/1000、3% = 30/1000
+        int yaya_permille = yaya_full > 0 ? 30 : (yaya_broken > 0 ? 5 : 0); // 0.5% = 5/1000、3% = 30/1000
         if (yaya_permille > 0 && raid_rand(1, 1000) <= yaya_permille) {
             g.boss_stunned = true;
             log += "\n🌸 **香噴噴的呀呀衣角發威！** Boss 下回合無法行動！";
