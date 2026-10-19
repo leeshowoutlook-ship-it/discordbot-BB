@@ -520,7 +520,7 @@ static dpp::message make_admin_panel_msg(dpp::snowflake channel_id = 0) {
         .set_label("🛑 中斷遊戲").set_id("admin_kill_btn").set_style(dpp::cos_danger));
     dpp::component row2; row2.set_type(dpp::cot_action_row);
     row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🎓 給養成經驗").set_id("admin_mapleexp_btn").set_style(dpp::cos_secondary));
+        .set_label("🎓 給／扣養成經驗").set_id("admin_mapleexp_btn").set_style(dpp::cos_secondary));
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🧹 清除本頻道遊戲").set_id("admin_clear_channel_btn").set_style(dpp::cos_danger));
     row2.add_component(dpp::component().set_type(dpp::cot_button)
@@ -754,6 +754,7 @@ int main(int argc, char* argv[]) {
 
     cfg = load_config();
     if (cfg.token.empty()) { fprintf(stderr, "找不到 BOT_TOKEN\n"); return 1; }
+    static std::string g_recover_report = recover_corrupt_data_files();
     load_chips();
     load_bank();
     load_warns();
@@ -2876,13 +2877,13 @@ int main(int argc, char* argv[]) {
                     .set_text_style(dpp::text_short).set_min_length(1).set_max_length(15));
                 ev.dialog(modal);
             } else if (cid == "admin_mapleexp_btn") {
-                dpp::interaction_modal_response modal("admin_mapleexp_modal", "管理員給養成經驗");
+                dpp::interaction_modal_response modal("admin_mapleexp_modal", "管理員給／扣養成經驗");
                 modal.add_component(dpp::component().set_type(dpp::cot_text)
                     .set_label("目標 User ID").set_id("target_uid")
                     .set_text_style(dpp::text_short).set_min_length(1).set_max_length(20)
                     .set_placeholder("例：457478323665240065"));
                 modal.add_component(dpp::component().set_type(dpp::cot_text)
-                    .set_label("經驗值（正數，補償用）").set_id("exp_amount")
+                    .set_label("經驗值（負數扣除，最低扣到 0 不降級）").set_id("exp_amount")
                     .set_text_style(dpp::text_short).set_min_length(1).set_max_length(15));
                 ev.dialog(modal);
             } else { // admin_kill_btn
@@ -3304,6 +3305,8 @@ int main(int argc, char* argv[]) {
     bot.on_form_submit([](const dpp::form_submit_t& ev) {
         const std::string& cid = ev.custom_id;
         dpp::snowflake issuer = ev.command.get_issuing_user().id;
+
+        if (cid.rfind("maple_raidguessm_", 0) == 0) { handle_maple_modal(ev); return; }
 
         // Pet rename modal
         if (cid.rfind("pet_rename_modal_", 0) == 0 || cid.rfind("pet_release_modal_", 0) == 0) {
@@ -3740,21 +3743,22 @@ int main(int argc, char* argv[]) {
                 ).set_flags(dpp::m_ephemeral));
 
         } else if (cid == "admin_mapleexp_modal") {
-            // fields: [target_uid, exp_amount]（僅限正數，補償用；沒有扣除/降級功能）
+            // fields: [target_uid, exp_amount]（正數＝補發；負數＝扣除，最低扣到這一級的 0，不會降級）
             if (fields.size() < 2) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 請填寫經驗值數量！").set_flags(dpp::m_ephemeral)); return;
             }
             int64_t amount = 0;
             try { amount = std::stoll(fields[1]); } catch (...) {}
-            if (amount <= 0) {
+            if (amount == 0) {
                 ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 經驗值必須是正數！（沒有扣除/降級功能）").set_flags(dpp::m_ephemeral)); return;
+                    dpp::message("❌ 請輸入有效數字！（負數＝扣除）").set_flags(dpp::m_ephemeral)); return;
             }
             std::string result = maple_admin_give_exp(target_uid, amount);
             ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("✅ 已為 <@" + std::to_string((uint64_t)target_uid) + "> 補發養成經驗 **" +
-                    std::to_string(amount) + "**！目前 " + result).set_flags(dpp::m_ephemeral));
+                dpp::message("✅ 已為 <@" + std::to_string((uint64_t)target_uid) + "> " +
+                    (amount > 0 ? "補發養成經驗 **" + std::to_string(amount) + "**！目前 " : "扣除養成經驗：") +
+                    result).set_flags(dpp::m_ephemeral));
 
         } else if (cid == "admin_kill_lookup_modal") {
             ev.reply(dpp::ir_channel_message_with_source, make_admin_kill_report_msg(target_uid));
@@ -4859,6 +4863,12 @@ int main(int argc, char* argv[]) {
       fprintf(stderr, "[STARTUP] on_ready fired\n"); fflush(stderr);
       if (dpp::run_once<struct on_ready_once>()) {
         fprintf(stderr, "[STARTUP] entering on_ready_once block\n"); fflush(stderr);
+        if (!g_recover_report.empty() && !cfg.notify_user_id.empty()) {
+            try {
+                bot.direct_message_create(dpp::snowflake(std::stoull(cfg.notify_user_id)),
+                                          dpp::message(g_recover_report.substr(0, 1900)));
+            } catch (...) {}
+        }
         // 清除舊的 global commands（避免與 guild commands 重複顯示）
         bot.global_bulk_command_create({});
 
@@ -4954,27 +4964,7 @@ int main(int argc, char* argv[]) {
 
         // ── 每小時自動備份所有 JSON 資料（覆蓋同一份，不累積） ──────────────
         bot.start_timer([](dpp::timer) {
-            namespace fs = std::filesystem;
-            try {
-                fs::create_directories("backup");
-                static const char* FILES[] = {
-                    "chips.json","bank.json","inventory.json","pets.json",
-                    "hunt_clear.json","equipped.json","purchases.json",
-                    "rlstats.json","bjstats.json","dicestats.json",
-                    "shootstats.json","scratchstats.json","warnings.json",
-                    "stock_holdings.json","stock_market.json",
-                    "gacha_pity.json","gacha_hero_pity.json","gacha_mystery_pity.json",
-                    "euroulette_stats.json","rocketstats.json","rpsstats.json",
-                    "wolfplayerstats.json","adventure.json","registrations.json",
-                    "shop.json","maple_data.json","maple_wb_state.json","settings.json","auction.json", nullptr
-                };
-                for (int i = 0; FILES[i]; i++) {
-                    fs::path src(FILES[i]);
-                    if (fs::exists(src))
-                        fs::copy_file(src, fs::path("backup") / FILES[i],
-                                      fs::copy_options::overwrite_existing);
-                }
-            } catch (...) {}
+            try { backup_data_files(); } catch (...) {}
         }, 3600);
 
         // ── 尊爵VIP 自動領取 (每 5 分鐘掃一次) ──────────────────────────────

@@ -340,6 +340,33 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.item_id = 96727;
             items.push_back(e);
         }
+        // 女皇的象徵：材料道具，放背包「其他」分頁，目前無作用。西格諾斯掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "mat_empress_token";
+            e.name = "女皇的象徵";
+            e.slot = "material";
+            e.sellable = true;
+            e.atk_speed_sec = 60;
+            e.price = 0;
+            e.item_id = 96792;
+            items.push_back(e);
+        }
+        // 西格諾斯的誓約戒指：戒指，限制等級40、無副屬性限制、無職業限制，全屬性(力/敏/智/幸)各+10。
+        // 西格諾斯掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "ring_cygnus_oath";
+            e.name = "西格諾斯的誓約戒指";
+            e.slot = "ring";
+            e.level_req = 40;
+            e.sellable = true;
+            e.atk_speed_sec = 60;
+            e.str_bonus = 10; e.dex_bonus = 10; e.int_bonus = 10; e.luk_bonus = 10;
+            e.price = 0;
+            e.item_id = 96793;
+            items.push_back(e);
+        }
         // 掌刺：匕首，限制等級40、限制副屬性70，攻擊力59、主屬性(幸運)+10。仙人長老1%掉落，不在商店販售。
         {
             MapleItemDef e;
@@ -477,6 +504,11 @@ static const std::vector<MapleScrollDef> MAPLE_SCROLLS = {
     {"sc_necklace100", "項鍊全屬性卷軸 100%", 100, 15000, "項鍊", 0, 0, 0, 96558, 0, false, false, 1, 1, 1, 1},
     {"sc_necklace60",  "項鍊全屬性卷軸 60%",  60, 40000, "項鍊", 0, 0, 0, 96559, 0, false, false, 3, 3, 3, 3},
     {"sc_necklace20",  "項鍊全屬性卷軸 20%",  20, 90000, "項鍊", 2, 0, 0, 96560, 0, false, false, 5, 5, 5, 5},
+    // 戒指卷軸（西格諾斯掉落，不上架商店）：主屬性卷軸實際效果是全屬性（力/敏/智/幸各自加，不分職業）
+    {"sc_ring60",           "戒指主屬性卷軸 60%",     60, 40000, "戒指", 0, 0, 0, 96561, 0,  false, false, 4, 4, 4, 4},
+    {"sc_ring_curse50",     "戒指主屬性詛咒卷軸 50%", 50, 80000, "戒指", 0, 0, 0, 96562, 25, false, false, 8, 8, 8, 8},
+    {"sc_ring_atk60",       "戒指攻擊卷軸 60%",       60, 40000, "戒指", 0, 0, 2, 96563, 0,  false},
+    {"sc_ring_atk_curse50", "戒指攻擊詛咒卷軸 50%",   50, 80000, "戒指", 0, 0, 4, 96564, 25, false},
 };
 
 // ─── 陣營系統 ─────────────────────────────────────────────────────────────────

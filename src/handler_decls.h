@@ -62,13 +62,14 @@ void handle_stock_modal (const dpp::form_submit_t&  ev);
 void handle_maple_message(const dpp::message_create_t& ev, const std::string& content, dpp::snowflake uid, dpp::snowflake ch);
 void handle_maple_button (const dpp::button_click_t& ev);
 void handle_maple_select (const dpp::select_click_t& ev, dpp::snowflake uid);
+void handle_maple_modal  (const dpp::form_submit_t& ev);
 void handle_maple_slash  (const dpp::slashcommand_t& ev, const std::string& cmd_name, dpp::snowflake uid, dpp::snowflake ch);
 void load_maple_all_data(); // 啟動時呼叫，載入角色資料與進行中的戰鬥
 void load_lotterystats();   // 啟動時呼叫，載入摸彩累積統計＋進行中的摸彩狀態（定義在 handlers_games.cpp；main.cpp 不直接 include lottery.h，避免跟 maple.h 在同一個 TU 編譯出錯）
 void lot_settle_orphaned_games(); // bot 連線後（on_ready_once）呼叫：把啟動前卡在動畫中的摸彩直接結算掉
 void maple_save_exp_event(); // !經驗活動 設定/結束後呼叫，存檔（maple_exp_event 這個全域struct在types.h，main.cpp可以直接讀寫欄位）
 void maple_exp_event_archive_current(); // !經驗活動 換下一場／手動結束前呼叫，把目前這場存進歷史（呼叫前需持有 data_mutex）
-// 管理員面板「給養成經驗」用：補發楓之谷世界養成經驗值（amount 必須 > 0，沒有扣除/降級功能）。
+// 管理員面板「給養成經驗」用：amount > 0 補發；amount < 0 扣除（只扣目前這一級的經驗，最低到 0，不降級）。
 // 回傳結果描述文字（目前等級／剩餘經驗，升級的話會註明），已經處理好存檔。
 std::string maple_admin_give_exp(dpp::snowflake uid, int64_t amount);
 

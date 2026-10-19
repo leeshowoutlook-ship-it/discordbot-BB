@@ -6,6 +6,7 @@
 #include <ctime>
 #include <cstdio>
 #include <filesystem>
+#include <nlohmann/json.hpp>
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -19,26 +20,108 @@ inline int localtime_s(struct tm* out, const time_t* t) {
 }
 #endif
 
-// Atomic JSON save: write to .tmp, fsync to flush OS write cache, then rename.
-// fsync ensures data reaches disk before rename, protecting against power-loss corruption.
+// Atomic JSON save: write to .tmp, flush to disk, then rename.
+// The data must reach disk before the rename; otherwise a power loss can leave a
+// file of the right size filled with NUL bytes.
 static inline void atomic_write(const std::string& path, const std::string& data) {
     std::string tmp = path + ".tmp";
+#ifdef _WIN32
+    HANDLE h = CreateFileA(tmp.c_str(), GENERIC_WRITE, 0, nullptr,
+                           CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return;
+    DWORD written = 0;
+    BOOL ok = WriteFile(h, data.data(), (DWORD)data.size(), &written, nullptr)
+              && written == (DWORD)data.size()
+              && FlushFileBuffers(h);
+    CloseHandle(h);
+    if (!ok) { DeleteFileA(tmp.c_str()); return; }
+    MoveFileExA(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+#else
     {
-        std::ofstream f(tmp);
+        std::ofstream f(tmp, std::ios::binary);
         if (!f) return;
         f << data;
         f.flush();
         if (!f) return;
-#ifdef _WIN32
-        HANDLE h = CreateFileA(tmp.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
-                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (h != INVALID_HANDLE_VALUE) { FlushFileBuffers(h); CloseHandle(h); }
-#else
-        int fd = ::open(tmp.c_str(), O_WRONLY);
-        if (fd >= 0) { ::fsync(fd); ::close(fd); }
-#endif
     }
+    int fd = ::open(tmp.c_str(), O_WRONLY);
+    if (fd >= 0) { ::fsync(fd); ::close(fd); }
     std::filesystem::rename(tmp, path);
+#endif
+}
+
+// ─── 存檔清單／驗證／開機修復 ─────────────────────────────────────────────────
+// 新增任何 JSON 存檔都要加進這裡，才會被每小時備份與開機修復涵蓋。
+static const char* const DATA_FILES[] = {
+    "adventure.json","announcement.json","auction.json","bank.json","bj_games.json",
+    "bjstats.json","chips.json","dice_games.json","dicestats.json","dogbook.json",
+    "equipped.json","euroulette_games.json","euroulette_multi_games.json","euroulette_stats.json",
+    "gacha_hero_pity.json","gacha_mystery_pity.json","gacha_pity.json","giveaways.json",
+    "guess_stats.json","hunt_clear.json","inventory.json","lottery_games.json",
+    "lottery_history.json","lottery_stock.json","lotterystats.json","maple_data.json",
+    "maple_exp_event.json","maple_faction_state.json","maple_raid_rooms.json","maple_wb_state.json",
+    "onwstats.json","pets.json","proposed_teams.json","purchases.json","registrations.json",
+    "rlstats.json","rocketstats.json","rpsstats.json","scratch_games.json","scratchstats.json",
+    "settings.json","shootstats.json","shop.json","signin.json","stock_holdings.json",
+    "stock_market.json","uc_stats.json","warnings.json","wolfplayerstats.json", nullptr
+};
+
+static inline bool json_file_valid(const std::filesystem::path& p) {
+    std::ifstream f(p, std::ios::binary);
+    if (!f) return false;
+    std::string s((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    if (s.find('\0') != std::string::npos) return false;
+    return nlohmann::json::accept(s);
+}
+
+// 開機時、所有 load_*() 之前呼叫：損毀的存檔移到 corrupt_<時間>/，有完好備份就還原。
+// 回傳給管理員看的報告（空字串 = 全部正常）。
+static inline std::string recover_corrupt_data_files() {
+    namespace fs = std::filesystem;
+    std::string report;
+    fs::path corrupt_dir;
+    for (int i = 0; DATA_FILES[i]; i++) {
+        fs::path p(DATA_FILES[i]);
+        std::error_code ec;
+        if (!fs::exists(p, ec) || json_file_valid(p)) continue;
+        if (corrupt_dir.empty()) {
+            char buf[32]; time_t now = time(nullptr); tm lt{}; localtime_s(&lt, &now);
+            strftime(buf, sizeof(buf), "corrupt_%Y%m%d_%H%M%S", &lt);
+            corrupt_dir = buf;
+            fs::create_directories(corrupt_dir, ec);
+        }
+        fs::rename(p, corrupt_dir / p, ec);
+        if (ec) fs::copy_file(p, corrupt_dir / p, fs::copy_options::overwrite_existing, ec);
+        fs::path bak = fs::path("backup") / p;
+        if (fs::exists(bak, ec) && json_file_valid(bak)) {
+            fs::copy_file(bak, p, fs::copy_options::overwrite_existing, ec);
+            report += "✅ `" + p.string() + "` 損毀，已從 backup 還原" + (ec ? "（複製失敗！）" : "") + "\n";
+        } else {
+            fs::remove(p, ec);
+            report += "❌ `" + p.string() + "` 損毀且無可用備份，已重置為空\n";
+        }
+    }
+    if (!report.empty()) {
+        report = "⚠️ **開機存檔檢查發現損毀**（原檔已移至 `" + corrupt_dir.string() + "`）\n" + report;
+        fprintf(stderr, "[RECOVER]\n%s", report.c_str()); fflush(stderr);
+    }
+    return report;
+}
+
+// 每小時備份：只覆蓋通過驗證的檔案，避免損毀檔案蓋掉好的備份。
+static inline void backup_data_files() {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::create_directories("backup", ec);
+    for (int i = 0; DATA_FILES[i]; i++) {
+        fs::path p(DATA_FILES[i]);
+        if (!fs::exists(p, ec)) continue;
+        if (!json_file_valid(p)) {
+            fprintf(stderr, "[BACKUP] skip corrupt %s\n", DATA_FILES[i]); fflush(stderr);
+            continue;
+        }
+        fs::copy_file(p, fs::path("backup") / p, fs::copy_options::overwrite_existing, ec);
+    }
 }
 
 // ─── Config loader ────────────────────────────────────────────────────────────

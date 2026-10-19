@@ -4,6 +4,7 @@
 #include "onenight.h"
 #include "wolfplayerstats.h"
 #include "onwstats.h"
+#include "scratch.h"
 #include "handler_decls.h"
 
 // ─── Message handler ──────────────────────────────────────────────────────────
@@ -58,13 +59,15 @@ void handle_wolf_message(const dpp::message_create_t& ev, const std::string& con
                 default:                           return "未知";
             }
         };
-        std::string dm;
+        // 每個區塊各自成一段，送出時再依 Discord 2000 字上限分成多則私訊
+        std::vector<std::string> sections;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             if (wolf_games.empty()) {
-                dm = "🔍 目前沒有進行中的狼人殺對局。";
+                sections.push_back("🔍 目前沒有進行中的狼人殺對局。");
             } else {
                 for (auto& [gid, g] : wolf_games) {
+                    std::string dm;
                     dm += "═══════════════\n";
                     dm += "📍 頻道：<#" + std::to_string((uint64_t)g.channel_id) + ">\n";
                     dm += "📅 第 " + std::to_string(g.day) + " 天　階段：**" + phase_str(g.phase) + "**\n";
@@ -91,10 +94,32 @@ void handle_wolf_message(const dpp::message_create_t& ev, const std::string& con
                         if (p.is_sheriff) dm += " 🎖️";
                         dm += "\n";
                     }
+                    sections.push_back(dm);
+                }
+            }
+            if (scratch_games.empty()) {
+                sections.push_back("🎰 目前沒有進行中的刮刮樂。");
+            } else {
+                for (auto& [suid, sg] : scratch_games) {
+                    int scratched = 0;
+                    for (int i = 0; i < 9; i++) if ((sg.revealed >> i) & 1) scratched++;
+                    std::string dm = "═══════════════\n🎰 **刮刮樂** — <@" + std::to_string((uint64_t)suid) + ">"
+                                   + (sg.display_name.empty() ? "" : "（" + sg.display_name + "）") + "\n";
+                    if (sg.channel_id) dm += "📍 頻道：<#" + std::to_string((uint64_t)sg.channel_id) + ">\n";
+                    dm += "💰 押注 " + std::to_string(sg.bet) + "（已付 " + std::to_string(sg.total_paid) + "）　已刮 "
+                        + std::to_string(scratched) + " 格（安全 " + std::to_string(sg.safe_scratches) + " 格）"
+                        + (sg.extra_mode ? "　⏳ 已付加刮、還沒刮" : "") + "\n";
+                    dm += "**目前盤面：**\n" + sk_grid_text(sg) + "\n**答案：**\n" + sk_full_grid(sg) + "\n";
+                    sections.push_back(dm);
                 }
             }
         }
-        g_bot->direct_message_create(uid, dpp::message(dm));
+        std::vector<std::string> dms(1);
+        for (auto& sec : sections) {
+            if (!dms.back().empty() && dms.back().size() + sec.size() > 1900) dms.emplace_back();
+            dms.back() += sec + "\n";
+        }
+        for (auto& d : dms) if (!d.empty()) g_bot->direct_message_create(uid, dpp::message(d));
     }
     else if (content == "!狼人殺榜單" || content == "！狼人殺榜單") {
         ev.reply(make_wolf_leaderboard_msg());

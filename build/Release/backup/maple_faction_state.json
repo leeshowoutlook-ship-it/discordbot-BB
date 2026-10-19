@@ -1,0 +1,23 @@
+{
+  "mushroom_baby": {
+    "atk_pts": 12,
+    "coin_pts": 0,
+    "exp": 862,
+    "exp_pts": 0,
+    "level": 12
+  },
+  "three_eye_octopus": {
+    "atk_pts": 0,
+    "coin_pts": 0,
+    "exp": 72,
+    "exp_pts": 7,
+    "level": 7
+  },
+  "water_spirit": {
+    "atk_pts": 14,
+    "coin_pts": 0,
+    "exp": 689,
+    "exp_pts": 0,
+    "level": 14
+  }
+}

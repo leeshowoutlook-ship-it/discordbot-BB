@@ -31,20 +31,34 @@ void maple_exp_event_archive_current() {
 }
 
 std::string maple_admin_give_exp(dpp::snowflake uid, int64_t amount) {
-    if (amount <= 0) return "";
+    if (amount == 0) return "";
     int level_ups = 0, new_level = 0;
-    int64_t new_exp = 0;
+    int64_t new_exp = 0, deducted = 0;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
-        auto& c = maple_data[uid];
-        level_ups = maple_apply_exp(c, amount); // 內部已經會處理陣營經驗（升每一級 +N），不用再呼叫一次
-        new_level = c.level;
-        new_exp   = c.exp;
+        if (amount < 0) {
+            // 扣除：只扣目前這一級已累積的經驗，最低到 0，不會降級
+            auto it = maple_data.find(uid);
+            if (it == maple_data.end()) return "（這位玩家還沒有養成角色，沒有扣除）";
+            deducted = std::min(-amount, it->second.exp);
+            it->second.exp -= deducted;
+            new_level = it->second.level;
+            new_exp   = it->second.exp;
+        } else {
+            auto& c = maple_data[uid];
+            level_ups = maple_apply_exp(c, amount); // 內部已經會處理陣營經驗（升每一級 +N），不用再呼叫一次
+            new_level = c.level;
+            new_exp   = c.exp;
+        }
     }
     save_maple_data();
     if (level_ups > 0) save_maple_faction_state();
     std::string msg = "Lv." + std::to_string(new_level) + "，剩餘經驗 " + std::to_string(new_exp);
     if (level_ups > 0) msg += "（升了 **" + std::to_string(level_ups) + "** 級）";
+    if (amount < 0) {
+        msg = "實際扣除 **" + std::to_string(deducted) + "**，" + msg;
+        if (deducted < -amount) msg += "（已扣到 0，不會降級）";
+    }
     return msg;
 }
 
@@ -664,6 +678,13 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 room->accum_secs = 0;
                 room->resume_at  = time(nullptr);
                 room->checkin_turn = 0; // 輪流指定簽到：從隊長（members[0]）開始輪
+                room->accum_dmg = 0.0;
+                room->dmg_mult_x10 = 10;
+                room->checkin_pending.clear();
+                room->guess_active = false;
+                room->guess_note.clear();
+                const MapleRaidBossDef* boss = maple_find_raid_boss(room->boss_key);
+                room->next_guess_secs = (boss && boss->guess_game) ? MAPLE_RAID_GUESS_INTERVAL_SEC : 0;
                 room->state = "fighting";
             }
         }
@@ -708,11 +729,18 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             MapleRaidRoom* room = maple_find_raid_room(room_id);
             if (!room || room->state != "fighting" || room->resume_at > 0 || !maple_raid_room_has_member(*room, uid)) {
                 // 房間不存在／沒在暫停中／不是隊員：靜默忽略，讓畫面刷新即可
-            } else if (maple_raid_checkin_designee(*room) != uid) {
+            } else if (!maple_raid_can_checkin(*room, maple_find_raid_boss(room->boss_key), uid)) {
                 err = "現在還沒輪到你簽到，換其他隊員試試。";
             } else {
-                room->resume_at = time(nullptr);
-                room->checkin_turn = (room->checkin_turn + 1) % (int)room->members.size(); // 輪到下一位
+                const MapleRaidBossDef* boss = maple_find_raid_boss(room->boss_key);
+                if (boss && boss->checkin_count >= 2) {
+                    auto& pend = room->checkin_pending;
+                    pend.erase(std::remove(pend.begin(), pend.end(), uid), pend.end());
+                    if (pend.empty() && !room->guess_active) room->resume_at = time(nullptr);
+                } else {
+                    room->resume_at = time(nullptr);
+                    room->checkin_turn = (room->checkin_turn + 1) % (int)room->members.size(); // 輪到下一位
+                }
             }
         }
         if (!err.empty()) {
@@ -721,6 +749,39 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         }
         save_maple_raid_rooms();
         ev.reply(dpp::ir_update_message, make_maple_raid_status_msg(uid, room_id));
+        return;
+    }
+
+    // 猜數字：被指定的人按下後跳出輸入框（結果在 handle_maple_modal 處理）
+    if (cid.rfind("maple_raidguess_", 0) == 0) {
+        std::string rest = cid.substr(16);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        int tries = 0;
+        bool ok = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            MapleRaidRoom* room = maple_find_raid_room(room_id);
+            if (room && room->state == "fighting" && room->guess_active && room->guess_uid == uid) {
+                ok = true; tries = (int)room->guess_history.size();
+            }
+        }
+        if (!ok) {
+            ev.reply(dpp::ir_update_message, make_maple_raid_status_msg(uid, room_id)); return;
+        }
+        dpp::interaction_modal_response modal("maple_raidguessm_" + std::to_string((uint64_t)uid) + "_" + room_id, "猜數字（幾A幾B）");
+        modal.add_component(dpp::component().set_type(dpp::cot_text)
+            .set_label("4 個不重複數字（第 " + std::to_string(tries + 1)
+                       + "/" + std::to_string(MAPLE_RAID_GUESS_MAX_TRIES) + " 次）")
+            .set_id("guess").set_text_style(dpp::text_short)
+            .set_min_length(4).set_max_length(4).set_placeholder("例如 0123"));
+        ev.dialog(modal);
         return;
     }
 
@@ -772,6 +833,15 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                                 if (const MapleScrollDef* sd = maple_find_scroll(key)) { c.scrolls[key]++; drops.push_back(sd->name); }
                                 else if (const MapleItemDef* it = maple_find_item(key)) { c.equipment[key]++; drops.push_back(it->name); }
                             }
+                            // 機器人擁有者第一次擊敗西格諾斯：保底掉一枚誓約戒指（這次正常擲骰沒掉到才補）
+                            bool owner = !cfg.notify_user_id.empty() && std::to_string((uint64_t)m.uid) == cfg.notify_user_id;
+                            if (boss->key == "cygnus" && owner && c.raid_clears[boss->key] == 0) {
+                                const MapleItemDef* ring = maple_find_item("ring_cygnus_oath");
+                                if (ring && std::find(drops.begin(), drops.end(), ring->name) == drops.end()) {
+                                    c.equipment[ring->key]++; drops.push_back(ring->name);
+                                }
+                            }
+                            c.raid_clears[boss->key]++;
                         }
                         summary += "**" + m.display_name + "**：+" + std::to_string(exp_gain) + " EXP、+"
                                  + std::to_string(coin_gain) + " 瘋幣" + (level_ups > 0 ? "（升級！）" : "");
@@ -1877,7 +1947,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
         }
         const MapleItemDef* item = maple_find_item(item_key);
-        if (!item || item->slot != slot) return;
+        if (!item || item->slot != maple_slot_item_kind(slot)) return;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
@@ -1895,7 +1965,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 你沒有這件裝備的庫存！").set_flags(dpp::m_ephemeral)); return;
             }
-            if (!maple_meets_requirement(c, *item)) {
+            if (!maple_meets_requirement(c, *item, slot)) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 條件不符，無法裝備！").set_flags(dpp::m_ephemeral)); return;
             }
@@ -1946,12 +2016,12 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                     dpp::message("❌ 找不到這件強化裝備，可能已經賣掉了！").set_flags(dpp::m_ephemeral)); return;
             }
             const MapleItemDef* item = maple_find_item(eit->base_key);
-            if (!item || item->slot != slot) return;
+            if (!item || item->slot != maple_slot_item_kind(slot)) return;
             if (maple_enh_is_equipped(c, enh_id)) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 已經裝備這個了！").set_flags(dpp::m_ephemeral)); return;
             }
-            if (!maple_meets_requirement(c, *item)) {
+            if (!maple_meets_requirement(c, *item, slot)) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 條件不符，無法裝備！").set_flags(dpp::m_ephemeral)); return;
             }
@@ -2375,4 +2445,70 @@ void handle_maple_select(const dpp::select_click_t& ev, dpp::snowflake uid) {
         ev.reply(dpp::ir_update_message, make_maple_adv_region_list_msg(uid, bracket));
         return;
     }
+}
+
+// ─── 輸入框（目前只有突襲首領猜數字）─────────────────────────────────────────
+void handle_maple_modal(const dpp::form_submit_t& ev)
+{
+    const std::string& cid = ev.custom_id;
+    dpp::snowflake uid = ev.command.get_issuing_user().id;
+    if (cid.rfind("maple_raidguessm_", 0) != 0) return;
+    std::string rest = cid.substr(17);
+    size_t sep = rest.find('_');
+    if (sep == std::string::npos) return;
+    dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+    std::string room_id = rest.substr(sep + 1);
+    if (owner != uid) {
+        ev.reply(dpp::ir_channel_message_with_source,
+            dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+    }
+    std::string input;
+    for (auto& row : ev.components) {
+        if (std::holds_alternative<std::string>(row.value)) input = std::get<std::string>(row.value);
+        for (auto& sub : row.components)
+            if (std::holds_alternative<std::string>(sub.value)) input = std::get<std::string>(sub.value);
+    }
+    input.erase(std::remove_if(input.begin(), input.end(), [](unsigned char ch){ return std::isspace(ch); }), input.end());
+    if (!guess_valid(input)) {
+        ev.reply(dpp::ir_channel_message_with_source,
+            dpp::message("❌ 請輸入 4 個不重複的數字，例如 `0123`（這次不算次數）").set_flags(dpp::m_ephemeral)); return;
+    }
+
+    bool failed = false;
+    std::string fail_text;
+    dpp::snowflake announce_ch = 0;
+    std::vector<dpp::snowflake> member_uids;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        MapleRaidRoom* room = maple_find_raid_room(room_id);
+        if (room && maple_raid_apply_guess_locked(*room, uid, input, time(nullptr)) == MRG_FAILED) {
+            const MapleRaidBossDef* boss = maple_find_raid_boss(room->boss_key);
+            failed = true;
+            announce_ch = room->channel_id;
+            fail_text = "## 💥 突襲失敗 — " + (boss ? boss->name : room->boss_key) + "\n<@"
+                      + std::to_string((uint64_t)uid) + "> " + std::to_string(MAPLE_RAID_GUESS_MAX_TRIES)
+                      + " 次都沒有猜中（答案是 `" + room->guess_secret + "`），隊伍被擊退了。\n"
+                      + "本次不消耗突襲次數，可以重新組隊挑戰。\n隊員：";
+            for (auto& m : room->members) {
+                member_uids.push_back(m.uid);
+                fail_text += m.display_name + " ";
+                auto it = maple_data.find(m.uid);
+                if (it != maple_data.end()) it->second.raid_room_id.clear();
+            }
+            maple_raid_rooms.erase(room_id);
+        }
+    }
+    save_maple_raid_rooms();
+    if (!failed) {
+        ev.reply(dpp::ir_update_message, make_maple_raid_status_msg(uid, room_id));
+        return;
+    }
+    save_maple_data();
+    ev.reply(dpp::ir_update_message, make_maple_ambush_msg(uid));
+    auto dm_all = [fail_text, member_uids]() {
+        for (auto mu : member_uids) g_bot->direct_message_create(mu, dpp::message(fail_text));
+    };
+    if (!announce_ch) { dm_all(); return; }
+    dpp::message msg(announce_ch, fail_text);
+    g_bot->message_create(msg, [dm_all](const dpp::confirmation_callback_t& cb) { if (cb.is_error()) dm_all(); });
 }

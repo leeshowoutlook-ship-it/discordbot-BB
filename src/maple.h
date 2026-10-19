@@ -1,6 +1,7 @@
 #pragma once
 #include "monster.h"
 #include "maple_items.h"
+#include "bulls_cows.h"
 #include <string>
 #include <vector>
 #include <cmath>
@@ -508,13 +509,19 @@ static const std::vector<MapleSlotDef> MAPLE_SLOTS = {
     {"weapon",   "武器", "⚔️"},
     {"offhand",  "副武器", "🔰"},
     {"earring",  "耳環", "👂"},
-    {"ring",     "戒指", "💍"},
+    {"ring",     "戒指1", "💍"},
+    {"ring2",    "戒指2", "💍"},
     {"necklace", "項鍊", "📿"},
     {"helmet",   "頭盔", "🪖"},
     {"glove",    "手套", "🧤"},
     {"clothes",  "套服", "👘"},
     {"shoes",    "鞋子", "👟"},
 };
+
+// 裝備欄位能裝哪一種 MapleItemDef::slot 的道具（兩格戒指都只收 slot=="ring"）
+static std::string maple_slot_item_kind(const std::string& slot) {
+    return slot == "ring2" ? std::string("ring") : slot;
+}
 
 // MapleItemDef／MAPLE_ITEMS／MAPLE_WEAPON_TYPES／MAPLE_ARMORS 等裝備資料定義都搬到 maple_items.h 了。
 
@@ -559,6 +566,7 @@ static std::string maple_equipped_raw(const MapleCharacter& c, const std::string
     if (slot == "offhand")  return c.eq_offhand;
     if (slot == "earring")  return c.eq_earring;
     if (slot == "ring")     return c.eq_ring;
+    if (slot == "ring2")    return c.eq_ring2;
     if (slot == "necklace") return c.eq_necklace;
     if (slot == "helmet")   return c.eq_helmet;
     if (slot == "glove")    return c.eq_glove;
@@ -582,7 +590,7 @@ static const MapleEnhItem* maple_equipped_enh(const MapleCharacter& c, const std
 }
 // 此強化實例 id 是否正穿在身上（任一部位）
 static bool maple_enh_is_equipped(const MapleCharacter& c, int id) {
-    static const char* slots[] = {"weapon","offhand","earring","ring","necklace","helmet","glove","clothes","shoes"};
+    static const char* slots[] = {"weapon","offhand","earring","ring","ring2","necklace","helmet","glove","clothes","shoes"};
     for (auto* s : slots) if (maple_eq_enh_id(maple_equipped_raw(c, s)) == id) return true;
     return false;
 }
@@ -663,7 +671,7 @@ static int maple_equip_stat_bonus_excl(const MapleCharacter& c, const std::strin
                                        const std::string& excl_slot) {
     int total = 0;
     const MapleJobDef& j = maple_job_of(c);
-    static const char* slots[] = {"weapon","offhand","earring","ring","necklace","helmet","glove","clothes","shoes"};
+    static const char* slots[] = {"weapon","offhand","earring","ring","ring2","necklace","helmet","glove","clothes","shoes"};
     for (auto* s : slots) {
         if (excl_slot == s) continue;
         const MapleItemDef* it = maple_find_item(maple_equipped_key(c, s));
@@ -722,6 +730,7 @@ static void maple_set_equipped(MapleCharacter& c, const std::string& slot, const
     else if (slot == "offhand")  c.eq_offhand  = key;
     else if (slot == "earring")  c.eq_earring  = key;
     else if (slot == "ring")     c.eq_ring     = key;
+    else if (slot == "ring2")    c.eq_ring2    = key;
     else if (slot == "necklace") c.eq_necklace = key;
     else if (slot == "helmet")   c.eq_helmet   = key;
     else if (slot == "glove")    c.eq_glove    = key;
@@ -804,13 +813,16 @@ static bool maple_skill_unlockable(const MapleCharacter& c, const MapleSkillDef&
 // 玩家目前是否符合裝備該道具的需求（等級／主屬性／副屬性／職業，依目前職業判斷）
 // 屬性檢查會「扣掉該部位當前那件裝備的加成」再比：例如穿 150 武器需副屬性 150，
 // 是看「脫掉現在的武器後、其他部位＋配點」夠不夠 150。
-static bool maple_meets_requirement(const MapleCharacter& c, const MapleItemDef& item) {
+// target_slot：要裝到哪一格（戒指有兩格，要扣的是那一格目前的裝備）；空字串＝用道具本身的 slot
+static bool maple_meets_requirement(const MapleCharacter& c, const MapleItemDef& item,
+                                    const std::string& target_slot = "") {
     const MapleJobDef& j = maple_job_of(c);
     if (c.level < item.level_req) return false;
+    const std::string& excl = target_slot.empty() ? item.slot : target_slot;
     int prim = maple_stat_alloc(c, j.primary_stat)
-             + maple_equip_stat_bonus_excl(c, j.primary_stat,   item.slot);
+             + maple_equip_stat_bonus_excl(c, j.primary_stat,   excl);
     int sec  = maple_stat_alloc(c, j.secondary_stat)
-             + maple_equip_stat_bonus_excl(c, j.secondary_stat, item.slot);
+             + maple_equip_stat_bonus_excl(c, j.secondary_stat, excl);
     if (prim < item.primary_req)   return false;
     if (sec  < item.secondary_req) return false;
     // job_req 可能是一轉職業key（武器）或二轉職業key（部分副武器，如魔導書限冰雷、聖典限僧侶）：
@@ -844,6 +856,7 @@ static bool maple_owns_item(const MapleCharacter& c, const std::string& key) {
     if (key == "wooden_sword") return true;
     const MapleItemDef* it = maple_find_item(key);
     if (it && maple_equipped_key(c, it->slot) == key) return true;
+    if (it && it->slot == "ring" && maple_equipped_key(c, "ring2") == key) return true;
     auto eit = c.equipment.find(key);
     if (eit != c.equipment.end() && eit->second > 0) return true;
     for (auto& e : c.enh_items) if (e.base_key == key) return true;
@@ -954,11 +967,12 @@ static int64_t maple_atk_power_base_min(const MapleCharacter& c) {
 // 最小＝主屬性係數只算 0.9*熟練度（基礎10%，武器精通每級+5%）。兩者最後都要 /100。
 // 若玩家選擇了攻擊技能：damage_coef 套用技能係數取代基礎100%；
 // damage_fixed 直接固定傷害（不吃屬性，最大最小相同）。算完後再疊加二轉職業技能的固定/百分比/倍率加成。
-static int64_t maple_atk_power_max(const MapleCharacter& c, double angel_override = -1.0) {
+// extra_wpn_atk：額外的武器攻擊力（陣營攻擊力，只有冒險會傳），跟裝備攻擊力一起乘上屬性係數
+static int64_t maple_atk_power_max(const MapleCharacter& c, double angel_override = -1.0, int extra_wpn_atk = 0) {
     const MapleJobDef& j = maple_job_of(c);
     double primary   = maple_stat_value(c, j.primary_stat);
     double secondary = maple_stat_value(c, j.secondary_stat);
-    int64_t base = (int64_t)std::ceil((j.primary_coef * primary + j.secondary_coef * secondary) * maple_total_atk(c) / 100.0);
+    int64_t base = (int64_t)std::ceil((j.primary_coef * primary + j.secondary_coef * secondary) * (maple_total_atk(c) + extra_wpn_atk) / 100.0);
     int64_t result;
     const MapleSkillDef* sd = maple_current_atk_skill(c);
     if (!sd) result = base;
@@ -974,12 +988,12 @@ static int64_t maple_atk_power_max(const MapleCharacter& c, double angel_overrid
     result += maple_job_mult_atk_bonus(c);
     return result;
 }
-static int64_t maple_atk_power_min(const MapleCharacter& c, double angel_override = -1.0) {
+static int64_t maple_atk_power_min(const MapleCharacter& c, double angel_override = -1.0, int extra_wpn_atk = 0) {
     const MapleJobDef& j = maple_job_of(c);
     double primary   = maple_stat_value(c, j.primary_stat);
     double secondary = maple_stat_value(c, j.secondary_stat);
     double mastery = maple_eff_weapon_mastery(c);
-    int64_t base = (int64_t)std::ceil((j.primary_coef * 0.9 * mastery * primary + j.secondary_coef * secondary) * maple_total_atk(c) / 100.0);
+    int64_t base = (int64_t)std::ceil((j.primary_coef * 0.9 * mastery * primary + j.secondary_coef * secondary) * (maple_total_atk(c) + extra_wpn_atk) / 100.0);
     int64_t result;
     const MapleSkillDef* sd = maple_current_atk_skill(c);
     if (!sd) result = base;
@@ -995,8 +1009,8 @@ static int64_t maple_atk_power_min(const MapleCharacter& c, double angel_overrid
     result += maple_job_mult_atk_bonus(c);
     return result;
 }
-static double maple_atk_power_avg(const MapleCharacter& c, double angel_override = -1.0) {
-    return (maple_atk_power_min(c, angel_override) + maple_atk_power_max(c, angel_override)) / 2.0;
+static double maple_atk_power_avg(const MapleCharacter& c, double angel_override = -1.0, int extra_wpn_atk = 0) {
+    return (maple_atk_power_min(c, angel_override, extra_wpn_atk) + maple_atk_power_max(c, angel_override, extra_wpn_atk)) / 2.0;
 }
 
 // ─── 卷軸商店 ───────────────────────────────────────────────────────────────
@@ -1044,7 +1058,7 @@ static bool maple_scroll_applies(const MapleScrollDef& s, const MapleCharacter& 
     }
     std::string cn;
     if      (slot == "earring")  cn = "耳環";
-    else if (slot == "ring")     cn = "戒指";
+    else if (slot == "ring" || slot == "ring2") cn = "戒指";
     else if (slot == "necklace") cn = "項鍊";
     else if (slot == "helmet")   cn = "頭盔";
     else if (slot == "glove")    cn = "手套";
@@ -1056,7 +1070,7 @@ static bool maple_scroll_applies(const MapleScrollDef& s, const MapleCharacter& 
 // 某部位的卷軸使用次數上限（武器 7、戒指/項鍊 3、其餘 5）
 static int maple_enh_max_slots(const std::string& slot) {
     if (slot == "weapon") return 7;
-    if (slot == "ring" || slot == "necklace") return 3;
+    if (slot == "ring" || slot == "ring2" || slot == "necklace") return 3;
     return 5;
 }
 // 顯示用：✨成功次數 ＋（強化 已用次數/上限），slot 決定上限是武器(7)還是其他(5)
@@ -1275,7 +1289,7 @@ static double maple_adv_underlevel_mult(const MapleCharacter& c, const MapleAdvR
 
 // 擊殺一隻怪物需要的攻擊次數（用平均傷害＋爆擊期望算，無條件進位，最少1下）
 static int maple_adv_hits_to_kill(const MapleCharacter& c, const MapleAdvRegionDef& region) {
-    double avg_dmg = std::max(1.0, (maple_atk_power_avg(c) + maple_faction_atk_bonus(c)) * maple_crit_avg_mult(c)
+    double avg_dmg = std::max(1.0, maple_atk_power_avg(c, -1.0, maple_faction_atk_bonus(c)) * maple_crit_avg_mult(c)
                                   * maple_adv_region_job_mult(c, region)
                                   * maple_adv_underlevel_mult(c, region)
                                   * maple_adv_dmg_pct_bonus(c));
@@ -1564,8 +1578,9 @@ static int64_t maple_wb_kill_secs(const MapleCharacter& c, const MapleWbRegionDe
     double team_prayer    = teamed ? maple_wb_team_skill_max_locked(c.wb_region, "bishop_prayer")      : 0.0;
     double team_magic_break = teamed ? maple_wb_team_skill_max_locked(c.wb_region, "knight_magic_break") : 0.0;
 
-    double boss_dmg_bonus = std::max(maple_buff_value(c, "curse_assassin"), team_curse_a)
-                           + std::max(maple_buff_value(c, "curse_bandit"),   team_curse_b)
+    // 刺客／俠盜的詛咒術視為同一個技能，不疊加，全隊只取最高
+    double boss_dmg_bonus = std::max({maple_buff_value(c, "curse_assassin"), maple_buff_value(c, "curse_bandit"),
+                                      team_curse_a, team_curse_b})
                            + std::max(maple_buff_value(c, "crusader_encourage"), team_encourage)
                            + std::max(maple_buff_value(c, "bishop_prayer"),      team_prayer)
                            + maple_buff_value(c, "mana_resist_ice");
@@ -1740,6 +1755,27 @@ struct MapleRaidBossDef {
     int64_t coin_min, coin_max; // 結算時每人各自獨立擲一次
     std::vector<MapleWbDropEntry> drops; // 掉落表：每人各自獨立擲一次每一筆（沿用野外首領同一套結構）
     bool open;
+    int  checkin_count = 1;   // 1＝輪流指定一人簽到；>=2＝每輪從隊伍隨機點名這麼多人，全部簽到才繼續
+    bool guess_game    = false; // 每 MAPLE_RAID_GUESS_INTERVAL_SEC 有效秒指定一人猜數字，猜中次數決定接下來的傷害倍率
+};
+
+// 猜數字：跟 !猜數字 同一套幾A幾B（4 個不重複數字），最多猜 10 次；10 次都沒猜中＝突襲失敗（不消耗次數）
+static const int64_t MAPLE_RAID_GUESS_INTERVAL_SEC = 480; // 每 8 分鐘（有效討伐時間）
+static const int     MAPLE_RAID_GUESS_MAX_TRIES = 10;
+// 第 N 次猜中 → 接下來 8 分鐘的傷害倍率×10
+static int maple_raid_guess_mult_x10(int tries) {
+    static const int TABLE[] = {10, 100, 50, 30, 25, 20, 15, 10, 5, 5, 1};
+    return (tries >= 1 && tries <= MAPLE_RAID_GUESS_MAX_TRIES) ? TABLE[tries] : 10;
+}
+static std::string maple_raid_mult_text(int mult_x10) {
+    char buf[16];
+    if (mult_x10 % 10 == 0) snprintf(buf, sizeof(buf), "%d", mult_x10 / 10);
+    else                    snprintf(buf, sizeof(buf), "%.1f", mult_x10 / 10.0);
+    return std::string("×") + buf;
+}
+
+static const std::vector<std::string> MAPLE_OFFHAND30_SET = {
+    "oh_dart_30", "oh_dualblade_30", "oh_grimoire_30", "oh_bible_30", "oh_scope_30", "oh_shield_30",
 };
 
 static const std::vector<MapleRaidBossDef> MAPLE_RAID_BOSSES = {
@@ -1759,6 +1795,17 @@ static const std::vector<MapleRaidBossDef> MAPLE_RAID_BOSSES = {
         {8,   {"oh_scope_30"}},
         {8,   {"oh_shield_30"}},
     }, true},
+    // 西格諾斯：每 5 分鐘隨機點名 2 人簽到、每 8 分鐘指定 1 人猜數字決定增傷；結算只給經驗、不給瘋幣
+    {"cygnus", "西格諾斯", 75, 5000000, false, 50000, 0, 0, 0, {
+        {500, {"mat_empress_token"}},
+        {100, {"ring_cygnus_oath"}},
+        {200, MAPLE_WB_WPN_CURSE50_SET},
+        {150, {"sc_ring60"}},
+        {100, {"sc_ring_curse50"}},
+        {50,  {"sc_ring_atk60"}},
+        {10,  {"sc_ring_atk_curse50"}},
+        {80,  MAPLE_OFFHAND30_SET},
+    }, true, 2, true},
 };
 
 static const MapleRaidBossDef* maple_find_raid_boss(const std::string& key) {
@@ -1798,8 +1845,9 @@ static double maple_raid_member_dps_locked(const MapleCharacter& c, const MapleR
     double team_prayer    = maple_raid_team_skill_max_locked(room, "bishop_prayer");
     double team_magic_break = maple_raid_team_skill_max_locked(room, "knight_magic_break");
 
-    double boss_dmg_bonus = std::max(maple_buff_value(c, "curse_assassin"), team_curse_a)
-                           + std::max(maple_buff_value(c, "curse_bandit"),   team_curse_b)
+    // 刺客／俠盜的詛咒術視為同一個技能，不疊加，全隊只取最高
+    double boss_dmg_bonus = std::max({maple_buff_value(c, "curse_assassin"), maple_buff_value(c, "curse_bandit"),
+                                      team_curse_a, team_curse_b})
                            + std::max(maple_buff_value(c, "crusader_encourage"), team_encourage)
                            + std::max(maple_buff_value(c, "bishop_prayer"),      team_prayer)
                            + maple_buff_value(c, "mana_resist_ice");
@@ -1828,13 +1876,41 @@ static double maple_raid_team_total_dps_locked(const MapleRaidRoom& room) {
 
 // 目前「有效討伐秒數」：暫停中就是凍結的 accum_secs；跑動中則是 accum_secs + 距離上次恢復的時間，
 // 但超過下一個 5 分鐘整數倍時會自動卡在那個整數倍（要簽到才能繼續），呼叫前必須持有 data_mutex
+// 下一個會自動暫停的有效秒數：簽到點（5 分鐘整數倍）與猜數字點取較早的那個
+static int64_t maple_raid_next_checkpoint(const MapleRaidRoom& room, const MapleRaidBossDef* boss) {
+    int64_t cp = ((room.accum_secs / MAPLE_RAID_CHECKIN_INTERVAL_SEC) + 1) * MAPLE_RAID_CHECKIN_INTERVAL_SEC;
+    if (boss && boss->guess_game && room.next_guess_secs > room.accum_secs) cp = std::min(cp, room.next_guess_secs);
+    return cp;
+}
+// 跑到暫停點：把這段傷害併進 accum_dmg、自動暫停，依首領設定開啟點名簽到／猜數字。呼叫前必須持有 data_mutex
+static void maple_raid_reach_checkpoint_locked(MapleRaidRoom& room, const MapleRaidBossDef* boss, int64_t cp) {
+    room.accum_dmg += (cp - room.accum_secs) * (room.team_dps_x100 / 100.0) * (room.dmg_mult_x10 / 10.0);
+    room.accum_secs = cp; // 卡在暫停點，多出來的時間不算
+    room.resume_at  = 0;
+    if (boss && boss->hp > 0 && room.accum_dmg >= boss->hp) return; // 已經打死了，不用再簽到／猜數字
+    std::mt19937& rng = maple_wb_rng();
+    if (boss && boss->checkin_count >= 2 && cp % MAPLE_RAID_CHECKIN_INTERVAL_SEC == 0) {
+        std::vector<dpp::snowflake> pool;
+        for (auto& m : room.members) pool.push_back(m.uid);
+        std::shuffle(pool.begin(), pool.end(), rng);
+        if ((int)pool.size() > boss->checkin_count) pool.resize(boss->checkin_count);
+        room.checkin_pending = pool;
+    }
+    if (boss && boss->guess_game && cp >= room.next_guess_secs && !room.members.empty()) {
+        room.guess_active = true;
+        room.guess_uid    = room.members[std::uniform_int_distribution<int>(0, (int)room.members.size() - 1)(rng)].uid;
+        room.guess_secret = guess_gen_secret();
+        room.guess_history.clear();
+        room.guess_note.clear();
+    }
+}
 static int64_t maple_raid_progress_secs_locked(MapleRaidRoom& room, time_t now) {
     if (room.resume_at <= 0) return room.accum_secs; // 暫停中
     int64_t live = room.accum_secs + (int64_t)(now - room.resume_at);
-    int64_t next_checkpoint = ((room.accum_secs / MAPLE_RAID_CHECKIN_INTERVAL_SEC) + 1) * MAPLE_RAID_CHECKIN_INTERVAL_SEC;
-    if (live >= next_checkpoint) {
-        room.accum_secs = next_checkpoint; // 卡在整數倍，多出來的時間不算
-        room.resume_at  = 0;               // 自動暫停，輪到指定的那位隊員簽到（見 checkin_turn）
+    const MapleRaidBossDef* boss = maple_find_raid_boss(room.boss_key);
+    int64_t cp = maple_raid_next_checkpoint(room, boss);
+    if (live >= cp) {
+        maple_raid_reach_checkpoint_locked(room, boss, cp);
         return room.accum_secs;
     }
     return live;
@@ -1844,11 +1920,40 @@ static dpp::snowflake maple_raid_checkin_designee(const MapleRaidRoom& room) {
     if (room.members.empty()) return 0;
     return room.members[room.checkin_turn % room.members.size()].uid;
 }
+// 這一輪暫停是否等著某人簽到（點名制看 checkin_pending；輪流制看 designee）
+static bool maple_raid_can_checkin(const MapleRaidRoom& room, const MapleRaidBossDef* boss, dpp::snowflake uid) {
+    if (boss && boss->checkin_count >= 2)
+        return std::find(room.checkin_pending.begin(), room.checkin_pending.end(), uid) != room.checkin_pending.end();
+    return !room.guess_active && maple_raid_checkin_designee(room) == uid;
+}
+// 被指定的人送出一次猜測（guess 必須已經通過 guess_valid）。呼叫前必須持有 data_mutex
+enum MapleRaidGuessResult { MRG_IGNORED, MRG_WRONG, MRG_CORRECT, MRG_FAILED };
+static MapleRaidGuessResult maple_raid_apply_guess_locked(MapleRaidRoom& room, dpp::snowflake uid,
+                                                          const std::string& guess, time_t now) {
+    if (room.state != "fighting" || !room.guess_active || room.guess_uid != uid) return MRG_IGNORED;
+    std::string ab = guess_calc_ab(room.guess_secret, guess);
+    room.guess_history.push_back({guess, ab});
+    int tries = (int)room.guess_history.size();
+    std::string who = "<@" + std::to_string((uint64_t)uid) + ">";
+    if (ab == "4A0B") {
+        room.dmg_mult_x10 = maple_raid_guess_mult_x10(tries);
+        room.guess_active = false;
+        room.next_guess_secs = room.accum_secs + MAPLE_RAID_GUESS_INTERVAL_SEC;
+        room.guess_note = "🎯 " + who + " 第 " + std::to_string(tries) + " 次猜中（答案 `" + room.guess_secret
+                        + "`）！接下來 " + std::to_string(MAPLE_RAID_GUESS_INTERVAL_SEC / 60) + " 分鐘傷害 "
+                        + maple_raid_mult_text(room.dmg_mult_x10);
+        if (room.checkin_pending.empty()) room.resume_at = now;
+        return MRG_CORRECT;
+    }
+    return tries >= MAPLE_RAID_GUESS_MAX_TRIES ? MRG_FAILED : MRG_WRONG;
+}
+
 // 目前已經打掉多少血量；呼叫前必須持有 data_mutex
 static int64_t maple_raid_damage_dealt_locked(MapleRaidRoom& room, time_t now) {
     int64_t secs = maple_raid_progress_secs_locked(room, now);
-    double dps = room.team_dps_x100 / 100.0;
-    return (int64_t)llround(secs * dps);
+    double live = room.resume_at > 0
+        ? (secs - room.accum_secs) * (room.team_dps_x100 / 100.0) * (room.dmg_mult_x10 / 10.0) : 0.0;
+    return (int64_t)llround(room.accum_dmg + live);
 }
 
 // ─── 突襲首領：房間狀態存檔（全服共用，跟野外首領一樣不能塞進每人物件迴圈裡）──────
@@ -1867,6 +1972,14 @@ static void save_maple_raid_rooms() {
                 {"team_dps_x100", r.team_dps_x100}, {"accum_secs", r.accum_secs},
                 {"resume_at", (int64_t)r.resume_at}, {"checkin_turn", r.checkin_turn},
                 {"created_at", (int64_t)r.created_at},
+                {"accum_dmg", r.accum_dmg}, {"dmg_mult_x10", r.dmg_mult_x10},
+                {"checkin_pending", [&]{ nlohmann::json a = nlohmann::json::array();
+                                         for (auto p : r.checkin_pending) a.push_back((uint64_t)p); return a; }()},
+                {"next_guess_secs", r.next_guess_secs}, {"guess_active", r.guess_active},
+                {"guess_uid", (uint64_t)r.guess_uid}, {"guess_secret", r.guess_secret},
+                {"guess_history", [&]{ nlohmann::json a = nlohmann::json::array();
+                                       for (auto& [g, res] : r.guess_history) a.push_back({g, res}); return a; }()},
+                {"guess_note", r.guess_note},
             });
         }
     }
@@ -1892,6 +2005,20 @@ static void load_maple_raid_rooms() {
             r.resume_at     = (time_t)v.value("resume_at", (int64_t)0);
             r.checkin_turn  = v.value("checkin_turn", 0);
             r.created_at    = (time_t)v.value("created_at", (int64_t)0);
+            // 舊存檔沒有 accum_dmg：當時傷害固定是 秒數×DPS
+            r.accum_dmg     = v.contains("accum_dmg") ? v.value("accum_dmg", 0.0) : r.accum_secs * (r.team_dps_x100 / 100.0);
+            r.dmg_mult_x10  = v.value("dmg_mult_x10", 10);
+            if (v.contains("checkin_pending") && v["checkin_pending"].is_array())
+                for (auto& p : v["checkin_pending"]) r.checkin_pending.push_back(dpp::snowflake(p.get<uint64_t>()));
+            r.next_guess_secs = v.value("next_guess_secs", (int64_t)0);
+            r.guess_active  = v.value("guess_active", false);
+            r.guess_uid     = dpp::snowflake(v.value("guess_uid", (uint64_t)0));
+            r.guess_secret  = v.value("guess_secret", std::string());
+            if (v.contains("guess_history") && v["guess_history"].is_array())
+                for (auto& h : v["guess_history"])
+                    if (h.is_array() && h.size() == 2) r.guess_history.push_back({h[0].get<std::string>(), h[1].get<std::string>()});
+            if (r.guess_active && !guess_valid(r.guess_secret)) r.guess_secret = guess_gen_secret();
+            r.guess_note    = v.value("guess_note", std::string());
             if (v.contains("members") && v["members"].is_array()) {
                 for (auto& mv : v["members"]) {
                     MapleRaidMember m;
@@ -1933,6 +2060,7 @@ static void save_maple_data() {
                 {"eq_offhand",        c.eq_offhand},
                 {"eq_earring",        c.eq_earring},
                 {"eq_ring",           c.eq_ring},
+                {"eq_ring2",          c.eq_ring2},
                 {"eq_necklace",       c.eq_necklace},
                 {"eq_helmet",         c.eq_helmet},
                 {"eq_glove",          c.eq_glove},
@@ -1970,6 +2098,7 @@ static void save_maple_data() {
                 {"raid_week_id",      c.raid_week_id},
                 {"raid_week_used",    c.raid_week_used},
                 {"raid_week_extra",   c.raid_week_extra},
+                {"raid_clears",       c.raid_clears},
                 {"faction_key",       c.faction_key},
                 {"faction_donate_week_id",   c.faction_donate_week_id},
                 {"faction_donate_week_used", c.faction_donate_week_used},
@@ -2007,6 +2136,7 @@ static void load_maple_data() {
             c.eq_offhand        = v.value("eq_offhand",        std::string());
             c.eq_earring        = v.value("eq_earring",        std::string());
             c.eq_ring           = v.value("eq_ring",           std::string());
+            c.eq_ring2          = v.value("eq_ring2",          std::string());
             c.eq_necklace       = v.value("eq_necklace",       std::string());
             c.eq_helmet         = v.value("eq_helmet",         std::string());
             c.eq_glove          = v.value("eq_glove",          std::string());
@@ -2053,6 +2183,8 @@ static void load_maple_data() {
             c.raid_week_id      = v.value("raid_week_id",     (int64_t)0);
             c.raid_week_used    = v.value("raid_week_used",   0);
             c.raid_week_extra   = v.value("raid_week_extra",  0);
+            if (v.contains("raid_clears") && v["raid_clears"].is_object())
+                c.raid_clears   = v["raid_clears"].get<std::map<std::string,int>>();
             c.faction_key       = v.value("faction_key",      std::string());
             c.faction_donate_week_id   = v.value("faction_donate_week_id",   (int64_t)0);
             c.faction_donate_week_used = v.value("faction_donate_week_used", 0);
@@ -2824,13 +2956,13 @@ static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::str
     std::vector<EqPickEntry> entries;
     std::string cur_raw = maple_equipped_raw(c, slot);
     for (auto& item : MAPLE_ITEMS) {
-        if (item.slot != slot) continue;
+        if (item.slot != maple_slot_item_kind(slot)) continue;
         int raw_qty = c.equipment.count(item.key) ? c.equipment.at(item.key) : 0;
         bool worn_is_raw = (cur_raw == item.key);
         std::vector<const MapleEnhItem*> enh_list;
         for (auto& e : c.enh_items) if (e.base_key == item.key) enh_list.push_back(&e);
         if (raw_qty <= 0 && !worn_is_raw && enh_list.empty()) continue; // 完全沒有這種裝備就跳過
-        bool eligible = maple_meets_requirement(c, item);
+        bool eligible = maple_meets_requirement(c, item, slot);
 
         // 裸裝備那一行：有庫存、或正穿著裸的（庫存=0但穿著）才顯示
         if (raw_qty > 0 || worn_is_raw) {
@@ -3397,6 +3529,12 @@ static dpp::message make_maple_raid_boss_list_msg(dpp::snowflake uid) {
         std::string text = "**" + b.name + "**　建議 Lv. " + std::to_string(b.suggested_level) + "~\n"
                           + (b.hide_hp ? std::string("？？？（血量未知）") : ("HP " + std::to_string(b.hp)))
                           + "　目前 " + std::to_string(open_rooms) + " 間房間進行中";
+        if (b.checkin_count >= 2)
+            text += "\n-# 📢 每 " + std::to_string(MAPLE_RAID_CHECKIN_INTERVAL_SEC / 60) + " 分鐘隨機點名 "
+                  + std::to_string(b.checkin_count) + " 人簽到，被點到的人都簽到才會繼續";
+        if (b.guess_game)
+            text += "\n-# 🎯 每 " + std::to_string(MAPLE_RAID_GUESS_INTERVAL_SEC / 60) + " 分鐘指定 1 人猜數字（幾A幾B，最多 "
+                  + std::to_string(MAPLE_RAID_GUESS_MAX_TRIES) + " 次），越快猜中增傷越高；10 次沒猜中＝突襲失敗（不扣次數）";
         if (!b.open) text += "\n-# 🚧尚未開放";
         container.add_component_v2(dpp::component()
             .set_type(dpp::cot_section)
@@ -3568,7 +3706,7 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
 
     std::string content;
     bool exists = false, is_leader = false, paused = false, defeated = false, is_designee = false;
-    dpp::snowflake designee = 0;
+    bool show_checkin = false, is_guesser = false;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         MapleRaidRoom* room = maple_find_raid_room(room_id);
@@ -3582,16 +3720,41 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
             if (dealt >= hp && hp > 0) { dealt = hp; defeated = true; room->state = "won"; }
             paused = (room->resume_at <= 0) && !defeated;
             int pct = hp > 0 ? (int)(dealt * 100 / hp) : 0;
-            designee = maple_raid_checkin_designee(*room);
-            is_designee = paused && designee == uid;
+            bool rollcall = boss && boss->checkin_count >= 2;
+            is_designee = paused && maple_raid_can_checkin(*room, boss, uid);
+            is_guesser  = paused && room->guess_active && room->guess_uid == uid;
+            show_checkin = paused && (rollcall ? !room->checkin_pending.empty() : !room->guess_active);
 
             bool hide_hp = boss && boss->hide_hp;
             content = "## ⚔️ 討伐中 — " + (boss ? boss->name : room->boss_key) + "\n"
                      + (hide_hp ? std::string("血量未知，持續攻擊中…") : ("血量：" + std::to_string(dealt) + " / " + std::to_string(hp) + "（" + std::to_string(pct) + "%）"))
                      + "\n隊員：" + std::to_string(room->members.size()) + " 人\n";
+            if (boss && boss->guess_game && !defeated) {
+                content += "🔥 目前傷害倍率：**" + maple_raid_mult_text(room->dmg_mult_x10) + "**";
+                if (!room->guess_active) {
+                    int64_t left = std::max<int64_t>(0, room->next_guess_secs - maple_raid_progress_secs_locked(*room, now));
+                    content += "　（下次猜數字：再討伐 " + std::to_string((left + 59) / 60) + " 分鐘）";
+                }
+                content += "\n";
+            }
             if (defeated) content += "\n💀 **首領已被擊敗！**" + std::string(is_leader ? "　按下方「結算」發放獎勵。" : "　等隊長按「結算」。");
-            else if (paused) content += "\n⏸️ **已暫停，輪到 <@" + std::to_string((uint64_t)designee) + "> 簽到才會繼續累計進度**";
+            else if (paused) {
+                if (room->guess_active) {
+                    content += "\n🎯 **猜數字中，計時暫停**：<@" + std::to_string((uint64_t)room->guess_uid)
+                             + "> 請猜 4 個不重複的數字（已猜 " + std::to_string(room->guess_history.size()) + " / "
+                             + std::to_string(MAPLE_RAID_GUESS_MAX_TRIES) + " 次）\n-# 🅰️ = 數字對且位置對　🅱️ = 數字對但位置錯";
+                    for (auto& [g, res] : room->guess_history) content += "\n`" + g + "`　→　**" + res + "**";
+                }
+                if (rollcall && !room->checkin_pending.empty()) {
+                    content += "\n⏸️ **點名簽到**：";
+                    for (auto p : room->checkin_pending) content += "<@" + std::to_string((uint64_t)p) + "> ";
+                    content += "\n-# 被點到的人都簽到才會繼續累計進度";
+                } else if (!rollcall && !room->guess_active) {
+                    content += "\n⏸️ **已暫停，輪到 <@" + std::to_string((uint64_t)maple_raid_checkin_designee(*room)) + "> 簽到才會繼續累計進度**";
+                }
+            }
             else content += "\n▶️ 自動討伐中…";
+            if (!defeated && !room->guess_active && !room->guess_note.empty()) content += "\n-# " + room->guess_note;
         }
     }
     if (!exists) content = "## ❌ 找不到這場討伐\n可能已經結算過了。";
@@ -3608,11 +3771,16 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
                 row.add_component(dpp::component().set_type(dpp::cot_button)
                     .set_label("🏆 結算").set_id("maple_raidsettle_" + uid_s + "_" + room_id).set_style(dpp::cos_success));
         } else if (paused) {
-            row.add_component(dpp::component().set_type(dpp::cot_button)
-                .set_label(is_designee ? "✅ 簽到，繼續討伐" : "⏳ 還沒輪到你簽到")
-                .set_id("maple_raidcheckin_" + uid_s + "_" + room_id)
-                .set_style(is_designee ? dpp::cos_success : dpp::cos_secondary)
-                .set_disabled(!is_designee));
+            if (show_checkin)
+                row.add_component(dpp::component().set_type(dpp::cot_button)
+                    .set_label(is_designee ? "✅ 簽到，繼續討伐" : "⏳ 還沒輪到你簽到")
+                    .set_id("maple_raidcheckin_" + uid_s + "_" + room_id)
+                    .set_style(is_designee ? dpp::cos_success : dpp::cos_secondary)
+                    .set_disabled(!is_designee));
+            if (is_guesser)
+                row.add_component(dpp::component().set_type(dpp::cot_button)
+                    .set_label("🎯 猜數字").set_id("maple_raidguess_" + uid_s + "_" + room_id)
+                    .set_style(dpp::cos_primary));
         }
         row.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🔄 刷新").set_id("maple_raidstatus_" + uid_s + "_" + room_id).set_style(dpp::cos_secondary));
@@ -3853,7 +4021,7 @@ static dpp::message make_maple_faction_buff_msg(dpp::snowflake uid) {
           commander = maple_faction_commander_locked(c.faction_key); }
         content += "陣營：**" + (f ? f->name : c.faction_key) + "**　Lv. " + std::to_string(st.level) + "\n"
                  + "以下加成只在「冒險」中生效，由統帥自由分配陣營技能點：\n"
-                 + "⚔️ 攻擊力：+" + std::to_string(st.atk_pts) + "\n"
+                 + "⚔️ 武器攻擊力：+" + std::to_string(st.atk_pts) + "\n"
                  + "📈 經驗加成：+" + std::to_string(st.exp_pts) + "%\n"
                  + "🪙 瘋幣加成：+" + std::to_string(st.coin_pts) + "%\n"
                  + "\n已分配 " + std::to_string(maple_faction_spent_pts(st)) + " / " + std::to_string(st.level) + " 點\n"
@@ -3961,7 +4129,7 @@ static dpp::message make_maple_faction_commander_msg(dpp::snowflake uid, int pag
         ? ("目前統帥：<@" + std::to_string((uint64_t)commander) + ">　（" + std::to_string(commander_votes) + " 票）")
         : "目前尚未選出統帥（還沒有人投票）";
     content += "\n\n🎯 陣營技能點：已分配 " + std::to_string(maple_faction_spent_pts(st)) + " / " + std::to_string(st.level) + "\n"
-             + "⚔️ 攻擊力 +" + std::to_string(st.atk_pts) + "　📈 經驗加成 +" + std::to_string(st.exp_pts)
+             + "⚔️ 武器攻擊力 +" + std::to_string(st.atk_pts) + "　📈 經驗加成 +" + std::to_string(st.exp_pts)
              + "%　🪙 瘋幣加成 +" + std::to_string(st.coin_pts) + "%";
     if (!result_note.empty()) content += "\n\n" + result_note;
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));

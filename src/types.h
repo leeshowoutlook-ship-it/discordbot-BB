@@ -334,7 +334,7 @@ struct MapleEnhItem {
 // 陣營每升一級獲得1點「陣營技能點」，由該陣營的統帥（得票最多的成員）自由分配到三種增益上（只在冒險中生效）。
 struct MapleFactionState {
     int level = 0; int64_t exp = 0;
-    int atk_pts = 0;  // 分配到「攻擊力」的點數，每點 +1 攻擊力
+    int atk_pts = 0;  // 分配到「攻擊力」的點數，每點 +1 武器攻擊力（只在冒險生效）
     int exp_pts = 0;  // 分配到「經驗加成」的點數，每點 +1%
     int coin_pts = 0; // 分配到「瘋幣加成」的點數，每點 +1%
 };
@@ -363,6 +363,7 @@ struct MapleCharacter {
     std::string    eq_clothes;
     std::string    eq_shoes;
     std::string    eq_ring;
+    std::string    eq_ring2;    // 第二格戒指（跟 eq_ring 一樣只能裝 slot=="ring" 的道具）
     std::string    eq_necklace;
     double         weapon_mastery = 0.10; // 熟練度，預設10%，攻擊力下限公式用
     std::map<std::string,int> skill_levels; // 技能key -> 已投入等級
@@ -386,6 +387,7 @@ struct MapleCharacter {
     int64_t        raid_week_id    = 0; // 突襲首領：上次計算所屬的週次（epoch週，跟代幣商店同一套）
     int            raid_week_used  = 0; // 本週已經完成結算的突襲次數
     int            raid_week_extra = 0; // 本週從特殊商店買到的額外次數（每次+1，一週最多買2次）
+    std::map<std::string,int> raid_clears; // 突襲首領 key -> 累計成功結算次數（首殺保底掉落用）
     std::string    faction_key;         // 目前所屬陣營，空字串＝沒有加入任何陣營
     int64_t        faction_donate_week_id   = 0; // 陣營捐贈：上次捐贈所屬的週次（epoch週，跟代幣商店同一套）
     int            faction_donate_week_used = 0; // 本週已捐贈次數（上限1次／2000瘋幣）
@@ -814,6 +816,18 @@ struct MapleRaidRoom {
     time_t           resume_at     = 0;       // >0＝正在跑，從這個時間點繼續累加；0＝暫停中，等任一人簽到
     int              checkin_turn  = 0;        // 輪流指定簽到：members[checkin_turn % members.size()] 是目前這輪唯一能按簽到的人；每次成功簽到後 +1 輪下一位
     time_t           created_at    = 0;
+    // 傷害改成分段累計（倍率會變動）：accum_secs 之前已打掉的血量，之後的部分 = 秒數 × DPS × 倍率
+    double           accum_dmg     = 0.0;
+    int              dmg_mult_x10  = 10;       // 目前增傷倍率×10（10＝不增傷）
+    // 隨機點名簽到（首領 checkin_count >= 2）：這一輪還沒簽到的被點名者，全部簽完才會繼續
+    std::vector<dpp::snowflake> checkin_pending;
+    // 猜數字（首領 guess_game，幾A幾B）：每 MAPLE_RAID_GUESS_INTERVAL_SEC 有效秒觸發一次，猜的期間暫停計時
+    int64_t          next_guess_secs = 0;      // 下一次猜數字在第幾個有效秒觸發
+    bool             guess_active  = false;
+    dpp::snowflake   guess_uid     = 0;
+    std::string      guess_secret;             // 4 個不重複數字
+    std::vector<std::pair<std::string,std::string>> guess_history; // 這一輪的 {猜測, xAyB}
+    std::string      guess_note;               // 最近一次猜數字的結果說明（顯示用）
 };
 inline std::map<std::string, MapleRaidRoom> maple_raid_rooms; // key = room id
 inline std::atomic<uint64_t> maple_raid_room_seq{1};
