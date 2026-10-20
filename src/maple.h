@@ -1933,6 +1933,10 @@ static const int64_t MAPLE_RAID_CHECKIN_INTERVAL_SEC  = 300; // 每 5 分鐘
 static const int     MAPLE_RAID_WEEKLY_BASE_ATTEMPTS = 1;
 static const int64_t MAPLE_RAID_EXTRA_ATTEMPT_PRICE  = 100000;
 static const int     MAPLE_RAID_EXTRA_ATTEMPT_MAX_BUYS = 2; // 一週最多購買次數（每次都是 +1 次突襲）
+// 突襲首領材料兌換潛能方塊：狼王象徵／女皇象徵目前唯一的用途
+static const int MAPLE_WOLF_TOKEN_CUBE_RATE    = 10; // 1 個狼王象徵 → 10 顆潛能方塊
+static const int MAPLE_EMPRESS_TOKEN_CUBE_RATE = 25; // 1 個女皇象徵 → 25 顆潛能方塊
+static const int MAPLE_FLAME_TOKEN_CUBE_RATE   = 40; // 1 個炎魔象徵 → 40 顆潛能方塊
 // 跟代幣商店同一套週次算法：每週二早上08:00(UTC+8) = 週二00:00 UTC 重置
 static int64_t maple_raid_week_now() { return ((int64_t)time(nullptr) - 5 * 86400) / 604800; }
 // 如果角色記錄的還是舊的一週，重置本週已使用次數／已購買額外次數
@@ -1974,11 +1978,21 @@ struct MapleRaidBossDef {
     bool open;
     int  checkin_count = 1;   // 1＝輪流指定一人簽到；>=2＝每輪從隊伍隨機點名這麼多人，全部簽到才繼續
     bool guess_game    = false; // 每 MAPLE_RAID_GUESS_INTERVAL_SEC 有效秒指定一人猜數字，猜中次數決定接下來的傷害倍率
+    int  min_level     = 0;   // 入場最低等級限制（開房／加入都要滿足，0＝無限制）
+    // checkin_count==1 時，一般是輪流指定；checkin_random=true 改成每次隨機點1人（跟 checkin_count>=2 共用同一套點名機制，只是只點1人）
+    bool checkin_random  = false;
+    bool full_checkin12  = false; // 每 MAPLE_RAID_FULLCHECKIN_INTERVAL_SEC 有效秒，全隊每個人都要各自簽到才會繼續
+    bool roulette_duel   = false; // 每 MAPLE_RAID_ROULETTE_INTERVAL_SEC 有效秒，隨機1人跟電腦玩俄羅斯輪盤（瞬間算完，不暫停）
 };
 
 // 猜數字：跟 !猜數字 同一套幾A幾B（4 個不重複數字），最多猜 10 次；10 次都沒猜中＝突襲失敗（不消耗次數）
 static const int64_t MAPLE_RAID_GUESS_INTERVAL_SEC = 480; // 每 8 分鐘（有效討伐時間）
 static const int     MAPLE_RAID_GUESS_MAX_TRIES = 10;
+// 全員點名（full_checkin12）／俄羅斯輪盤對決（roulette_duel）的觸發間隔
+static const int64_t MAPLE_RAID_FULLCHECKIN_INTERVAL_SEC = 720; // 每 12 分鐘
+static const int64_t MAPLE_RAID_ROULETTE_INTERVAL_SEC    = 600; // 每 10 分鐘
+static const int64_t MAPLE_RAID_ROULETTE_BUFF_SEC        = 300; // 贏了：全隊雙倍傷害維持 5 分鐘
+static const int64_t MAPLE_RAID_ROULETTE_DEBUFF_SEC      = 600; // 兩次都輸：兩人禁止輸出維持 10 分鐘
 // 第 N 次猜中 → 接下來 8 分鐘的傷害倍率×10
 static int maple_raid_guess_mult_x10(int tries) {
     static const int TABLE[] = {10, 100, 50, 30, 25, 20, 15, 10, 5, 5, 1};
@@ -1997,7 +2011,7 @@ static const std::vector<std::string> MAPLE_OFFHAND30_SET = {
 
 static const std::vector<MapleRaidBossDef> MAPLE_RAID_BOSSES = {
     {"ice_wolf_king", "冰雪狼王", 50, 600000, true, 0, 20, 3000, 5000, {
-        {400, {"mat_wolf_king_token"}},
+        {600, {"mat_wolf_king_token"}},
         {200, MAPLE_WB_WPN_CURSE50_SET},
         {70,  {"wpn_wolf_fang"}},
         {100, {"necklace_wolf_fang"}},
@@ -2011,10 +2025,10 @@ static const std::vector<MapleRaidBossDef> MAPLE_RAID_BOSSES = {
         {4,   {"oh_bible_30"}},
         {8,   {"oh_scope_30"}},
         {8,   {"oh_shield_30"}},
-    }, true},
+    }, true, 1, false, 30}, // 入場需全員Lv30+
     // 西格諾斯：每 5 分鐘隨機點名 2 人簽到、每 8 分鐘指定 1 人猜數字決定增傷；結算只給經驗、不給瘋幣
-    {"cygnus", "西格諾斯", 75, 5000000, false, 50000, 0, 0, 0, {
-        {500, {"mat_empress_token"}},
+    {"cygnus", "西格諾斯", 75, 5000000, false, 50000, 35, 0, 0, {
+        {600, {"mat_empress_token"}},
         {100, {"ring_cygnus_oath"}},
         {200, MAPLE_WB_WPN_CURSE50_SET},
         {150, {"sc_ring60"}},
@@ -2022,7 +2036,13 @@ static const std::vector<MapleRaidBossDef> MAPLE_RAID_BOSSES = {
         {50,  {"sc_ring_atk60"}},
         {10,  {"sc_ring_atk_curse50"}},
         {80,  MAPLE_OFFHAND30_SET},
-    }, true, 2, true},
+    }, true, 2, true, 40}, // 入場需全員Lv40+
+    // 殘暴炎魔：掉落表目前只有象徵兌換道具，其餘尚未設計。
+    // 特殊機制：每5分鐘隨機點1人簽到、每12分鐘全員簽到、每10分鐘隨機1人跟電腦玩俄羅斯輪盤
+    // （贏了全隊5分鐘雙倍傷害；輸了換另一人重試，兩人都輸則那兩人接下來10分鐘無法輸出；沒有其他人可重試就直接算失敗）。
+    {"flame_demon", "殘暴炎魔", 100, 10000000, false, 50000, 50, 0, 0, {
+        {600, {"mat_flame_demon_token"}},
+    }, true, 1, false, 70, true, true, true}, // 入場需全員Lv70+
 };
 
 static const MapleRaidBossDef* maple_find_raid_boss(const std::string& key) {
@@ -2091,28 +2111,178 @@ static double maple_raid_team_total_dps_locked(const MapleRaidRoom& room) {
     }
     return total;
 }
+// room.dmg_disabled_uids（輪盤對決兩次都輸被禁止輸出的最多2人）目前合計的 DPS×100；呼叫前必須持有 data_mutex
+static int64_t maple_raid_disabled_dps_x100_locked(const MapleRaidRoom& room) {
+    int64_t total = 0;
+    for (auto uid : room.dmg_disabled_uids) {
+        auto it = maple_data.find(uid);
+        if (it != maple_data.end()) total += (int64_t)llround(maple_raid_member_dps_locked(it->second, room) * 100.0);
+    }
+    return total;
+}
+// ─── 俄羅斯輪盤對決（roulette_duel 首領專用）：規則跟 !輪盤 同一套，6發1顆子彈 ──────────
+// 開始一場對決（第一次，或輸了换人重試）。呼叫前必須持有 data_mutex。
+static void maple_raid_rd_start_locked(MapleRaidRoom& room, dpp::snowflake who, bool is_retry) {
+    std::mt19937& rng = maple_wb_rng();
+    room.rd_active = true;
+    room.rd_uid = who;
+    room.rd_is_retry = is_retry;
+    room.rd_bullet_chamber = std::uniform_int_distribution<int>(1, 6)(rng);
+    room.rd_current_chamber = 1;
+    room.rd_chamber5_shooter = 0;
+    room.rd_chamber5_by_computer = false;
+    room.rd_player_turn = true;
+    room.rd_shots_this_turn = 0;
+    room.rd_log.clear();
+}
+enum MapleRdFireResult { RD_SAFE, RD_PLAYER_HIT, RD_FORCED_PASS };
+// 玩家開一槍。呼叫前必須持有 data_mutex，且必須是 rd_player_turn==true 時才能呼叫。
+static MapleRdFireResult maple_raid_rd_player_fire_locked(MapleRaidRoom& room) {
+    if (room.rd_current_chamber == 6 && room.rd_chamber5_shooter == room.rd_uid) {
+        return RD_FORCED_PASS; // 自己開了第5發存活，規則上不能自己開第6發
+    }
+    bool hit = (room.rd_current_chamber == room.rd_bullet_chamber);
+    room.rd_shots_this_turn++;
+    if (hit) {
+        room.rd_log.push_back("💥 你開了第 " + std::to_string(room.rd_current_chamber) + " 發，中彈了！");
+        return RD_PLAYER_HIT;
+    }
+    room.rd_log.push_back("✅ 你開了第 " + std::to_string(room.rd_current_chamber) + " 發，安全");
+    if (room.rd_current_chamber == 5) room.rd_chamber5_shooter = room.rd_uid;
+    room.rd_current_chamber++;
+    return RD_SAFE;
+}
+// 電腦的回合：固定只開1槍就換回玩家（除非被「自己開第5發存活不能開第6發」的規則擋住，強制過）。
+// 呼叫前必須持有 data_mutex。回傳 true＝電腦中彈了（玩家贏了這場對決）。
+static bool maple_raid_rd_computer_turn_locked(MapleRaidRoom& room) {
+    if (room.rd_current_chamber == 6 && room.rd_chamber5_by_computer) {
+        room.rd_log.push_back("⏭️ 電腦剛才開了第5發活下來，這發規則上不能自己開，強制換你");
+    } else {
+        bool hit = (room.rd_current_chamber == room.rd_bullet_chamber);
+        if (hit) {
+            room.rd_log.push_back("💥 電腦開了第 " + std::to_string(room.rd_current_chamber) + " 發，中彈了！");
+            return true;
+        }
+        room.rd_log.push_back("✅ 電腦開了第 " + std::to_string(room.rd_current_chamber) + " 發，安全，換你");
+        if (room.rd_current_chamber == 5) room.rd_chamber5_by_computer = true;
+        room.rd_current_chamber++;
+    }
+    room.rd_player_turn = true;
+    room.rd_shots_this_turn = 0;
+    return false;
+}
+// 玩家自願過，或被規則強制過：換電腦開槍。如果電腦中彈（玩家贏），直接套用全隊雙倍傷害、結束整個輪盤關卡。
+// 呼叫前必須持有 data_mutex。
+static void maple_raid_rd_end_player_turn_locked(MapleRaidRoom& room) {
+    room.rd_player_turn = false;
+    bool computer_hit = maple_raid_rd_computer_turn_locked(room);
+    if (computer_hit) {
+        room.dmg_mult_x10 = 20;
+        room.dmg_mult_until_secs = room.accum_secs + MAPLE_RAID_ROULETTE_BUFF_SEC;
+        std::string tag = "<@" + std::to_string((uint64_t)room.rd_uid) + ">";
+        room.roulette_note = "🔫 " + tag + " 跟電腦對決獲勝！接下來 "
+                            + std::to_string(MAPLE_RAID_ROULETTE_BUFF_SEC / 60) + " 分鐘全隊傷害 ×2";
+        room.rd_active = false;
+    }
+}
+// 玩家中彈輸了這場對決：第一次的話换另一個隊友重試（沒有其他隊友就直接算失敗）；
+// 第二次（重試）也輸的話，兩人一起接下來禁止輸出。呼叫前必須持有 data_mutex。
+static void maple_raid_rd_handle_player_loss_locked(MapleRaidRoom& room) {
+    if (!room.rd_is_retry) {
+        std::vector<dpp::snowflake> pool2;
+        for (auto& m : room.members) if (m.uid != room.rd_first_uid) pool2.push_back(m.uid);
+        if (pool2.empty()) {
+            std::string tag = "<@" + std::to_string((uint64_t)room.rd_first_uid) + ">";
+            room.dmg_disabled_uids = {room.rd_first_uid};
+            room.dmg_disabled_until_secs = room.accum_secs + MAPLE_RAID_ROULETTE_DEBUFF_SEC;
+            room.roulette_note = "💥 " + tag + " 輸給電腦，沒有其他隊友可以重試，接下來 "
+                                + std::to_string(MAPLE_RAID_ROULETTE_DEBUFF_SEC / 60) + " 分鐘無法輸出";
+            room.rd_active = false;
+        } else {
+            std::mt19937& rng = maple_wb_rng();
+            dpp::snowflake p2 = pool2[std::uniform_int_distribution<int>(0, (int)pool2.size() - 1)(rng)];
+            maple_raid_rd_start_locked(room, p2, true);
+        }
+    } else {
+        std::string tag1 = "<@" + std::to_string((uint64_t)room.rd_first_uid) + ">";
+        std::string tag2 = "<@" + std::to_string((uint64_t)room.rd_uid) + ">";
+        room.dmg_disabled_uids = {room.rd_first_uid, room.rd_uid};
+        room.dmg_disabled_until_secs = room.accum_secs + MAPLE_RAID_ROULETTE_DEBUFF_SEC;
+        room.roulette_note = "💥 " + tag1 + " 和 " + tag2 + " 都輸給電腦，兩人接下來 "
+                            + std::to_string(MAPLE_RAID_ROULETTE_DEBUFF_SEC / 60) + " 分鐘無法輸出";
+        room.rd_active = false;
+    }
+}
 
 // 目前「有效討伐秒數」：暫停中就是凍結的 accum_secs；跑動中則是 accum_secs + 距離上次恢復的時間，
-// 但超過下一個 5 分鐘整數倍時會自動卡在那個整數倍（要簽到才能繼續），呼叫前必須持有 data_mutex
-// 下一個會自動暫停的有效秒數：簽到點（5 分鐘整數倍）與猜數字點取較早的那個
+// 但超過下一個關卡點時會自動卡住（要簽到/等效果到期才能繼續），呼叫前必須持有 data_mutex
+// 下一個會自動暫停／處理效果的有效秒數：5分鐘簽到點、猜數字點、12分鐘全員點名點、10分鐘輪盤點、
+// 雙倍傷害／禁止輸出的到期點，取最早的那個
 static int64_t maple_raid_next_checkpoint(const MapleRaidRoom& room, const MapleRaidBossDef* boss) {
     int64_t cp = ((room.accum_secs / MAPLE_RAID_CHECKIN_INTERVAL_SEC) + 1) * MAPLE_RAID_CHECKIN_INTERVAL_SEC;
     if (boss && boss->guess_game && room.next_guess_secs > room.accum_secs) cp = std::min(cp, room.next_guess_secs);
+    if (boss && boss->full_checkin12) {
+        int64_t fc = ((room.accum_secs / MAPLE_RAID_FULLCHECKIN_INTERVAL_SEC) + 1) * MAPLE_RAID_FULLCHECKIN_INTERVAL_SEC;
+        cp = std::min(cp, fc);
+    }
+    if (boss && boss->roulette_duel) {
+        int64_t rc = ((room.accum_secs / MAPLE_RAID_ROULETTE_INTERVAL_SEC) + 1) * MAPLE_RAID_ROULETTE_INTERVAL_SEC;
+        cp = std::min(cp, rc);
+    }
+    if (room.dmg_mult_until_secs > room.accum_secs) cp = std::min(cp, room.dmg_mult_until_secs);
+    if (room.dmg_disabled_until_secs > room.accum_secs) cp = std::min(cp, room.dmg_disabled_until_secs);
     return cp;
 }
-// 跑到暫停點：把這段傷害併進 accum_dmg、自動暫停，依首領設定開啟點名簽到／猜數字。呼叫前必須持有 data_mutex
-static void maple_raid_reach_checkpoint_locked(MapleRaidRoom& room, const MapleRaidBossDef* boss, int64_t cp) {
-    room.accum_dmg += (cp - room.accum_secs) * (room.team_dps_x100 / 100.0) * (room.dmg_mult_x10 / 10.0);
+// 跑到暫停點：把這段傷害併進 accum_dmg、依首領設定開啟點名簽到／猜數字／全員點名／輪盤對決，
+// 沒有任何關卡需要等的話（例如單純只是輪盤對決自動結算完、或buff/debuff到期）就直接繼續跑，不用暫停。
+// 呼叫前必須持有 data_mutex
+static void maple_raid_reach_checkpoint_locked(MapleRaidRoom& room, const MapleRaidBossDef* boss, int64_t cp, time_t now) {
+    // 這段期間的「禁止輸出」是不是生效中，依這段開始當下（也就是上一個 checkpoint）的狀態決定
+    bool debuff_active_now = !room.dmg_disabled_uids.empty() && room.dmg_disabled_until_secs > room.accum_secs;
+    int64_t effective_dps_x100 = room.team_dps_x100;
+    if (debuff_active_now) {
+        effective_dps_x100 -= maple_raid_disabled_dps_x100_locked(room);
+        if (effective_dps_x100 < 0) effective_dps_x100 = 0;
+    }
+    room.accum_dmg += (cp - room.accum_secs) * (effective_dps_x100 / 100.0) * (room.dmg_mult_x10 / 10.0);
     room.accum_secs = cp; // 卡在暫停點，多出來的時間不算
     room.resume_at  = 0;
-    if (boss && boss->hp > 0 && room.accum_dmg >= boss->hp) return; // 已經打死了，不用再簽到／猜數字
+    if (boss && boss->hp > 0 && room.accum_dmg >= boss->hp) return; // 已經打死了，不用再處理關卡
+
+    // buff／debuff 到期收回（要在開新的關卡之前處理，避免跟同一刻新骰到的效果混在一起）
+    if (room.dmg_mult_until_secs > 0 && cp >= room.dmg_mult_until_secs) {
+        room.dmg_mult_x10 = 10;
+        room.dmg_mult_until_secs = -1;
+    }
+    if (room.dmg_disabled_until_secs > 0 && cp >= room.dmg_disabled_until_secs) {
+        room.dmg_disabled_uids.clear();
+        room.dmg_disabled_until_secs = -1;
+    }
+
     std::mt19937& rng = maple_wb_rng();
-    if (boss && boss->checkin_count >= 2 && cp % MAPLE_RAID_CHECKIN_INTERVAL_SEC == 0) {
-        std::vector<dpp::snowflake> pool;
-        for (auto& m : room.members) pool.push_back(m.uid);
-        std::shuffle(pool.begin(), pool.end(), rng);
-        if ((int)pool.size() > boss->checkin_count) pool.resize(boss->checkin_count);
-        room.checkin_pending = pool;
+    bool gate_opened = false; // 是否開了需要玩家互動才能繼續的關卡（簽到／猜數字）
+    if (boss && cp % MAPLE_RAID_CHECKIN_INTERVAL_SEC == 0) {
+        if (boss->checkin_count >= 2) {
+            std::vector<dpp::snowflake> pool;
+            for (auto& m : room.members) pool.push_back(m.uid);
+            std::shuffle(pool.begin(), pool.end(), rng);
+            if ((int)pool.size() > boss->checkin_count) pool.resize(boss->checkin_count);
+            room.checkin_pending = pool;
+            gate_opened = true;
+        } else if (boss->checkin_count == 1 && boss->checkin_random) {
+            if (!room.members.empty()) {
+                auto& picked = room.members[std::uniform_int_distribution<int>(0, (int)room.members.size() - 1)(rng)];
+                room.checkin_pending = {picked.uid};
+            }
+            gate_opened = true;
+        } else if (boss->checkin_count == 1) {
+            gate_opened = true; // 輪流指定制：靠 checkin_turn/designee，不用 checkin_pending
+        }
+    }
+    if (boss && boss->full_checkin12 && cp % MAPLE_RAID_FULLCHECKIN_INTERVAL_SEC == 0) {
+        room.fullcheckin_pending.clear();
+        for (auto& m : room.members) room.fullcheckin_pending.push_back(m.uid);
+        gate_opened = true;
     }
     if (boss && boss->guess_game && cp >= room.next_guess_secs && !room.members.empty()) {
         room.guess_active = true;
@@ -2120,7 +2290,17 @@ static void maple_raid_reach_checkpoint_locked(MapleRaidRoom& room, const MapleR
         room.guess_secret = guess_gen_secret();
         room.guess_history.clear();
         room.guess_note.clear();
+        gate_opened = true;
     }
+    // 輪盤對決：真的開一場互動對決（玩家自己按開槍/過），暫停計時直到整場（含可能的重試）結束
+    if (boss && boss->roulette_duel && cp % MAPLE_RAID_ROULETTE_INTERVAL_SEC == 0 && !room.members.empty()) {
+        auto& p1m = room.members[std::uniform_int_distribution<int>(0, (int)room.members.size() - 1)(rng)];
+        room.rd_first_uid = p1m.uid;
+        maple_raid_rd_start_locked(room, p1m.uid, false);
+        room.roulette_note.clear();
+        gate_opened = true;
+    }
+    if (!gate_opened) room.resume_at = now; // 沒有要等簽到/猜數字/輪盤對決，直接繼續跑
 }
 static int64_t maple_raid_progress_secs_locked(MapleRaidRoom& room, time_t now) {
     if (room.resume_at <= 0) return room.accum_secs; // 暫停中
@@ -2128,7 +2308,15 @@ static int64_t maple_raid_progress_secs_locked(MapleRaidRoom& room, time_t now) 
     const MapleRaidBossDef* boss = maple_find_raid_boss(room.boss_key);
     int64_t cp = maple_raid_next_checkpoint(room, boss);
     if (live >= cp) {
-        maple_raid_reach_checkpoint_locked(room, boss, cp);
+        maple_raid_reach_checkpoint_locked(room, boss, cp, now);
+        // 處理完一個 checkpoint 後可能立刻又接著下一個（例如 resume_at 被設回 now，但下一個 checkpoint 剛好也到了）；
+        // 用迴圈滾到真的需要暫停或追上現在時間為止，避免長時間沒人互動時漏掉中間的輪盤/到期事件。
+        for (int guard = 0; guard < 1000 && room.resume_at > 0; guard++) {
+            live = room.accum_secs + (int64_t)(now - room.resume_at);
+            cp = maple_raid_next_checkpoint(room, boss);
+            if (live < cp) break;
+            maple_raid_reach_checkpoint_locked(room, boss, cp, now);
+        }
         return room.accum_secs;
     }
     return live;
@@ -2138,9 +2326,12 @@ static dpp::snowflake maple_raid_checkin_designee(const MapleRaidRoom& room) {
     if (room.members.empty()) return 0;
     return room.members[room.checkin_turn % room.members.size()].uid;
 }
-// 這一輪暫停是否等著某人簽到（點名制看 checkin_pending；輪流制看 designee）
+// 這一輪暫停是否等著某人簽到（12分鐘全員點名／5分鐘點名制看各自的 pending 名單；5分鐘輪流制看 designee）
 static bool maple_raid_can_checkin(const MapleRaidRoom& room, const MapleRaidBossDef* boss, dpp::snowflake uid) {
-    if (boss && boss->checkin_count >= 2)
+    if (std::find(room.fullcheckin_pending.begin(), room.fullcheckin_pending.end(), uid) != room.fullcheckin_pending.end())
+        return true;
+    bool pool_mode = boss && (boss->checkin_count >= 2 || (boss->checkin_count == 1 && boss->checkin_random));
+    if (pool_mode)
         return std::find(room.checkin_pending.begin(), room.checkin_pending.end(), uid) != room.checkin_pending.end();
     return !room.guess_active && maple_raid_checkin_designee(room) == uid;
 }
@@ -2169,8 +2360,16 @@ static MapleRaidGuessResult maple_raid_apply_guess_locked(MapleRaidRoom& room, d
 // 目前已經打掉多少血量；呼叫前必須持有 data_mutex
 static int64_t maple_raid_damage_dealt_locked(MapleRaidRoom& room, time_t now) {
     int64_t secs = maple_raid_progress_secs_locked(room, now);
-    double live = room.resume_at > 0
-        ? (secs - room.accum_secs) * (room.team_dps_x100 / 100.0) * (room.dmg_mult_x10 / 10.0) : 0.0;
+    double live = 0.0;
+    if (room.resume_at > 0) {
+        bool debuff_active_now = !room.dmg_disabled_uids.empty() && room.dmg_disabled_until_secs > room.accum_secs;
+        int64_t effective_dps_x100 = room.team_dps_x100;
+        if (debuff_active_now) {
+            effective_dps_x100 -= maple_raid_disabled_dps_x100_locked(room);
+            if (effective_dps_x100 < 0) effective_dps_x100 = 0;
+        }
+        live = (secs - room.accum_secs) * (effective_dps_x100 / 100.0) * (room.dmg_mult_x10 / 10.0);
+    }
     return (int64_t)llround(room.accum_dmg + live);
 }
 
@@ -2198,6 +2397,19 @@ static void save_maple_raid_rooms() {
                 {"guess_history", [&]{ nlohmann::json a = nlohmann::json::array();
                                        for (auto& [g, res] : r.guess_history) a.push_back({g, res}); return a; }()},
                 {"guess_note", r.guess_note},
+                {"fullcheckin_pending", [&]{ nlohmann::json a = nlohmann::json::array();
+                                             for (auto p : r.fullcheckin_pending) a.push_back((uint64_t)p); return a; }()},
+                {"dmg_mult_until_secs", r.dmg_mult_until_secs},
+                {"dmg_disabled_until_secs", r.dmg_disabled_until_secs},
+                {"dmg_disabled_uids", [&]{ nlohmann::json a = nlohmann::json::array();
+                                          for (auto p : r.dmg_disabled_uids) a.push_back((uint64_t)p); return a; }()},
+                {"roulette_note", r.roulette_note},
+                {"rd_active", r.rd_active}, {"rd_uid", (uint64_t)r.rd_uid},
+                {"rd_first_uid", (uint64_t)r.rd_first_uid}, {"rd_is_retry", r.rd_is_retry},
+                {"rd_bullet_chamber", r.rd_bullet_chamber}, {"rd_current_chamber", r.rd_current_chamber},
+                {"rd_chamber5_shooter", (uint64_t)r.rd_chamber5_shooter}, {"rd_chamber5_by_computer", r.rd_chamber5_by_computer},
+                {"rd_player_turn", r.rd_player_turn}, {"rd_shots_this_turn", r.rd_shots_this_turn},
+                {"rd_log", r.rd_log},
             });
         }
     }
@@ -2237,6 +2449,25 @@ static void load_maple_raid_rooms() {
                     if (h.is_array() && h.size() == 2) r.guess_history.push_back({h[0].get<std::string>(), h[1].get<std::string>()});
             if (r.guess_active && !guess_valid(r.guess_secret)) r.guess_secret = guess_gen_secret();
             r.guess_note    = v.value("guess_note", std::string());
+            if (v.contains("fullcheckin_pending") && v["fullcheckin_pending"].is_array())
+                for (auto& p : v["fullcheckin_pending"]) r.fullcheckin_pending.push_back(dpp::snowflake(p.get<uint64_t>()));
+            r.dmg_mult_until_secs     = v.value("dmg_mult_until_secs", (int64_t)-1);
+            r.dmg_disabled_until_secs = v.value("dmg_disabled_until_secs", (int64_t)-1);
+            if (v.contains("dmg_disabled_uids") && v["dmg_disabled_uids"].is_array())
+                for (auto& p : v["dmg_disabled_uids"]) r.dmg_disabled_uids.push_back(dpp::snowflake(p.get<uint64_t>()));
+            r.roulette_note = v.value("roulette_note", std::string());
+            r.rd_active            = v.value("rd_active", false);
+            r.rd_uid               = dpp::snowflake(v.value("rd_uid", (uint64_t)0));
+            r.rd_first_uid         = dpp::snowflake(v.value("rd_first_uid", (uint64_t)0));
+            r.rd_is_retry          = v.value("rd_is_retry", false);
+            r.rd_bullet_chamber    = v.value("rd_bullet_chamber", 0);
+            r.rd_current_chamber   = v.value("rd_current_chamber", 1);
+            r.rd_chamber5_shooter  = dpp::snowflake(v.value("rd_chamber5_shooter", (uint64_t)0));
+            r.rd_chamber5_by_computer = v.value("rd_chamber5_by_computer", false);
+            r.rd_player_turn       = v.value("rd_player_turn", true);
+            r.rd_shots_this_turn   = v.value("rd_shots_this_turn", 0);
+            if (v.contains("rd_log") && v["rd_log"].is_array())
+                for (auto& s : v["rd_log"]) r.rd_log.push_back(s.get<std::string>());
             if (v.contains("members") && v["members"].is_array()) {
                 for (auto& mv : v["members"]) {
                     MapleRaidMember m;
@@ -3895,9 +4126,18 @@ static dpp::message make_maple_raid_boss_list_msg(dpp::snowflake uid) {
         if (b.checkin_count >= 2)
             text += "\n-# 📢 每 " + std::to_string(MAPLE_RAID_CHECKIN_INTERVAL_SEC / 60) + " 分鐘隨機點名 "
                   + std::to_string(b.checkin_count) + " 人簽到，被點到的人都簽到才會繼續";
+        else if (b.checkin_random)
+            text += "\n-# 📢 每 " + std::to_string(MAPLE_RAID_CHECKIN_INTERVAL_SEC / 60) + " 分鐘隨機點名 1 人簽到才會繼續";
+        if (b.full_checkin12)
+            text += "\n-# 📢 每 " + std::to_string(MAPLE_RAID_FULLCHECKIN_INTERVAL_SEC / 60) + " 分鐘全員都要簽到才會繼續";
+        if (b.roulette_duel)
+            text += "\n-# 🔫 每 " + std::to_string(MAPLE_RAID_ROULETTE_INTERVAL_SEC / 60) + " 分鐘隨機1人跟電腦玩俄羅斯輪盤："
+                  + "贏了全隊" + std::to_string(MAPLE_RAID_ROULETTE_BUFF_SEC / 60) + "分鐘傷害×2；輸了換另一人重試，"
+                  + "兩人都輸則兩人接下來" + std::to_string(MAPLE_RAID_ROULETTE_DEBUFF_SEC / 60) + "分鐘無法輸出（沒有其他人可重試就直接算失敗）";
         if (b.guess_game)
             text += "\n-# 🎯 每 " + std::to_string(MAPLE_RAID_GUESS_INTERVAL_SEC / 60) + " 分鐘指定 1 人猜數字（幾A幾B，最多 "
                   + std::to_string(MAPLE_RAID_GUESS_MAX_TRIES) + " 次），越快猜中增傷越高；10 次沒猜中＝突襲失敗（不扣次數）";
+        if (b.min_level > 0) text += "\n-# 🔒 入場需要等級 " + std::to_string(b.min_level) + " 以上";
         if (!b.open) text += "\n-# 🚧尚未開放";
         container.add_component_v2(dpp::component()
             .set_type(dpp::cot_section)
@@ -4069,7 +4309,7 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
 
     std::string content;
     bool exists = false, is_leader = false, paused = false, defeated = false, is_designee = false;
-    bool show_checkin = false, is_guesser = false;
+    bool show_checkin = false, is_guesser = false, is_dueler = false;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         MapleRaidRoom* room = maple_find_raid_room(room_id);
@@ -4083,10 +4323,12 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
             if (dealt >= hp && hp > 0) { dealt = hp; defeated = true; room->state = "won"; }
             paused = (room->resume_at <= 0) && !defeated;
             int pct = hp > 0 ? (int)(dealt * 100 / hp) : 0;
-            bool rollcall = boss && boss->checkin_count >= 2;
+            bool pool_mode = boss && (boss->checkin_count >= 2 || (boss->checkin_count == 1 && boss->checkin_random));
             is_designee = paused && maple_raid_can_checkin(*room, boss, uid);
             is_guesser  = paused && room->guess_active && room->guess_uid == uid;
-            show_checkin = paused && (rollcall ? !room->checkin_pending.empty() : !room->guess_active);
+            is_dueler   = paused && room->rd_active && room->rd_uid == uid;
+            show_checkin = paused && !room->rd_active && (!room->checkin_pending.empty() || !room->fullcheckin_pending.empty()
+                                      || (!pool_mode && !room->guess_active));
 
             bool hide_hp = boss && boss->hide_hp;
             content = "## ⚔️ 討伐中 — " + (boss ? boss->name : room->boss_key) + "\n"
@@ -4100,6 +4342,16 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
                 }
                 content += "\n";
             }
+            if (boss && boss->roulette_duel && !defeated) {
+                int64_t secs_now = maple_raid_progress_secs_locked(*room, now);
+                if (room->dmg_mult_until_secs > secs_now)
+                    content += "🔥 全隊傷害 ×2 剩餘約 " + std::to_string((room->dmg_mult_until_secs - secs_now + 59) / 60) + " 分鐘\n";
+                if (room->dmg_disabled_until_secs > secs_now && !room->dmg_disabled_uids.empty()) {
+                    content += "🚫 無法輸出：";
+                    for (auto p : room->dmg_disabled_uids) content += "<@" + std::to_string((uint64_t)p) + "> ";
+                    content += "（剩餘約 " + std::to_string((room->dmg_disabled_until_secs - secs_now + 59) / 60) + " 分鐘）\n";
+                }
+            }
             if (defeated) content += "\n💀 **首領已被擊敗！**" + std::string(is_leader ? "　按下方「結算」發放獎勵。" : "　等隊長按「結算」。");
             else if (paused) {
                 if (room->guess_active) {
@@ -4108,16 +4360,27 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
                              + std::to_string(MAPLE_RAID_GUESS_MAX_TRIES) + " 次）\n-# 🅰️ = 數字對且位置對　🅱️ = 數字對但位置錯";
                     for (auto& [g, res] : room->guess_history) content += "\n`" + g + "`　→　**" + res + "**";
                 }
-                if (rollcall && !room->checkin_pending.empty()) {
+                if (!room->checkin_pending.empty()) {
                     content += "\n⏸️ **點名簽到**：";
                     for (auto p : room->checkin_pending) content += "<@" + std::to_string((uint64_t)p) + "> ";
                     content += "\n-# 被點到的人都簽到才會繼續累計進度";
-                } else if (!rollcall && !room->guess_active) {
+                } else if (!pool_mode && !room->guess_active) {
                     content += "\n⏸️ **已暫停，輪到 <@" + std::to_string((uint64_t)maple_raid_checkin_designee(*room)) + "> 簽到才會繼續累計進度**";
+                }
+                if (!room->fullcheckin_pending.empty()) {
+                    content += "\n⏸️ **全員點名**：";
+                    for (auto p : room->fullcheckin_pending) content += "<@" + std::to_string((uint64_t)p) + "> ";
+                    content += "\n-# 全部的人都簽到才會繼續累計進度";
+                }
+                if (room->rd_active) {
+                    content += "\n🔫 **俄羅斯輪盤對決中**：<@" + std::to_string((uint64_t)room->rd_uid) + ">"
+                             + (room->rd_is_retry ? "（重試）" : "") + " 正在跟電腦對決（第 "
+                             + std::to_string(room->rd_current_chamber) + " / 6 發），結束前暫停累計進度";
                 }
             }
             else content += "\n▶️ 自動討伐中…";
             if (!defeated && !room->guess_active && !room->guess_note.empty()) content += "\n-# " + room->guess_note;
+            if (!defeated && !room->roulette_note.empty()) content += "\n-# " + room->roulette_note;
         }
     }
     if (!exists) content = "## ❌ 找不到這場討伐\n可能已經結算過了。";
@@ -4144,6 +4407,10 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
                 row.add_component(dpp::component().set_type(dpp::cot_button)
                     .set_label("🎯 猜數字").set_id("maple_raidguess_" + uid_s + "_" + room_id)
                     .set_style(dpp::cos_primary));
+            if (is_dueler)
+                row.add_component(dpp::component().set_type(dpp::cot_button)
+                    .set_label("🔫 進入對決").set_id("maple_raidroulette_" + uid_s + "_" + room_id)
+                    .set_style(dpp::cos_primary));
         }
         row.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("🔄 刷新").set_id("maple_raidstatus_" + uid_s + "_" + room_id).set_style(dpp::cos_secondary));
@@ -4154,6 +4421,61 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回大廳").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row2);
+    return msg;
+}
+
+// 俄羅斯輪盤對決畫面：只有 room.rd_uid 本人能操作，其他人看到的是只讀訊息（引導回戰況頁看進度）
+static dpp::message make_maple_raid_roulette_msg(dpp::snowflake uid, const std::string& room_id) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    std::string content;
+    bool active = false, my_turn = false, can_pass = false;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        MapleRaidRoom* room = maple_find_raid_room(room_id);
+        if (room && room->rd_active) {
+            active = true;
+            my_turn = room->rd_player_turn && room->rd_uid == uid;
+            can_pass = my_turn && room->rd_shots_this_turn >= 1;
+            content = "## 🔫 俄羅斯輪盤對決" + std::string(room->rd_is_retry ? "（重試）" : "") + "\n"
+                    + "對手：殘暴炎魔派來的電腦　目前第 **" + std::to_string(room->rd_current_chamber) + " / 6** 發\n";
+            if (room->rd_uid == uid)
+                content += room->rd_player_turn ? "輪到你了！至少要開一槍，安全的話可以選擇繼續開或過。"
+                                                 : "電腦剛結算完，正在換手…（刷新看最新狀況）";
+            else
+                content += "輪到 <@" + std::to_string((uint64_t)room->rd_uid) + "> 對決，其他人只能旁觀。";
+            if (!room->rd_log.empty()) {
+                content += "\n\n**過程記錄：**";
+                for (auto& line : room->rd_log) content += "\n" + line;
+            }
+        } else if (room && !room->roulette_note.empty()) {
+            content = "## 🔫 俄羅斯輪盤對決已結束\n" + room->roulette_note;
+        } else {
+            content = "## ❌ 目前沒有進行中的對決\n可能已經結束了，回戰況頁看最新進度。";
+        }
+    }
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xC0, 0x39, 0x2B));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    if (active) {
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🔫 開槍").set_id("maple_raidrlfire_" + uid_s + "_" + room_id)
+            .set_style(dpp::cos_danger).set_disabled(!my_turn));
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("⏭️ 過").set_id("maple_raidrlpass_" + uid_s + "_" + room_id)
+            .set_style(dpp::cos_secondary).set_disabled(!can_pass));
+    }
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🔄 刷新").set_id("maple_raidroulette_" + uid_s + "_" + room_id).set_style(dpp::cos_secondary));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回戰況").set_id("maple_raidstatus_" + uid_s + "_" + room_id).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
     return msg;
 }
 
@@ -4719,6 +5041,39 @@ static dpp::message make_maple_tokenshop_msg(dpp::snowflake uid) {
                 .set_id("maple_raidbuyattempt_" + uid_s)
                 .set_style(dpp::cos_primary)
                 .set_disabled(maxed || c.coins < MAPLE_RAID_EXTRA_ATTEMPT_PRICE)));
+    }
+    {
+        int wolf_tokens = c.equipment.count("mat_wolf_king_token") ? c.equipment.at("mat_wolf_king_token") : 0;
+        container.add_component_v2(dpp::component()
+            .set_type(dpp::cot_section)
+            .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+                .set_content("**🔮 狼王象徵兌換潛能方塊**\n消耗 1 個「狼王象徵」換 "
+                             + std::to_string(MAPLE_WOLF_TOKEN_CUBE_RATE) + " 顆潛能方塊\n持有：" + std::to_string(wolf_tokens) + " 個"))
+            .set_accessory(dpp::component().set_type(dpp::cot_button)
+                .set_label("兌換").set_id("maple_wolftokenex_" + uid_s)
+                .set_style(dpp::cos_primary).set_disabled(wolf_tokens <= 0)));
+    }
+    {
+        int empress_tokens = c.equipment.count("mat_empress_token") ? c.equipment.at("mat_empress_token") : 0;
+        container.add_component_v2(dpp::component()
+            .set_type(dpp::cot_section)
+            .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+                .set_content("**🔮 女皇象徵兌換潛能方塊**\n消耗 1 個「女皇象徵」換 "
+                             + std::to_string(MAPLE_EMPRESS_TOKEN_CUBE_RATE) + " 顆潛能方塊\n持有：" + std::to_string(empress_tokens) + " 個"))
+            .set_accessory(dpp::component().set_type(dpp::cot_button)
+                .set_label("兌換").set_id("maple_empresstokenex_" + uid_s)
+                .set_style(dpp::cos_primary).set_disabled(empress_tokens <= 0)));
+    }
+    {
+        int flame_tokens = c.equipment.count("mat_flame_demon_token") ? c.equipment.at("mat_flame_demon_token") : 0;
+        container.add_component_v2(dpp::component()
+            .set_type(dpp::cot_section)
+            .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+                .set_content("**🔮 炎魔象徵兌換潛能方塊**\n消耗 1 個「炎魔象徵」換 "
+                             + std::to_string(MAPLE_FLAME_TOKEN_CUBE_RATE) + " 顆潛能方塊\n持有：" + std::to_string(flame_tokens) + " 個"))
+            .set_accessory(dpp::component().set_type(dpp::cot_button)
+                .set_label("兌換").set_id("maple_flametokenex_" + uid_s)
+                .set_style(dpp::cos_primary).set_disabled(flame_tokens <= 0)));
     }
     msg.add_component_v2(container);
 

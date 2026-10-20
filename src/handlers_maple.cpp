@@ -488,6 +488,11 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 冒險中或挑戰野外首領中無法開房間！").set_flags(dpp::m_ephemeral)); return;
             }
+            if (c.level < boss->min_level) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 挑戰 " + boss->name + " 需要等級 " + std::to_string(boss->min_level) + " 以上！")
+                        .set_flags(dpp::m_ephemeral)); return;
+            }
             maple_raid_week_reset_if_needed(c);
             if (!maple_raid_week_has_attempt(c)) {
                 ev.reply(dpp::ir_channel_message_with_source,
@@ -528,10 +533,13 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             auto& c = maple_data[uid];
             MapleRaidRoom* room = maple_find_raid_room(room_id);
             maple_raid_week_reset_if_needed(c);
+            const MapleRaidBossDef* boss = room ? maple_find_raid_boss(room->boss_key) : nullptr;
             if (!room || room->state != "waiting") err = "這間房間已經不能加入了。";
             else if (!c.raid_room_id.empty() && maple_find_raid_room(c.raid_room_id)) err = "你已經在一個房間裡了！";
             else if (maple_is_adventuring(c) || maple_is_wb_fighting(c)) err = "冒險中或挑戰野外首領中無法加入房間！";
             else if ((int)room->members.size() >= MAPLE_RAID_ROOM_MAX_MEMBERS) err = "這間房間已經滿了。";
+            else if (boss && c.level < boss->min_level)
+                err = "挑戰 " + boss->name + " 需要等級 " + std::to_string(boss->min_level) + " 以上！";
             else if (!maple_raid_week_has_attempt(c))
                 err = "本週的突襲首領次數已經用完了！（" + std::to_string(maple_raid_week_used(c))
                     + "/" + std::to_string(maple_raid_week_allowed(c)) + "，可以去特殊商店花瘋幣買額外次數）";
@@ -713,6 +721,74 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
+    if (cid.rfind("maple_raidroulette_", 0) == 0) {
+        std::string rest = cid.substr(std::string("maple_raidroulette_").size());
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_raid_roulette_msg(uid, room_id));
+        return;
+    }
+
+    if (cid.rfind("maple_raidrlfire_", 0) == 0) {
+        std::string rest = cid.substr(std::string("maple_raidrlfire_").size());
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            MapleRaidRoom* room = maple_find_raid_room(room_id);
+            if (room && room->rd_active && room->rd_uid == uid && room->rd_player_turn) {
+                MapleRdFireResult res = maple_raid_rd_player_fire_locked(*room);
+                if (res == RD_PLAYER_HIT) {
+                    maple_raid_rd_handle_player_loss_locked(*room);
+                } else if (res == RD_FORCED_PASS) {
+                    room->rd_log.push_back("⚠️ 這發規則上不能自己開，強制過");
+                    maple_raid_rd_end_player_turn_locked(*room);
+                }
+                if (!room->rd_active && room->checkin_pending.empty() && room->fullcheckin_pending.empty() && !room->guess_active)
+                    room->resume_at = time(nullptr);
+            }
+        }
+        save_maple_raid_rooms();
+        ev.reply(dpp::ir_update_message, make_maple_raid_roulette_msg(uid, room_id));
+        return;
+    }
+
+    if (cid.rfind("maple_raidrlpass_", 0) == 0) {
+        std::string rest = cid.substr(std::string("maple_raidrlpass_").size());
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            MapleRaidRoom* room = maple_find_raid_room(room_id);
+            if (room && room->rd_active && room->rd_uid == uid && room->rd_player_turn && room->rd_shots_this_turn >= 1) {
+                maple_raid_rd_end_player_turn_locked(*room);
+                if (!room->rd_active && room->checkin_pending.empty() && room->fullcheckin_pending.empty() && !room->guess_active)
+                    room->resume_at = time(nullptr);
+            }
+        }
+        save_maple_raid_rooms();
+        ev.reply(dpp::ir_update_message, make_maple_raid_roulette_msg(uid, room_id));
+        return;
+    }
+
     if (cid.rfind("maple_raidcheckin_", 0) == 0) {
         std::string rest = cid.substr(18);
         size_t sep = rest.find('_');
@@ -733,14 +809,19 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 err = "現在還沒輪到你簽到，換其他隊員試試。";
             } else {
                 const MapleRaidBossDef* boss = maple_find_raid_boss(room->boss_key);
-                if (boss && boss->checkin_count >= 2) {
+                bool pool_mode = boss && (boss->checkin_count >= 2 || (boss->checkin_count == 1 && boss->checkin_random));
+                bool checkin_done = true; // 輪流制：這個人簽到了這關就過了
+                if (pool_mode) {
                     auto& pend = room->checkin_pending;
                     pend.erase(std::remove(pend.begin(), pend.end(), uid), pend.end());
-                    if (pend.empty() && !room->guess_active) room->resume_at = time(nullptr);
-                } else {
-                    room->resume_at = time(nullptr);
+                    checkin_done = pend.empty();
+                } else if (boss && boss->checkin_count == 1) {
                     room->checkin_turn = (room->checkin_turn + 1) % (int)room->members.size(); // 輪到下一位
                 }
+                // 12分鐘全員點名：如果這個人也在待簽到名單裡，一併簽掉（跟5分鐘那關各自獨立）
+                auto& fpend = room->fullcheckin_pending;
+                fpend.erase(std::remove(fpend.begin(), fpend.end(), uid), fpend.end());
+                if (checkin_done && fpend.empty() && !room->guess_active) room->resume_at = time(nullptr);
             }
         }
         if (!err.empty()) {
@@ -2350,6 +2431,75 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             else {
                 c.coins -= MAPLE_RAID_EXTRA_ATTEMPT_PRICE;
                 c.raid_week_extra += 1;
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_wolftokenex_", 0) == 0) {
+        if (!check_owner("maple_wolftokenex_")) return;
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            auto it = c.equipment.find("mat_wolf_king_token");
+            if (it == c.equipment.end() || it->second <= 0) err = "你沒有狼王象徵。";
+            else {
+                it->second--;
+                if (it->second <= 0) c.equipment.erase(it);
+                c.equipment["potential_cube"] += MAPLE_WOLF_TOKEN_CUBE_RATE;
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_empresstokenex_", 0) == 0) {
+        if (!check_owner("maple_empresstokenex_")) return;
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            auto it = c.equipment.find("mat_empress_token");
+            if (it == c.equipment.end() || it->second <= 0) err = "你沒有女皇象徵。";
+            else {
+                it->second--;
+                if (it->second <= 0) c.equipment.erase(it);
+                c.equipment["potential_cube"] += MAPLE_EMPRESS_TOKEN_CUBE_RATE;
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_flametokenex_", 0) == 0) {
+        if (!check_owner("maple_flametokenex_")) return;
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            auto it = c.equipment.find("mat_flame_demon_token");
+            if (it == c.equipment.end() || it->second <= 0) err = "你沒有炎魔象徵。";
+            else {
+                it->second--;
+                if (it->second <= 0) c.equipment.erase(it);
+                c.equipment["potential_cube"] += MAPLE_FLAME_TOKEN_CUBE_RATE;
             }
         }
         if (!err.empty()) {

@@ -460,6 +460,18 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.item_id = 96799;
             items.push_back(e);
         }
+        // 炎魔象徵：材料道具，放背包「其他」分頁，可在特殊商店換潛能方塊。殘暴炎魔掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "mat_flame_demon_token";
+            e.name = "炎魔象徵";
+            e.slot = "material";
+            e.sellable = true;
+            e.atk_speed_sec = 60;
+            e.price = 0;
+            e.item_id = 96800;
+            items.push_back(e);
+        }
         return items;
     }();
     return v;

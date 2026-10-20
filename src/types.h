@@ -835,6 +835,29 @@ struct MapleRaidRoom {
     std::string      guess_secret;             // 4 個不重複數字
     std::vector<std::pair<std::string,std::string>> guess_history; // 這一輪的 {猜測, xAyB}
     std::string      guess_note;               // 最近一次猜數字的結果說明（顯示用）
+    // 全員點名簽到（首領 full_checkin12）：每 MAPLE_RAID_FULLCHECKIN_INTERVAL_SEC 有效秒觸發一次，
+    // 隊伍每個人都要各自簽到才會繼續，跟 checkin_pending（5分鐘單人點名）是兩套各自獨立的關卡。
+    std::vector<dpp::snowflake> fullcheckin_pending;
+    // 俄羅斯輪盤對決（首領 roulette_duel）：每 MAPLE_RAID_ROULETTE_INTERVAL_SEC 有效秒觸發一次，真的暫停計時、
+    // 跑一場互動對決（玩家自己按開槍/過，不是瞬間算完）。規則跟 !輪盤 同一套：6發1顆子彈，連續同一人的回合可以
+    // 一直開槍到自己選擇「過」為止（至少要開1槍才能過），開了第5發存活的人不能自己開第6發（強制過，一定換對方開）。
+    // 電腦固定每回合只開1槍就過（不會連續開、不會主動過）。贏了全隊5分鐘雙倍傷害；輸了換另一個隨機隊友重試
+    // （沒有其他隊友可重試＝直接算失敗）；兩次都輸則那兩人接下來10分鐘無法輸出。
+    bool             rd_active              = false; // 目前是不是有輪盤對決正在進行（暫停計時）
+    dpp::snowflake   rd_uid                 = 0;     // 目前對決中的玩家
+    dpp::snowflake   rd_first_uid           = 0;     // 這一輪第一個被點到的人（重試時排除、兩敗時兩人一起禁輸出）
+    bool             rd_is_retry            = false; // 目前這場是不是「第一人輸了换人」的第二場
+    int              rd_bullet_chamber      = 0;     // 子彈在第幾發（1-6），不顯示給玩家
+    int              rd_current_chamber     = 1;     // 下一發要開第幾發
+    dpp::snowflake   rd_chamber5_shooter    = 0;     // 開了第5發且存活的是哪個玩家（0＝還沒發生，或是電腦開的見下面那個flag）
+    bool             rd_chamber5_by_computer = false; // 第5發是不是電腦開的且存活
+    bool             rd_player_turn         = true;  // 目前是玩家的回合還是電腦的回合
+    int              rd_shots_this_turn     = 0;     // 玩家這個回合（還沒過）已經開了幾槍，至少開1槍才能選「過」
+    std::vector<std::string> rd_log;                 // 這場對決目前為止的過程記錄（顯示用）
+    int64_t          dmg_mult_until_secs    = -1; // dmg_mult_x10 的雙倍效果在第幾個有效秒失效（-1＝目前沒有在倒數）
+    int64_t          dmg_disabled_until_secs = -1; // dmg_disabled_uids 的禁輸出效果在第幾個有效秒失效
+    std::vector<dpp::snowflake> dmg_disabled_uids; // 目前被禁止輸出的最多2人（空＝沒有人被禁）
+    std::string      roulette_note;            // 最近一次輪盤對決的結果說明（顯示用）
 };
 inline std::map<std::string, MapleRaidRoom> maple_raid_rooms; // key = room id
 inline std::atomic<uint64_t> maple_raid_room_seq{1};
