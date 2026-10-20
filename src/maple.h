@@ -595,6 +595,72 @@ static bool maple_enh_is_equipped(const MapleCharacter& c, int id) {
     return false;
 }
 
+// ─── 潛能：詞條種類定義（骰算邏輯在後面 maple_potential_reroll 附近，這裡先放顯示／早期公式會用到的查表函式）───
+enum {
+    POT_ATK_PCT = 0,      // 攻擊力+1~3%（稀有以上）
+    POT_RANDSTAT_PCT,     // 隨機屬性+1~3%（稀有以上，力/敏/智/幸四選一）
+    POT_BOSS_DMG,         // BOSS傷害+2~5%
+    POT_ATK_FLAT,         // 攻擊力+2~5
+    POT_RANDSTAT_FLAT,    // 隨機屬性+10/20/30/40（力/敏/智/幸四選一）
+    POT_REST_SEC,         // 冒險休息時間-1/2/3/4秒
+    POT_ATK_SPEED,        // 攻擊間隔-1/2秒（史詩以上）
+    POT_COIN_PCT,         // 冒險瘋幣收益+2/3/4/5%
+    POT_EXP_PCT,          // 冒險經驗收益+2/3/4/5%
+    POT_TYPE_COUNT
+};
+struct MaplePotTypeDef { int min_grade; std::string name; };
+static const MaplePotTypeDef MAPLE_POT_TYPES[POT_TYPE_COUNT] = {
+    {1, "攻擊力"},        // POT_ATK_PCT（顯示另外處理百分比）
+    {1, "隨機屬性"},      // POT_RANDSTAT_PCT
+    {0, "BOSS傷害"},      // POT_BOSS_DMG
+    {0, "攻擊力"},        // POT_ATK_FLAT
+    {0, "隨機屬性"},      // POT_RANDSTAT_FLAT
+    {0, "冒險休息時間"},  // POT_REST_SEC
+    {2, "攻擊間隔"},      // POT_ATK_SPEED
+    {0, "冒險瘋幣收益"},  // POT_COIN_PCT
+    {0, "冒險經驗收益"},  // POT_EXP_PCT
+};
+static const char* MAPLE_POT_GRADE_NAME[4] = {"普通", "稀有", "史詩", "傳說"};
+// 某詞條種類在這個強化實例三行潛能裡的加總（不分主副屬性；給 POT_RANDSTAT_* 以外的種類用）
+static double maple_pot_line_value(const MapleEnhItem* e, int type) {
+    if (!e) return 0.0;
+    double total = 0;
+    if (e->pot1_type == type) total += e->pot1_value;
+    if (e->pot2_type == type) total += e->pot2_value;
+    if (e->pot3_type == type) total += e->pot3_value;
+    return total;
+}
+// 某詞條種類＋指定屬性（sub：0=力量/1=敏捷/2=智力/3=幸運）的加總；給 POT_RANDSTAT_* 用
+static double maple_pot_stat_value(const MapleEnhItem* e, int type, int sub) {
+    if (!e) return 0.0;
+    double total = 0;
+    if (e->pot1_type == type && e->pot1_sub == sub) total += e->pot1_value;
+    if (e->pot2_type == type && e->pot2_sub == sub) total += e->pot2_value;
+    if (e->pot3_type == type && e->pot3_sub == sub) total += e->pot3_value;
+    return total;
+}
+// 潛能「隨機屬性」系列的 sub：0=力量/1=敏捷/2=智力/3=幸運（四選一，不分職業主副屬性）
+static const char* MAPLE_POT_SUBSTAT_NAME[4] = {"力量", "敏捷", "智力", "幸運"};
+static int maple_pot_sub_for_stat(const std::string& stat) {
+    if (stat == "str") return 0;
+    if (stat == "dex") return 1;
+    if (stat == "int") return 2;
+    return 3; // luk
+}
+// 某一行的顯示文字
+static std::string maple_pot_line_text(int type, double value, int sub) {
+    if (type < 0) return "（空）";
+    const auto& td = MAPLE_POT_TYPES[type];
+    std::string suffix;
+    if (type == POT_RANDSTAT_PCT || type == POT_RANDSTAT_FLAT)
+        suffix = std::string("（") + MAPLE_POT_SUBSTAT_NAME[sub >= 0 && sub < 4 ? sub : 0] + "）";
+    bool is_pct = (type == POT_ATK_PCT || type == POT_RANDSTAT_PCT || type == POT_BOSS_DMG
+                 || type == POT_COIN_PCT || type == POT_EXP_PCT);
+    std::string val = is_pct ? ("+" + std::to_string((int)value) + "%") : ("+" + std::to_string((int)value));
+    if (type == POT_REST_SEC || type == POT_ATK_SPEED) val = "-" + std::to_string((int)value) + "秒";
+    return td.name + " " + val + suffix;
+}
+
 // ─── 售出（把汰換掉的裝備換回瘋幣）────────────────────────────────────────────
 // 基礎售價：商店有賣的裝備＝售價的40%；商店沒賣（首領掉落的特殊裝備）給固定保底價。
 static int64_t maple_item_sell_price(const MapleItemDef& it) {
@@ -612,7 +678,7 @@ static int64_t maple_enh_extra_sell_value(const MapleEnhItem& e) {
     return (int64_t)(e.add_atk + e.add_primary + e.add_secondary
                     + e.add_str + e.add_dex + e.add_int + e.add_luk) * 300;
 }
-// 強化實例累積的加成文字（含全屬性卷軸的力/敏/智/幸）
+// 強化實例累積的加成文字（含全屬性卷軸的力/敏/智/幸、潛能三行）
 static std::string maple_enh_bonus_text(const MapleEnhItem& e) {
     std::string t;
     if (e.add_atk)       t += "攻擊力+" + std::to_string(e.add_atk) + " ";
@@ -623,10 +689,20 @@ static std::string maple_enh_bonus_text(const MapleEnhItem& e) {
     if (e.add_int)       t += "智力+" + std::to_string(e.add_int) + " ";
     if (e.add_luk)       t += "幸運+" + std::to_string(e.add_luk) + " ";
     if (!t.empty() && t.back() == ' ') t.pop_back();
+    if (e.pot1_type >= 0 || e.pot2_type >= 0 || e.pot3_type >= 0) {
+        if (!t.empty()) t += "\n";
+        t += "🔮" + std::string(MAPLE_POT_GRADE_NAME[e.pot_grade]) + "：";
+        std::vector<std::string> lines;
+        if (e.pot1_type >= 0) lines.push_back(maple_pot_line_text(e.pot1_type, e.pot1_value, e.pot1_sub) + (e.pot1_locked ? "🔒" : ""));
+        if (e.pot2_type >= 0) lines.push_back(maple_pot_line_text(e.pot2_type, e.pot2_value, e.pot2_sub) + (e.pot2_locked ? "🔒" : ""));
+        if (e.pot3_type >= 0) lines.push_back(maple_pot_line_text(e.pot3_type, e.pot3_value, e.pot3_sub) + (e.pot3_locked ? "🔒" : ""));
+        for (size_t i = 0; i < lines.size(); i++) t += (i ? "、" : "") + lines[i];
+    }
     return t;
 }
 static bool maple_enh_has_bonus(const MapleEnhItem& e) {
-    return e.add_atk || e.add_primary || e.add_secondary || e.add_str || e.add_dex || e.add_int || e.add_luk;
+    return e.add_atk || e.add_primary || e.add_secondary || e.add_str || e.add_dex || e.add_int || e.add_luk
+        || e.pot1_type >= 0 || e.pot2_type >= 0 || e.pot3_type >= 0;
 }
 
 // 目前裝備武器的類型（法杖/大劍/弓...），未裝備武器回傳空字串
@@ -691,6 +767,8 @@ static int maple_equip_stat_bonus_excl(const MapleCharacter& c, const std::strin
             else if (stat == "dex") total += e->add_dex;
             else if (stat == "int") total += e->add_int;
             else                    total += e->add_luk;
+            // 潛能「隨機屬性+flat」：力/敏/智/幸四選一，不分主副屬性
+            total += (int)maple_pot_stat_value(e, POT_RANDSTAT_FLAT, maple_pot_sub_for_stat(stat));
         }
     }
     return total;
@@ -712,9 +790,12 @@ static int maple_weapon_enlighten_bonus(const MapleCharacter& c, const std::stri
     return 0;
 }
 
-// 能力值總和（自己分配 + 裝備加成 + 武器領悟）
+// 能力值總和（自己分配 + 裝備加成 + 武器領悟 + 潛能「隨機屬性%」，力/敏/智/幸四選一）
 static int maple_stat_value(const MapleCharacter& c, const std::string& stat) {
-    return maple_stat_alloc(c, stat) + maple_equip_stat_bonus(c, stat) + maple_weapon_enlighten_bonus(c, stat);
+    int base = maple_stat_alloc(c, stat) + maple_equip_stat_bonus(c, stat) + maple_weapon_enlighten_bonus(c, stat);
+    double pct = maple_pot_stat_value(maple_equipped_enh(c, "offhand"), POT_RANDSTAT_PCT, maple_pot_sub_for_stat(stat));
+    if (pct > 0) base = (int)std::ceil(base * (1.0 + pct / 100.0));
+    return base;
 }
 
 // 顯示用：「總和 (自己+裝備)」；沒有額外加成時只顯示總和
@@ -875,7 +956,10 @@ static int maple_total_atk(const MapleCharacter& c) {
     for (auto& slot : MAPLE_SLOTS) {
         auto* it = maple_find_item(maple_equipped_key(c, slot.key));
         if (it) total += it->atk_bonus;
-        if (const MapleEnhItem* e = maple_equipped_enh(c, slot.key)) total += e->add_atk;
+        if (const MapleEnhItem* e = maple_equipped_enh(c, slot.key)) {
+            total += e->add_atk;
+            total += (int)maple_pot_line_value(e, POT_ATK_FLAT); // 潛能「攻擊力+」
+        }
     }
     return total;
 }
@@ -935,9 +1019,10 @@ static int64_t maple_job_flat_atk_bonus(const MapleCharacter& c, double angel_ov
                     + maple_buff_value(c, "crusader_focus")
                     + maple_buff_value(c, "knight_enchant"));
 }
-// 章魚砲台：額外增加「武器攻擊力」一定比例的攻擊力（吃武器本身的 ATK，不是乘算完的總攻擊力）
+// 章魚砲台／潛能「攻擊力%」：額外增加「武器攻擊力」一定比例的攻擊力（吃武器本身的 ATK，不是乘算完的總攻擊力）
 static int64_t maple_job_mult_atk_bonus(const MapleCharacter& c) {
-    double pct = maple_buff_value(c, "octopus_turret");
+    double pct = maple_buff_value(c, "octopus_turret")
+               + maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_ATK_PCT);
     return pct > 0 ? (int64_t)std::ceil(maple_total_atk(c) * pct / 100.0) : 0;
 }
 
@@ -1034,7 +1119,8 @@ static int64_t maple_scroll_sell_price(const MapleScrollDef& s) {
 }
 
 static std::string maple_scroll_effect_text(const MapleScrollDef& s) {
-    if (s.restore_slot) return "歸還1次已使用的卷軸次數（只能用在已有強化失敗紀錄的裝備）";
+    if (s.restore_slot) return "歸還1次已使用的卷軸次數（只能用在已有強化失敗紀錄的裝備）。"
+        + std::string(s.explode_pct > 0 ? "⚠️失敗必爆炸，裝備直接消失！" : "失敗不會損壞裝備，只是卷軸白用掉。");
     std::string t;
     if (s.atk_bonus       > 0) t += (t.empty() ? "" : "、") + std::string("攻擊力+") + std::to_string(s.atk_bonus);
     if (s.primary_bonus   > 0) t += (t.empty() ? "" : "、") + std::string("主屬性+") + std::to_string(s.primary_bonus);
@@ -1067,8 +1153,13 @@ static bool maple_scroll_applies(const MapleScrollDef& s, const MapleCharacter& 
     return !cn.empty() && s.applies_to.find(cn) != std::string::npos;
 }
 
-// 某部位的卷軸使用次數上限（武器 7、戒指/項鍊 3、其餘 5）
-static int maple_enh_max_slots(const std::string& slot) {
+// 某部位的卷軸使用次數上限（武器 7、戒指/項鍊 3、其餘 5；少數道具有個別覆寫，見 item_key）
+static int maple_enh_max_slots(const std::string& slot, const std::string& item_key = "") {
+    // 芽孢系列特例：鞋子／四種芽孢武器強化上限都是10次
+    static const std::set<std::string> SPORE_10_SLOT = {
+        "arm_spore_shoes", "wpn_spore_sword", "wpn_spore_sniper", "wpn_spore_rifle", "wpn_spore_staff"
+    };
+    if (SPORE_10_SLOT.count(item_key)) return 10;
     if (slot == "weapon") return 7;
     if (slot == "ring" || slot == "ring2" || slot == "necklace") return 3;
     return 5;
@@ -1076,7 +1167,7 @@ static int maple_enh_max_slots(const std::string& slot) {
 // 顯示用：✨成功次數 ＋（強化 已用次數/上限），slot 決定上限是武器(7)還是其他(5)
 static std::string maple_enh_badge(const MapleEnhItem& e, const std::string& slot) {
     return " ✨+" + std::to_string(e.enh_count)
-         + "（強化 " + std::to_string(e.slots_used) + "/" + std::to_string(maple_enh_max_slots(slot)) + "）";
+         + "（強化 " + std::to_string(e.slots_used) + "/" + std::to_string(maple_enh_max_slots(slot, e.base_key)) + "）";
 }
 
 // 對某部位「目前裝備的那件」使用一張卷軸。回傳結果訊息；ok 表示是否有實際消耗卷軸。
@@ -1092,31 +1183,37 @@ static std::string maple_enh_apply(MapleCharacter& c, const std::string& slot,
     auto sit = c.scrolls.find(scroll_key);
     if (sit == c.scrolls.end() || sit->second <= 0) return "你沒有這張卷軸。";
 
-    int max_slots = maple_enh_max_slots(slot);
+    int max_slots = maple_enh_max_slots(slot, base);
     std::string raw = maple_equipped_raw(c, slot);
 
-    // 純白卷軸：只能用在已經有強化失敗紀錄的裝備上，不佔用強化次數上限，
-    // 50%成功歸還1次已使用的卷軸次數／50%爆炸裝備直接消失（跟其他詛咒卷軸一樣沒有「純失敗」的中間結果）。
+    // 純白／潔白卷軸：只能用在已經有強化失敗紀錄的裝備上，不佔用強化次數上限，
+    // 成功歸還1次已使用的卷軸次數；失敗會不會爆炸看 explode_pct——
+    // 純白沒有「純失敗」的中間結果（explode_pct = 100-成功率，失敗必爆），潔白則 explode_pct=0，失敗只是卷軸白用掉。
     if (s->restore_slot) {
-        if (!maple_eq_is_enh(raw)) return "這件裝備沒有強化失敗紀錄，不能使用純白卷軸。";
+        if (!maple_eq_is_enh(raw)) return "這件裝備沒有強化失敗紀錄，不能使用這張卷軸。";
         MapleEnhItem* e = maple_find_enh(c, maple_eq_enh_id(raw));
         if (!e) return "強化實例遺失，請重試。";
-        if (e->slots_used <= e->enh_count) return "這件裝備沒有強化失敗紀錄，不能使用純白卷軸。";
+        if (e->slots_used <= e->enh_count) return "這件裝備沒有強化失敗紀錄，不能使用這張卷軸。";
         sit->second--;
         if (sit->second <= 0) c.scrolls.erase(sit);
         ok = true;
         static std::mt19937 white_rng(std::random_device{}());
         int roll = std::uniform_int_distribution<int>(0, 99)(white_rng);
-        if (roll >= s->rate) {
+        bool success = roll < s->rate;
+        bool boom    = !success && s->explode_pct > 0 && roll < s->rate + s->explode_pct;
+        if (success) {
+            e->slots_used--;
+            return "✨ 卷軸成功！已歸還 1 次可用卷軸次數，目前已使用 "
+                 + std::to_string(e->slots_used) + "/" + std::to_string(max_slots) + " 次。";
+        }
+        if (boom) {
             int eid = e->id;
             maple_set_equipped(c, slot, "");
             c.enh_items.erase(std::remove_if(c.enh_items.begin(), c.enh_items.end(),
                                               [&](const MapleEnhItem& x){ return x.id == eid; }), c.enh_items.end());
-            return "💥💥 純白卷軸失敗，裝備直接爆炸消失了！這個部位現在是空的。";
+            return "💥💥 卷軸失敗，裝備直接爆炸消失了！這個部位現在是空的。";
         }
-        e->slots_used--;
-        return "✨ 純白卷軸成功！已歸還 1 次可用卷軸次數，目前已使用 "
-             + std::to_string(e->slots_used) + "/" + std::to_string(max_slots) + " 次。";
+        return "💥 卷軸失敗！卷軸已消耗（裝備沒有損壞，次數沒有歸還）。";
     }
 
     // 取得（必要時建立）此部位的強化實例
@@ -1169,6 +1266,107 @@ static std::string maple_enh_apply(MapleCharacter& c, const std::string& slot,
     e->add_luk       += s->luk_bonus;
     e->enh_count++;
     return "✨ 強化成功！" + maple_scroll_effect_text(*s) + "　剩餘次數：" + std::to_string(left);
+}
+
+// ─── 潛能 ───────────────────────────────────────────────────────────────────
+// 目前只開放副武器。品質分4階：0普通/1稀有/2史詩/3傳說，洗的時候有機率從目前品質再往上一階
+// （普通→稀有8%、稀有→史詩4%、史詩→傳說2%，傳說是頂），品質決定重骰時每一行詞條各自的「行品質」分布，
+// 行品質再決定這一行能骰到哪些詞條種類、數值多少。可以鎖詞條避免被洗掉，鎖得越多洗一次越貴。
+static const std::set<std::string> MAPLE_POTENTIAL_SLOTS = {"offhand"}; // 目前開放洗潛能的部位，之後開放其他部位往這裡加
+
+// 骰某一行的「行品質」：依裝備目前的潛能總品質決定分布（見使用者指定的四組機率表）
+static int maple_pot_roll_line_grade(int item_grade, std::mt19937& rng) {
+    int roll = std::uniform_int_distribution<int>(1, 100)(rng);
+    if (item_grade <= 0) return 0;                                   // 普通：100%普通
+    if (item_grade == 1) return roll <= 65 ? 0 : 1;                  // 稀有：65普通/35稀有
+    if (item_grade == 2) { if (roll <= 45) return 0; if (roll <= 85) return 1; return 2; } // 史詩：45/40/15
+    if (roll <= 30) return 0; if (roll <= 70) return 1; if (roll <= 90) return 2; return 3; // 傳說：30/40/20/10
+}
+// 某詞條種類在某「行品質」下骰出的數值（1~3%／2~5%是隨機範圍；其餘是依行品質的固定階梯值）
+static double maple_pot_roll_value(int type, int line_grade, std::mt19937& rng) {
+    switch (type) {
+        case POT_ATK_PCT:      return std::uniform_int_distribution<int>(1, 3)(rng);
+        case POT_RANDSTAT_PCT: return std::uniform_int_distribution<int>(1, 3)(rng);
+        case POT_BOSS_DMG:     return std::uniform_int_distribution<int>(2, 5)(rng);
+        case POT_ATK_FLAT:     return std::uniform_int_distribution<int>(2, 5)(rng);
+        case POT_RANDSTAT_FLAT: { static const int v[4] = {10, 20, 30, 40}; return v[line_grade]; }
+        case POT_REST_SEC:      { static const int v[4] = {1, 2, 3, 4};     return v[line_grade]; }
+        case POT_ATK_SPEED:     { static const int v[4] = {0, 0, 1, 2};     return v[line_grade]; }
+        case POT_COIN_PCT:      { static const int v[4] = {2, 3, 4, 5};     return v[line_grade]; }
+        case POT_EXP_PCT:       { static const int v[4] = {2, 3, 4, 5};     return v[line_grade]; }
+    }
+    return 0;
+}
+// 重骰單一（未鎖定的）行：先骰行品質，再從該行品質能骰到的詞條種類裡均勻選一種，最後骰數值
+static void maple_pot_roll_line(int item_grade, std::mt19937& rng, int& type, double& value, int& sub) {
+    int line_grade = maple_pot_roll_line_grade(item_grade, rng);
+    std::vector<int> eligible;
+    for (int t = 0; t < POT_TYPE_COUNT; t++) if (MAPLE_POT_TYPES[t].min_grade <= line_grade) eligible.push_back(t);
+    type = eligible[std::uniform_int_distribution<int>(0, (int)eligible.size() - 1)(rng)];
+    value = maple_pot_roll_value(type, line_grade, rng);
+    sub = (type == POT_RANDSTAT_PCT || type == POT_RANDSTAT_FLAT)
+        ? std::uniform_int_distribution<int>(0, 3)(rng) : 0; // 力/敏/智/幸四選一
+}
+// 洗一次的瘋幣花費：依鎖定行數（0/1/2 行）
+static int64_t maple_pot_coin_cost(int locked_count) {
+    if (locked_count >= 2) return 1000000;
+    if (locked_count == 1) return 100000;
+    return 10000;
+}
+// 這個強化實例目前鎖定了幾行
+static int maple_pot_locked_count(const MapleEnhItem& e) {
+    return (e.pot1_locked ? 1 : 0) + (e.pot2_locked ? 1 : 0) + (e.pot3_locked ? 1 : 0);
+}
+// 潛能洗裝：消耗 1 顆潛能方塊＋瘋幣（視鎖定行數 1萬/10萬/100萬），有機率提升裝備的潛能總品質，
+// 重骰所有「未鎖定」的行（鎖定的行維持原樣）。呼叫前必須持有 data_mutex。
+static std::string maple_potential_reroll(MapleCharacter& c, const std::string& slot, bool& ok) {
+    ok = false;
+    if (!MAPLE_POTENTIAL_SLOTS.count(slot)) return "這個部位目前還不開放洗潛能。";
+    std::string base = maple_equipped_key(c, slot);
+    if (base.empty() || base == "wooden_sword") return "這個部位沒有裝備。";
+
+    MapleEnhItem* e = nullptr;
+    std::string raw = maple_equipped_raw(c, slot);
+    if (maple_eq_is_enh(raw)) {
+        e = maple_find_enh(c, maple_eq_enh_id(raw));
+    } else {
+        MapleEnhItem ne;
+        ne.id = c.enh_next_id++;
+        ne.base_key = base;
+        c.enh_items.push_back(ne);
+        e = &c.enh_items.back();
+        maple_set_equipped(c, slot, "#" + std::to_string(ne.id));
+    }
+    if (!e) return "強化實例遺失，請重試。";
+
+    int locked = maple_pot_locked_count(*e);
+    int64_t coin_cost = maple_pot_coin_cost(locked);
+    int cube = c.equipment.count("potential_cube") ? c.equipment.at("potential_cube") : 0;
+    if (cube <= 0) return "你沒有潛能方塊。";
+    if (c.coins < coin_cost) return "瘋幣不足（需要 " + std::to_string(coin_cost) + " 瘋幣）。";
+
+    c.equipment["potential_cube"]--;
+    if (c.equipment["potential_cube"] <= 0) c.equipment.erase("potential_cube");
+    c.coins -= coin_cost;
+    ok = true;
+
+    static std::mt19937 pot_rng(std::random_device{}());
+    static const int UPGRADE_PCT[4] = {8, 4, 2, 0}; // 普通→稀有8%、稀有→史詩4%、史詩→傳說2%、傳說頂了
+    bool upgraded = false;
+    if (e->pot_grade < 3) {
+        int roll = std::uniform_int_distribution<int>(1, 100)(pot_rng);
+        if (roll <= UPGRADE_PCT[e->pot_grade]) { e->pot_grade++; upgraded = true; }
+    }
+    if (!e->pot1_locked) maple_pot_roll_line(e->pot_grade, pot_rng, e->pot1_type, e->pot1_value, e->pot1_sub);
+    if (!e->pot2_locked) maple_pot_roll_line(e->pot_grade, pot_rng, e->pot2_type, e->pot2_value, e->pot2_sub);
+    if (!e->pot3_locked) maple_pot_roll_line(e->pot_grade, pot_rng, e->pot3_type, e->pot3_value, e->pot3_sub);
+
+    std::string msg = "🔮 潛能已重新洗出！目前品質：**" + std::string(MAPLE_POT_GRADE_NAME[e->pot_grade]) + "**";
+    if (upgraded) msg += "（本次升階！）";
+    msg += "\n1️⃣ " + maple_pot_line_text(e->pot1_type, e->pot1_value, e->pot1_sub) + (e->pot1_locked ? " 🔒" : "");
+    msg += "\n2️⃣ " + maple_pot_line_text(e->pot2_type, e->pot2_value, e->pot2_sub) + (e->pot2_locked ? " 🔒" : "");
+    msg += "\n3️⃣ " + maple_pot_line_text(e->pot3_type, e->pot3_value, e->pot3_sub) + (e->pot3_locked ? " 🔒" : "");
+    return msg;
 }
 
 // ─── 冒險 ───────────────────────────────────────────────────────────────────
@@ -1227,7 +1425,8 @@ static int maple_eff_atk_interval(const MapleCharacter& c, double team_haste_lvl
                + haste_lvl * 0.1                          // 速度激發：每級 0.1 秒 → 滿級 -1 秒（全體共享，取隊伍最高）
                + maple_buff_value(c, "charge")            // 衝鋒：每級約 0.5 秒 → 滿級 -5 秒
                + maple_buff_value(c, "energy_boost") * 0.5  // 續能激發：每級 0.5 秒 → 滿級 -5 秒
-               + maple_buff_value(c, "ranger_gale_step") * 0.1; // 疾風步：每級 0.1 秒 → 滿級(10級) -2 秒
+               + maple_buff_value(c, "ranger_gale_step") * 0.1  // 疾風步：每級 0.1 秒 → 滿級(10級) -2 秒
+               + maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_ATK_SPEED); // 潛能「攻擊間隔」
     double floor_v = std::max(5.0, base * 0.3);
     double v = base - cut;
     if (v < floor_v) v = floor_v;
@@ -1243,7 +1442,8 @@ static int maple_eff_rest_sec(const MapleCharacter& c) {
                + maple_buff_value(c, "dart_kid_potion")    // 藥劑精通：每級 1% → 滿級(10級) 10%
                + maple_buff_value(c, "xbow_ranger_retreat"); // 戰場脫離：每級 2% → 滿級(10級) 20%
     if (pct > 70.0) pct = 70.0;
-    double v = MAPLE_ADV_REST_SEC * (1.0 - pct / 100.0) - maple_buff_value(c, "energy_boost"); // 續能激發：每級 -1 秒
+    double v = MAPLE_ADV_REST_SEC * (1.0 - pct / 100.0) - maple_buff_value(c, "energy_boost") // 續能激發：每級 -1 秒
+             - maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_REST_SEC); // 潛能「冒險休息時間」
     if (v < 5.0) v = 5.0;
     return (int)llround(v);
 }
@@ -1320,7 +1520,8 @@ static double maple_adv_prayer_pct(const MapleCharacter& c) {
 static double maple_adv_exp_bonus_pct(const MapleCharacter& c) {
     return maple_buff_value(c, "dart_kid_doublejump")     // 二段跳：每級 +2%
          + maple_buff_value(c, "dagger_kid_coinshield")   // 瘋幣護盾：跟瘋幣方向相反，每級 +2%經驗
-         + maple_adv_prayer_pct(c);                       // 祈禱：滿級(20級) +50%
+         + maple_adv_prayer_pct(c)                        // 祈禱：滿級(20級) +50%
+         + maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_EXP_PCT); // 潛能「冒險經驗收益」
 }
 // 每隻平均瘋幣，套用「群體恢復」（每級+1%）＋瘋幣炸彈（每級+1%）＋藥劑精通（每級+1%）＋幸運術（每級+2%）
 // －瘋幣護盾（只要有投點就固定-30%，經驗加成則隨等級慢慢疊加，見 maple_adv_exp_bonus_pct）＋陣營瘋幣加成（每級+1%）
@@ -1332,7 +1533,8 @@ static int64_t maple_adv_coins_per_kill(const MapleCharacter& c, const MapleAdvR
                + maple_buff_value(c, "dart_kid_potion")
                + maple_buff_value(c, "dart_kid_luck")
                - coinshield_penalty
-               + maple_faction_coin_bonus_pct(c);
+               + maple_faction_coin_bonus_pct(c)
+               + maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_COIN_PCT); // 潛能「冒險瘋幣收益」
     double mult = 1.0 + pct / 100.0;
     if (mult < 0.0) mult = 0.0;
     return (int64_t)llround(base * mult);
@@ -1409,6 +1611,7 @@ struct MapleWbRegionDef {
     int respawn_min_lo, respawn_min_hi; // 重生間隔範圍（分鐘），本輪關閉時隨機決定實際值；lo==hi 就是固定值
     bool open;
     MapleWbMonsterDef boss;
+    int max_winners = 3; // 這一輪最多幾人可以擊殺成功（預設3，個別首領可以覆寫）
 };
 
 static const std::vector<std::string> MAPLE_WB_WPN60_SET_NO_ROD = {
@@ -1505,11 +1708,24 @@ static const std::vector<MapleWbRegionDef> MAPLE_WB_REGIONS = {
         {300,  {"sc_glove_atk_curse50"}},
         {150,  {"sc_glove_atk60"}},
     }}},
+    // 重生48~54小時＝2880~3240分鐘；一輪最多5人可擊殺成功（其餘首領預設3人）
+    {"japan_shrine", "日本神社", 85, 2880, 3240, true, {"藍色蘑菇王", 200000, 0, 1000, 1000, {
+        {800, {"sc_earring_atk100"}},
+        {50,  {"sc_earring_atk_curse80"}},
+        {50,  {"sc_earring_atk60"}},
+        {100, {"oh_dart_10", "oh_dualblade_10", "oh_grimoire_10", "oh_bible_10", "oh_scope_10", "oh_shield_10"}},
+        {300, {"wpn_spore_sword", "wpn_spore_sniper", "wpn_spore_rifle", "wpn_spore_staff"}},
+        {200, {"arm_spore_shoes"}},
+        {30,  {"sc_wpn_purewhite70"}},
+        {30,  {"sc_equip_purewhite70"}},
+    }}, 5},
     {"memory_road5", "回憶之路5", 120, 150, 220, true, {"多多", 300000, 7000, 20000, 35000, {
         {300, {"sc_helmet20"}},
         {100, {"sc_helmet_curse50"}},
         {50,  {"sc_clothes20"}},
         {50,  {"sc_earring60"}},
+        {10,  {"sc_wpn_cleanwhite10"}},
+        {10,  {"sc_equip_cleanwhite10"}},
     }}},
 };
 
@@ -1583,7 +1799,8 @@ static int64_t maple_wb_kill_secs(const MapleCharacter& c, const MapleWbRegionDe
                                       team_curse_a, team_curse_b})
                            + std::max(maple_buff_value(c, "crusader_encourage"), team_encourage)
                            + std::max(maple_buff_value(c, "bishop_prayer"),      team_prayer)
-                           + maple_buff_value(c, "mana_resist_ice");
+                           + maple_buff_value(c, "mana_resist_ice")
+                           + maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_BOSS_DMG); // 潛能「BOSS傷害」
     if (maple_base_job(c) == "mage") boss_dmg_bonus += team_magic_break; // 魔防消除：法師系隊友也吃得到
 
 
@@ -1850,7 +2067,8 @@ static double maple_raid_member_dps_locked(const MapleCharacter& c, const MapleR
                                       team_curse_a, team_curse_b})
                            + std::max(maple_buff_value(c, "crusader_encourage"), team_encourage)
                            + std::max(maple_buff_value(c, "bishop_prayer"),      team_prayer)
-                           + maple_buff_value(c, "mana_resist_ice");
+                           + maple_buff_value(c, "mana_resist_ice")
+                           + maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_BOSS_DMG); // 潛能「BOSS傷害」
     if (maple_base_job(c) == "mage") boss_dmg_bonus += team_magic_break; // 魔防消除：法師系隊友也吃得到
     const MapleRaidBossDef* boss = maple_find_raid_boss(room.boss_key);
     double ul_mult = boss ? maple_underlevel_mult(c.level, boss->suggested_level) : 1.0;
@@ -2080,7 +2298,11 @@ static void save_maple_data() {
                                        {"add_atk", e.add_atk}, {"enh_count", e.enh_count},
                                        {"slots_used", e.slots_used},
                                        {"add_str", e.add_str}, {"add_dex", e.add_dex},
-                                       {"add_int", e.add_int}, {"add_luk", e.add_luk}});
+                                       {"add_int", e.add_int}, {"add_luk", e.add_luk},
+                                       {"pot_grade", e.pot_grade},
+                                       {"pot1_type", e.pot1_type}, {"pot1_value", e.pot1_value}, {"pot1_sub", e.pot1_sub}, {"pot1_locked", e.pot1_locked},
+                                       {"pot2_type", e.pot2_type}, {"pot2_value", e.pot2_value}, {"pot2_sub", e.pot2_sub}, {"pot2_locked", e.pot2_locked},
+                                       {"pot3_type", e.pot3_type}, {"pot3_value", e.pot3_value}, {"pot3_sub", e.pot3_sub}, {"pot3_locked", e.pot3_locked}});
                     return arr;
                 }()},
                 {"adv_atk_skill",     c.adv_atk_skill},
@@ -2165,6 +2387,19 @@ static void load_maple_data() {
                     e.add_dex       = ej.value("add_dex", 0);
                     e.add_int       = ej.value("add_int", 0);
                     e.add_luk       = ej.value("add_luk", 0);
+                    e.pot_grade     = ej.value("pot_grade", 0);
+                    e.pot1_type     = ej.value("pot1_type", -1);
+                    e.pot1_value    = ej.value("pot1_value", 0.0);
+                    e.pot1_sub      = ej.value("pot1_sub", 0);
+                    e.pot1_locked   = ej.value("pot1_locked", false);
+                    e.pot2_type     = ej.value("pot2_type", -1);
+                    e.pot2_value    = ej.value("pot2_value", 0.0);
+                    e.pot2_sub      = ej.value("pot2_sub", 0);
+                    e.pot2_locked   = ej.value("pot2_locked", false);
+                    e.pot3_type     = ej.value("pot3_type", -1);
+                    e.pot3_value    = ej.value("pot3_value", 0.0);
+                    e.pot3_sub      = ej.value("pot3_sub", 0);
+                    e.pot3_locked   = ej.value("pot3_locked", false);
                     if (e.id > 0 && !e.base_key.empty()) c.enh_items.push_back(e);
                 }
             }
@@ -2246,7 +2481,8 @@ static dpp::message make_maple_home_msg(dpp::snowflake uid, const std::string& d
     {
         const MapleSkillDef* atk_sd = maple_current_atk_skill(c);
         content += "⚔️ 目前攻擊方式：**" + (atk_sd ? atk_sd->name : std::string("普通攻擊")) + "**\n";
-        double crit = maple_buff_value(c, "eagle_eye");
+        double crit = maple_buff_value(c, "eagle_eye") + maple_buff_value(c, "power_throw")
+                    + maple_skill_level(c, "angel_blessing") * 5.0 + maple_buff_value(c, "xbow_ranger_scope");
         if (crit > 0)
             content += "🎯 爆擊率：**" + std::to_string((int)crit) + "%**（爆擊 2 倍傷害）\n";
         int rest = maple_eff_rest_sec(c);
@@ -2275,19 +2511,12 @@ static dpp::message make_maple_home_msg(dpp::snowflake uid, const std::string& d
         .set_label("🎽 裝備").set_id("maple_eq_" + uid_s).set_style(dpp::cos_primary)
         .set_disabled(!maple_equip_unlocked(c) || maple_is_adventuring(c)));
     row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🔮 潛能").set_id("maple_potential_" + uid_s).set_style(dpp::cos_primary)
+        .set_disabled(!maple_equip_unlocked(c) || maple_is_adventuring(c)));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🌟 技能").set_id("maple_skill_" + uid_s).set_style(dpp::cos_success));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🗺️ 冒險").set_id("maple_adv_" + uid_s).set_style(dpp::cos_success));
-    if (maple_can_first_job(c)) {
-        row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("⚡ 轉職").set_id("maple_j1open_" + uid_s).set_style(dpp::cos_success));
-    } else if (maple_can_second_job(c)) {
-        row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("⚡ 二轉").set_id("maple_j2open_" + uid_s).set_style(dpp::cos_success));
-    } else if (maple_can_third_job(c)) {
-        row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("⚡ 三轉").set_id("maple_j3open_" + uid_s).set_style(dpp::cos_success));
-    }
     msg.add_component_v2(row);
 
     dpp::component row2; row2.set_type(dpp::cot_action_row);
@@ -2298,6 +2527,17 @@ static dpp::message make_maple_home_msg(dpp::snowflake uid, const std::string& d
         .set_label("🎒 背包").set_id("maple_bag_" + uid_s + "_scroll").set_style(dpp::cos_secondary));
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏪 商店").set_id("maple_shop_" + uid_s).set_style(dpp::cos_secondary));
+    // 轉職按鈕移到這排（原本那排放不下「潛能」，5顆上限）
+    if (maple_can_first_job(c)) {
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("⚡ 轉職").set_id("maple_j1open_" + uid_s).set_style(dpp::cos_success));
+    } else if (maple_can_second_job(c)) {
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("⚡ 二轉").set_id("maple_j2open_" + uid_s).set_style(dpp::cos_success));
+    } else if (maple_can_third_job(c)) {
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("⚡ 三轉").set_id("maple_j3open_" + uid_s).set_style(dpp::cos_success));
+    }
     msg.add_component_v2(row2);
 
     dpp::component row3; row3.set_type(dpp::cot_action_row);
@@ -2816,7 +3056,7 @@ static dpp::message make_maple_enh_pick_msg(dpp::snowflake uid) {
         if (e && e->enh_count > 0) text += " ✨+" + std::to_string(e->enh_count);
         if (canonly) {
             int used = e ? e->slots_used : 0;
-            text += "　強化 " + std::to_string(used) + "/" + std::to_string(maple_enh_max_slots(slot.key));
+            text += "　強化 " + std::to_string(used) + "/" + std::to_string(maple_enh_max_slots(slot.key, key));
         } else {
             text += "\n-# 沒有可強化的裝備";
         }
@@ -2839,7 +3079,7 @@ static dpp::message make_maple_enh_pick_msg(dpp::snowflake uid) {
 
 // 強化：某部位可用的卷軸清單
 static dpp::message make_maple_enh_msg(dpp::snowflake uid, const std::string& slot,
-                                      const std::string& result = "") {
+                                      const std::string& result = "", bool from_equip = false) {
     MapleCharacter c = maple_get_or_create(uid);
     std::string uid_s = std::to_string((uint64_t)uid);
     const MapleSlotDef* sd = nullptr;
@@ -2854,7 +3094,7 @@ static dpp::message make_maple_enh_msg(dpp::snowflake uid, const std::string& sl
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
-    int max_slots = maple_enh_max_slots(slot);
+    int max_slots = maple_enh_max_slots(slot, key);
     int used = e ? e->slots_used : 0;
     bool slots_full = used >= max_slots;
     std::string head = "## 🔨 強化 — " + slot_name + "\n";
@@ -2886,7 +3126,7 @@ static dpp::message make_maple_enh_msg(dpp::snowflake uid, const std::string& sl
                 .set_type(dpp::cot_section)
                 .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
                 .set_accessory(dpp::component().set_type(dpp::cot_button)
-                    .set_label("使用").set_id("maple_enhuse_" + uid_s + "_" + slot + "_" + s.key)
+                    .set_label("使用").set_id("maple_enhuse_" + uid_s + "_" + slot + (from_equip ? "_eq" : "") + "_" + s.key)
                     .set_style(dpp::cos_success).set_disabled(slots_full && !s.restore_slot)));
         }
     }
@@ -2904,7 +3144,124 @@ static dpp::message make_maple_enh_msg(dpp::snowflake uid, const std::string& sl
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("↩ 返回").set_id("maple_enhpick_" + uid_s).set_style(dpp::cos_secondary));
+        .set_label("↩ 返回")
+        .set_id(from_equip ? "maple_eqopen_" + uid_s + "_" + slot + "_0" : "maple_enhpick_" + uid_s)
+        .set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
+
+    return msg;
+}
+
+// 潛能：部位選擇（目前只開放副武器，其餘部位列出來但按鈕是停用的，方便之後直接開放）
+static dpp::message make_maple_potential_pick_msg(dpp::snowflake uid) {
+    MapleCharacter c = maple_get_or_create(uid);
+    std::string uid_s = std::to_string((uint64_t)uid);
+    int cubes = c.equipment.count("potential_cube") ? c.equipment.at("potential_cube") : 0;
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 🔮 潛能\n選擇要洗潛能的部位（目前只開放副武器）。每次消耗 1 顆潛能方塊，重新洗出 3 行潛能（主屬性／副屬性／攻擊力隨機）。\n💎 潛能方塊：**" + std::to_string(cubes) + "** 顆"));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
+        .set_spacing(dpp::sep_small).set_divider(true));
+
+    for (auto& slot : MAPLE_SLOTS) {
+        std::string key = maple_equipped_key(c, slot.key);
+        auto* item = maple_find_item(key);
+        const MapleEnhItem* e = maple_equipped_enh(c, slot.key);
+        bool open = MAPLE_POTENTIAL_SLOTS.count(slot.key) > 0;
+        bool has_item = item && !key.empty() && key != "wooden_sword";
+        std::string text = "**" + slot.icon + " " + slot.name + "**：";
+        text += has_item ? item->name : std::string("（未裝備）");
+        bool rolled = e && (e->pot1_type >= 0 || e->pot2_type >= 0 || e->pot3_type >= 0);
+        if (rolled) text += "\n🔮 品質：" + std::string(MAPLE_POT_GRADE_NAME[e->pot_grade]);
+        if (!open) text += "\n-# 尚未開放";
+        else if (!has_item) text += "\n-# 沒有可洗潛能的裝備";
+        container.add_component_v2(dpp::component()
+            .set_type(dpp::cot_section)
+            .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
+            .set_accessory(dpp::component().set_type(dpp::cot_button)
+                .set_label("洗潛能").set_id("maple_potentialopen_" + uid_s + "_" + slot.key)
+                .set_style(dpp::cos_success).set_disabled(!open || !has_item)));
+    }
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
+
+    return msg;
+}
+
+// 潛能：某部位的洗潛能確認畫面（result 非空時顯示上一次的結果，留在同一頁方便連續洗）
+static dpp::message make_maple_potential_confirm_msg(dpp::snowflake uid, const std::string& slot,
+                                                     const std::string& result = "") {
+    MapleCharacter c = maple_get_or_create(uid);
+    std::string uid_s = std::to_string((uint64_t)uid);
+    const MapleSlotDef* sd = nullptr;
+    for (auto& s : MAPLE_SLOTS) if (s.key == slot) { sd = &s; break; }
+    std::string slot_name = sd ? sd->name : slot;
+    std::string key = maple_equipped_key(c, slot);
+    auto* item = maple_find_item(key);
+    const MapleEnhItem* e = maple_equipped_enh(c, slot);
+    int cubes = c.equipment.count("potential_cube") ? c.equipment.at("potential_cube") : 0;
+    bool has_item = item && !key.empty() && key != "wooden_sword";
+    bool rolled = e && (e->pot1_type >= 0 || e->pot2_type >= 0 || e->pot3_type >= 0);
+    int locked = e ? maple_pot_locked_count(*e) : 0;
+    int64_t coin_cost = maple_pot_coin_cost(locked);
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+    std::string head = "## 🔮 洗潛能 — " + slot_name + "\n";
+    if (has_item) {
+        head += "**" + item->name + "**\n";
+        if (rolled) {
+            head += "品質：**" + std::string(MAPLE_POT_GRADE_NAME[e->pot_grade]) + "**\n";
+            head += "1️⃣ " + maple_pot_line_text(e->pot1_type, e->pot1_value, e->pot1_sub) + (e->pot1_locked ? " 🔒" : "") + "\n";
+            head += "2️⃣ " + maple_pot_line_text(e->pot2_type, e->pot2_value, e->pot2_sub) + (e->pot2_locked ? " 🔒" : "") + "\n";
+            head += "3️⃣ " + maple_pot_line_text(e->pot3_type, e->pot3_value, e->pot3_sub) + (e->pot3_locked ? " 🔒" : "");
+        } else {
+            head += "目前潛能：（尚未洗過）";
+        }
+    } else {
+        head += "這個部位沒有裝備。";
+    }
+    head += "\n\n💎 潛能方塊：**" + std::to_string(cubes) + "** 顆　🪙 瘋幣：**" + std::to_string(c.coins) + "**"
+          + "\n這次花費：💎1 顆 ＋ 🪙" + std::to_string(coin_cost) + " 瘋幣"
+            + (locked > 0 ? "（已鎖 " + std::to_string(locked) + " 行）" : "");
+    if (!result.empty()) head += "\n\n" + result;
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(head));
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    bool open = MAPLE_POTENTIAL_SLOTS.count(slot) > 0;
+    bool can_roll = has_item && open && cubes > 0 && c.coins >= coin_cost;
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label(cubes <= 0 ? "💎 潛能方塊不足" : (c.coins < coin_cost ? "🪙 瘋幣不足" : "✅ 洗潛能"))
+        .set_id("maple_potentialok_" + uid_s + "_" + slot).set_style(dpp::cos_danger)
+        .set_disabled(!can_roll));
+    if (rolled) {
+        auto lock_btn = [&](int line, bool line_locked, int line_type) {
+            bool can_toggle = line_type >= 0 && (line_locked || locked < 2); // 最多鎖2行
+            row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label((line_locked ? "🔓解鎖" : "🔒鎖定") + std::to_string(line))
+                .set_id("maple_potentiallock_" + uid_s + "_" + slot + "_" + std::to_string(line))
+                .set_style(line_locked ? dpp::cos_secondary : dpp::cos_primary)
+                .set_disabled(!open || !can_toggle));
+        };
+        lock_btn(1, e->pot1_locked, e->pot1_type);
+        lock_btn(2, e->pot2_locked, e->pot2_type);
+        lock_btn(3, e->pot3_locked, e->pot3_type);
+    }
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回").set_id("maple_potential_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
 
     return msg;
@@ -3038,6 +3395,11 @@ static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::str
     }
 
     dpp::component row; row.set_type(dpp::cot_action_row);
+    if (has_something) {
+        // 結尾加 _eq 標記是從「更換裝備」頁面進來的，強化頁的「返回」要回這裡而不是強化的部位選擇頁
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🔧 強化").set_id("maple_enhopen_" + uid_s + "_" + slot + "_eq").set_style(dpp::cos_primary));
+    }
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回").set_id("maple_eq_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
@@ -3393,7 +3755,7 @@ static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid) {
                           + "~　（重生間隔 " + respawn_text + " 分鐘）\n";
         int round_kills;
         { std::lock_guard<std::mutex> lk(data_mutex); round_kills = maple_wb_state[r.key].round_kills; }
-        text += "💀 這一輪已討伐 **" + std::to_string(round_kills) + "/" + std::to_string(MAPLE_WB_MAX_WINNERS) + "** 隻\n";
+        text += "💀 這一輪已討伐 **" + std::to_string(round_kills) + "/" + std::to_string(r.max_winners) + "** 隻\n";
         std::string btn_label;
         bool enterable = false;
         if (!r.open) {
@@ -3461,12 +3823,13 @@ static dpp::message make_maple_wb_status_msg(dpp::snowflake uid) {
 
 static dpp::message make_maple_wb_result_msg(dpp::snowflake uid, bool win, const std::string& boss_name,
                                              int64_t exp_gain, int64_t coin_gain, int level_ups,
-                                             const std::vector<std::string>& drops = {}, int place = 0) {
+                                             const std::vector<std::string>& drops = {}, int place = 0,
+                                             int max_winners = MAPLE_WB_MAX_WINNERS) {
     std::string uid_s = std::to_string((uint64_t)uid);
     std::string content;
     if (win) {
         content = "## 🎉 討伐成功！\n擊敗了野外首領 **" + boss_name + "**！";
-        if (place > 0) content += "（本輪第 **" + std::to_string(place) + "/" + std::to_string(MAPLE_WB_MAX_WINNERS) + "** 位擊殺者）";
+        if (place > 0) content += "（本輪第 **" + std::to_string(place) + "/" + std::to_string(max_winners) + "** 位擊殺者）";
         content += "\n\n";
         content += "✨ 獲得經驗值 +**" + std::to_string(exp_gain) + "**\n";
         content += "🪙 獲得瘋幣 +**" + std::to_string(coin_gain) + "**\n";
@@ -5161,11 +5524,63 @@ static dpp::message make_maple_bag_msg(dpp::snowflake uid, const std::string& ta
     }
 }
 
+// 實際執行賣出（item／scroll 可堆疊賣 qty 個；enh 固定賣 1 個，qty 參數忽略）。
+// 回傳換得的瘋幣（err 非空時一定是 0）；呼叫前必須持有 data_mutex。
+static int64_t maple_sell_execute_locked(MapleCharacter& c, const std::string& kind, const std::string& ref,
+                                         int64_t qty, std::string& err, std::string& scroll_subcat) {
+    if (kind == "enh") {
+        int eid = 0; try { eid = std::stoi(ref); } catch (...) {}
+        auto eit = std::find_if(c.enh_items.begin(), c.enh_items.end(),
+                                [&](const MapleEnhItem& e){ return e.id == eid; });
+        if (eit == c.enh_items.end() || maple_enh_is_equipped(c, eid)) {
+            err = "找不到這件裝備，可能已經賣掉或穿上了。"; return 0;
+        }
+        const MapleItemDef* it = maple_find_item(eit->base_key);
+        if (!it) { err = "資料異常，找不到裝備定義。"; return 0; }
+        if (it->slot == "offhand") { err = "副武器不能賣給遊戲換瘋幣，只能用 !交易 跟其他玩家交換。"; return 0; }
+        int64_t gained = maple_item_sell_price(*it) + maple_enh_extra_sell_value(*eit);
+        c.coins += gained;
+        c.enh_items.erase(eit);
+        return gained;
+    }
+    if (kind == "scroll") {
+        const MapleScrollDef* s = maple_find_scroll(ref);
+        auto qit = c.scrolls.find(ref);
+        if (!s || qit == c.scrolls.end() || qit->second <= 0) {
+            err = "找不到這個卷軸，可能已經賣掉或用掉了。"; return 0;
+        }
+        scroll_subcat = maple_scroll_cat(*s);
+        if (qty > qit->second) qty = qit->second;
+        if (qty <= 0) { err = "數量不對。"; return 0; }
+        int64_t gained = maple_scroll_sell_price(*s) * qty;
+        c.coins += gained;
+        qit->second -= (int)qty;
+        if (qit->second <= 0) c.scrolls.erase(qit);
+        return gained;
+    }
+    auto qit = c.equipment.find(ref);
+    const MapleItemDef* it = maple_find_item(ref);
+    if (qit == c.equipment.end() || qit->second <= 0 || !it) {
+        err = "找不到這件裝備，可能已經賣掉或穿上了。"; return 0;
+    }
+    if (it->slot == "offhand") {
+        err = "副武器不能賣給遊戲換瘋幣，只能用 !交易 跟其他玩家交換。"; return 0;
+    }
+    if (qty > qit->second) qty = qit->second;
+    if (qty <= 0) { err = "數量不對。"; return 0; }
+    int64_t gained = maple_item_sell_price(*it) * qty;
+    c.coins += gained;
+    qit->second -= (int)qty;
+    if (qit->second <= 0) c.equipment.erase(qit);
+    return gained;
+}
+
 // kind=="item"：ref 是道具 key（賣一個純裝備）；kind=="enh"：ref 是強化實例 id（賣掉那一件，整個消失）；kind=="scroll"：ref 是卷軸 key（賣一個）
+// item／scroll 會堆疊，n>1 時顯示數量選擇（×1/5/10/全部賣出）；enh 每個都是獨立實例，不堆疊，維持單件確認。
 static dpp::message make_maple_sell_confirm_msg(dpp::snowflake uid, const std::string& kind, const std::string& ref) {
     MapleCharacter c = maple_get_or_create(uid);
     std::string uid_s = std::to_string((uint64_t)uid);
-    std::string name; int64_t price = 0; bool found = false;
+    std::string name; int64_t price = 0; bool found = false; int64_t n = 1;
     std::string back_id = "maple_bag_" + uid_s + "_other";
 
     if (kind == "enh") {
@@ -5181,11 +5596,11 @@ static dpp::message make_maple_sell_confirm_msg(dpp::snowflake uid, const std::s
         }
     } else if (kind == "scroll") {
         const MapleScrollDef* s = maple_find_scroll(ref);
-        int n = c.scrolls.count(ref) ? c.scrolls.at(ref) : 0;
+        n = c.scrolls.count(ref) ? c.scrolls.at(ref) : 0;
         if (s) back_id = "maple_bagcat_" + uid_s + "_scroll_" + maple_scroll_cat(*s);
         if (s && n > 0) { name = s->name; price = maple_scroll_sell_price(*s); found = true; }
     } else {
-        int n = c.equipment.count(ref) ? c.equipment.at(ref) : 0;
+        n = c.equipment.count(ref) ? c.equipment.at(ref) : 0;
         const MapleItemDef* it = maple_find_item(ref);
         if (it && n > 0 && it->slot != "offhand") { name = it->name; price = maple_item_sell_price(*it); found = true; }
     }
@@ -5203,9 +5618,35 @@ static dpp::message make_maple_sell_confirm_msg(dpp::snowflake uid, const std::s
         msg.add_component_v2(row);
         return msg;
     }
+
+    bool stackable = (kind != "enh") && n > 1;
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## ⚠️ 確認賣出\n**" + name + "**\n賣出後直接消失，換取 🪙**" + std::to_string(price) + "** 瘋幣。確定嗎？"));
+        .set_content("## ⚠️ 確認賣出\n**" + name + "**" + (stackable ? "　持有 ×" + std::to_string(n) : "")
+                    + "\n單價 🪙**" + std::to_string(price) + "** 瘋幣，賣出後直接消失。"
+                    + (stackable ? "選擇賣出數量：" : "確定嗎？")));
     msg.add_component_v2(container);
+
+    if (stackable) {
+        static const int64_t QOPTS[] = {1, 5, 10, 50};
+        dpp::component qrow; qrow.set_type(dpp::cot_action_row);
+        for (int64_t q : QOPTS) {
+            if (q > n) continue;
+            qrow.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("×" + std::to_string(q) + "（+" + std::to_string(q * price) + "）")
+                .set_id("maple_sellqty_" + uid_s + "_" + kind + "_" + std::to_string(q) + "_" + ref)
+                .set_style(dpp::cos_danger));
+        }
+        msg.add_component_v2(qrow);
+
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("💰 全部賣出 ×" + std::to_string(n) + "（+" + std::to_string(n * price) + "）")
+            .set_id("maple_sellmax_" + uid_s + "_" + kind + "_" + ref).set_style(dpp::cos_danger));
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("❌ 取消").set_id(back_id).set_style(dpp::cos_secondary));
+        msg.add_component_v2(row);
+        return msg;
+    }
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)

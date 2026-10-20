@@ -93,12 +93,13 @@ struct MapleOffhandDef {
 };
 static const std::vector<MapleOffhandDef> MAPLE_OFFHANDS = {
     // key           name      wtypes        job_req         id_base  atk(10/30/50/70/100/120/150)   primary(同上)         name30
-    { "oh_dart",      "飛鏢",   {"拳套"},     "",           96730, {0, 10, 0,0,0,0,0}, {0, 20, 2,3,4,5,7}, "疾風飛鏢" },
-    { "oh_dualblade", "雙刀",   {"匕首"},     "",           96740, {0, 15, 0,0,0,0,0}, {0, 20, 2,3,4,5,7}, "夜梟雙刀" },
-    { "oh_grimoire",  "魔導書", {"法杖"},     "icelightning", 96750, {0, 35, 0,0,0,0,0}, {0, 20, 2,3,4,5,7}, "寒冰魔導書" },
-    { "oh_bible",     "聖典",   {"法杖"},     "priest",     96760, {0, 38, 0,0,0,0,0}, {0, 20, 2,3,4,5,7}, "聖光典籍" },
-    { "oh_scope",     "瞄準鏡", {"弓","弩"},  "",           96770, {0,  5, 0,0,0,0,0}, {0, 20, 2,3,4,5,7}, "鷹眼瞄準鏡" },
-    { "oh_shield",    "盾牌",   {"大劍"},     "",           96780, {0, 20, 0,0,0,0,0}, {0, 20, 2,3,4,5,7}, "精鋼壁盾" },
+    // 10等「新手訓練用」版本：數值＝30等版本/5（藍色蘑菇王掉落），不是常規商店分階
+    { "oh_dart",      "飛鏢",   {"拳套"},     "",           96730, {2, 10, 0,0,0,0,0}, {4, 20, 2,3,4,5,7}, "疾風飛鏢" },
+    { "oh_dualblade", "雙刀",   {"匕首"},     "",           96740, {3, 15, 0,0,0,0,0}, {4, 20, 2,3,4,5,7}, "夜梟雙刀" },
+    { "oh_grimoire",  "魔導書", {"法杖"},     "icelightning", 96750, {7, 35, 0,0,0,0,0}, {4, 20, 2,3,4,5,7}, "寒冰魔導書" },
+    { "oh_bible",     "聖典",   {"法杖"},     "priest",     96760, {8, 38, 0,0,0,0,0}, {4, 20, 2,3,4,5,7}, "聖光典籍" },
+    { "oh_scope",     "瞄準鏡", {"弓","弩"},  "",           96770, {1,  5, 0,0,0,0,0}, {4, 20, 2,3,4,5,7}, "鷹眼瞄準鏡" },
+    { "oh_shield",    "盾牌",   {"大劍"},     "",           96780, {4, 20, 0,0,0,0,0}, {4, 20, 2,3,4,5,7}, "精鋼壁盾" },
 };
 static const int     MAPLE_OFFHAND_SECONDARY[7] = { 0,  0,  1,  2,  3,  4,  6 }; // 跟手套同一套，副屬性還沒逐階重新設計
 
@@ -164,24 +165,27 @@ static const std::vector<MapleItemDef>& maple_items() {
                 items.push_back(it);
             }
         }
-        // 副武器：飛鏢／雙刀／魔導書／聖典／瞄準鏡／盾牌，只有 30 等這一個版本（不分階）
+        // 副武器：飛鏢／雙刀／魔導書／聖典／瞄準鏡／盾牌。正式版只有 30 等；
+        // 另外有一個 10 等「新手訓練用」版本（藍色蘑菇王掉落，數值＝30等/5），不是常規商店分階。
         for (auto& oh : MAPLE_OFFHANDS) {
-            const int t = 1; // MAPLE_ARMOR_TIER_LV[1] == 30
-            MapleItemDef it;
-            it.key   = oh.key_prefix + "_" + std::to_string(MAPLE_ARMOR_TIER_LV[t]);
-            it.name  = !oh.name30.empty() ? oh.name30 : (std::string(MAPLE_WPN_TIER_NAME[t]) + oh.name);
-            it.slot  = "offhand";
-            it.level_req     = MAPLE_ARMOR_TIER_LV[t];
-            it.secondary_req = std::max(0, MAPLE_ARMOR_TIER_LV[t] - 10);
-            it.sellable  = true;  // 仍可用 !交易 跟其他玩家交換，只是不上架商店、也不能賣給遊戲換瘋幣
-            it.price     = 0;     // 不上架裝備商店
-            it.atk_bonus = oh.atk[t];
-            it.primary_generic   = oh.primary[t];
-            it.secondary_generic = MAPLE_OFFHAND_SECONDARY[t];
-            it.job_req   = oh.job_req;
-            it.offhand_wtypes = oh.wtypes;
-            it.item_id   = oh.id_base + t;
-            items.push_back(it);
+            for (int t : {0, 1}) { // 0=10等「新手訓練用」、1=30等正式版
+                MapleItemDef it;
+                it.key   = oh.key_prefix + "_" + std::to_string(MAPLE_ARMOR_TIER_LV[t]);
+                it.name  = (t == 0) ? ("新手訓練用" + oh.name)
+                                    : (!oh.name30.empty() ? oh.name30 : (std::string(MAPLE_WPN_TIER_NAME[t]) + oh.name));
+                it.slot  = "offhand";
+                it.level_req     = MAPLE_ARMOR_TIER_LV[t];
+                it.secondary_req = std::max(0, MAPLE_ARMOR_TIER_LV[t] - 10);
+                it.sellable  = true;  // 仍可用 !交易 跟其他玩家交換，只是不上架商店、也不能賣給遊戲換瘋幣
+                it.price     = 0;     // 不上架裝備商店
+                it.atk_bonus = oh.atk[t];
+                it.primary_generic   = oh.primary[t];
+                it.secondary_generic = MAPLE_OFFHAND_SECONDARY[t];
+                it.job_req   = oh.job_req;
+                it.offhand_wtypes = oh.wtypes;
+                it.item_id   = oh.id_base + t;
+                items.push_back(it);
+            }
         }
         // 特殊裝備：蝸牛殼耳環，無職業／等級／屬性要求，全屬性+3（不在商店販售，price=0）
         {
@@ -401,6 +405,61 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.item_id = 96791;
             items.push_back(e);
         }
+        // 芽孢武器系列（藍色蘑菇王掉落）：限制等級80、限制副屬性100，攻擊力抓80等該武器類型的內插值，
+        // 強化上限特別開到10次（見 maple_enh_max_slots），不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "wpn_spore_sword"; e.name = "孢形劍"; e.slot = "weapon";
+            e.level_req = 80; e.secondary_req = 100; e.sellable = true;
+            e.atk_bonus = 77; e.atk_speed_sec = 70; e.weapon_type = "大劍";
+            e.price = 0; e.item_id = 96794;
+            items.push_back(e);
+        }
+        {
+            MapleItemDef e;
+            e.key = "wpn_spore_sniper"; e.name = "芽孢狙擊槍"; e.slot = "weapon";
+            e.level_req = 80; e.secondary_req = 100; e.sellable = true;
+            e.atk_bonus = 74; e.atk_speed_sec = 60; e.weapon_type = "弩";
+            e.price = 0; e.item_id = 96795;
+            items.push_back(e);
+        }
+        {
+            MapleItemDef e;
+            e.key = "wpn_spore_rifle"; e.name = "芽孢步槍"; e.slot = "weapon";
+            e.level_req = 80; e.secondary_req = 100; e.sellable = true;
+            e.atk_bonus = 62; e.atk_speed_sec = 60; e.weapon_type = "弓";
+            e.price = 0; e.item_id = 96796;
+            items.push_back(e);
+        }
+        {
+            MapleItemDef e;
+            e.key = "wpn_spore_staff"; e.name = "孢子杖"; e.slot = "weapon";
+            e.level_req = 80; e.secondary_req = 100; e.sellable = true;
+            e.atk_bonus = 113; e.atk_speed_sec = 90; e.weapon_type = "法杖";
+            e.price = 0; e.item_id = 96797;
+            items.push_back(e);
+        }
+        // 芽孢鞋（藍色蘑菇王掉落）：限制等級60、無副屬性限制、無加成，但強化上限特別開到10次（見 maple_enh_max_slots）。
+        {
+            MapleItemDef e;
+            e.key = "arm_spore_shoes"; e.name = "芽孢鞋"; e.slot = "shoes";
+            e.level_req = 60; e.sellable = true;
+            e.atk_speed_sec = 60;
+            e.price = 0; e.item_id = 96798;
+            items.push_back(e);
+        }
+        // 潛能方塊：材料道具，洗裝備潛能消耗用。目前無掉落/購買來源，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "potential_cube";
+            e.name = "潛能方塊";
+            e.slot = "material";
+            e.sellable = true;
+            e.atk_speed_sec = 60;
+            e.price = 0;
+            e.item_id = 96799;
+            items.push_back(e);
+        }
         return items;
     }();
     return v;
@@ -436,6 +495,10 @@ static const std::vector<MapleScrollDef> MAPLE_SCROLLS = {
     {"sc_earring_ms20",  "耳環 主副屬性卷軸 20%",            20,  50000, "耳環",             3, 5, 0, 96505},
     // 耳環主副屬性卷軸60%：介於100%(+1,+2)與20%(+3,+5)之間（不上架商店）
     {"sc_earring60", "耳環主副屬性卷軸 60%", 60, 25000, "耳環", 2, 3, 0, 96550, 0, false},
+    // 耳環攻擊力卷軸系列（藍色蘑菇王掉落，不上架商店）
+    {"sc_earring_atk100",      "耳環攻擊卷軸 100%",   100, 15000, "耳環", 0, 0, 1, 96571, 0,  false},
+    {"sc_earring_atk_curse80", "耳環攻擊詛咒卷軸 80%", 80, 35000, "耳環", 0, 0, 2, 96572, 10, false},
+    {"sc_earring_atk60",       "耳環攻擊卷軸 60%",    60, 22000, "耳環", 0, 0, 2, 96573, 0,  false},
     // 頭盔／鞋子／套服 主屬性卷軸60%：主屬性+5（樹妖王掉落，不上架商店）
     {"sc_helmet60",  "頭盔主屬性卷軸 60%", 60, 20000, "頭盔", 5, 0, 0, 96534, 0, false},
     {"sc_shoes60",   "鞋子主屬性卷軸 60%", 60, 20000, "鞋子", 5, 0, 0, 96535, 0, false},
@@ -483,10 +546,18 @@ static const std::vector<MapleScrollDef> MAPLE_SCROLLS = {
     {"sc_wpn_bow_curse50",    "弓攻擊力詛咒卷軸 50%",   50, 40000, "弓",   5, 1, 5, 96540, 25, false},
     {"sc_wpn_xbow_curse50",   "弩攻擊力詛咒卷軸 50%",   50, 40000, "弩",   5, 1, 5, 96541, 25, false},
     {"sc_wpn_gsword_curse50", "大劍攻擊力詛咒卷軸 50%", 50, 40000, "大劍", 5, 1, 5, 96542, 25, false},
-    // 純白武器/裝備卷軸50%：任何「有強化失敗紀錄」的武器/其他裝備都能用，不佔強化次數上限，
-    // 50%成功歸還1次已使用次數／50%爆炸裝備消失
+    // 純白武器/裝備卷軸：任何「有強化失敗紀錄」的武器/其他裝備都能用，不佔強化次數上限，
+    // 失敗必定爆炸（沒有「純失敗」的中間結果，explode_pct = 100-成功率）
     {"sc_wpn_purewhite50",   "純白武器卷軸 50%", 50, 700000, "大劍／法杖／拳套／匕首／弩／弓", 0, 0, 0, 96548, 50, true, true},
     {"sc_equip_purewhite50", "純白裝備卷軸 50%", 50, 500000, "耳環／戒指／項鍊／頭盔／手套／套服／鞋子", 0, 0, 0, 96549, 50, true, true},
+    {"sc_wpn_purewhite70",   "純白武器卷軸 70%", 70, 1200000, "大劍／法杖／拳套／匕首／弩／弓", 0, 0, 0, 96565, 30, false, true},
+    {"sc_equip_purewhite70", "純白裝備卷軸 70%", 70, 900000, "耳環／戒指／項鍊／頭盔／手套／套服／鞋子", 0, 0, 0, 96566, 30, false, true},
+    // 潔白武器/裝備卷軸：跟純白一樣只能用在「有強化失敗紀錄」的裝備、不佔強化次數上限，
+    // 差別是失敗不會爆炸（explode_pct=0，純粹只是沒歸還次數、卷軸白用掉）
+    {"sc_wpn_cleanwhite10",   "潔白武器卷軸 10%", 10, 150000, "大劍／法杖／拳套／匕首／弩／弓", 0, 0, 0, 96567, 0, false, true},
+    {"sc_equip_cleanwhite10", "潔白裝備卷軸 10%", 10, 100000, "耳環／戒指／項鍊／頭盔／手套／套服／鞋子", 0, 0, 0, 96568, 0, false, true},
+    {"sc_wpn_cleanwhite15",   "潔白武器卷軸 15%", 15, 220000, "大劍／法杖／拳套／匕首／弩／弓", 0, 0, 0, 96569, 0, false, true},
+    {"sc_equip_cleanwhite15", "潔白裝備卷軸 15%", 15, 150000, "耳環／戒指／項鍊／頭盔／手套／套服／鞋子", 0, 0, 0, 96570, 0, false, true},
     // 手套攻擊卷軸60%：攻擊+3、主屬性+5、副屬性+1（不上架商店）
     {"sc_glove_atk60", "手套攻擊卷軸 60%", 60, 18000, "手套", 5, 1, 3, 96543, 0, false},
     // 手套攻擊卷軸20%：攻擊+5、主屬性+8、副屬性+5（不上架商店）

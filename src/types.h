@@ -328,6 +328,13 @@ struct MapleEnhItem {
     int         add_str = 0, add_dex = 0, add_int = 0, add_luk = 0; // 卷軸累積的「全屬性」（不分職業，四維各自加）
     int         enh_count     = 0;  // 已成功強化次數（顯示用）
     int         slots_used    = 0;  // 已使用的卷軸次數（成功或失敗都算；武器上限7、其餘5）
+    // 潛能（目前只開放副武器）：0=普通/1=稀有/2=史詩/3=傳說，決定重骰時每行詞條的品質分布。
+    // 三行各自：type（見 MAPLE_POT_* 常數，-1=還沒洗過）、value（骰出的數值）、
+    // sub（type 是「隨機屬性」系列時：0=力量/1=敏捷/2=智力/3=幸運，其餘type不使用）、locked（鎖定時重骰會跳過這行）。
+    int  pot_grade = 0;
+    int  pot1_type = -1; double pot1_value = 0; int pot1_sub = 0; bool pot1_locked = false;
+    int  pot2_type = -1; double pot2_value = 0; int pot2_sub = 0; bool pot2_locked = false;
+    int  pot3_type = -1; double pot3_value = 0; int pot3_sub = 0; bool pot3_locked = false;
 };
 
 // 陣營系統：全服共用一份等級/經驗（不分玩家），加入/退出不影響陣營本身的進度。
