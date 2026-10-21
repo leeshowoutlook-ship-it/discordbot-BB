@@ -21,7 +21,7 @@ static const std::vector<int64_t> MAPLE_EXP_TABLE = {
     2360, 3216, 4200, 5460, 7050, 8840, 11040, 13716, 16680, 20216,
     24402, 28980, 34320, 40512, 47216, 54900, 63666, 73080, 83720, 95700,
 };
-static const int MAPLE_LEVEL_CAP = 70; // 配合「70等可以三轉」，剛好能把二轉的40點技能點滿
+static const int MAPLE_LEVEL_CAP = 150;
 
 // 新手加成：角色等級未滿此值時，升級所需經驗打 1/MAPLE_ROOKIE_EXP_MULT 折
 // （不是把囤積的經驗 ×4，避免玩家故意卡等級不領、囤一大包 4 倍經驗的漏洞——
@@ -377,8 +377,7 @@ static const std::vector<MapleSkillDef> MAPLE_SKILLS = {
     {"invisible_xbow", "無形之弩", "對弩的掌握越發熟練，減少擊殺後休息時間（每級 -2%）", "crossbowman", 10, "buff_pct",
         {2,4,6,8,10,12,14,16,18,20}, "", {}},
 
-    // ── 三轉：70等解鎖，每個職業3~4個技能。目前只先建資料骨架（技能名稱/上限/攻擊技能的武器需求），
-    // 大部分技能的實際數值效果還沒接進戰鬥公式，之後會一個職業一個職業接（章魚炮台例外，key跟舊的死代碼掛勾，已經直接生效）。
+    // ── 三轉：70等解鎖，每個職業3~4個技能，效果都已接進戰鬥／冒險公式。
     // 單下攻擊技能，滿級提高到460%
     {"crusader_dark_blade", "黑暗劍", "揮舞蘊含黑暗力量的大劍攻擊敵人，技能係數如上", "crusader", 20, "damage_coef",
         {270,280,290,300,310,320,330,340,350,360,370,380,390,400,410,420,430,440,450,460}, "", {"大劍"}},
@@ -663,6 +662,10 @@ static std::string maple_pot_line_text(int type, double value, int sub) {
 
 // ─── 售出（把汰換掉的裝備換回瘋幣）────────────────────────────────────────────
 // 基礎售價：商店有賣的裝備＝售價的40%；商店沒賣（首領掉落的特殊裝備）給固定保底價。
+// 能不能賣給遊戲換瘋幣（不能賣的仍可 !交易）：副武器、潛能方塊（避免象徵換方塊再賣變成刷瘋幣）
+static bool maple_item_shop_sellable(const MapleItemDef& it) {
+    return it.slot != "offhand" && it.key != "potential_cube";
+}
 static int64_t maple_item_sell_price(const MapleItemDef& it) {
     if (it.key == "earring_snail") return 8000;  // 蝸牛殼耳環：紅寶王3%掉落
     if (it.key == "wpn_rod_club")  return 15000; // 原始人棒槌：樹妖王1%掉落
@@ -1019,11 +1022,16 @@ static int64_t maple_job_flat_atk_bonus(const MapleCharacter& c, double angel_ov
                     + maple_buff_value(c, "crusader_focus")
                     + maple_buff_value(c, "knight_enchant"));
 }
-// 章魚砲台／潛能「攻擊力%」：額外增加「武器攻擊力」一定比例的攻擊力（吃武器本身的 ATK，不是乘算完的總攻擊力）
+// 章魚砲台：額外增加「武器攻擊力」一定比例的攻擊力（吃武器本身的 ATK，不是乘算完的總攻擊力）
 static int64_t maple_job_mult_atk_bonus(const MapleCharacter& c) {
-    double pct = maple_buff_value(c, "octopus_turret")
-               + maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_ATK_PCT);
+    double pct = maple_buff_value(c, "octopus_turret");
     return pct > 0 ? (int64_t)std::ceil(maple_total_atk(c) * pct / 100.0) : 0;
+}
+// 代入傷害公式的裝備攻擊力：所有部位裝備攻擊力加總（含卷軸、潛能「攻擊力+」）× (1 + 潛能「攻擊力%」)
+static int maple_effective_equip_atk(const MapleCharacter& c) {
+    int total = maple_total_atk(c);
+    double pct = maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_ATK_PCT);
+    return pct > 0 ? (int)std::ceil(total * (1.0 + pct / 100.0)) : total;
 }
 
 // 電閃雷鳴：滿5級後，「冰雷合擊」這招額外多打一次（hits×2）；只認冰雷合擊，改用魔力爪就沒有這個加成
@@ -1038,14 +1046,14 @@ static int64_t maple_atk_power_base_max(const MapleCharacter& c) {
     const MapleJobDef& j = maple_job_of(c);
     double primary   = maple_stat_value(c, j.primary_stat);
     double secondary = maple_stat_value(c, j.secondary_stat);
-    return (int64_t)std::ceil((j.primary_coef * primary + j.secondary_coef * secondary) * maple_total_atk(c) / 100.0);
+    return (int64_t)std::ceil((j.primary_coef * primary + j.secondary_coef * secondary) * maple_effective_equip_atk(c) / 100.0);
 }
 static int64_t maple_atk_power_base_min(const MapleCharacter& c) {
     const MapleJobDef& j = maple_job_of(c);
     double primary   = maple_stat_value(c, j.primary_stat);
     double secondary = maple_stat_value(c, j.secondary_stat);
     double mastery = maple_eff_weapon_mastery(c);
-    return (int64_t)std::ceil((j.primary_coef * 0.9 * mastery * primary + j.secondary_coef * secondary) * maple_total_atk(c) / 100.0);
+    return (int64_t)std::ceil((j.primary_coef * 0.9 * mastery * primary + j.secondary_coef * secondary) * maple_effective_equip_atk(c) / 100.0);
 }
 
 // 戰鬥用（冒險/野王/突襲傷害計算）：攻擊力是一個範圍：最大＝主屬性係數全開；
@@ -1057,7 +1065,7 @@ static int64_t maple_atk_power_max(const MapleCharacter& c, double angel_overrid
     const MapleJobDef& j = maple_job_of(c);
     double primary   = maple_stat_value(c, j.primary_stat);
     double secondary = maple_stat_value(c, j.secondary_stat);
-    int64_t base = (int64_t)std::ceil((j.primary_coef * primary + j.secondary_coef * secondary) * (maple_total_atk(c) + extra_wpn_atk) / 100.0);
+    int64_t base = (int64_t)std::ceil((j.primary_coef * primary + j.secondary_coef * secondary) * (maple_effective_equip_atk(c) + extra_wpn_atk) / 100.0);
     int64_t result;
     const MapleSkillDef* sd = maple_current_atk_skill(c);
     if (!sd) result = base;
@@ -1078,7 +1086,7 @@ static int64_t maple_atk_power_min(const MapleCharacter& c, double angel_overrid
     double primary   = maple_stat_value(c, j.primary_stat);
     double secondary = maple_stat_value(c, j.secondary_stat);
     double mastery = maple_eff_weapon_mastery(c);
-    int64_t base = (int64_t)std::ceil((j.primary_coef * 0.9 * mastery * primary + j.secondary_coef * secondary) * (maple_total_atk(c) + extra_wpn_atk) / 100.0);
+    int64_t base = (int64_t)std::ceil((j.primary_coef * 0.9 * mastery * primary + j.secondary_coef * secondary) * (maple_effective_equip_atk(c) + extra_wpn_atk) / 100.0);
     int64_t result;
     const MapleSkillDef* sd = maple_current_atk_skill(c);
     if (!sd) result = base;
@@ -1404,7 +1412,7 @@ static const std::vector<MapleAdvRegionDef> MAPLE_ADV_REGIONS = {
     // 碼數範圍未指定，用85等(640~960)跟95等(697~1020)內插抓暫定值
     {"forgotten_road4",      "遺忘的時間之路4", 90, true, {"怨靈女巫",   53000, 2300, 668, 990}, {"priest"}, 1.5},
     {"buddha_encounter",     "與大佛的邂逅", 95, true, {"雪女",       78500, 3200, 697, 1020}, {"priest"}, 1.5},
-    {"forgotten_road5",      "忘卻之路V",   120, true, {"忘卻的守護兵隊長", 141000, 7060, 8000, 10000}},
+    {"forgotten_road5",      "忘卻之路V",   120, true, {"忘卻的守護兵隊長", 141000, 7060, 8000, 10000}, {"icelightning"}, 1.5},
 };
 
 static const MapleAdvRegionDef* maple_find_adv_region(const std::string& key) {
@@ -1461,8 +1469,10 @@ static double maple_crit_avg_mult(const MapleCharacter& c, double angel_override
 
 // 特定職業在某張圖有固定攻擊力倍率加成（例如僧侶在猴子沼澤地III／時間之路<4> ×1.5）
 // 屬性附魔滿級：騎士在「冰雷」享有加成的地圖，也吃得到跟冰雷一樣的倍率
+// bonus_jobs 寫的是二轉職業 key，三轉後也算（例如冰雷魔導士吃冰雷的加成、祭司吃僧侶的加成）
 static double maple_adv_region_job_mult(const MapleCharacter& c, const MapleAdvRegionDef& region) {
-    for (auto& j : region.bonus_jobs) if (c.job == j) return region.bonus_mult;
+    std::string tier2 = maple_tier2_base_job(c);
+    for (auto& j : region.bonus_jobs) if (c.job == j || tier2 == j) return region.bonus_mult;
     if (c.job == "knight" && maple_skill_maxed(c, "knight_enchant")) {
         for (auto& j : region.bonus_jobs) if (j == "icelightning") return region.bonus_mult;
     }
@@ -1982,7 +1992,7 @@ struct MapleRaidBossDef {
     // checkin_count==1 時，一般是輪流指定；checkin_random=true 改成每次隨機點1人（跟 checkin_count>=2 共用同一套點名機制，只是只點1人）
     bool checkin_random  = false;
     bool full_checkin12  = false; // 每 MAPLE_RAID_FULLCHECKIN_INTERVAL_SEC 有效秒，全隊每個人都要各自簽到才會繼續
-    bool roulette_duel   = false; // 每 MAPLE_RAID_ROULETTE_INTERVAL_SEC 有效秒，隨機1人跟電腦玩俄羅斯輪盤（瞬間算完，不暫停）
+    bool roulette_duel   = false; // 每 MAPLE_RAID_ROULETTE_INTERVAL_SEC 有效秒，隨機1人跟電腦玩俄羅斯輪盤（互動對決，對決期間暫停計時）
 };
 
 // 猜數字：跟 !猜數字 同一套幾A幾B（4 個不重複數字），最多猜 10 次；10 次都沒猜中＝突襲失敗（不消耗次數）
@@ -2010,7 +2020,7 @@ static const std::vector<std::string> MAPLE_OFFHAND30_SET = {
 };
 
 static const std::vector<MapleRaidBossDef> MAPLE_RAID_BOSSES = {
-    {"ice_wolf_king", "冰雪狼王", 50, 600000, true, 0, 20, 3000, 5000, {
+    {"ice_wolf_king", "冰雪狼王", 50, 600000, false, 0, 20, 3000, 5000, {
         {600, {"mat_wolf_king_token"}},
         {200, MAPLE_WB_WPN_CURSE50_SET},
         {70,  {"wpn_wolf_fang"}},
@@ -2036,10 +2046,12 @@ static const std::vector<MapleRaidBossDef> MAPLE_RAID_BOSSES = {
         {50,  {"sc_ring_atk60"}},
         {10,  {"sc_ring_atk_curse50"}},
         {80,  MAPLE_OFFHAND30_SET},
+        {40,  {"sc_wpn_purewhite70", "sc_equip_purewhite70"}},   // 純白 70%（武器／裝備隨機一張）
+        {20,  {"sc_wpn_cleanwhite10", "sc_equip_cleanwhite10"}}, // 潔白 10%（武器／裝備隨機一張）
     }, true, 2, true, 40}, // 入場需全員Lv40+
     // 殘暴炎魔：掉落表目前只有象徵兌換道具，其餘尚未設計。
     // 特殊機制：每5分鐘隨機點1人簽到、每12分鐘全員簽到、每10分鐘隨機1人跟電腦玩俄羅斯輪盤
-    // （贏了全隊5分鐘雙倍傷害；輸了換另一人重試，兩人都輸則那兩人接下來10分鐘無法輸出；沒有其他人可重試就直接算失敗）。
+    // （贏了全隊5分鐘雙倍傷害；輸了換另一人重試，兩人都輸則那兩人接下來10分鐘無法輸出；沒有其他人可重試則輸的人自己10分鐘無法輸出）。
     {"flame_demon", "殘暴炎魔", 100, 10000000, false, 50000, 50, 0, 0, {
         {600, {"mat_flame_demon_token"}},
     }, true, 1, false, 70, true, true, true}, // 入場需全員Lv70+
@@ -2110,6 +2122,32 @@ static double maple_raid_team_total_dps_locked(const MapleRaidRoom& room) {
         if (it != maple_data.end()) total += maple_raid_member_dps_locked(it->second, room);
     }
     return total;
+}
+
+// 突襲首領的團隊增益技能（全隊取最高的那幾個）
+struct MapleRaidTeamBuffDef { const char* key; const char* name; };
+static const MapleRaidTeamBuffDef MAPLE_RAID_TEAM_BUFFS[] = {
+    {"haste", "速度激發"}, {"curse_assassin", "詛咒術"}, {"curse_bandit", "詛咒術"},
+    {"angel_blessing", "天使祝福"}, {"crusader_encourage", "激勵"}, {"bishop_prayer", "祈禱"},
+    {"knight_magic_break", "魔防消除"},
+};
+// 某位隊員提供的團隊增益，以及每個增益帶來的額外隊伍 DPS（暫時把他這個技能歸零重算整隊，差值就是貢獻；
+// 隊上有人點了一樣高的同一個增益時差值會是 0）。呼叫前必須持有 data_mutex
+static std::vector<std::pair<std::string,double>> maple_raid_member_buff_contrib_locked(const MapleRaidRoom& room, dpp::snowflake uid) {
+    std::vector<std::pair<std::string,double>> out;
+    auto it = maple_data.find(uid);
+    if (it == maple_data.end()) return out;
+    double full = maple_raid_team_total_dps_locked(room);
+    for (auto& b : MAPLE_RAID_TEAM_BUFFS) {
+        auto sit = it->second.skill_levels.find(b.key);
+        if (sit == it->second.skill_levels.end() || sit->second <= 0) continue;
+        int saved = sit->second;
+        sit->second = 0;
+        double without = maple_raid_team_total_dps_locked(room);
+        sit->second = saved;
+        out.push_back({b.name, full - without});
+    }
+    return out;
 }
 // room.dmg_disabled_uids（輪盤對決兩次都輸被禁止輸出的最多2人）目前合計的 DPS×100；呼叫前必須持有 data_mutex
 static int64_t maple_raid_disabled_dps_x100_locked(const MapleRaidRoom& room) {
@@ -2185,7 +2223,7 @@ static void maple_raid_rd_end_player_turn_locked(MapleRaidRoom& room) {
         room.rd_active = false;
     }
 }
-// 玩家中彈輸了這場對決：第一次的話换另一個隊友重試（沒有其他隊友就直接算失敗）；
+// 玩家中彈輸了這場對決：第一次的話换另一個隊友重試（沒有其他隊友就由輸的人自己承擔10分鐘無法輸出）；
 // 第二次（重試）也輸的話，兩人一起接下來禁止輸出。呼叫前必須持有 data_mutex。
 static void maple_raid_rd_handle_player_loss_locked(MapleRaidRoom& room) {
     if (!room.rd_is_retry) {
@@ -2351,7 +2389,7 @@ static MapleRaidGuessResult maple_raid_apply_guess_locked(MapleRaidRoom& room, d
         room.guess_note = "🎯 " + who + " 第 " + std::to_string(tries) + " 次猜中（答案 `" + room.guess_secret
                         + "`）！接下來 " + std::to_string(MAPLE_RAID_GUESS_INTERVAL_SEC / 60) + " 分鐘傷害 "
                         + maple_raid_mult_text(room.dmg_mult_x10);
-        if (room.checkin_pending.empty()) room.resume_at = now;
+        if (room.checkin_pending.empty() && room.fullcheckin_pending.empty() && !room.rd_active) room.resume_at = now;
         return MRG_CORRECT;
     }
     return tries >= MAPLE_RAID_GUESS_MAX_TRIES ? MRG_FAILED : MRG_WRONG;
@@ -3225,7 +3263,7 @@ static dpp::message make_maple_equip_msg(dpp::snowflake uid) {
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 🎽 裝備\n武器攻擊力目前 **" + std::to_string(maple_total_atk(c)) + "**"));
+        .set_content("## 🎽 裝備\n武器攻擊力目前 **" + std::to_string(maple_effective_equip_atk(c)) + "**"));
     container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
         .set_spacing(dpp::sep_small).set_divider(true));
 
@@ -3395,7 +3433,7 @@ static dpp::message make_maple_potential_pick_msg(dpp::snowflake uid) {
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 🔮 潛能\n選擇要洗潛能的部位（目前只開放副武器）。每次消耗 1 顆潛能方塊，重新洗出 3 行潛能（主屬性／副屬性／攻擊力隨機）。\n💎 潛能方塊：**" + std::to_string(cubes) + "** 顆"));
+        .set_content("## 🔮 潛能\n選擇要洗潛能的部位（目前只開放副武器）。每次消耗 1 顆潛能方塊，重新洗出 3 行潛能（攻擊力、屬性、BOSS傷害、攻擊間隔、冒險休息／經驗／瘋幣等詞條隨機）。\n💎 潛能方塊：**" + std::to_string(cubes) + "** 顆"));
     container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
         .set_spacing(dpp::sep_small).set_divider(true));
 
@@ -3964,9 +4002,15 @@ static dpp::message make_maple_adventure_msg(dpp::snowflake uid) {
 
 // ─── 野外首領：畫面 ───────────────────────────────────────────────────────────
 
-static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid) {
+// 每頁最多幾隻：每隻首領佔 3 個元件（區塊＋文字＋按鈕），Discord 一則訊息上限 40 個元件
+static const int MAPLE_WB_LIST_PAGE_SIZE = 8;
+
+static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid, int page = 0) {
     std::string uid_s = std::to_string((uint64_t)uid);
     time_t now = time(nullptr);
+    int total = (int)MAPLE_WB_REGIONS.size();
+    int pages = std::max(1, (total + MAPLE_WB_LIST_PAGE_SIZE - 1) / MAPLE_WB_LIST_PAGE_SIZE);
+    page = std::max(0, std::min(page, pages - 1));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -3974,11 +4018,15 @@ static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid) {
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 🐉 野外首領\n全服共用一隻，先搶先贏！攻擊力越高打越快，但過程中被別人搶先擊殺就會無功而返。"));
+        .set_content("## 🐉 野外首領\n全服共用一隻，先搶先贏！攻擊力越高打越快，但過程中被別人搶先擊殺就會無功而返。"
+                     + (pages > 1 ? "\n第 **" + std::to_string(page + 1) + "/" + std::to_string(pages) + "** 頁" : std::string())));
     container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
         .set_spacing(dpp::sep_small).set_divider(true));
 
-    for (auto& r : MAPLE_WB_REGIONS) {
+    int start = page * MAPLE_WB_LIST_PAGE_SIZE;
+    int end   = std::min(total, start + MAPLE_WB_LIST_PAGE_SIZE);
+    for (int ri = start; ri < end; ri++) {
+        auto& r = MAPLE_WB_REGIONS[ri];
         std::string respawn_text = (r.respawn_min_lo == r.respawn_min_hi)
             ? std::to_string(r.respawn_min_lo)
             : std::to_string(r.respawn_min_lo) + "~" + std::to_string(r.respawn_min_hi);
@@ -4013,8 +4061,16 @@ static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid) {
     msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
+    if (pages > 1)
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("◀ 上一頁").set_id("maple_wbrefresh_" + uid_s + "_" + std::to_string(page - 1))
+            .set_style(dpp::cos_secondary).set_disabled(page <= 0));
     row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🔄 重新整理").set_id("maple_wbrefresh_" + uid_s).set_style(dpp::cos_primary));
+        .set_label("🔄 重新整理").set_id("maple_wbrefresh_" + uid_s + "_" + std::to_string(page)).set_style(dpp::cos_primary));
+    if (pages > 1)
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("▶ 下一頁").set_id("maple_wbrefresh_" + uid_s + "_" + std::to_string(page + 1))
+            .set_style(dpp::cos_secondary).set_disabled(page >= pages - 1));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
@@ -4133,7 +4189,7 @@ static dpp::message make_maple_raid_boss_list_msg(dpp::snowflake uid) {
         if (b.roulette_duel)
             text += "\n-# 🔫 每 " + std::to_string(MAPLE_RAID_ROULETTE_INTERVAL_SEC / 60) + " 分鐘隨機1人跟電腦玩俄羅斯輪盤："
                   + "贏了全隊" + std::to_string(MAPLE_RAID_ROULETTE_BUFF_SEC / 60) + "分鐘傷害×2；輸了換另一人重試，"
-                  + "兩人都輸則兩人接下來" + std::to_string(MAPLE_RAID_ROULETTE_DEBUFF_SEC / 60) + "分鐘無法輸出（沒有其他人可重試就直接算失敗）";
+                  + "兩人都輸則兩人接下來" + std::to_string(MAPLE_RAID_ROULETTE_DEBUFF_SEC / 60) + "分鐘無法輸出（沒有其他人可重試時，輸的人自己無法輸出）";
         if (b.guess_game)
             text += "\n-# 🎯 每 " + std::to_string(MAPLE_RAID_GUESS_INTERVAL_SEC / 60) + " 分鐘指定 1 人猜數字（幾A幾B，最多 "
                   + std::to_string(MAPLE_RAID_GUESS_MAX_TRIES) + " 次），越快猜中增傷越高；10 次沒猜中＝突襲失敗（不扣次數）";
@@ -4334,6 +4390,20 @@ static dpp::message make_maple_raid_status_msg(dpp::snowflake uid, const std::st
             content = "## ⚔️ 討伐中 — " + (boss ? boss->name : room->boss_key) + "\n"
                      + (hide_hp ? std::string("血量未知，持續攻擊中…") : ("血量：" + std::to_string(dealt) + " / " + std::to_string(hp) + "（" + std::to_string(pct) + "%）"))
                      + "\n隊員：" + std::to_string(room->members.size()) + " 人\n";
+            // 每位隊員目前的 DPS、提供的團隊增益與增益帶來的額外隊伍 DPS（依目前裝備／技能即時計算）
+            auto fmt_dps = [](double v) { char b[32]; snprintf(b, sizeof(b), "%.1f", v); return std::string(b); };
+            for (auto& m : room->members) {
+                auto mit = maple_data.find(m.uid);
+                if (mit == maple_data.end()) continue;
+                bool disabled = std::find(room->dmg_disabled_uids.begin(), room->dmg_disabled_uids.end(), m.uid)
+                                != room->dmg_disabled_uids.end();
+                std::string line = "-# " + (m.display_name.empty() ? "<@" + std::to_string((uint64_t)m.uid) + ">" : m.display_name)
+                                 + "　⚔️ " + fmt_dps(maple_raid_member_dps_locked(mit->second, *room)) + " DPS"
+                                 + (disabled ? "（🚫 目前無法輸出）" : "");
+                for (auto& [bname, extra] : maple_raid_member_buff_contrib_locked(*room, m.uid))
+                    line += "　✨" + bname + (extra < 0.05 ? std::string("（與隊友重複）") : " +" + fmt_dps(extra));
+                content += line + "\n";
+            }
             if (boss && boss->guess_game && !defeated) {
                 content += "🔥 目前傷害倍率：**" + maple_raid_mult_text(room->dmg_mult_x10) + "**";
                 if (!room->guess_active) {
@@ -4766,7 +4836,7 @@ static dpp::message make_maple_faction_overview_msg(dpp::snowflake uid) {
 // 統帥：投票 + (統帥限定)陣營技能點分配
 // 統帥檢視這個畫面時會多一排「分配陣營技能點」按鈕，元件數比一般成員多；
 // 每頁人數要留夠餘裕，不然統帥本人看自己陣營（超過10人、會分頁）時，總元件數會超過 Discord 訊息上限、整則被拒收。
-static const int MAPLE_FACTION_COMMANDER_PAGE_SIZE = 8;
+static const int MAPLE_FACTION_COMMANDER_PAGE_SIZE = 6; // 統帥會多兩排分配按鈕，8 人一頁會超過 Discord 40 個元件上限
 
 static dpp::message make_maple_faction_commander_msg(dpp::snowflake uid, int page = 0, const std::string& result_note = "") {
     MapleCharacter c = maple_get_or_create(uid);
@@ -4822,20 +4892,22 @@ static dpp::message make_maple_faction_commander_msg(dpp::snowflake uid, int pag
 
     if (is_commander) {
         int unspent = maple_faction_unspent_pts(st);
+        auto pts_btn = [&](const std::string& label, const std::string& id, bool disabled, dpp::component_style style) {
+            return dpp::component().set_type(dpp::cot_button).set_label(label).set_id(id)
+                .set_style(style).set_disabled(disabled);
+        };
         dpp::component prow; prow.set_type(dpp::cot_action_row);
-        prow.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("⚔️ 攻擊力 +1（剩" + std::to_string(unspent) + "）").set_id("maple_factionptsadd_" + uid_s + "_atk")
-            .set_style(dpp::cos_primary).set_disabled(unspent <= 0));
-        prow.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("📈 經驗 +1%").set_id("maple_factionptsadd_" + uid_s + "_exp")
-            .set_style(dpp::cos_primary).set_disabled(unspent <= 0));
-        prow.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("🪙 瘋幣 +1%").set_id("maple_factionptsadd_" + uid_s + "_coin")
-            .set_style(dpp::cos_primary).set_disabled(unspent <= 0));
-        prow.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("🔄 重置點數").set_id("maple_factionptsreset_" + uid_s)
-            .set_style(dpp::cos_danger).set_disabled(maple_faction_spent_pts(st) <= 0));
+        prow.add_component(pts_btn("⚔️ 攻擊 -1", "maple_factionptssub_" + uid_s + "_atk", st.atk_pts <= 0, dpp::cos_secondary));
+        prow.add_component(pts_btn("⚔️ 攻擊 +1", "maple_factionptsadd_" + uid_s + "_atk", unspent <= 0, dpp::cos_primary));
+        prow.add_component(pts_btn("📈 經驗 -1", "maple_factionptssub_" + uid_s + "_exp", st.exp_pts <= 0, dpp::cos_secondary));
+        prow.add_component(pts_btn("📈 經驗 +1", "maple_factionptsadd_" + uid_s + "_exp", unspent <= 0, dpp::cos_primary));
         msg.add_component_v2(prow);
+        dpp::component prow2; prow2.set_type(dpp::cot_action_row);
+        prow2.add_component(pts_btn("🪙 瘋幣 -1", "maple_factionptssub_" + uid_s + "_coin", st.coin_pts <= 0, dpp::cos_secondary));
+        prow2.add_component(pts_btn("🪙 瘋幣 +1", "maple_factionptsadd_" + uid_s + "_coin", unspent <= 0, dpp::cos_primary));
+        prow2.add_component(pts_btn("✏️ 輸入分配（剩" + std::to_string(unspent) + "）", "maple_factionptsinput_" + uid_s, false, dpp::cos_success));
+        prow2.add_component(pts_btn("🔄 全部重置", "maple_factionptsreset_" + uid_s, maple_faction_spent_pts(st) <= 0, dpp::cos_danger));
+        msg.add_component_v2(prow2);
     }
 
     dpp::component vote_container;
@@ -4966,7 +5038,7 @@ static dpp::message make_maple_shop_msg(dpp::snowflake uid) {
 }
 
 // ─── 特殊商店（籌碼 → 瘋幣兌換 ＋ 付費能力值重製）─────────────────────────────
-static const int64_t MAPLE_TOKEN_WEEKLY_CAP = 20000; // 每週最多可用多少籌碼兌換
+static const int64_t MAPLE_TOKEN_WEEKLY_CAP = 40000; // 每週最多可用多少籌碼兌換
 static const int     MAPLE_TOKEN_RATE_NUM   = 4;     // 瘋幣 = 籌碼 × num / den（之後可調比值）
 static const int     MAPLE_TOKEN_RATE_DEN   = 1;
 static const int64_t MAPLE_AP_BUYRESET_COST = 10000; // 付費能力值重製：每次 10000 瘋幣，可重複購買
@@ -5002,7 +5074,7 @@ static dpp::message make_maple_tokenshop_msg(dpp::snowflake uid) {
     std::string body = "## 🎁 特殊商店\n"
         "💰 你的籌碼：**" + std::to_string(chips) + "**　🪙 你的瘋幣：**" + std::to_string(c.coins) + "**\n\n"
         "**🪙 籌碼兌換瘋幣**\n"
-        "比值 " + std::to_string(MAPLE_TOKEN_RATE_NUM) + " : " + std::to_string(MAPLE_TOKEN_RATE_DEN) + "（籌碼 : 瘋幣）\n"
+        "比值 " + std::to_string(MAPLE_TOKEN_RATE_DEN) + " : " + std::to_string(MAPLE_TOKEN_RATE_NUM) + "（籌碼 : 瘋幣）\n"
         "📅 本週已兌換：**" + std::to_string(spent) + " / " + std::to_string(MAPLE_TOKEN_WEEKLY_CAP) + "** 籌碼（剩 **" + std::to_string(remain) + "**）";
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(body));
     container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
@@ -5793,7 +5865,7 @@ static dpp::message make_maple_bag_msg(dpp::snowflake uid, const std::string& ta
             if (n <= 0) continue;
             const MapleItemDef* it = maple_find_item(k);
             if (!it || maple_item_cat(it->slot) != subcat) continue;
-            bool is_offhand = (it->slot == "offhand"); // 副武器不能賣給遊戲換瘋幣，只能 !交易，但仍要顯示在這裡
+            bool is_offhand = !maple_item_shop_sellable(*it); // 副武器／潛能方塊不能賣給遊戲換瘋幣，只能 !交易，但仍要顯示在這裡
             int64_t sell = maple_item_sell_price(*it);
             std::string text = "**" + it->name + "**　ID:`" + std::to_string(it->item_id) + "`　×" + std::to_string(n);
             text += is_offhand ? "\n　只能用 `!交易`／`/交易` 交換" : ("\n　售出單價：🪙" + std::to_string(sell));
@@ -5918,8 +5990,8 @@ static int64_t maple_sell_execute_locked(MapleCharacter& c, const std::string& k
     if (qit == c.equipment.end() || qit->second <= 0 || !it) {
         err = "找不到這件裝備，可能已經賣掉或穿上了。"; return 0;
     }
-    if (it->slot == "offhand") {
-        err = "副武器不能賣給遊戲換瘋幣，只能用 !交易 跟其他玩家交換。"; return 0;
+    if (!maple_item_shop_sellable(*it)) {
+        err = it->name + " 不能賣給遊戲換瘋幣，只能用 !交易 跟其他玩家交換。"; return 0;
     }
     if (qty > qit->second) qty = qit->second;
     if (qty <= 0) { err = "數量不對。"; return 0; }
@@ -5957,7 +6029,7 @@ static dpp::message make_maple_sell_confirm_msg(dpp::snowflake uid, const std::s
     } else {
         n = c.equipment.count(ref) ? c.equipment.at(ref) : 0;
         const MapleItemDef* it = maple_find_item(ref);
-        if (it && n > 0 && it->slot != "offhand") { name = it->name; price = maple_item_sell_price(*it); found = true; }
+        if (it && n > 0 && maple_item_shop_sellable(*it)) { name = it->name; price = maple_item_sell_price(*it); found = true; }
     }
 
     dpp::message msg;

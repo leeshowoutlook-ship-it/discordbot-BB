@@ -439,7 +439,12 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
 
     if (cid.rfind("maple_wbrefresh_", 0) == 0) {
         if (!check_owner("maple_wbrefresh_")) return;
-        ev.reply(dpp::ir_update_message, make_maple_wb_region_list_msg(uid));
+        // maple_wbrefresh_<uid>_<page>（舊按鈕沒有頁碼就是第 1 頁）
+        int page = 0;
+        std::string rest = cid.substr(std::string("maple_wbrefresh_").size());
+        size_t psep = rest.find('_');
+        if (psep != std::string::npos) { try { page = std::stoi(rest.substr(psep + 1)); } catch (...) {} }
+        ev.reply(dpp::ir_update_message, make_maple_wb_region_list_msg(uid, page));
         return;
     }
 
@@ -821,7 +826,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 // 12分鐘全員點名：如果這個人也在待簽到名單裡，一併簽掉（跟5分鐘那關各自獨立）
                 auto& fpend = room->fullcheckin_pending;
                 fpend.erase(std::remove(fpend.begin(), fpend.end(), uid), fpend.end());
-                if (checkin_done && fpend.empty() && !room->guess_active) room->resume_at = time(nullptr);
+                if (checkin_done && fpend.empty() && !room->guess_active && !room->rd_active) room->resume_at = time(nullptr);
             }
         }
         if (!err.empty()) {
@@ -913,14 +918,6 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                                     : d.set[std::uniform_int_distribution<int>(0, (int)d.set.size() - 1)(rng)];
                                 if (const MapleScrollDef* sd = maple_find_scroll(key)) { c.scrolls[key]++; drops.push_back(sd->name); }
                                 else if (const MapleItemDef* it = maple_find_item(key)) { c.equipment[key]++; drops.push_back(it->name); }
-                            }
-                            // 機器人擁有者第一次擊敗西格諾斯：保底掉一枚誓約戒指（這次正常擲骰沒掉到才補）
-                            bool owner = !cfg.notify_user_id.empty() && std::to_string((uint64_t)m.uid) == cfg.notify_user_id;
-                            if (boss->key == "cygnus" && owner && c.raid_clears[boss->key] == 0) {
-                                const MapleItemDef* ring = maple_find_item("ring_cygnus_oath");
-                                if (ring && std::find(drops.begin(), drops.end(), ring->name) == drops.end()) {
-                                    c.equipment[ring->key]++; drops.push_back(ring->name);
-                                }
                             }
                             c.raid_clears[boss->key]++;
                         }
@@ -1173,6 +1170,71 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         }
         save_maple_faction_state();
         ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, 0, "✅ 已分配 1 點"));
+        return;
+    }
+
+    if (cid.rfind("maple_factionptssub_", 0) == 0) {
+        std::string rest = cid.substr(std::string("maple_factionptssub_").size());
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string type = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (c.faction_key.empty()) err = "你目前沒有加入任何陣營！";
+            else if (maple_faction_commander_locked(c.faction_key) != uid) err = "只有統帥可以分配陣營技能點。";
+            else {
+                MapleFactionState& st = maple_faction_state[c.faction_key];
+                int* pts = type == "atk" ? &st.atk_pts : type == "exp" ? &st.exp_pts : type == "coin" ? &st.coin_pts : nullptr;
+                if (!pts) err = "未知的類型。";
+                else if (*pts <= 0) err = "這一項已經是 0 點了。";
+                else (*pts)--;
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, 0, "❌ " + err));
+            return;
+        }
+        save_maple_faction_state();
+        ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, 0, "✅ 已收回 1 點"));
+        return;
+    }
+
+    // 統帥輸入分配：跳出輸入框，三項直接填數字（預填目前的分配）
+    if (cid.rfind("maple_factionptsinput_", 0) == 0) {
+        if (!check_owner("maple_factionptsinput_")) return;
+        MapleFactionState st; bool ok = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (!c.faction_key.empty() && maple_faction_commander_locked(c.faction_key) == uid) {
+                st = maple_faction_state_of(c.faction_key); ok = true;
+            }
+        }
+        if (!ok) {
+            ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, 0, "❌ 只有統帥可以分配陣營技能點。"));
+            return;
+        }
+        dpp::interaction_modal_response modal("maple_factionptsm_" + std::to_string((uint64_t)uid),
+                                              "分配陣營技能點（共 " + std::to_string(st.level) + " 點）");
+        // Discord 規定一行只能放一個輸入框，所以每個欄位之間換行（最後一個後面不能再多一個空行）
+        auto field = [&](const std::string& id, const std::string& label, int cur) {
+            modal.add_component(dpp::component().set_type(dpp::cot_text)
+                .set_label(label).set_id(id).set_text_style(dpp::text_short)
+                .set_min_length(1).set_max_length(4).set_default_value(std::to_string(cur)));
+        };
+        field("atk",  "⚔️ 武器攻擊力（每點 +1）", st.atk_pts);
+        modal.add_row();
+        field("exp",  "📈 經驗加成（每點 +1%）",  st.exp_pts);
+        modal.add_row();
+        field("coin", "🪙 瘋幣加成（每點 +1%）",  st.coin_pts);
+        ev.dialog(modal);
         return;
     }
 
@@ -2723,6 +2785,50 @@ void handle_maple_modal(const dpp::form_submit_t& ev)
 {
     const std::string& cid = ev.custom_id;
     dpp::snowflake uid = ev.command.get_issuing_user().id;
+
+    // 統帥輸入分配陣營技能點：maple_factionptsm_<uid>，欄位 atk / exp / coin
+    if (cid.rfind("maple_factionptsm_", 0) == 0) {
+        dpp::snowflake owner(std::stoull(cid.substr(std::string("maple_factionptsm_").size())));
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::map<std::string, std::string> vals;
+        for (auto& row : ev.components) {
+            if (std::holds_alternative<std::string>(row.value)) vals[row.custom_id] = std::get<std::string>(row.value);
+            for (auto& sub : row.components)
+                if (std::holds_alternative<std::string>(sub.value)) vals[sub.custom_id] = std::get<std::string>(sub.value);
+        }
+        auto parse = [&](const std::string& k, int& out) -> bool {
+            auto it = vals.find(k);
+            if (it == vals.end()) return false;
+            try { size_t pos = 0; out = std::stoi(it->second, &pos); return pos == it->second.size() && out >= 0; }
+            catch (...) { return false; }
+        };
+        int atk = 0, exp = 0, coin = 0;
+        std::string err;
+        if (!parse("atk", atk) || !parse("exp", exp) || !parse("coin", coin)) err = "請在三格都填 0 以上的整數。";
+        else {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (c.faction_key.empty()) err = "你目前沒有加入任何陣營！";
+            else if (maple_faction_commander_locked(c.faction_key) != uid) err = "只有統帥可以分配陣營技能點。";
+            else {
+                MapleFactionState& st = maple_faction_state[c.faction_key];
+                if ((int64_t)atk + exp + coin > st.level)
+                    err = "總共只有 " + std::to_string(st.level) + " 點，你填了 " + std::to_string(atk + exp + coin) + " 點。";
+                else { st.atk_pts = atk; st.exp_pts = exp; st.coin_pts = coin; }
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, 0, "❌ " + err));
+            return;
+        }
+        save_maple_faction_state();
+        ev.reply(dpp::ir_update_message, make_maple_faction_commander_msg(uid, 0, "✅ 已更新陣營技能點分配"));
+        return;
+    }
+
     if (cid.rfind("maple_raidguessm_", 0) != 0) return;
     std::string rest = cid.substr(17);
     size_t sep = rest.find('_');

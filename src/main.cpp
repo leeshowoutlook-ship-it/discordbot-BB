@@ -3306,7 +3306,7 @@ int main(int argc, char* argv[]) {
         const std::string& cid = ev.custom_id;
         dpp::snowflake issuer = ev.command.get_issuing_user().id;
 
-        if (cid.rfind("maple_raidguessm_", 0) == 0) { handle_maple_modal(ev); return; }
+        if (cid.rfind("maple_raidguessm_", 0) == 0 || cid.rfind("maple_factionptsm_", 0) == 0) { handle_maple_modal(ev); return; }
 
         // Pet rename modal
         if (cid.rfind("pet_rename_modal_", 0) == 0 || cid.rfind("pet_release_modal_", 0) == 0) {

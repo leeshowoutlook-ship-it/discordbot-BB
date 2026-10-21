@@ -1,1 +1,86 @@
-[]
+[
+  {
+    "accum_dmg": 3894132.0,
+    "accum_secs": 3900,
+    "boss_key": "cygnus",
+    "channel_id": 1557303524688142396,
+    "checkin_pending": [],
+    "checkin_turn": 0,
+    "created_at": 1792588757,
+    "dmg_disabled_uids": [],
+    "dmg_disabled_until_secs": -1,
+    "dmg_mult_until_secs": -1,
+    "dmg_mult_x10": 20,
+    "fullcheckin_pending": [],
+    "guess_active": false,
+    "guess_history": [
+      [
+        "1670",
+        "0A1B"
+      ],
+      [
+        "2405",
+        "2A0B"
+      ],
+      [
+        "2903",
+        "1A0B"
+      ],
+      [
+        "2487",
+        "2A0B"
+      ],
+      [
+        "2185",
+        "4A0B"
+      ]
+    ],
+    "guess_note": "🎯 <@592404587248615458> 第 5 次猜中（答案 `2185`）！接下來 8 分鐘傷害 ×2",
+    "guess_secret": "2185",
+    "guess_uid": 592404587248615458,
+    "id": "r5",
+    "leader_uid": 592404587248615458,
+    "members": [
+      {
+        "display_name": "🦋左邊畫個龍",
+        "uid": 592404587248615458
+      },
+      {
+        "display_name": "🐧Zoey",
+        "uid": 1376834202275676170
+      },
+      {
+        "display_name": "ㄚ貓140-4",
+        "uid": 876757185152028692
+      },
+      {
+        "display_name": "🐧貓哥",
+        "uid": 604244623124070423
+      },
+      {
+        "display_name": "caster3310",
+        "uid": 412895856434610176
+      },
+      {
+        "display_name": "🐧礦泉水",
+        "uid": 560474152755134464
+      }
+    ],
+    "next_guess_secs": 4320,
+    "rd_active": false,
+    "rd_bullet_chamber": 0,
+    "rd_chamber5_by_computer": false,
+    "rd_chamber5_shooter": 0,
+    "rd_current_chamber": 1,
+    "rd_first_uid": 0,
+    "rd_is_retry": false,
+    "rd_log": [],
+    "rd_player_turn": true,
+    "rd_shots_this_turn": 0,
+    "rd_uid": 0,
+    "resume_at": 1792594980,
+    "roulette_note": "",
+    "state": "fighting",
+    "team_dps_x100": 59002
+  }
+]
