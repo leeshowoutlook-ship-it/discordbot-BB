@@ -1,45 +1,45 @@
 {
   "advanced_dojo": {
-    "dead_since": 1792586617,
-    "respawn_secs": 10560,
+    "dead_since": 1792631220,
+    "respawn_secs": 10440,
     "round_kills": 0,
-    "total_kills": 100
+    "total_kills": 104
   },
   "cactus_desert": {
-    "dead_since": 1792590936,
-    "respawn_secs": 4200,
+    "dead_since": 1792638100,
+    "respawn_secs": 4140,
     "round_kills": 0,
-    "total_kills": 230
+    "total_kills": 239
   },
   "coastal_grass": {
-    "dead_since": 1792592620,
+    "dead_since": 1792639191,
     "respawn_secs": 3000,
     "round_kills": 0,
-    "total_kills": 650
+    "total_kills": 662
   },
   "cursed_temple": {
-    "dead_since": 1792571010,
-    "respawn_secs": 20040,
+    "dead_since": 1792630743,
+    "respawn_secs": 28080,
     "round_kills": 0,
-    "total_kills": 52
+    "total_kills": 54
   },
   "dead_forest4": {
-    "dead_since": 1792588623,
-    "respawn_secs": 4440,
+    "dead_since": 1792638805,
+    "respawn_secs": 5880,
     "round_kills": 0,
-    "total_kills": 124
+    "total_kills": 130
   },
   "east_rock4": {
-    "dead_since": 1792592574,
-    "respawn_secs": 3900,
+    "dead_since": 1792638362,
+    "respawn_secs": 4200,
     "round_kills": 0,
-    "total_kills": 485
+    "total_kills": 494
   },
   "ice_canyon2": {
-    "dead_since": 1792586864,
-    "respawn_secs": 10020,
+    "dead_since": 1792640509,
+    "respawn_secs": 10740,
     "round_kills": 0,
-    "total_kills": 174
+    "total_kills": 179
   },
   "japan_shrine": {
     "dead_since": 1792513948,
@@ -54,21 +54,21 @@
     "total_kills": 2
   },
   "subway_station3": {
-    "dead_since": 1792592917,
-    "respawn_secs": 3540,
+    "dead_since": 1792638584,
+    "respawn_secs": 3300,
     "round_kills": 0,
-    "total_kills": 465
+    "total_kills": 471
   },
   "turtle_beach": {
-    "dead_since": 1792592453,
-    "respawn_secs": 4980,
+    "dead_since": 1792638175,
+    "respawn_secs": 4560,
     "round_kills": 0,
-    "total_kills": 320
+    "total_kills": 327
   },
   "witch_forest": {
-    "dead_since": 1792591966,
-    "respawn_secs": 6300,
+    "dead_since": 1792639470,
+    "respawn_secs": 6960,
     "round_kills": 0,
-    "total_kills": 133
+    "total_kills": 137
   }
 }

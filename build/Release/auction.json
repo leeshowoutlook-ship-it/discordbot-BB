@@ -347,7 +347,19 @@
       "price": 6000,
       "qty": 2,
       "uid": "558513044632895509"
+    },
+    {
+      "created_at": 1792631549,
+      "currency": "chips",
+      "id": 210,
+      "is_buy": false,
+      "item_id": 90007,
+      "item_key": "col_mushroom_head",
+      "item_name": "蘑菇頭",
+      "price": 100000,
+      "qty": 1,
+      "uid": "959450115007975444"
     }
   ],
-  "next_id": 209
+  "next_id": 211
 }

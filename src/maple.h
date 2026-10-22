@@ -1290,13 +1290,13 @@ static int maple_pot_roll_line_grade(int item_grade, std::mt19937& rng) {
     if (item_grade == 2) { if (roll <= 45) return 0; if (roll <= 85) return 1; return 2; } // 史詩：45/40/15
     if (roll <= 30) return 0; if (roll <= 70) return 1; if (roll <= 90) return 2; return 3; // 傳說：30/40/20/10
 }
-// 某詞條種類在某「行品質」下骰出的數值（1~3%／2~5%是隨機範圍；其餘是依行品質的固定階梯值）
-static double maple_pot_roll_value(int type, int line_grade, std::mt19937& rng) {
+// 某詞條種類在某「行品質」下的數值：每種詞條都是依行品質（普通/稀有/史詩/傳說）的固定階梯值
+static double maple_pot_roll_value(int type, int line_grade, std::mt19937& /*rng*/) {
     switch (type) {
-        case POT_ATK_PCT:      return std::uniform_int_distribution<int>(1, 3)(rng);
-        case POT_RANDSTAT_PCT: return std::uniform_int_distribution<int>(1, 3)(rng);
-        case POT_BOSS_DMG:     return std::uniform_int_distribution<int>(2, 5)(rng);
-        case POT_ATK_FLAT:     return std::uniform_int_distribution<int>(2, 5)(rng);
+        case POT_ATK_PCT:       { static const int v[4] = {0, 1, 2, 3};     return v[line_grade]; }
+        case POT_RANDSTAT_PCT:  { static const int v[4] = {0, 1, 2, 3};     return v[line_grade]; }
+        case POT_BOSS_DMG:      { static const int v[4] = {2, 3, 4, 5};     return v[line_grade]; }
+        case POT_ATK_FLAT:      { static const int v[4] = {2, 3, 4, 5};     return v[line_grade]; }
         case POT_RANDSTAT_FLAT: { static const int v[4] = {10, 20, 30, 40}; return v[line_grade]; }
         case POT_REST_SEC:      { static const int v[4] = {1, 2, 3, 4};     return v[line_grade]; }
         case POT_ATK_SPEED:     { static const int v[4] = {0, 0, 1, 2};     return v[line_grade]; }
