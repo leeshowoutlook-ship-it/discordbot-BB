@@ -1,4 +1,9 @@
 {
+  "1036953796007448606": {
+    "games": 3,
+    "total_win_attempts": 19,
+    "wins": 3
+  },
   "1115212853289427004": {
     "games": 1,
     "total_win_attempts": 0,
@@ -10,9 +15,9 @@
     "wins": 1
   },
   "1376834202275676170": {
-    "games": 2,
-    "total_win_attempts": 12,
-    "wins": 2
+    "games": 7,
+    "total_win_attempts": 35,
+    "wins": 6
   },
   "1390285382381338627": {
     "games": 1,
@@ -30,9 +35,14 @@
     "wins": 1
   },
   "457478323665240065": {
-    "games": 7,
-    "total_win_attempts": 27,
-    "wins": 5
+    "games": 8,
+    "total_win_attempts": 35,
+    "wins": 6
+  },
+  "470149299934593024": {
+    "games": 2,
+    "total_win_attempts": 6,
+    "wins": 1
   },
   "479900597013708802": {
     "games": 36,
@@ -45,9 +55,9 @@
     "wins": 0
   },
   "558513044632895509": {
-    "games": 9,
-    "total_win_attempts": 53,
-    "wins": 9
+    "games": 51,
+    "total_win_attempts": 297,
+    "wins": 51
   },
   "560474152755134464": {
     "games": 2,
@@ -55,9 +65,9 @@
     "wins": 0
   },
   "592685139717390346": {
-    "games": 3,
-    "total_win_attempts": 8,
-    "wins": 1
+    "games": 6,
+    "total_win_attempts": 28,
+    "wins": 4
   },
   "604244623124070423": {
     "games": 4,
@@ -65,13 +75,18 @@
     "wins": 3
   },
   "843071419671904308": {
-    "games": 3,
-    "total_win_attempts": 20,
-    "wins": 3
+    "games": 6,
+    "total_win_attempts": 35,
+    "wins": 6
+  },
+  "850359830404661258": {
+    "games": 2,
+    "total_win_attempts": 10,
+    "wins": 1
   },
   "876757185152028692": {
-    "games": 4,
-    "total_win_attempts": 26,
-    "wins": 4
+    "games": 7,
+    "total_win_attempts": 34,
+    "wins": 6
   }
 }

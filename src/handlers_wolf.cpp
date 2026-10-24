@@ -113,6 +113,23 @@ void handle_wolf_message(const dpp::message_create_t& ev, const std::string& con
                     sections.push_back(dm);
                 }
             }
+            // 突襲首領猜數字（目前只有西格諾斯有）：答案只在這一輪猜數字開始後才產生
+            bool any_guess_room = false;
+            for (auto& [rid, room] : maple_raid_rooms) {
+                if (room.state != "fighting" || (!room.guess_active && room.next_guess_secs <= 0)) continue;
+                any_guess_room = true;
+                std::string boss_name = room.boss_key == "cygnus" ? "西格諾斯" : room.boss_key;
+                std::string dm = "═══════════════\n🎯 **" + boss_name + " 猜數字** — 房間 " + rid + "\n";
+                if (room.guess_active) {
+                    dm += "猜的人：<@" + std::to_string((uint64_t)room.guess_uid) + ">\n"
+                        + "✅ **答案：`" + room.guess_secret + "`**\n";
+                    for (auto& [g, res] : room.guess_history) dm += "`" + g + "` → " + res + "\n";
+                } else {
+                    dm += "這一輪還沒開始（答案要等猜數字開始才會產生）\n";
+                }
+                sections.push_back(dm);
+            }
+            if (!any_guess_room) sections.push_back("🎯 目前沒有進行中的突襲猜數字。");
         }
         std::vector<std::string> dms(1);
         for (auto& sec : sections) {
