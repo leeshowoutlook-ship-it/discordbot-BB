@@ -869,21 +869,20 @@ static int maple_tier1_sp_spent(const MapleCharacter& c) {
     }
     return total;
 }
-// 二轉技能（該二轉職業自己專屬的，不含掛在一轉父職業上的共用武器技能）已投入點數總和，依角色目前的二轉基準職業計算
+// 二轉技能已投入點數總和：該二轉職業專屬技能＋武器精通／領悟／快速武器（不管掛在一轉還是二轉職業上顯示）
 static int maple_tier2_sp_spent(const MapleCharacter& c) {
-    std::string base2 = maple_tier2_base_job(c);
-    if (base2.empty()) return 0;
+    if (maple_tier2_base_job(c).empty()) return 0;
     int total = 0;
     for (auto& s : MAPLE_SKILLS) {
-        if (s.job != base2 || maple_skill_is_tier3(s)) continue;
+        if (!maple_skill_is_tier2(s) || !maple_skill_visible(c, s.job)) continue;
         total += maple_skill_level(c, s.key);
     }
     return total;
 }
 static const int MAPLE_TIER1_UNLOCK_BEGINNER_SP = 6;  // 一轉技能：初心者技能至少投入6點才能點
 static const int MAPLE_TIER2_UNLOCK_TIER1_SP     = 20; // 二轉技能：一轉技能至少投入20點（滿級）才能點
-// 二轉技能各職業能投的總點數不一（15~40不等，武器精通那套不共用的職業比較多），取最小的15當門檻，確保每個分支都點得到
-static const int MAPLE_TIER3_UNLOCK_TIER2_SP     = 15; // 三轉技能：二轉技能至少投入15點才能點
+// 二轉技能（含武器三技能）每個職業都是 40 點（冰雷 45 點），點滿 40 點才能點三轉
+static const int MAPLE_TIER3_UNLOCK_TIER2_SP     = 40; // 三轉技能：二轉技能至少投入40點才能點
 // 這個技能目前是否可以投入點數（除了「還有剩餘點數、還沒滿級」以外的額外限制）
 static bool maple_skill_unlockable(const MapleCharacter& c, const MapleSkillDef& sd) {
     if (sd.job == "beginner") return true;
