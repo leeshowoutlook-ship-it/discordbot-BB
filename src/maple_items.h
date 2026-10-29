@@ -472,6 +472,94 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.item_id = 96800;
             items.push_back(e);
         }
+        // 米伽勒的平底鍋：法杖，限制等級90、限制副屬性100、限職業法師，攻速比一般法杖快兩階(90→60)，
+        // 攻擊力80、主屬性(智力)+15。黑輪王（夜市徒步區7/7-1）掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "wpn_michael_pan";
+            e.name = "米伽勒的平底鍋";
+            e.slot = "weapon";
+            e.level_req = 90;
+            e.secondary_req = 100;
+            e.sellable = true;
+            e.atk_bonus = 80;
+            e.atk_speed_sec = 60;
+            e.weapon_type = "法杖";
+            e.job_req = "mage";
+            e.int_bonus = 15;
+            e.price = 0;
+            e.item_id = 96801;
+            items.push_back(e);
+        }
+        // 冰藍色滑雪板：棒子，無職業限制、無等級限制，攻速最快(30)，攻擊力90，無屬性加成。
+        // 雪人之谷（雪毛怪人）0.5% 掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "wpn_ice_blue_skis";
+            e.name = "冰藍色滑雪板";
+            e.slot = "weapon";
+            e.sellable = true;
+            e.atk_bonus = 90;
+            e.atk_speed_sec = 30;
+            e.weapon_type = "棒子";
+            e.price = 0;
+            e.item_id = 96804;
+            items.push_back(e);
+        }
+        // 紅色武士刀：大劍，限職業劍士、限制等級110、限制副屬性150，攻速比一般大劍(70)快兩階段(45)，攻擊力88。
+        // 多多（回憶之路5）3% 掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "wpn_red_katana";
+            e.name = "紅色武士刀";
+            e.slot = "weapon";
+            e.level_req = 110;
+            e.secondary_req = 150;
+            e.sellable = true;
+            e.atk_bonus = 88;
+            e.atk_speed_sec = 45;
+            e.weapon_type = "大劍";
+            e.job_req = "warrior";
+            e.price = 0;
+            e.item_id = 96805;
+            items.push_back(e);
+        }
+        // 冷凍金槍魚狙擊槍：弩，限職業弓手、限制等級110、限制副屬性100，攻速比一般弩(60)慢一階段(70)，攻擊力115。
+        // 多多（回憶之路5）3% 掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "wpn_frozen_tuna_sniper";
+            e.name = "冷凍金槍魚狙擊槍";
+            e.slot = "weapon";
+            e.level_req = 110;
+            e.secondary_req = 100;
+            e.sellable = true;
+            e.atk_bonus = 115;
+            e.atk_speed_sec = 70;
+            e.weapon_type = "弩";
+            e.job_req = "archer";
+            e.price = 0;
+            e.item_id = 96806;
+            items.push_back(e);
+        }
+        // 暗紅色磚頭型精準射手步槍：弓，限職業弓手、限制等級110、限制副屬性100，攻速比一般弓(60)慢兩階段(90)，攻擊力150。
+        // 多多（回憶之路5）3% 掉落，不在商店販售。
+        {
+            MapleItemDef e;
+            e.key = "wpn_dark_red_brick_rifle";
+            e.name = "暗紅色磚頭型精準射手步槍";
+            e.slot = "weapon";
+            e.level_req = 110;
+            e.secondary_req = 100;
+            e.sellable = true;
+            e.atk_bonus = 150;
+            e.atk_speed_sec = 90;
+            e.weapon_type = "弓";
+            e.job_req = "archer";
+            e.price = 0;
+            e.item_id = 96807;
+            items.push_back(e);
+        }
         return items;
     }();
     return v;
@@ -496,6 +584,8 @@ struct MapleScrollDef {
     bool        shop            = true; // 是否顯示在卷軸商店（false＝不上架，只能用其他方式取得，仍可交易/使用）
     bool        restore_slot    = false; // 純白卷軸專用：只能用在「已有強化失敗紀錄」的裝備，不佔用強化次數上限，成功時歸還1次已使用次數
     int         str_bonus = 0, dex_bonus = 0, int_bonus = 0, luk_bonus = 0; // 「全屬性」卷軸專用：不分職業，四維各自加
+    bool        is_curse_shield = false; // 詛咒保護卷專用：可用在任何裝備上，不佔用強化次數上限，套用後裝備進入保護狀態，
+                                          // 下一次本該因詛咒卷爆炸時會被擋下來（裝備不消失），保護用掉後失效
 };
 
 static const std::vector<MapleScrollDef> MAPLE_SCROLLS = {
@@ -570,6 +660,16 @@ static const std::vector<MapleScrollDef> MAPLE_SCROLLS = {
     {"sc_equip_cleanwhite10", "潔白裝備卷軸 10%", 10, 100000, "耳環／戒指／項鍊／頭盔／手套／套服／鞋子", 0, 0, 0, 96568, 0, false, true},
     {"sc_wpn_cleanwhite15",   "潔白武器卷軸 15%", 15, 220000, "大劍／法杖／拳套／匕首／弩／弓", 0, 0, 0, 96569, 0, false, true},
     {"sc_equip_cleanwhite15", "潔白裝備卷軸 15%", 15, 150000, "耳環／戒指／項鍊／頭盔／手套／套服／鞋子", 0, 0, 0, 96570, 0, false, true},
+    // 詛咒保護卷：可用在任何裝備上（不佔用強化次數上限），套用後裝備進入「保護」狀態；
+    // 下一次本該因詛咒卷爆炸時會被這個保護擋下來（裝備不會消失），保護用掉後失效。不上架商店，黑輪王50%掉落。
+    {"sc_curse_shield", "詛咒保護卷", 100, 150000, "任何裝備", 0, 0, 0, 96803, 0, false, false, 0, 0, 0, 0, true},
+    // 克雷賽爾系列（克雷塞爾莊園1／2掉落，不上架商店）：
+    // 武器強化卷10%：攻擊+7、主屬性+10；裝備強化卷10%：攻擊+1、主屬性+5；
+    // 潔白卷25%：跟潔白武器/裝備卷一樣只能用在有強化失敗紀錄的裝備、不佔次數上限，但武器跟裝備都能用。
+    {"sc_kressel_wpn10",       "克雷賽爾武器強化卷軸 10%", 10, 0, "大劍／法杖／拳套／匕首／弩／弓", 10, 0, 7, 96808, 0, false},
+    {"sc_kressel_equip10",     "克雷賽爾裝備強化卷軸 10%", 10, 0, "耳環／戒指／項鍊／頭盔／手套／套服／鞋子", 5, 0, 1, 96809, 0, false},
+    {"sc_kressel_cleanwhite25", "克雷賽爾潔白卷軸 25%", 25, 0,
+     "大劍／法杖／拳套／匕首／弩／弓／耳環／戒指／項鍊／頭盔／手套／套服／鞋子", 0, 0, 0, 96810, 0, false, true},
     // 手套攻擊卷軸60%：攻擊+3、主屬性+5、副屬性+1（不上架商店）
     {"sc_glove_atk60", "手套攻擊卷軸 60%", 60, 18000, "手套", 5, 1, 3, 96543, 0, false},
     // 手套攻擊卷軸20%：攻擊+5、主屬性+8、副屬性+5（不上架商店）
@@ -587,6 +687,8 @@ static const std::vector<MapleScrollDef> MAPLE_SCROLLS = {
     {"sc_necklace100", "項鍊全屬性卷軸 100%", 100, 15000, "項鍊", 0, 0, 0, 96558, 0, false, false, 1, 1, 1, 1},
     {"sc_necklace60",  "項鍊全屬性卷軸 60%",  60, 40000, "項鍊", 0, 0, 0, 96559, 0, false, false, 3, 3, 3, 3},
     {"sc_necklace20",  "項鍊全屬性卷軸 20%",  20, 90000, "項鍊", 2, 0, 0, 96560, 0, false, false, 5, 5, 5, 5},
+    // 項鍊全屬性詛咒卷軸50%：效果等同項鍊全屬性卷軸20%，50%成功／25%失敗／25%爆炸（黑輪王掉落，不上架商店）
+    {"sc_necklace_curse50", "項鍊全屬性詛咒卷軸 50%", 50, 80000, "項鍊", 2, 0, 0, 96802, 25, false, false, 5, 5, 5, 5},
     // 戒指卷軸（西格諾斯掉落，不上架商店）：主屬性卷軸實際效果是全屬性（力/敏/智/幸各自加，不分職業）
     {"sc_ring60",           "戒指主屬性卷軸 60%",     60, 40000, "戒指", 0, 0, 0, 96561, 0,  false, false, 4, 4, 4, 4},
     {"sc_ring_curse50",     "戒指主屬性詛咒卷軸 50%", 50, 80000, "戒指", 0, 0, 0, 96562, 25, false, false, 8, 8, 8, 8},

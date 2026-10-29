@@ -1260,6 +1260,61 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
+    // maple_nmexplore_<uid>_<group_key>：探索型隱藏王入口，隨機抽群組底下某一個隱藏頻道、花1分鐘，
+    // 時間到才能看那一邊有沒有邪惡的氣息（夜市徒步區、克雷塞爾莊園共用這一套）
+    if (cid.rfind("maple_nmexplore_", 0) == 0) {
+        if (!check_owner("maple_nmexplore_")) return;
+        std::string rest = cid.substr(std::string("maple_nmexplore_").size());
+        size_t sep = rest.find('_');
+        std::string group_key = (sep != std::string::npos) ? rest.substr(sep + 1) : "night_market";
+        const MapleWbExploreGroup* group = maple_wb_explore_group_by_key(group_key);
+        if (!group || group->region_keys.empty()) return;
+        time_t now = time(nullptr);
+        std::string err;
+        bool already = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (c.nm_explore_until > 0) already = true;
+            else if (maple_is_adventuring(c)) err = "冒險中無法探索！";
+            else if (maple_is_wb_fighting(c)) err = "已經在挑戰野外首領了！";
+            else if (!c.raid_room_id.empty() && maple_find_raid_room(c.raid_room_id)) err = "正在突襲首領房間裡，無法探索！";
+            else {
+                int idx = std::uniform_int_distribution<int>(0, (int)group->region_keys.size() - 1)(maple_wb_rng());
+                c.nm_explore_region = group->region_keys[idx];
+                c.nm_explore_until  = now + 60;
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        if (!already) save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_nm_status_msg(uid));
+        return;
+    }
+
+    // maple_nmcheck_<uid>：查看夜市探索結果（還沒到時間就只是重新顯示倒數）
+    if (cid.rfind("maple_nmcheck_", 0) == 0) {
+        if (!check_owner("maple_nmcheck_")) return;
+        ev.reply(dpp::ir_update_message, make_maple_nm_status_msg(uid));
+        return;
+    }
+
+    // maple_nmexit_<uid>：放棄這次夜市探索結果（不管有沒有氣息），回到野外首領列表
+    if (cid.rfind("maple_nmexit_", 0) == 0) {
+        if (!check_owner("maple_nmexit_")) return;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            c.nm_explore_until = 0;
+            c.nm_explore_region.clear();
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_wb_region_list_msg(uid));
+        return;
+    }
+
     if (cid.rfind("maple_wbopen_", 0) == 0) {
         std::string rest = cid.substr(13);
         size_t sep = rest.find('_');
@@ -1297,6 +1352,8 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             c.wb_started_at    = now;
             c.wb_required_secs = maple_wb_kill_secs(c, *region);
             c.wb_epoch         = maple_wb_dead_since_locked(region_key);
+            c.nm_explore_until = 0; // 若是從夜市探索戰鬥進來的，一旦真正開打就清掉探索狀態
+            c.nm_explore_region.clear();
         }
         save_maple_data();
         ev.reply(dpp::ir_update_message, make_maple_wb_status_msg(uid));
@@ -1343,7 +1400,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                     st.respawn_secs = mins * 60; // 重生間隔在範圍內隨機決定，存起來給 maple_wb_is_up 判斷用
                 }
                 exp_gain  = region->boss.exp;
-                coin_gain = std::uniform_int_distribution<int64_t>(region->boss.coin_min, region->boss.coin_max)(wb_rng);
+                coin_gain = maple_wb_coin_gain(region->boss, wb_rng);
                 c.coins  += coin_gain;
                 level_ups = maple_apply_exp(c, exp_gain);
                 // 掉落表：每一筆各自獨立擲一次機率，中的話從 set 裡隨機選一個（scroll/item key 都支援）
@@ -2682,6 +2739,40 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 it->second--;
                 if (it->second <= 0) c.equipment.erase(it);
                 c.equipment["potential_cube"] += MAPLE_FLAME_TOKEN_CUBE_RATE;
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
+        return;
+    }
+
+    // maple_ohcubeex_<uid>_<key>：備用副武器換潛能方塊（10等新手訓練用50顆／30等正式版100顆，每次消耗1個）
+    if (cid.rfind("maple_ohcubeex_", 0) == 0) {
+        std::string rest = cid.substr(std::string("maple_ohcubeex_").size());
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string key = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            const MapleItemDef* it = maple_find_item(key);
+            auto eit = c.equipment.find(key);
+            if (!it || it->slot != "offhand") err = "這不是副武器。";
+            else if (eit == c.equipment.end() || eit->second <= 0) err = "你沒有「" + it->name + "」。";
+            else {
+                eit->second--;
+                if (eit->second <= 0) c.equipment.erase(eit);
+                c.equipment["potential_cube"] += maple_offhand_cube_rate(*it);
             }
         }
         if (!err.empty()) {

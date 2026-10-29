@@ -328,6 +328,7 @@ struct MapleEnhItem {
     int         add_str = 0, add_dex = 0, add_int = 0, add_luk = 0; // 卷軸累積的「全屬性」（不分職業，四維各自加）
     int         enh_count     = 0;  // 已成功強化次數（顯示用）
     int         slots_used    = 0;  // 已使用的卷軸次數（成功或失敗都算；武器上限7、其餘5）
+    bool        curse_shield  = false; // 詛咒保護卷套用中：下一次本該爆炸的強化結果會被擋下來，用掉後失效
     // 潛能（目前只開放副武器）：0=普通/1=稀有/2=史詩/3=傳說，決定重骰時每行詞條的品質分布。
     // 三行各自：type（見 MAPLE_POT_* 常數，-1=還沒洗過）、value（骰出的數值）、
     // sub（type 是「隨機屬性」系列時：0=力量/1=敏捷/2=智力/3=幸運，其餘type不使用）、locked（鎖定時重骰會跳過這行）。
@@ -387,6 +388,8 @@ struct MapleCharacter {
     time_t         wb_started_at    = 0;
     int64_t        wb_required_secs = 0; // 出發當下鎖定的預計擊殺秒數（不顯示給玩家，只用來判定何時結算）
     int64_t        wb_epoch         = 0; // 出發當下的 dead_since 快照，結算時若全服狀態已變動（被別人搶先）就視為無功而返
+    time_t         nm_explore_until = 0; // 夜市徒步區探索中，到這個時間點(epoch)才能查看結果；0＝沒有在探索
+    std::string    nm_explore_region;    // 探索完要查看的頻道key（night_market7／night_market7_1）
     int64_t        monsters_defeated = 0;
     int64_t        token_week_id    = 0;   // 代幣商店：上次兌換所屬的週次（epoch 週）
     int64_t        token_week_spent = 0;   // 代幣商店：本週已用掉的籌碼數

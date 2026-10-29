@@ -2094,7 +2094,9 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         if (has_treasure_expert) desc_r += "▸ 💰 尋寶專家：探索時長+20%" + std::string(treasure_rerolled ? "、空手多判定一次" : "") + "\n";
         desc_r += "\n";
         if (item_key.empty())
-            desc_r += "📦 這次探險沒有找到蒐藏品...";
+            desc_r += "📦 這次探險沒有找到東西...";
+        else if (gi_snake) // 靈魂寶珠等裝備不算收藏品，純粹探索到直接拿去用
+            desc_r += "⚔️ 探索發現裝備：**" + item_name + "**！可以到 `!裝備` 使用。";
         else {
             desc_r += "🎁 獲得蒐藏品：**" + item_name + "** ×1！";
             if (vi && !vi->desc.empty()) desc_r += "\n　*" + vi->desc + "*";
