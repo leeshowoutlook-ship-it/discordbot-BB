@@ -542,7 +542,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             if (!room || room->state != "waiting") err = "這間房間已經不能加入了。";
             else if (!c.raid_room_id.empty() && maple_find_raid_room(c.raid_room_id)) err = "你已經在一個房間裡了！";
             else if (maple_is_adventuring(c) || maple_is_wb_fighting(c)) err = "冒險中或挑戰野外首領中無法加入房間！";
-            else if ((int)room->members.size() >= MAPLE_RAID_ROOM_MAX_MEMBERS) err = "這間房間已經滿了。";
+            else if ((int)room->members.size() >= MAPLE_RAID_ROOM_MAX_MEMBERS - (room->has_companion ? 1 : 0)) err = "這間房間已經滿了。";
             else if (boss && c.level < boss->min_level)
                 err = "挑戰 " + boss->name + " 需要等級 " + std::to_string(boss->min_level) + " 以上！";
             else if (!maple_raid_week_has_attempt(c))
@@ -1468,7 +1468,8 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
-    // 售出裝備：maple_sellconfirm_<uid>_<kind>_<ref>（kind=item/enh），確認後 maple_sellok_ 才真的扣掉
+    // 售出裝備：maple_sellconfirm_<uid>_<kind>_<page>_<subcat>_<ref>（kind=item/enh/scroll），確認後 maple_sellok_ 才真的扣掉
+    // page/subcat＝賣出前所在的背包頁碼／分類，賣出或取消後要帶回去，不能跳回第一頁（之前的bug）
     if (cid.rfind("maple_sellconfirm_", 0) == 0) {
         std::string rest = cid.substr(std::string("maple_sellconfirm_").size());
         size_t sep1 = rest.find('_');
@@ -1478,12 +1479,20 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         size_t sep2 = after_uid.find('_');
         if (sep2 == std::string::npos) return;
         std::string kind = after_uid.substr(0, sep2);
-        std::string ref  = after_uid.substr(sep2 + 1);
+        std::string rem = after_uid.substr(sep2 + 1);
+        size_t p1 = rem.find('_');
+        if (p1 == std::string::npos) return;
+        int page = 0; try { page = std::stoi(rem.substr(0, p1)); } catch (...) {}
+        std::string rem2 = rem.substr(p1 + 1);
+        size_t p2 = rem2.find('_');
+        if (p2 == std::string::npos) return;
+        std::string subcat = rem2.substr(0, p2);
+        std::string ref = rem2.substr(p2 + 1);
         if (owner != uid) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
         }
-        ev.reply(dpp::ir_update_message, make_maple_sell_confirm_msg(uid, kind, ref));
+        ev.reply(dpp::ir_update_message, make_maple_sell_confirm_msg(uid, kind, page, subcat, ref));
         return;
     }
     if (cid.rfind("maple_sellok_", 0) == 0) {
@@ -1495,7 +1504,15 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         size_t sep2 = after_uid.find('_');
         if (sep2 == std::string::npos) return;
         std::string kind = after_uid.substr(0, sep2);
-        std::string ref  = after_uid.substr(sep2 + 1);
+        std::string rem = after_uid.substr(sep2 + 1);
+        size_t p1 = rem.find('_');
+        if (p1 == std::string::npos) return;
+        int page = 0; try { page = std::stoi(rem.substr(0, p1)); } catch (...) {}
+        std::string rem2 = rem.substr(p1 + 1);
+        size_t p2 = rem2.find('_');
+        if (p2 == std::string::npos) return;
+        std::string subcat = rem2.substr(0, p2);
+        std::string ref = rem2.substr(p2 + 1);
         if (owner != uid) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
@@ -1511,12 +1528,11 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
         }
         save_maple_data();
-        if (kind == "scroll") ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, "scroll", 0, scroll_subcat));
-        else ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, "other"));
+        ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, kind == "scroll" ? "scroll" : "other", page, subcat));
         return;
     }
 
-    // maple_sellqty_<uid>_<kind>_<qty>_<ref>：賣出固定數量（item／scroll 可堆疊）
+    // maple_sellqty_<uid>_<kind>_<page>_<subcat>_<qty>_<ref>：賣出固定數量（item／scroll 可堆疊）
     if (cid.rfind("maple_sellqty_", 0) == 0) {
         std::string rest = cid.substr(std::string("maple_sellqty_").size());
         size_t sep1 = rest.find('_');
@@ -1527,10 +1543,18 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         if (sep2 == std::string::npos) return;
         std::string kind = after_uid.substr(0, sep2);
         std::string after_kind = after_uid.substr(sep2 + 1);
-        size_t sep3 = after_kind.find('_');
-        if (sep3 == std::string::npos) return;
-        int64_t qty = std::atoll(after_kind.substr(0, sep3).c_str());
-        std::string ref = after_kind.substr(sep3 + 1);
+        size_t q1 = after_kind.find('_');
+        if (q1 == std::string::npos) return;
+        int page = 0; try { page = std::stoi(after_kind.substr(0, q1)); } catch (...) {}
+        std::string r1 = after_kind.substr(q1 + 1);
+        size_t q2 = r1.find('_');
+        if (q2 == std::string::npos) return;
+        std::string subcat = r1.substr(0, q2);
+        std::string r2 = r1.substr(q2 + 1);
+        size_t q3 = r2.find('_');
+        if (q3 == std::string::npos) return;
+        int64_t qty = std::atoll(r2.substr(0, q3).c_str());
+        std::string ref = r2.substr(q3 + 1);
         if (owner != uid) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
@@ -1546,12 +1570,11 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
         }
         save_maple_data();
-        if (kind == "scroll") ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, "scroll", 0, scroll_subcat));
-        else ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, "other"));
+        ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, kind == "scroll" ? "scroll" : "other", page, subcat));
         return;
     }
 
-    // maple_sellmax_<uid>_<kind>_<ref>：賣出目前持有的全部數量（item／scroll 可堆疊）
+    // maple_sellmax_<uid>_<kind>_<page>_<subcat>_<ref>：賣出目前持有的全部數量（item／scroll 可堆疊）
     if (cid.rfind("maple_sellmax_", 0) == 0) {
         std::string rest = cid.substr(std::string("maple_sellmax_").size());
         size_t sep1 = rest.find('_');
@@ -1561,7 +1584,15 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         size_t sep2 = after_uid.find('_');
         if (sep2 == std::string::npos) return;
         std::string kind = after_uid.substr(0, sep2);
-        std::string ref  = after_uid.substr(sep2 + 1);
+        std::string rem = after_uid.substr(sep2 + 1);
+        size_t p1 = rem.find('_');
+        if (p1 == std::string::npos) return;
+        int page = 0; try { page = std::stoi(rem.substr(0, p1)); } catch (...) {}
+        std::string rem2 = rem.substr(p1 + 1);
+        size_t p2 = rem2.find('_');
+        if (p2 == std::string::npos) return;
+        std::string subcat = rem2.substr(0, p2);
+        std::string ref = rem2.substr(p2 + 1);
         if (owner != uid) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
@@ -1577,8 +1608,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
         }
         save_maple_data();
-        if (kind == "scroll") ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, "scroll", 0, scroll_subcat));
-        else ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, "other"));
+        ev.reply(dpp::ir_update_message, make_maple_bag_msg(uid, kind == "scroll" ? "scroll" : "other", page, subcat));
         return;
     }
 
@@ -1900,11 +1930,15 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
 
 
     if (cid.rfind("maple_rank_", 0) == 0) {
-        std::string rest = cid.substr(11);           // <uid>_<filter>_<page>
-        size_t sep2 = rest.rfind('_');
+        std::string rest = cid.substr(11);           // <uid>_<filter>_<subfilter>_<page>
+        size_t sep3 = rest.rfind('_');
+        if (sep3 == std::string::npos) return;
+        int page = std::atoi(rest.substr(sep3 + 1).c_str());
+        std::string rest3 = rest.substr(0, sep3);     // <uid>_<filter>_<subfilter>
+        size_t sep2 = rest3.rfind('_');
         if (sep2 == std::string::npos) return;
-        int page = std::atoi(rest.substr(sep2 + 1).c_str());
-        std::string rest2 = rest.substr(0, sep2);     // <uid>_<filter>
+        std::string subfilter = rest3.substr(sep2 + 1);
+        std::string rest2 = rest3.substr(0, sep2);    // <uid>_<filter>
         size_t sep1 = rest2.rfind('_');
         if (sep1 == std::string::npos) return;
         dpp::snowflake owner(std::stoull(rest2.substr(0, sep1)));
@@ -1913,7 +1947,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
         }
-        ev.reply(dpp::ir_update_message, make_maple_rank_msg(uid, page, filter));
+        ev.reply(dpp::ir_update_message, make_maple_rank_msg(uid, page, filter, subfilter));
         return;
     }
 
@@ -2319,6 +2353,91 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
+    if (cid.rfind("maple_companion_", 0) == 0) {
+        if (!check_owner("maple_companion_")) return;
+        ev.reply(dpp::ir_update_message, make_maple_companion_msg(uid));
+        return;
+    }
+
+    // maple_companionset_<uid>_<key>：花瘋幣租借/續租一個假人夥伴buff，固定7天（換buff或續租同一個都是同一個動作）
+    if (cid.rfind("maple_companionset_", 0) == 0) {
+        std::string rest = cid.substr(std::string("maple_companionset_").size());
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string key = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string result;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            const MapleCompanionBuffDef* b = maple_find_companion_buff(key);
+            if (!b) result = "❌ 找不到這個buff。";
+            else if (!maple_companion_buff_allowed(c, key)) result = "❌ 你的職業不能租借這個buff。";
+            else if (c.coins < b->price) result = "❌ 瘋幣不足，需要 " + std::to_string(b->price) + " 瘋幣。";
+            else {
+                c.coins -= b->price;
+                c.companion_buff = key;
+                c.companion_until = time(nullptr) + MAPLE_COMPANION_RENT_SECS;
+                result = "✅ 已租借「" + b->name + "」7天！";
+            }
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_companion_msg(uid, result));
+        return;
+    }
+
+    if (cid.rfind("maple_companionclear_", 0) == 0) {
+        if (!check_owner("maple_companionclear_")) return;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            maple_data[uid].companion_buff.clear();
+            maple_data[uid].companion_until = 0;
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_companion_msg(uid, "✅ 已解除租借。"));
+        return;
+    }
+
+    // maple_raidcompanion_<uid>_<room_id>：隊長切換是否帶上假人夥伴頂替一個位置
+    if (cid.rfind("maple_raidcompanion_", 0) == 0) {
+        std::string rest = cid.substr(std::string("maple_raidcompanion_").size());
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            MapleRaidRoom* room = maple_find_raid_room(room_id);
+            if (!room || room->state != "waiting") err = "這間房間已經不能調整了。";
+            else if (!maple_raid_room_is_leader(*room, uid)) err = "只有隊長可以操作假人夥伴。";
+            else if (!room->has_companion) {
+                auto lit = maple_data.find(uid);
+                const MapleCompanionBuffDef* lb = (lit != maple_data.end()) ? maple_companion_active(lit->second) : nullptr;
+                if (!lb) err = "你還沒有租借任何假人buff，先去冒險畫面租借一個吧。";
+                else if ((int)room->members.size() >= MAPLE_RAID_ROOM_MAX_MEMBERS) err = "房間已經滿了，沒有空位給假人。";
+                else room->has_companion = true;
+            } else {
+                room->has_companion = false;
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_raid_rooms();
+        ev.reply(dpp::ir_update_message, make_maple_raid_lobby_msg(uid, room_id));
+        return;
+    }
+
     if (cid.rfind("maple_enhpick_", 0) == 0) {
         if (!check_owner("maple_enhpick_")) return;
         MapleCharacter c0 = maple_get_or_create(uid);
@@ -2488,10 +2607,11 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
             maple_raid_week_reset_if_needed(c);
+            int64_t price = maple_raid_extra_attempt_price(c.raid_week_extra);
             if (c.raid_week_extra >= MAPLE_RAID_EXTRA_ATTEMPT_MAX_BUYS) err = "這週的額外次數已經買滿了！";
-            else if (c.coins < MAPLE_RAID_EXTRA_ATTEMPT_PRICE) err = "瘋幣不足！";
+            else if (c.coins < price) err = "瘋幣不足！";
             else {
-                c.coins -= MAPLE_RAID_EXTRA_ATTEMPT_PRICE;
+                c.coins -= price;
                 c.raid_week_extra += 1;
             }
         }

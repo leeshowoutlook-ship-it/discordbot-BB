@@ -393,13 +393,15 @@ struct MapleCharacter {
     std::string    raid_room_id;    // 目前所在的突襲首領房間ID，空字串＝沒有在房間裡
     int64_t        raid_week_id    = 0; // 突襲首領：上次計算所屬的週次（epoch週，跟代幣商店同一套）
     int            raid_week_used  = 0; // 本週已經完成結算的突襲次數
-    int            raid_week_extra = 0; // 本週從特殊商店買到的額外次數（每次+1，一週最多買2次）
+    int            raid_week_extra = 0; // 本週從特殊商店買到的額外次數（每次+1，一週最多買4次）
     std::map<std::string,int> raid_clears; // 突襲首領 key -> 累計成功結算次數
     std::string    faction_key;         // 目前所屬陣營，空字串＝沒有加入任何陣營
     int64_t        faction_donate_week_id   = 0; // 陣營捐贈：上次捐贈所屬的週次（epoch週，跟代幣商店同一套）
     int            faction_donate_week_used = 0; // 本週已捐贈次數（上限1次／2000瘋幣）
     dpp::snowflake faction_vote_for = 0;    // 陣營統帥投票：投給的成員uid，0＝還沒投票
     time_t         created_at = 0;
+    std::string    companion_buff;     // 假人夥伴目前租借的buff key（haste/angel_blessing/bishop_prayer/knight_magic_break/snow_crystal），空字串＝沒有租借
+    time_t         companion_until = 0; // 租借到期時間（每次租借固定7天），過期視為沒有租借
 };
 
 // ─── Raid system ─────────────────────────────────────────────────────────────
@@ -858,6 +860,7 @@ struct MapleRaidRoom {
     int64_t          dmg_disabled_until_secs = -1; // dmg_disabled_uids 的禁輸出效果在第幾個有效秒失效
     std::vector<dpp::snowflake> dmg_disabled_uids; // 目前被禁止輸出的最多2人（空＝沒有人被禁）
     std::string      roulette_note;            // 最近一次輪盤對決的結果說明（顯示用）
+    bool             has_companion = false;    // 隊長是否帶上假人夥伴頂替一個位置（只有隊長可以開關，佔用1個名額）
 };
 inline std::map<std::string, MapleRaidRoom> maple_raid_rooms; // key = room id
 inline std::atomic<uint64_t> maple_raid_room_seq{1};
