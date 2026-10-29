@@ -133,29 +133,77 @@
       "uid": "856481432581701643"
     },
     {
-      "created_at": 1793030825,
+      "created_at": 1793118058,
       "currency": "chips",
-      "id": 228,
+      "id": 233,
+      "is_buy": false,
+      "item_id": 96001,
+      "item_key": "weekly_hunt_scroll",
+      "item_name": "每週怪物狩獵卷",
+      "price": 10000000,
+      "qty": 2,
+      "uid": "604244623124070423"
+    },
+    {
+      "created_at": 1793118086,
+      "currency": "chips",
+      "id": 234,
       "is_buy": false,
       "item_id": 80001,
       "item_key": "hunt_scroll",
       "item_name": "怪物狩獵卷",
       "price": 10000000,
-      "qty": 24,
+      "qty": 26,
       "uid": "604244623124070423"
     },
     {
-      "created_at": 1793088247,
+      "created_at": 1793169413,
       "currency": "chips",
-      "id": 230,
+      "id": 239,
+      "is_buy": false,
+      "item_id": 90008,
+      "item_key": "col_mb_crown",
+      "item_name": "菇菇寶貝的王冠",
+      "price": 88888,
+      "qty": 1,
+      "uid": "592404587248615458"
+    },
+    {
+      "created_at": 1793169443,
+      "currency": "chips",
+      "id": 240,
+      "is_buy": false,
+      "item_id": 90009,
+      "item_key": "col_mb_staff",
+      "item_name": "菇菇寶貝的手杖",
+      "price": 77777,
+      "qty": 1,
+      "uid": "592404587248615458"
+    },
+    {
+      "created_at": 1793169470,
+      "currency": "chips",
+      "id": 241,
+      "is_buy": false,
+      "item_id": 90007,
+      "item_key": "col_mushroom_head",
+      "item_name": "蘑菇頭",
+      "price": 99999,
+      "qty": 1,
+      "uid": "592404587248615458"
+    },
+    {
+      "created_at": 1793222813,
+      "currency": "chips",
+      "id": 244,
       "is_buy": false,
       "item_id": 80001,
       "item_key": "hunt_scroll",
       "item_name": "怪物狩獵卷",
       "price": 1000000,
-      "qty": 20,
+      "qty": 24,
       "uid": "558513044632895509"
     }
   ],
-  "next_id": 233
+  "next_id": 245
 }

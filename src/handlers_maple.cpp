@@ -1348,6 +1348,13 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 正在突襲首領房間裡，無法挑戰野外首領！").set_flags(dpp::m_ephemeral)); return;
             }
+            // 隱藏王（夜市／克雷塞爾莊園）：必須是這次探索抽到的那一邊、而且1分鐘探索已經結束，
+            // 不能拿以前探索結果訊息上的舊「戰鬥」按鈕直接開打
+            if (region->hidden_in_list
+                && (c.nm_explore_until <= 0 || now < c.nm_explore_until || c.nm_explore_region != region_key)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 要先探索並抽到這裡才能挑戰！請從野外首領列表重新探索。").set_flags(dpp::m_ephemeral)); return;
+            }
             c.wb_region        = region_key;
             c.wb_started_at    = now;
             c.wb_required_secs = maple_wb_kill_secs(c, *region);
@@ -1679,6 +1686,12 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
     if (cid.rfind("maple_tokenshop_", 0) == 0) {
         if (!check_owner("maple_tokenshop_")) return;
         ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_cubeexpage_", 0) == 0) {
+        if (!check_owner("maple_cubeexpage_")) return;
+        ev.reply(dpp::ir_update_message, make_maple_cubeex_msg(uid));
         return;
     }
 
@@ -2700,7 +2713,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
         }
         save_maple_data();
-        ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
+        ev.reply(dpp::ir_update_message, make_maple_cubeex_msg(uid));
         return;
     }
 
@@ -2723,7 +2736,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
         }
         save_maple_data();
-        ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
+        ev.reply(dpp::ir_update_message, make_maple_cubeex_msg(uid));
         return;
     }
 
@@ -2746,7 +2759,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
         }
         save_maple_data();
-        ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
+        ev.reply(dpp::ir_update_message, make_maple_cubeex_msg(uid));
         return;
     }
 
@@ -2780,7 +2793,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
         }
         save_maple_data();
-        ev.reply(dpp::ir_update_message, make_maple_tokenshop_msg(uid));
+        ev.reply(dpp::ir_update_message, make_maple_cubeex_msg(uid));
         return;
     }
 

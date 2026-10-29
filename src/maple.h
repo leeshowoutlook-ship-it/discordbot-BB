@@ -5589,53 +5589,14 @@ static dpp::message make_maple_tokenshop_msg(dpp::snowflake uid) {
                 .set_style(dpp::cos_primary)
                 .set_disabled(maxed || c.coins < next_price)));
     }
-    {
-        int wolf_tokens = c.equipment.count("mat_wolf_king_token") ? c.equipment.at("mat_wolf_king_token") : 0;
-        container.add_component_v2(dpp::component()
-            .set_type(dpp::cot_section)
-            .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-                .set_content("**🔮 狼王象徵兌換潛能方塊**\n消耗 1 個「狼王象徵」換 "
-                             + std::to_string(MAPLE_WOLF_TOKEN_CUBE_RATE) + " 顆潛能方塊\n持有：" + std::to_string(wolf_tokens) + " 個"))
-            .set_accessory(dpp::component().set_type(dpp::cot_button)
-                .set_label("兌換").set_id("maple_wolftokenex_" + uid_s)
-                .set_style(dpp::cos_primary).set_disabled(wolf_tokens <= 0)));
-    }
-    {
-        int empress_tokens = c.equipment.count("mat_empress_token") ? c.equipment.at("mat_empress_token") : 0;
-        container.add_component_v2(dpp::component()
-            .set_type(dpp::cot_section)
-            .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-                .set_content("**🔮 女皇象徵兌換潛能方塊**\n消耗 1 個「女皇象徵」換 "
-                             + std::to_string(MAPLE_EMPRESS_TOKEN_CUBE_RATE) + " 顆潛能方塊\n持有：" + std::to_string(empress_tokens) + " 個"))
-            .set_accessory(dpp::component().set_type(dpp::cot_button)
-                .set_label("兌換").set_id("maple_empresstokenex_" + uid_s)
-                .set_style(dpp::cos_primary).set_disabled(empress_tokens <= 0)));
-    }
-    {
-        int flame_tokens = c.equipment.count("mat_flame_demon_token") ? c.equipment.at("mat_flame_demon_token") : 0;
-        container.add_component_v2(dpp::component()
-            .set_type(dpp::cot_section)
-            .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-                .set_content("**🔮 炎魔象徵兌換潛能方塊**\n消耗 1 個「炎魔象徵」換 "
-                             + std::to_string(MAPLE_FLAME_TOKEN_CUBE_RATE) + " 顆潛能方塊\n持有：" + std::to_string(flame_tokens) + " 個"))
-            .set_accessory(dpp::component().set_type(dpp::cot_button)
-                .set_label("兌換").set_id("maple_flametokenex_" + uid_s)
-                .set_style(dpp::cos_primary).set_disabled(flame_tokens <= 0)));
-    }
-    for (auto& [k, n] : c.equipment) {
-        if (n <= 0) continue;
-        const MapleItemDef* it = maple_find_item(k);
-        if (!it || it->slot != "offhand") continue;
-        int rate = maple_offhand_cube_rate(*it);
-        container.add_component_v2(dpp::component()
-            .set_type(dpp::cot_section)
-            .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-                .set_content("**🔄 " + it->name + " 換潛能方塊**\n消耗 1 個「" + it->name + "」換 "
-                             + std::to_string(rate) + " 顆潛能方塊\n持有：" + std::to_string(n) + " 個"))
-            .set_accessory(dpp::component().set_type(dpp::cot_button)
-                .set_label("兌換").set_id("maple_ohcubeex_" + uid_s + "_" + k)
-                .set_style(dpp::cos_primary).set_disabled(n <= 0)));
-    }
+    // 潛能方塊兌換（象徵／備用副武器）放到獨立頁面，這則訊息的元件數已經接近 Discord 上限 40 個
+    container.add_component_v2(dpp::component()
+        .set_type(dpp::cot_section)
+        .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+            .set_content("**🔮 潛能方塊兌換**\n用狼王／女皇／炎魔象徵，或備用副武器換潛能方塊"))
+        .set_accessory(dpp::component().set_type(dpp::cot_button)
+            .set_label("前往").set_id("maple_cubeexpage_" + uid_s)
+            .set_style(dpp::cos_primary)));
     msg.add_component_v2(container);
 
     static const int64_t opts[] = {1000, 5000, 10000, 20000};
@@ -5689,6 +5650,64 @@ static dpp::message make_maple_tokenshop_msg(dpp::snowflake uid) {
         .set_label("↩ 返回商店").set_id("maple_shop_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row4);
 
+    return msg;
+}
+
+// 潛能方塊兌換頁：象徵三種各一個區塊；備用副武器改用一排排小按鈕（最多12種，5個一排），避免超過 40 個元件
+static dpp::message make_maple_cubeex_msg(dpp::snowflake uid) {
+    MapleCharacter c = maple_get_or_create(uid);
+    std::string uid_s = std::to_string((uint64_t)uid);
+    int cubes = c.equipment.count("potential_cube") ? c.equipment.at("potential_cube") : 0;
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 🔮 潛能方塊兌換\n目前持有潛能方塊：**" + std::to_string(cubes) + "** 顆"));
+
+    struct TokenRow { const char* key; const char* name; int rate; const char* btn; };
+    const TokenRow tokens[] = {
+        {"mat_wolf_king_token",   "狼王象徵", MAPLE_WOLF_TOKEN_CUBE_RATE,    "maple_wolftokenex_"},
+        {"mat_empress_token",     "女皇象徵", MAPLE_EMPRESS_TOKEN_CUBE_RATE, "maple_empresstokenex_"},
+        {"mat_flame_demon_token", "炎魔象徵", MAPLE_FLAME_TOKEN_CUBE_RATE,   "maple_flametokenex_"},
+    };
+    for (auto& t : tokens) {
+        int n = c.equipment.count(t.key) ? c.equipment.at(t.key) : 0;
+        container.add_component_v2(dpp::component()
+            .set_type(dpp::cot_section)
+            .add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+                .set_content("**" + std::string(t.name) + "**　1 個 → " + std::to_string(t.rate) + " 顆　持有：" + std::to_string(n) + " 個"))
+            .set_accessory(dpp::component().set_type(dpp::cot_button)
+                .set_label("兌換").set_id(std::string(t.btn) + uid_s)
+                .set_style(dpp::cos_primary).set_disabled(n <= 0)));
+    }
+
+    std::vector<std::pair<const MapleItemDef*, int>> ohs;
+    for (auto& [k, n] : c.equipment) {
+        if (n <= 0) continue;
+        const MapleItemDef* it = maple_find_item(k);
+        if (it && it->slot == "offhand") ohs.push_back({it, n});
+    }
+    std::string oh_text = "**🔄 備用副武器**（10等新手訓練用 1 個 → " + std::to_string(MAPLE_OFFHAND_CUBE_RATE_TRAINEE)
+                        + " 顆，30等 1 個 → " + std::to_string(MAPLE_OFFHAND_CUBE_RATE_REAL) + " 顆，按一下換 1 個）";
+    if (ohs.empty()) oh_text += "\n（背包裡沒有備用副武器）";
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(oh_text));
+    for (size_t i = 0; i < ohs.size(); i += 5) {
+        dpp::component r; r.set_type(dpp::cot_action_row);
+        for (size_t j = i; j < ohs.size() && j < i + 5; j++)
+            r.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label(ohs[j].first->name + " ×" + std::to_string(ohs[j].second))
+                .set_id("maple_ohcubeex_" + uid_s + "_" + ohs[j].first->key)
+                .set_style(dpp::cos_primary));
+        container.add_component_v2(r);
+    }
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回特殊商店").set_id("maple_tokenshop_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
     return msg;
 }
 
