@@ -133,30 +133,6 @@
       "uid": "856481432581701643"
     },
     {
-      "created_at": 1793118058,
-      "currency": "chips",
-      "id": 233,
-      "is_buy": false,
-      "item_id": 96001,
-      "item_key": "weekly_hunt_scroll",
-      "item_name": "每週怪物狩獵卷",
-      "price": 10000000,
-      "qty": 2,
-      "uid": "604244623124070423"
-    },
-    {
-      "created_at": 1793118086,
-      "currency": "chips",
-      "id": 234,
-      "is_buy": false,
-      "item_id": 80001,
-      "item_key": "hunt_scroll",
-      "item_name": "怪物狩獵卷",
-      "price": 10000000,
-      "qty": 26,
-      "uid": "604244623124070423"
-    },
-    {
       "created_at": 1793169413,
       "currency": "chips",
       "id": 239,
@@ -203,7 +179,43 @@
       "price": 1000000,
       "qty": 24,
       "uid": "558513044632895509"
+    },
+    {
+      "created_at": 1793377096,
+      "currency": "chips",
+      "id": 248,
+      "is_buy": false,
+      "item_id": 80001,
+      "item_key": "hunt_scroll",
+      "item_name": "怪物狩獵卷",
+      "price": 100000000,
+      "qty": 32,
+      "uid": "604244623124070423"
+    },
+    {
+      "created_at": 1793377110,
+      "currency": "chips",
+      "id": 249,
+      "is_buy": false,
+      "item_id": 96001,
+      "item_key": "weekly_hunt_scroll",
+      "item_name": "每週怪物狩獵卷",
+      "price": 10000000,
+      "qty": 3,
+      "uid": "604244623124070423"
+    },
+    {
+      "created_at": 1793407631,
+      "currency": "chips",
+      "id": 251,
+      "is_buy": false,
+      "item_id": 80001,
+      "item_key": "hunt_scroll",
+      "item_name": "怪物狩獵卷",
+      "price": 60000,
+      "qty": 4,
+      "uid": "558513044632895509"
     }
   ],
-  "next_id": 245
+  "next_id": 252
 }

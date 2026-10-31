@@ -92,6 +92,10 @@
     }
   },
   "604244623124070423": {
+    "stock_btc": {
+      "avg_cost": 77912,
+      "shares": 6
+    },
     "stock_ntdo": {
       "avg_cost": 8335,
       "shares": 28

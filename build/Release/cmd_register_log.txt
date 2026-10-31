@@ -172,3 +172,12 @@
 [1792865055] guild_bulk_command_create 成功，共註冊 89 個指令。
 [1793184858] guild_bulk_command_create 成功，共註冊 89 個指令。
 [1793275817] guild_bulk_command_create 成功，共註冊 89 個指令。
+[1793276583] guild_bulk_command_create 成功，共註冊 89 個指令。
+[1793276803] guild_bulk_command_create 成功，共註冊 89 個指令。
+[1793288391] guild_bulk_command_create 成功，共註冊 89 個指令。
+[1793288652] guild_bulk_command_create 成功，共註冊 89 個指令。
+[1793289253] guild_bulk_command_create 成功，共註冊 89 個指令。
+[1793290455] guild_bulk_command_create 成功，共註冊 89 個指令。
+[1793300372] guild_bulk_command_create 成功，共註冊 89 個指令。
+[1793360514] guild_bulk_command_create 成功，共註冊 89 個指令。
+[1793377901] guild_bulk_command_create 成功，共註冊 89 個指令。

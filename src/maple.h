@@ -434,7 +434,7 @@ static const std::vector<MapleSkillDef> MAPLE_SKILLS = {
     // 2下合計 Lv14 就有266% 超過斷魂箭的260%，不用點滿才贏
     {"ranger_gemini", "雙子星攻擊", "召喚雙生星辰之力射擊敵人，技能係數如上，共可攻擊 2 下", "ranger", 20, "damage_coef",
         {40,48,56,64,72,80,88,96,104,112,120,126,130,133,135,136,137,138,139,140}, "", {"弓"}, 2},
-    {"octopus_turret", "章魚炮台", "召喚章魚炮台協助攻擊，額外增加武器攻擊力一定比例的攻擊力（每級 +1%，key 沿用舊有的戰鬥公式，已經直接生效）",
+    {"octopus_turret", "章魚炮台", "召喚章魚炮台協助攻擊，提升裝備攻擊力（每級 +1%，跟潛能攻擊力%一樣在乘區計算）",
         "ranger", 20, "buff_pct", {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20}, "", {}},
     {"ranger_gale_step", "疾風步", "如疾風般的步法，縮短自己的攻擊間隔（每級 -0.1 秒）", "ranger", 10, "buff_pct",
         {2,4,6,8,10,12,14,16,18,20}, "", {}},
@@ -860,8 +860,12 @@ static const std::vector<MapleCompanionBuffDef> MAPLE_COMPANION_BUFFS = {
     {"bishop_prayer",      "祈禱",     "冒險經驗 +25%（祈禱滿級加成的一半，只在冒險生效）", 300000, false},
     {"knight_magic_break", "魔防消除", "總傷害 +20%（相當於魔防消除滿級效果，只有法師系可以租借）", 260000, true},
     {"snow_crystal",       "飄雪結晶", "攻擊力 +10（固定值，加的是攻擊力不是傷害%）",    60000,  false},
-    {"crusader_encourage", "激勵",     "首領傷害 +20%、攻擊力 +10（相當於激勵滿級效果，首領傷害只在野外首領／突襲首領生效）", 260000, false},
+    {"crusader_encourage", "激勵",     "首領傷害 +20%、攻擊力 +10（相當於激勵滿級效果，首領傷害只在突襲首領生效）", 260000, false},
 };
+// 擁有者帳號（NOTIFY_USER_ID）租借假人夥伴免費
+static bool maple_companion_is_free(dpp::snowflake uid) {
+    return !cfg.notify_user_id.empty() && std::to_string((uint64_t)uid) == cfg.notify_user_id;
+}
 static const MapleCompanionBuffDef* maple_find_companion_buff(const std::string& key) {
     for (auto& b : MAPLE_COMPANION_BUFFS) if (b.key == key) return &b;
     return nullptr;
@@ -873,10 +877,19 @@ static bool maple_companion_buff_allowed(const MapleCharacter& c, const std::str
     if (b->mage_only && maple_base_job(c) != "mage") return false;
     return true;
 }
-// 角色目前租借中的假人buff（過期、或技能key失去資格例如魔防消除但不再是法師系，都視為沒有租借）
+// 某個假人buff的到期時間（沒買過＝0）
+static time_t maple_companion_owned_until(const MapleCharacter& c, const std::string& key) {
+    auto it = c.companion_owned.find(key);
+    return it == c.companion_owned.end() ? 0 : it->second;
+}
+// 這個buff是否已購買且還沒到期（每個buff各自購買、各自計時7天，期限內可以隨意切換使用）
+static bool maple_companion_owns(const MapleCharacter& c, const std::string& key) {
+    return maple_companion_owned_until(c, key) > time(nullptr);
+}
+// 角色目前使用中的假人buff（沒選、該buff已到期、或失去資格例如魔防消除但不再是法師系，都視為沒有使用）
 static const MapleCompanionBuffDef* maple_companion_active(const MapleCharacter& c) {
     if (c.companion_buff.empty()) return nullptr;
-    if (c.companion_until <= time(nullptr)) return nullptr;
+    if (!maple_companion_owns(c, c.companion_buff)) return nullptr;
     if (!maple_companion_buff_allowed(c, c.companion_buff)) return nullptr;
     return maple_find_companion_buff(c.companion_buff);
 }
@@ -1095,16 +1108,20 @@ static int64_t maple_job_flat_atk_bonus(const MapleCharacter& c, double angel_ov
                     + maple_buff_value(c, "knight_enchant")
                     + encourage * 0.5); // 激勵：每2點技能點 +1 攻擊力
 }
-// 章魚砲台：額外增加「武器攻擊力」一定比例的攻擊力（吃武器本身的 ATK，不是乘算完的總攻擊力）
-static int64_t maple_job_mult_atk_bonus(const MapleCharacter& c) {
-    double pct = maple_buff_value(c, "octopus_turret");
-    return pct > 0 ? (int64_t)std::ceil(maple_total_atk(c) * pct / 100.0) : 0;
-}
-// 代入傷害公式的裝備攻擊力：所有部位裝備攻擊力加總（含卷軸、潛能「攻擊力+」）× (1 + 潛能「攻擊力%」)
+// 顯示用的裝備攻擊力：所有部位裝備攻擊力加總（含卷軸、潛能「攻擊力+」）× (1 + 潛能「攻擊力%」)；不含任何技能加成
 static int maple_effective_equip_atk(const MapleCharacter& c) {
     int total = maple_total_atk(c);
     double pct = maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_ATK_PCT);
     return pct > 0 ? (int)std::ceil(total * (1.0 + pct / 100.0)) : total;
+}
+// 戰鬥用的武器攻擊力（乘區）：裝備攻擊力 × (1 + 潛能攻擊力% + 章魚炮台%) ＋ 陣營/飄雪結晶 ＋ 技能固定攻擊力，
+// 算完再乘上屬性係數與技能係數。技能的「+攻擊力」都在這裡，不是加在終傷。
+static int64_t maple_combat_wpn_atk(const MapleCharacter& c, double angel_override, double encourage_override, int extra_wpn_atk) {
+    double pct = maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_ATK_PCT)
+               + maple_buff_value(c, "octopus_turret"); // 章魚炮台：武器攻擊力 +X%
+    int total = maple_total_atk(c);
+    int64_t equip = pct > 0 ? (int64_t)std::ceil(total * (1.0 + pct / 100.0)) : total;
+    return equip + extra_wpn_atk + maple_job_flat_atk_bonus(c, angel_override, encourage_override);
 }
 
 // 電閃雷鳴：滿5級後，「冰雷合擊」這招額外多打一次（hits×2）；只認冰雷合擊，改用魔力爪就沒有這個加成
@@ -1138,7 +1155,8 @@ static int64_t maple_atk_power_max(const MapleCharacter& c, double angel_overrid
     const MapleJobDef& j = maple_job_of(c);
     double primary   = maple_stat_value(c, j.primary_stat);
     double secondary = maple_stat_value(c, j.secondary_stat);
-    int64_t base = (int64_t)std::ceil((j.primary_coef * primary + j.secondary_coef * secondary) * (maple_effective_equip_atk(c) + extra_wpn_atk) / 100.0);
+    int64_t base = (int64_t)std::ceil((j.primary_coef * primary + j.secondary_coef * secondary)
+                                      * maple_combat_wpn_atk(c, angel_override, encourage_override, extra_wpn_atk) / 100.0);
     int64_t result;
     const MapleSkillDef* sd = maple_current_atk_skill(c);
     if (!sd) result = base;
@@ -1149,9 +1167,7 @@ static int64_t maple_atk_power_max(const MapleCharacter& c, double angel_overrid
         result = (sd->type == "damage_fixed") ? (int64_t)sd->values[lvl-1] * hits
                                                : (int64_t)std::ceil(base * coef / 100.0 * hits);
     }
-    result += maple_job_flat_atk_bonus(c, angel_override, encourage_override);
     result = (int64_t)std::ceil(result * (1.0 + maple_job_dmg_pct_bonus(c)));
-    result += maple_job_mult_atk_bonus(c);
     return result;
 }
 static int64_t maple_atk_power_min(const MapleCharacter& c, double angel_override = -1.0, int extra_wpn_atk = 0, double encourage_override = -1.0) {
@@ -1159,7 +1175,8 @@ static int64_t maple_atk_power_min(const MapleCharacter& c, double angel_overrid
     double primary   = maple_stat_value(c, j.primary_stat);
     double secondary = maple_stat_value(c, j.secondary_stat);
     double mastery = maple_eff_weapon_mastery(c);
-    int64_t base = (int64_t)std::ceil((j.primary_coef * 0.9 * mastery * primary + j.secondary_coef * secondary) * (maple_effective_equip_atk(c) + extra_wpn_atk) / 100.0);
+    int64_t base = (int64_t)std::ceil((j.primary_coef * 0.9 * mastery * primary + j.secondary_coef * secondary)
+                                      * maple_combat_wpn_atk(c, angel_override, encourage_override, extra_wpn_atk) / 100.0);
     int64_t result;
     const MapleSkillDef* sd = maple_current_atk_skill(c);
     if (!sd) result = base;
@@ -1170,9 +1187,7 @@ static int64_t maple_atk_power_min(const MapleCharacter& c, double angel_overrid
         result = (sd->type == "damage_fixed") ? (int64_t)sd->values[lvl-1] * hits
                                                : (int64_t)std::ceil(base * coef / 100.0 * hits);
     }
-    result += maple_job_flat_atk_bonus(c, angel_override, encourage_override);
     result = (int64_t)std::ceil(result * (1.0 + maple_job_dmg_pct_bonus(c)));
-    result += maple_job_mult_atk_bonus(c);
     return result;
 }
 static double maple_atk_power_avg(const MapleCharacter& c, double angel_override = -1.0, int extra_wpn_atk = 0, double encourage_override = -1.0) {
@@ -1200,7 +1215,7 @@ static int64_t maple_scroll_sell_price(const MapleScrollDef& s) {
 }
 
 static std::string maple_scroll_effect_text(const MapleScrollDef& s) {
-    if (s.is_curse_shield) return "套用在任何裝備上，讓它進入「保護」狀態：下一次本該因詛咒卷爆炸時會被擋下來（裝備不會消失），保護用掉後失效。";
+    if (s.is_curse_shield) return "套用在任何裝備上，讓它進入「保護」狀態：只保護下一張卷軸，那張若爆炸會被擋下來（裝備不會消失）；不管那張結果如何，保護都會失效。";
     if (s.restore_slot) return "歸還1次已使用的卷軸次數（只能用在已有強化失敗紀錄的裝備）。"
         + std::string(s.explode_pct > 0 ? "⚠️失敗必爆炸，裝備直接消失！" : "失敗不會損壞裝備，只是卷軸白用掉。");
     std::string t;
@@ -1287,7 +1302,7 @@ static std::string maple_enh_apply(MapleCharacter& c, const std::string& slot,
             maple_set_equipped(c, slot, "#" + std::to_string(ne.id));
         }
         pe->curse_shield = true;
-        return "🛡️ 已套用保護狀態！下一次強化若本該爆炸，裝備將不會消失（保護用掉後失效）。";
+        return "🛡️ 已套用保護狀態！只保護下一張卷軸：那張若爆炸，裝備不會消失；不管結果如何，用完一張保護就失效。";
     }
 
     // 純白／潔白卷軸：只能用在已經有強化失敗紀錄的裝備上，不佔用強化次數上限，
@@ -1305,12 +1320,16 @@ static std::string maple_enh_apply(MapleCharacter& c, const std::string& slot,
         int roll = std::uniform_int_distribution<int>(0, 99)(white_rng);
         bool success = roll < s->rate;
         bool boom    = !success && s->explode_pct > 0 && roll < s->rate + s->explode_pct;
+        // 保護只保護「下一張」卷軸：不管這張結果如何，保護都會用掉
+        bool had_shield = e->curse_shield;
+        e->curse_shield = false;
         bool shielded = false;
-        if (boom && e->curse_shield) { boom = false; shielded = true; e->curse_shield = false; }
+        if (boom && had_shield) { boom = false; shielded = true; }
+        std::string shield_note = had_shield && !shielded ? "\n🛡️ 保護狀態已用掉（這次沒有爆炸）" : "";
         if (success) {
             e->slots_used--;
             return "✨ 卷軸成功！已歸還 1 次可用卷軸次數，目前已使用 "
-                 + std::to_string(e->slots_used) + "/" + std::to_string(max_slots) + " 次。";
+                 + std::to_string(e->slots_used) + "/" + std::to_string(max_slots) + " 次。" + shield_note;
         }
         if (boom) {
             int eid = e->id;
@@ -1319,7 +1338,7 @@ static std::string maple_enh_apply(MapleCharacter& c, const std::string& slot,
                                               [&](const MapleEnhItem& x){ return x.id == eid; }), c.enh_items.end());
             return "💥💥 卷軸失敗，裝備直接爆炸消失了！這個部位現在是空的。";
         }
-        std::string msg = "💥 卷軸失敗！卷軸已消耗（裝備沒有損壞，次數沒有歸還）。";
+        std::string msg = "💥 卷軸失敗！卷軸已消耗（裝備沒有損壞，次數沒有歸還）。" + shield_note;
         if (shielded) msg += "\n🛡️ 保護狀態發動，擋下了這次爆炸！（保護已用掉）";
         return msg;
     }
@@ -1355,8 +1374,12 @@ static std::string maple_enh_apply(MapleCharacter& c, const std::string& slot,
     int roll = std::uniform_int_distribution<int>(0, 99)(enh_rng);
     bool success = roll < s->rate;
     bool boom    = !success && s->explode_pct > 0 && roll < s->rate + s->explode_pct;
+    // 保護只保護「下一張」卷軸：不管這張結果如何，保護都會用掉
+    bool had_shield = e->curse_shield;
+    e->curse_shield = false;
     bool shielded = false;
-    if (boom && e->curse_shield) { boom = false; shielded = true; e->curse_shield = false; }
+    if (boom && had_shield) { boom = false; shielded = true; }
+    std::string shield_note = had_shield && !shielded ? "\n🛡️ 保護狀態已用掉（這次沒有爆炸）" : "";
     if (boom) {
         // 詛咒卷軸爆炸：裝備直接消失（連同已疊加的強化效果一起沒了），這個部位變回空的
         int eid = e->id;
@@ -1366,7 +1389,7 @@ static std::string maple_enh_apply(MapleCharacter& c, const std::string& slot,
         return "💥💥 詛咒發動，裝備直接爆炸消失了！這個部位現在是空的。";
     }
     if (!success) {
-        std::string msg = "💥 強化失敗！卷軸已消耗（裝備沒有損壞）。剩餘次數：" + std::to_string(left);
+        std::string msg = "💥 強化失敗！卷軸已消耗（裝備沒有損壞）。剩餘次數：" + std::to_string(left) + shield_note;
         if (shielded) msg += "\n🛡️ 保護狀態發動，擋下了這次爆炸！（保護已用掉）";
         return msg;
     }
@@ -1378,7 +1401,7 @@ static std::string maple_enh_apply(MapleCharacter& c, const std::string& slot,
     e->add_int       += s->int_bonus;
     e->add_luk       += s->luk_bonus;
     e->enh_count++;
-    return "✨ 強化成功！" + maple_scroll_effect_text(*s) + "　剩餘次數：" + std::to_string(left);
+    return "✨ 強化成功！" + maple_scroll_effect_text(*s) + "　剩餘次數：" + std::to_string(left) + shield_note;
 }
 
 // ─── 潛能 ───────────────────────────────────────────────────────────────────
@@ -1648,8 +1671,8 @@ static double maple_adv_prayer_pct(const MapleCharacter& c) {
 static double maple_adv_exp_bonus_pct(const MapleCharacter& c) {
     return maple_buff_value(c, "dart_kid_doublejump")     // 二段跳：每級 +2%
          + maple_buff_value(c, "dagger_kid_coinshield")   // 瘋幣炸彈：跟瘋幣方向相反，每級 +2%經驗
-         + maple_adv_prayer_pct(c)                        // 祈禱：滿級(20級) +50%
-         + maple_companion_prayer_exp_pct(c)               // 假人夥伴租借「祈禱」：滿級加成的一半 +25%
+         + std::max(maple_adv_prayer_pct(c),              // 祈禱：滿級(20級) +50%
+                    maple_companion_prayer_exp_pct(c))     // 假人夥伴租借「祈禱」+25%：跟自己的祈禱取高，不疊加
          + maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_EXP_PCT); // 潛能「冒險經驗收益」
 }
 // 每隻平均瘋幣，套用「群體恢復」（每級+1%）＋瘋幣護盾（每級+1%）＋藥劑精通（每級+1%）＋幸運術（每級+2%）
@@ -2245,7 +2268,7 @@ static const std::vector<MapleRaidBossDef> MAPLE_RAID_BOSSES = {
     // （贏了全隊5分鐘雙倍傷害；輸了換另一人重試，兩人都輸則那兩人接下來10分鐘無法輸出；沒有其他人可重試則輸的人自己10分鐘無法輸出）。
     {"flame_demon", "殘暴炎魔", 100, 10000000, false, 50000, 50, 0, 0, {
         {600, {"mat_flame_demon_token"}},
-    }, true, 1, false, 70, true, true, true}, // 入場需全員Lv70+
+    }, false, 1, false, 70, true, true, true}, // 入場需全員Lv70+；還沒做好，暫時關閉（列表隱藏）
 };
 
 static const MapleRaidBossDef* maple_find_raid_boss(const std::string& key) {
@@ -2819,7 +2842,7 @@ static void save_maple_data() {
                 {"faction_vote_for",  (uint64_t)c.faction_vote_for},
                 {"created_at",        (int64_t)c.created_at},
                 {"companion_buff",    c.companion_buff},
-                {"companion_until",   (int64_t)c.companion_until},
+                {"companion_owned",   c.companion_owned},
             };
         }
     }
@@ -2923,7 +2946,14 @@ static void load_maple_data() {
             c.faction_vote_for  = (dpp::snowflake)v.value("faction_vote_for", (uint64_t)0);
             c.created_at        = (time_t)v.value("created_at", (int64_t)0);
             c.companion_buff    = v.value("companion_buff",    std::string());
-            c.companion_until   = (time_t)v.value("companion_until",   (int64_t)0);
+            if (v.contains("companion_owned") && v["companion_owned"].is_object()) {
+                for (auto& [k, t] : v["companion_owned"].items())
+                    if (t.is_number()) c.companion_owned[k] = (time_t)t.get<int64_t>();
+            } else {
+                // 舊存檔：只有一個 companion_buff + companion_until，轉成「已購買這一個buff」
+                int64_t until = v.value("companion_until", (int64_t)0);
+                if (!c.companion_buff.empty() && until > 0) c.companion_owned[c.companion_buff] = (time_t)until;
+            }
             maple_data[uid] = c;
         }
     } catch (...) {}
@@ -3026,6 +3056,8 @@ static dpp::message make_maple_home_msg(dpp::snowflake uid, const std::string& d
         .set_label("🎒 背包").set_id("maple_bag_" + uid_s + "_scroll").set_style(dpp::cos_secondary));
     row2.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏪 商店").set_id("maple_shop_" + uid_s).set_style(dpp::cos_secondary));
+    row2.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("👻 假人夥伴").set_id("maple_companion_" + uid_s).set_style(dpp::cos_secondary));
     // 轉職按鈕移到這排（原本那排放不下「潛能」，5顆上限）
     if (maple_can_first_job(c)) {
         row2.add_component(dpp::component().set_type(dpp::cot_button)
@@ -3202,7 +3234,7 @@ static std::string maple_skill_value_text(const MapleSkillDef& sd, int level) {
         if (sd.key == "mana_boost_ice")
             return "攻擊力 +" + s + "、魔力爪技能係數 +" + std::to_string(level * 10) + "%"
                  + (level >= sd.max_level ? "、✅ 已解鎖：永久快一階攻速" : "");
-        if (sd.key == "octopus_turret") return "額外攻擊力 +武器攻擊力 ×" + s + "%";
+        if (sd.key == "octopus_turret") return "裝備攻擊力 +" + s + "%";
         if (sd.key == "energy_boost")
             return "攻擊力 +" + s + "、休息時間 -" + s + " 秒、攻擊間隔 -" + std::to_string(v * 0.5).substr(0,3) + " 秒";
         if (sd.key == "crusader_focus" || sd.key == "knight_enchant") return "攻擊力 +" + s;
@@ -4096,8 +4128,6 @@ static dpp::message make_maple_adv_region_list_msg(dpp::snowflake uid, int brack
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("👻 假人夥伴").set_id("maple_companion_" + uid_s).set_style(dpp::cos_secondary));
-    row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
 
@@ -4115,14 +4145,24 @@ static dpp::message make_maple_companion_msg(dpp::snowflake uid, const std::stri
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x95, 0xA5, 0xA6));
     std::string head = "## 👻 假人夥伴\n冒險時可以租借其中一個buff給自己；突襲首領房間則是隊長可以選擇帶上假人頂替一個位置，"
-                        "假人會提供同一個buff給全隊，自己的輸出是隊上其他真人最低DPS的80%。每次租借固定**7天**，到期要再付費續租。\n🪙 瘋幣：" + std::to_string(c.coins);
+                        "假人會提供同一個buff給全隊，自己的輸出是隊上其他真人最低DPS的80%。\n"
+                        "⚠️ 假人的buff在**野外首領沒有效果**。\n"
+                        "每個buff要**各自購買**，買了之後那個buff **7天內**可以隨時切換使用；沒買過的buff要另外購買。"
+                        "點使用中的buff＝付費續租7天。\n🪙 瘋幣：" + std::to_string(c.coins);
     const MapleCompanionBuffDef* active = maple_companion_active(c);
     time_t now = time(nullptr);
+    auto days_left_of = [&](const std::string& key) {
+        return std::max<int64_t>(0, (maple_companion_owned_until(c, key) - now + 86399) / 86400);
+    };
     if (active) {
-        int64_t days_left = std::max<int64_t>(0, (c.companion_until - now + 86399) / 86400);
-        head += "\n目前租借：**" + active->name + "**，剩餘約 " + std::to_string(days_left) + " 天";
+        head += "\n目前使用：**" + active->name + "**";
+    } else if (!c.companion_buff.empty() && maple_companion_owns(c, c.companion_buff)) {
+        head += "\n目前使用的buff你的職業用不了，請切換其他buff。";
     } else if (!c.companion_buff.empty()) {
-        head += "\n上次租借的「" + (maple_find_companion_buff(c.companion_buff) ? maple_find_companion_buff(c.companion_buff)->name : c.companion_buff) + "」已經到期了。";
+        const MapleCompanionBuffDef* old = maple_find_companion_buff(c.companion_buff);
+        head += "\n使用中的「" + (old ? old->name : c.companion_buff) + "」已經到期了。";
+    } else {
+        head += "\n目前沒有使用假人。";
     }
     if (!result.empty()) head += "\n\n" + result;
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(head));
@@ -4131,27 +4171,31 @@ static dpp::message make_maple_companion_msg(dpp::snowflake uid, const std::stri
 
     for (auto& b : MAPLE_COMPANION_BUFFS) {
         bool allowed = maple_companion_buff_allowed(c, b.key);
-        bool is_active = active && active->key == b.key;
+        bool owned = maple_companion_owns(c, b.key);
+        bool is_active = owned && c.companion_buff == b.key;
+        bool is_switch = owned && !is_active; // 已購買、還沒到期：免費切換
         std::string text = "**" + b.name + "**：" + b.desc + "\n🪙 " + std::to_string(b.price) + " 瘋幣／7天";
-        if (is_active) text += "　✅租借中";
-        else if (!allowed) text += "\n-# 只有法師系（冰雷／僧侶／冰雷魔導士／祭司）可以租借";
+        if (owned) text += "　📦已購買，剩餘約 " + std::to_string(days_left_of(b.key)) + " 天";
+        if (is_active) text += "　✅使用中";
+        if (!allowed) text += "\n-# 只有法師系（冰雷／僧侶／冰雷魔導士／祭司）可以租借";
+        bool afford = c.coins >= b.price || maple_companion_is_free(uid);
         container.add_component_v2(dpp::component()
             .set_type(dpp::cot_section)
             .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
             .set_accessory(dpp::component().set_type(dpp::cot_button)
-                .set_label(is_active ? "續租" : "租借")
+                .set_label(is_active ? "續租" : is_switch ? "切換" : "購買")
                 .set_id("maple_companionset_" + uid_s + "_" + b.key)
-                .set_style(dpp::cos_success)
-                .set_disabled(!allowed || c.coins < b.price)));
+                .set_style(is_switch ? dpp::cos_primary : dpp::cos_success)
+                .set_disabled(!allowed || (!is_switch && !afford))));
     }
     msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("✖ 解除租借").set_id("maple_companionclear_" + uid_s)
-        .set_style(dpp::cos_danger).set_disabled(!active));
+        .set_label("⏸ 暫停使用").set_id("maple_companionclear_" + uid_s)
+        .set_style(dpp::cos_secondary).set_disabled(c.companion_buff.empty()));
     row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("↩ 返回").set_id("maple_adv_" + uid_s).set_style(dpp::cos_secondary));
+        .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
 
     return msg;
@@ -4287,6 +4331,38 @@ static dpp::message make_maple_adv_cancel_confirm_msg(dpp::snowflake uid) {
     return msg;
 }
 
+// 冒險中想做冒險時不能做的事（換裝、配點、強化…）→ 詢問要不要先結束冒險再做
+// 按「結束冒險並…」會照常結算目前的經驗／瘋幣，然後直接執行原本想做的事
+static dpp::message make_maple_adv_endfor_msg(dpp::snowflake uid, const MapleCharacter& c, const std::string& action) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    int64_t exp_gain = 0, coin_gain = 0, secs = 0;
+    maple_adv_progress(c, exp_gain, coin_gain, secs);
+    const MapleAdvRegionDef* region = maple_find_adv_region(c.adv_region);
+    std::string region_name = region ? region->name : c.adv_region;
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF3, 0x9C, 0x12));
+    std::string content = "## 🗺️ 你正在冒險中\n要先結束冒險，才能**" + action + "**。\n\n";
+    content += "目前在 **" + region_name + "** 冒險了 **" + maple_fmt_duration(secs) + "**，結束時會照常結算：\n";
+    content += "✨ 經驗值 +**" + std::to_string(exp_gain) + "**\n";
+    content += "🪙 瘋幣 +**" + std::to_string(coin_gain) + "**\n\n";
+    content += "要結束冒險並" + action + "嗎？";
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    std::string label = "✅ 結束冒險並" + action;
+    if (label.size() > 75) label = "✅ 結束冒險並繼續";
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label(label).set_id("maple_advendfor_" + uid_s).set_style(dpp::cos_success));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🗺️ 繼續冒險").set_id("maple_advstatus_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
+    return msg;
+}
+
 static dpp::message make_maple_adv_settle_msg(dpp::snowflake uid, const std::string& region_name,
                                               int64_t exp_gain, int64_t coin_gain, int64_t secs, int level_ups,
                                               const std::string& faction_name = "", int64_t faction_exp_gained = 0) {
@@ -4412,7 +4488,8 @@ static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid, int page =
                       && std::find(g.region_keys.begin(), g.region_keys.end(), c2.nm_explore_region) != g.region_keys.end();
                   if (in_group || exploring_group) hunters++;
               }
-              for (auto& rk : g.region_keys) if (maple_wb_is_up(rk, now)) { up = true; break; } }
+              // 這裡已經持有 data_mutex，要用 _locked 版本（maple_wb_is_up 會再鎖一次，同執行緒重複鎖會卡死/崩潰）
+              for (auto& rk : g.region_keys) if (maple_wb_is_up_locked(rk, now)) { up = true; break; } }
             std::string text = "**" + g.label + "**　建議 Lv. " + std::to_string(lv) + "~\n" + g.desc + "\n";
             if (up) text += "😈 " + g.label + "似乎發生了奇怪的動靜...\n";
             if (hunters > 0) text += "🔍 目前 " + std::to_string(hunters) + " 人正在探索／挑戰\n";
@@ -4420,7 +4497,8 @@ static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid, int page =
                 .set_type(dpp::cot_section)
                 .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
                 .set_accessory(dpp::component().set_type(dpp::cot_button)
-                    .set_label("🔍 探索").set_id("maple_nmexplore_" + uid_s + "_" + g.key).set_style(dpp::cos_danger)));
+                    .set_label(up ? "🔍 探索" : "💤 都被討伐了").set_id("maple_nmexplore_" + uid_s + "_" + g.key)
+                    .set_style(dpp::cos_danger).set_disabled(!up)));
             continue;
         }
         auto& r = *rows[ri].region;
@@ -4626,6 +4704,7 @@ static dpp::message make_maple_raid_boss_list_msg(dpp::snowflake uid) {
         .set_spacing(dpp::sep_small).set_divider(true));
 
     for (auto& b : MAPLE_RAID_BOSSES) {
+        if (!b.open) continue; // 還沒開放的首領（例如殘暴炎魔）直接不顯示
         int open_rooms = 0;
         { std::lock_guard<std::mutex> lk(data_mutex);
           for (auto& [id, r] : maple_raid_rooms) if (r.boss_key == b.key) open_rooms++; }

@@ -250,8 +250,35 @@ void handle_maple_slash(const dpp::slashcommand_t& ev, const std::string& cmd_na
 
 // ─── Buttons ─────────────────────────────────────────────────────────────────
 
-static void handle_maple_button_impl(const dpp::button_click_t& ev) {
-    const std::string& cid = ev.custom_id;
+// 冒險結算（呼叫前需持有 data_mutex）
+struct MapleAdvSettleResult {
+    int64_t exp_gain = 0, coin_gain = 0, secs = 0, faction_exp_gained = 0;
+    int level_ups = 0;
+    std::string region_name, faction_name;
+};
+static MapleAdvSettleResult maple_adv_settle_locked(MapleCharacter& c) {
+    MapleAdvSettleResult r;
+    const MapleAdvRegionDef* region = maple_find_adv_region(c.adv_region);
+    r.region_name = region ? region->name : c.adv_region;
+    maple_adv_progress(c, r.exp_gain, r.coin_gain, r.secs);
+    c.coins += r.coin_gain;
+    r.level_ups = maple_apply_exp(c, r.exp_gain);
+    // 每升一級陣營+該等級經驗，這裡算出這次總共加了多少（等差級數）方便顯示
+    if (r.level_ups > 0 && !c.faction_key.empty()) {
+        r.faction_exp_gained = (int64_t)r.level_ups * (2 * c.level - r.level_ups + 1) / 2;
+        const MapleFactionDef* fd = maple_find_faction(c.faction_key);
+        r.faction_name = fd ? fd->name : c.faction_key;
+    }
+    c.adv_region.clear();
+    c.adv_started_at = 0;
+    return r;
+}
+
+// 冒險中被擋下的操作：記住原本按的按鈕，玩家確認結束冒險後直接執行（只存在記憶體，重開就失效）
+static std::mutex g_maple_adv_endfor_mtx;
+static std::map<uint64_t, std::string> g_maple_adv_endfor;
+
+static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::string& cid) {
     dpp::user user = ev.command.get_issuing_user();
     dpp::snowflake uid = user.id;
     std::string dn = maple_display_name(user, ev.command.member.get_nickname());
@@ -267,6 +294,42 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return true;
     };
 
+    // 冒險中不能做的事 → 改成詢問「要結束冒險並 XXX 嗎？」（不要在這之前鎖 g_maple_adv_endfor_mtx）
+    auto ask_end_adv = [&](const MapleCharacter& c, const std::string& action) {
+        {
+            std::lock_guard<std::mutex> lk(g_maple_adv_endfor_mtx);
+            g_maple_adv_endfor[(uint64_t)uid] = cid;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_adv_endfor_msg(uid, c, action));
+    };
+
+    if (cid.rfind("maple_advendfor_", 0) == 0) {
+        if (!check_owner("maple_advendfor_")) return;
+        std::string next;
+        {
+            std::lock_guard<std::mutex> lk(g_maple_adv_endfor_mtx);
+            auto it = g_maple_adv_endfor.find((uint64_t)uid);
+            if (it != g_maple_adv_endfor.end()) { next = it->second; g_maple_adv_endfor.erase(it); }
+        }
+        if (next.empty() || next.rfind("maple_", 0) != 0 || next.rfind("maple_advendfor_", 0) == 0) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這個詢問已經過期了，請重新操作一次。").set_flags(dpp::m_ephemeral)); return;
+        }
+        bool settled = false;
+        MapleAdvSettleResult r;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (maple_is_adventuring(c)) { r = maple_adv_settle_locked(c); settled = true; }
+        }
+        if (settled) {
+            save_maple_data();
+            if (r.level_ups > 0) save_maple_faction_state();
+        }
+        handle_maple_button_impl(ev, next); // 冒險已結束，直接執行原本想做的事
+        return;
+    }
+
     if (cid.rfind("maple_home_", 0) == 0) {
         if (!check_owner("maple_home_")) return;
         ev.reply(dpp::ir_update_message, make_maple_home_msg(uid, dn, av));
@@ -276,10 +339,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
     if (cid.rfind("maple_ap_", 0) == 0) {
         if (!check_owner("maple_ap_")) return;
         MapleCharacter c0 = maple_get_or_create(uid);
-        if (maple_is_adventuring(c0)) {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 冒險中無法調整能力值！").set_flags(dpp::m_ephemeral)); return;
-        }
+        if (maple_is_adventuring(c0)) { ask_end_adv(c0, "調整能力值"); return; }
         if (!maple_ap_unlocked(c0)) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 尚未點滿「能力值自由」，還不能使用！").set_flags(dpp::m_ephemeral)); return;
@@ -291,10 +351,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
     if (cid.rfind("maple_eq_", 0) == 0) {
         if (!check_owner("maple_eq_")) return;
         MapleCharacter c0 = maple_get_or_create(uid);
-        if (maple_is_adventuring(c0)) {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 冒險中無法調整裝備！").set_flags(dpp::m_ephemeral)); return;
-        }
+        if (maple_is_adventuring(c0)) { ask_end_adv(c0, "調整裝備"); return; }
         if (!maple_equip_unlocked(c0)) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 尚未點滿「換裝自由」，還不能使用！").set_flags(dpp::m_ephemeral)); return;
@@ -338,10 +395,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
-            if (maple_is_adventuring(c)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 已經在冒險中了！").set_flags(dpp::m_ephemeral)); return;
-            }
+            if (maple_is_adventuring(c)) { ask_end_adv(c, "前往新地區冒險"); return; }
             if (maple_is_wb_fighting(c)) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 正在挑戰野外首領，無法同時出發冒險！").set_flags(dpp::m_ephemeral)); return;
@@ -369,10 +423,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
 
     if (cid.rfind("maple_advsettle_", 0) == 0) {
         if (!check_owner("maple_advsettle_")) return;
-        int64_t exp_gain = 0, coin_gain = 0, secs = 0, faction_exp_gained = 0;
-        int level_ups = 0;
-        std::string region_name, faction_name;
-        bool ok = false;
+        MapleAdvSettleResult r;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
@@ -380,26 +431,12 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 目前沒有進行中的冒險！").set_flags(dpp::m_ephemeral)); return;
             }
-            const MapleAdvRegionDef* region = maple_find_adv_region(c.adv_region);
-            region_name = region ? region->name : c.adv_region;
-            maple_adv_progress(c, exp_gain, coin_gain, secs);
-            c.coins += coin_gain;
-            level_ups = maple_apply_exp(c, exp_gain);
-            // 每升一級陣營+該等級經驗，這裡算出這次總共加了多少（等差級數）方便顯示
-            if (level_ups > 0 && !c.faction_key.empty()) {
-                faction_exp_gained = (int64_t)level_ups * (2 * c.level - level_ups + 1) / 2;
-                const MapleFactionDef* fd = maple_find_faction(c.faction_key);
-                faction_name = fd ? fd->name : c.faction_key;
-            }
-            c.adv_region.clear();
-            c.adv_started_at = 0;
-            ok = true;
+            r = maple_adv_settle_locked(c);
         }
-        if (!ok) return;
         save_maple_data();
-        if (level_ups > 0) save_maple_faction_state();
-        ev.reply(dpp::ir_update_message, make_maple_adv_settle_msg(uid, region_name, exp_gain, coin_gain, secs,
-                                                                    level_ups, faction_name, faction_exp_gained));
+        if (r.level_ups > 0) save_maple_faction_state();
+        ev.reply(dpp::ir_update_message, make_maple_adv_settle_msg(uid, r.region_name, r.exp_gain, r.coin_gain, r.secs,
+                                                                    r.level_ups, r.faction_name, r.faction_exp_gained));
         return;
     }
 
@@ -489,9 +526,10 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 你已經在一個房間裡了！").set_flags(dpp::m_ephemeral)); return;
             }
-            if (maple_is_adventuring(c) || maple_is_wb_fighting(c)) {
+            if (maple_is_adventuring(c)) { ask_end_adv(c, "開突襲房間"); return; }
+            if (maple_is_wb_fighting(c)) {
                 ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 冒險中或挑戰野外首領中無法開房間！").set_flags(dpp::m_ephemeral)); return;
+                    dpp::message("❌ 挑戰野外首領中無法開房間！").set_flags(dpp::m_ephemeral)); return;
             }
             if (c.level < boss->min_level) {
                 ev.reply(dpp::ir_channel_message_with_source,
@@ -541,7 +579,8 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             const MapleRaidBossDef* boss = room ? maple_find_raid_boss(room->boss_key) : nullptr;
             if (!room || room->state != "waiting") err = "這間房間已經不能加入了。";
             else if (!c.raid_room_id.empty() && maple_find_raid_room(c.raid_room_id)) err = "你已經在一個房間裡了！";
-            else if (maple_is_adventuring(c) || maple_is_wb_fighting(c)) err = "冒險中或挑戰野外首領中無法加入房間！";
+            else if (maple_is_adventuring(c)) { ask_end_adv(c, "加入突襲房間"); return; }
+            else if (maple_is_wb_fighting(c)) err = "挑戰野外首領中無法加入房間！";
             else if ((int)room->members.size() >= MAPLE_RAID_ROOM_MAX_MEMBERS - (room->has_companion ? 1 : 0)) err = "這間房間已經滿了。";
             else if (boss && c.level < boss->min_level)
                 err = "挑戰 " + boss->name + " 需要等級 " + std::to_string(boss->min_level) + " 以上！";
@@ -1275,8 +1314,11 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
+            bool any_up = false;
+            for (auto& rk : group->region_keys) if (maple_wb_is_up_locked(rk, now)) { any_up = true; break; }
             if (c.nm_explore_until > 0) already = true;
-            else if (maple_is_adventuring(c)) err = "冒險中無法探索！";
+            else if (!any_up) err = group->label + "目前很平靜，所有首領都已經被討伐了，等重生後再來探索吧！";
+            else if (maple_is_adventuring(c)) { ask_end_adv(c, "探索" + group->label); return; }
             else if (maple_is_wb_fighting(c)) err = "已經在挑戰野外首領了！";
             else if (!c.raid_room_id.empty() && maple_find_raid_room(c.raid_room_id)) err = "正在突襲首領房間裡，無法探索！";
             else {
@@ -1336,10 +1378,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
                     dpp::message("❌ 首領已經被討伐，還沒重生！").set_flags(dpp::m_ephemeral)); return;
             }
             auto& c = maple_data[uid];
-            if (maple_is_adventuring(c)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 冒險中無法挑戰野外首領！").set_flags(dpp::m_ephemeral)); return;
-            }
+            if (maple_is_adventuring(c)) { ask_end_adv(c, "挑戰野外首領"); return; }
             if (maple_is_wb_fighting(c)) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 已經在挑戰野外首領了！").set_flags(dpp::m_ephemeral)); return;
@@ -2024,10 +2063,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
     if (cid.rfind("maple_atktype_", 0) == 0) {
         if (!check_owner("maple_atktype_")) return;
         MapleCharacter c0 = maple_get_or_create(uid);
-        if (maple_is_adventuring(c0)) {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 冒險中無法調整攻擊方式！").set_flags(dpp::m_ephemeral)); return;
-        }
+        if (maple_is_adventuring(c0)) { ask_end_adv(c0, "調整攻擊方式"); return; }
         ev.reply(dpp::ir_update_message, make_maple_atktype_msg(uid));
         return;
     }
@@ -2045,10 +2081,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
-            if (maple_is_adventuring(c)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 冒險中無法調整攻擊方式！").set_flags(dpp::m_ephemeral)); return;
-            }
+            if (maple_is_adventuring(c)) { ask_end_adv(c, "調整攻擊方式"); return; }
             if (skill_key == "normal") {
                 c.adv_atk_skill.clear();
             } else {
@@ -2222,10 +2255,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
-            if (maple_is_adventuring(c)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 冒險中無法調整裝備！").set_flags(dpp::m_ephemeral)); return;
-            }
+            if (maple_is_adventuring(c)) { ask_end_adv(c, "調整裝備"); return; }
             bool worn_is_raw = (maple_equipped_raw(c, slot) == item_key);
             int qty = c.equipment.count(item_key) ? c.equipment.at(item_key) : 0;
             if (worn_is_raw) {
@@ -2276,10 +2306,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
-            if (maple_is_adventuring(c)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 冒險中無法調整裝備！").set_flags(dpp::m_ephemeral)); return;
-            }
+            if (maple_is_adventuring(c)) { ask_end_adv(c, "調整裝備"); return; }
             auto eit = std::find_if(c.enh_items.begin(), c.enh_items.end(),
                                     [&](const MapleEnhItem& e){ return e.id == enh_id; });
             if (eit == c.enh_items.end()) {
@@ -2320,10 +2347,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
-            if (maple_is_adventuring(c)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 冒險中無法調整裝備！").set_flags(dpp::m_ephemeral)); return;
-            }
+            if (maple_is_adventuring(c)) { ask_end_adv(c, "調整裝備"); return; }
             std::string old_raw = maple_equipped_raw(c, slot);
             if (!maple_eq_is_enh(old_raw) && !old_raw.empty() && old_raw != "wooden_sword")
                 c.equipment[old_raw]++;
@@ -2338,10 +2362,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
     if (cid.rfind("maple_potential_", 0) == 0) {
         if (!check_owner("maple_potential_")) return;
         MapleCharacter c0 = maple_get_or_create(uid);
-        if (maple_is_adventuring(c0)) {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 冒險中無法洗潛能！").set_flags(dpp::m_ephemeral)); return;
-        }
+        if (maple_is_adventuring(c0)) { ask_end_adv(c0, "洗潛能"); return; }
         ev.reply(dpp::ir_update_message, make_maple_potential_pick_msg(uid));
         return;
     }
@@ -2376,7 +2397,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
             if (maple_is_adventuring(c)) {
-                result = "❌ 冒險中無法洗潛能！";
+                ask_end_adv(c, "洗潛能"); return;
             } else {
                 result = maple_potential_reroll(c, slot, ok);
                 if (!ok) result = "❌ " + result;
@@ -2429,7 +2450,8 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         return;
     }
 
-    // maple_companionset_<uid>_<key>：花瘋幣租借/續租一個假人夥伴buff，固定7天（換buff或續租同一個都是同一個動作）
+    // maple_companionset_<uid>_<key>：每個buff各自購買、各自計時7天——
+    // 沒買過（或已到期）＝付費購買並切換成這個；已買但沒在用＝免費切換；正在用＝付費續租（到期時間往後延7天）
     if (cid.rfind("maple_companionset_", 0) == 0) {
         std::string rest = cid.substr(std::string("maple_companionset_").size());
         size_t sep = rest.find('_');
@@ -2447,12 +2469,21 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
             const MapleCompanionBuffDef* b = maple_find_companion_buff(key);
             if (!b) result = "❌ 找不到這個buff。";
             else if (!maple_companion_buff_allowed(c, key)) result = "❌ 你的職業不能租借這個buff。";
-            else if (c.coins < b->price) result = "❌ 瘋幣不足，需要 " + std::to_string(b->price) + " 瘋幣。";
             else {
-                c.coins -= b->price;
-                c.companion_buff = key;
-                c.companion_until = time(nullptr) + MAPLE_COMPANION_RENT_SECS;
-                result = "✅ 已租借「" + b->name + "」7天！";
+                time_t now = time(nullptr);
+                bool owned = maple_companion_owns(c, key);
+                if (owned && c.companion_buff != key) {
+                    c.companion_buff = key; // 已購買、還沒到期：免費切換
+                    result = "✅ 已切換成「" + b->name + "」";
+                } else if (c.coins < b->price && !maple_companion_is_free(uid)) {
+                    result = "❌ 瘋幣不足，需要 " + std::to_string(b->price) + " 瘋幣。";
+                } else {
+                    if (!maple_companion_is_free(uid)) c.coins -= b->price;
+                    c.companion_owned[key] = (owned ? maple_companion_owned_until(c, key) : now) + MAPLE_COMPANION_RENT_SECS;
+                    c.companion_buff = key;
+                    result = owned ? "✅ 已續租「" + b->name + "」，到期時間延長 7 天！"
+                                   : "✅ 已購買「" + b->name + "」7天，已切換成這個buff！";
+                }
             }
         }
         save_maple_data();
@@ -2464,11 +2495,10 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         if (!check_owner("maple_companionclear_")) return;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
-            maple_data[uid].companion_buff.clear();
-            maple_data[uid].companion_until = 0;
+            maple_data[uid].companion_buff.clear(); // 只是不使用，已購買的buff跟到期時間都保留
         }
         save_maple_data();
-        ev.reply(dpp::ir_update_message, make_maple_companion_msg(uid, "✅ 已解除租借。"));
+        ev.reply(dpp::ir_update_message, make_maple_companion_msg(uid, "✅ 已暫停使用假人（已購買的buff還在，期限內隨時可以再切換回來）。"));
         return;
     }
 
@@ -2511,10 +2541,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
     if (cid.rfind("maple_enhpick_", 0) == 0) {
         if (!check_owner("maple_enhpick_")) return;
         MapleCharacter c0 = maple_get_or_create(uid);
-        if (maple_is_adventuring(c0)) {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 冒險中無法強化裝備！").set_flags(dpp::m_ephemeral)); return;
-        }
+        if (maple_is_adventuring(c0)) { ask_end_adv(c0, "強化裝備"); return; }
         ev.reply(dpp::ir_update_message, make_maple_enh_pick_msg(uid));
         return;
     }
@@ -2560,10 +2587,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
-            if (maple_is_adventuring(c)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 冒險中無法強化裝備！").set_flags(dpp::m_ephemeral)); return;
-            }
+            if (maple_is_adventuring(c)) { ask_end_adv(c, "強化裝備"); return; }
             bool ok = false;
             result = maple_enh_apply(c, slot, scroll_key, ok);
         }
@@ -2589,10 +2613,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
-            if (maple_is_adventuring(c)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 冒險中無法調整能力值！").set_flags(dpp::m_ephemeral)); return;
-            }
+            if (maple_is_adventuring(c)) { ask_end_adv(c, "調整能力值"); return; }
             int add = std::min(amount, maple_unspent_ap(c));
             if (add > 0) {
                 if      (stat == "str") c.str_stat += add;
@@ -2609,10 +2630,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
     if (cid.rfind("maple_apreset_", 0) == 0) {
         if (!check_owner("maple_apreset_")) return;
         MapleCharacter c = maple_get_or_create(uid);
-        if (maple_is_adventuring(c)) {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 冒險中無法調整能力值！").set_flags(dpp::m_ephemeral)); return;
-        }
+        if (maple_is_adventuring(c)) { ask_end_adv(c, "調整能力值"); return; }
         if (c.ap_reset_used) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 你已經使用過重新配點了！").set_flags(dpp::m_ephemeral)); return;
@@ -2626,10 +2644,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
-            if (maple_is_adventuring(c)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 冒險中無法調整能力值！").set_flags(dpp::m_ephemeral)); return;
-            }
+            if (maple_is_adventuring(c)) { ask_end_adv(c, "調整能力值"); return; }
             if (c.ap_reset_used) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 你已經使用過重新配點了！").set_flags(dpp::m_ephemeral)); return;
@@ -2655,7 +2670,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
-            if (maple_is_adventuring(c))            err = "冒險中無法調整能力值！";
+            if (maple_is_adventuring(c)) { ask_end_adv(c, "重置能力值"); return; }
             else if (c.coins < MAPLE_AP_BUYRESET_COST) err = "瘋幣不足！";
             else {
                 c.coins -= MAPLE_AP_BUYRESET_COST;
@@ -2800,10 +2815,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
     if (cid.rfind("maple_apbuyreset_", 0) == 0) {
         if (!check_owner("maple_apbuyreset_")) return;
         MapleCharacter c = maple_get_or_create(uid);
-        if (maple_is_adventuring(c)) {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 冒險中無法調整能力值！").set_flags(dpp::m_ephemeral)); return;
-        }
+        if (maple_is_adventuring(c)) { ask_end_adv(c, "調整能力值"); return; }
         if (c.coins < MAPLE_AP_BUYRESET_COST) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 瘋幣不足！").set_flags(dpp::m_ephemeral)); return;
@@ -2925,7 +2937,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev) {
 
 void handle_maple_button(const dpp::button_click_t& ev) {
     try {
-        handle_maple_button_impl(ev);
+        handle_maple_button_impl(ev, ev.custom_id);
     } catch (const std::exception& e) {
         FILE* f = fopen("C:\\bot_debug.txt", "a");
         if (f) {

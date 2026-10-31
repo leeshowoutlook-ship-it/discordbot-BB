@@ -403,8 +403,8 @@ struct MapleCharacter {
     int            faction_donate_week_used = 0; // 本週已捐贈次數（上限1次／2000瘋幣）
     dpp::snowflake faction_vote_for = 0;    // 陣營統帥投票：投給的成員uid，0＝還沒投票
     time_t         created_at = 0;
-    std::string    companion_buff;     // 假人夥伴目前租借的buff key（haste/angel_blessing/bishop_prayer/knight_magic_break/snow_crystal），空字串＝沒有租借
-    time_t         companion_until = 0; // 租借到期時間（每次租借固定7天），過期視為沒有租借
+    std::string    companion_buff;     // 假人夥伴目前「使用中」的buff key，空字串＝沒有使用
+    std::map<std::string, time_t> companion_owned; // 已購買的假人buff key -> 到期時間；每個buff各自購買、各自計時7天，期限內可以隨意切換使用
 };
 
 // ─── Raid system ─────────────────────────────────────────────────────────────
