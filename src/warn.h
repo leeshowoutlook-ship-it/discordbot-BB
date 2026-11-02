@@ -1,5 +1,6 @@
 #pragma once
 #include "helpers.h"
+#include "guild_members.h"
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <algorithm>
@@ -89,7 +90,8 @@ static dpp::message handle_warn(dpp::snowflake target_id,
 
 // ─── Warn detail view ─────────────────────────────────────────────────────────
 
-static dpp::message handle_warn_detail(dpp::snowflake uid) {
+// scoped：從「本伺服器」榜單點進來的，返回時回到本伺服器榜單
+static dpp::message handle_warn_detail(dpp::snowflake uid, bool scoped = false) {
     std::vector<WarnRecord> records;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
@@ -125,28 +127,51 @@ static dpp::message handle_warn_detail(dpp::snowflake uid) {
     dpp::component row; row.set_type(dpp::cot_action_row);
     dpp::component back;
     back.set_type(dpp::cot_button).set_label("↩ 返回榜單")
-        .set_id("warn_board").set_style(dpp::cos_secondary);
+        .set_id(scoped ? "warn_boardg" : "warn_board").set_style(dpp::cos_secondary);
     row.add_component(back); msg.add_component(row);
     return msg;
 }
 
 // ─── Warn leaderboard ─────────────────────────────────────────────────────────
 
-static dpp::message handle_warn_board() {
+// scope_guild：0＝全部；非 0＝只列該伺服器成員。current_guild：目前所在伺服器（顯示切換按鈕用，私訊為 0）
+static dpp::message handle_warn_board(dpp::snowflake scope_guild = 0, dpp::snowflake current_guild = 0) {
+    std::set<uint64_t> members;
+    bool members_ok = scope_guild == 0 || guild_members_get(scope_guild, members);
     std::vector<std::pair<int, dpp::snowflake>> sorted;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
-        for (auto& [uid, records] : warn_data)
-            if (!records.empty()) sorted.push_back({(int)records.size(), uid});
+        for (auto& [uid, records] : warn_data) {
+            if (records.empty()) continue;
+            if (scope_guild != 0 && !members.count((uint64_t)uid)) continue;
+            sorted.push_back({(int)records.size(), uid});
+        }
     }
     std::sort(sorted.begin(), sorted.end(), std::greater<>());
 
-    dpp::embed e;
-    e.set_title("🏴  警告榜單").set_color(0xC0392B);
+    // 切換「全部／本伺服器」
+    auto add_scope_row = [&](dpp::message& msg) {
+        if (current_guild == 0) return;
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🌐 全部")
+            .set_id("warn_board").set_style(scope_guild == 0 ? dpp::cos_primary : dpp::cos_secondary)
+            .set_disabled(scope_guild == 0));
+        row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🏠 本伺服器")
+            .set_id("warn_boardg").set_style(scope_guild != 0 ? dpp::cos_primary : dpp::cos_secondary)
+            .set_disabled(scope_guild != 0));
+        msg.add_component(row);
+    };
 
+    dpp::embed e;
+    e.set_title(scope_guild != 0 ? "🏴  警告榜單（本伺服器）" : "🏴  警告榜單（全部）").set_color(0xC0392B);
+
+    if (!members_ok) {
+        e.set_description("⏳ 這個伺服器的成員名單還在讀取中，請稍後再試。");
+        dpp::message msg; msg.add_embed(e); add_scope_row(msg); return msg;
+    }
     if (sorted.empty()) {
         e.set_description("目前沒有警告紀錄。");
-        dpp::message msg; msg.add_embed(e); return msg;
+        dpp::message msg; msg.add_embed(e); add_scope_row(msg); return msg;
     }
 
     std::ostringstream oss;
@@ -165,7 +190,7 @@ static dpp::message handle_warn_board() {
         dpp::component btn;
         btn.set_type(dpp::cot_button)
            .set_label("第 " + std::to_string(i + 1) + " 名詳情")
-           .set_id("warn_detail_" + std::to_string((uint64_t)sorted[i].second))
+           .set_id("warn_detail_" + std::to_string((uint64_t)sorted[i].second) + (scope_guild != 0 ? "_g" : ""))
            .set_style(dpp::cos_secondary);
         if (i < 5) row1.add_component(btn);
         else        row2.add_component(btn);
@@ -173,5 +198,6 @@ static dpp::message handle_warn_board() {
     }
     msg.add_component(row1);
     if (n > 5) msg.add_component(row2);
+    add_scope_row(msg);
     return msg;
 }

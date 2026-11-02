@@ -378,6 +378,7 @@ struct MapleCharacter {
     bool           skill_reset_used = false; // 技能點數重製限一次（免費）
     std::map<std::string,int> scrolls;      // 卷軸key -> 持有數量
     std::map<std::string,int> equipment;    // 未強化裝備key -> 持有數量（不含已穿在身上的預設新手木劍）
+    std::map<std::string,int> boxes;        // 野王寶箱key -> 持有數量（開啟後從該首領掉落表抽一次）
     std::vector<MapleEnhItem> enh_items;    // 已強化的裝備實例（含已穿在身上的，用 eq_* 的 "#id" 參照）
     int            enh_next_id = 1;         // 下一個強化實例序號
     std::string    adv_atk_skill;   // 冒險／戰鬥計算使用的攻擊技能key，空字串＝普通攻擊

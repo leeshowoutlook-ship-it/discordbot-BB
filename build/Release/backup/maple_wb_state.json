@@ -1,51 +1,51 @@
 {
   "advanced_dojo": {
-    "dead_since": 1793447969,
-    "respawn_secs": 9480,
+    "dead_since": 1793574515,
+    "respawn_secs": 10740,
     "round_kills": 0,
-    "total_kills": 178
+    "total_kills": 190
   },
   "cactus_desert": {
-    "dead_since": 1793449448,
-    "respawn_secs": 4980,
+    "dead_since": 1793574731,
+    "respawn_secs": 4320,
     "round_kills": 0,
-    "total_kills": 393
+    "total_kills": 418
   },
   "coastal_grass": {
-    "dead_since": 1793442388,
+    "dead_since": 1793577612,
     "respawn_secs": 3000,
-    "round_kills": 1,
-    "total_kills": 845
+    "round_kills": 0,
+    "total_kills": 879
   },
   "cursed_temple": {
-    "dead_since": 1793424918,
-    "respawn_secs": 23220,
+    "dead_since": 1793557883,
+    "respawn_secs": 23340,
     "round_kills": 0,
-    "total_kills": 83
+    "total_kills": 88
   },
   "dead_forest4": {
-    "dead_since": 1793443399,
-    "respawn_secs": 6600,
+    "dead_since": 1793562659,
+    "respawn_secs": 7080,
     "round_kills": 0,
-    "total_kills": 230
+    "total_kills": 247
   },
   "east_rock4": {
-    "dead_since": 1793442635,
-    "respawn_secs": 4440,
+    "dead_since": 1793578218,
+    "respawn_secs": 4500,
     "round_kills": 0,
-    "total_kills": 648
+    "total_kills": 675
   },
   "ice_canyon2": {
-    "dead_since": 1793442050,
-    "respawn_secs": 8940,
+    "dead_since": 1793574962,
+    "respawn_secs": 10260,
     "round_kills": 0,
-    "total_kills": 255
+    "total_kills": 268
   },
   "japan_shrine": {
-    "dead_since": 1793272605,
-    "respawn_secs": 189780,
+    "dead_since": 1793463665,
+    "respawn_secs": 185100,
     "round_kills": 0,
-    "total_kills": 5
+    "total_kills": 6
   },
   "memory_road5": {
     "dead_since": 1793413592,
@@ -54,39 +54,39 @@
     "total_kills": 11
   },
   "night_market7": {
-    "dead_since": 1793430618,
-    "respawn_secs": 50100,
+    "dead_since": 1793542985,
+    "respawn_secs": 49500,
     "round_kills": 0,
-    "total_kills": 3
+    "total_kills": 5
   },
   "night_market7_1": {
-    "dead_since": 1793414026,
-    "respawn_secs": 54300,
+    "dead_since": 1793531791,
+    "respawn_secs": 49320,
     "round_kills": 0,
-    "total_kills": 3
+    "total_kills": 5
   },
   "snow_valley": {
-    "dead_since": 1793444749,
-    "respawn_secs": 2760,
+    "dead_since": 1793560318,
+    "respawn_secs": 3240,
     "round_kills": 0,
-    "total_kills": 26
+    "total_kills": 38
   },
   "subway_station3": {
-    "dead_since": 1793444533,
-    "respawn_secs": 3600,
+    "dead_since": 1793577897,
+    "respawn_secs": 3360,
     "round_kills": 0,
-    "total_kills": 606
+    "total_kills": 627
   },
   "turtle_beach": {
-    "dead_since": 1793446933,
-    "respawn_secs": 3000,
+    "dead_since": 1793577332,
+    "respawn_secs": 2880,
     "round_kills": 0,
-    "total_kills": 470
+    "total_kills": 496
   },
   "witch_forest": {
-    "dead_since": 1793414713,
-    "respawn_secs": 6780,
+    "dead_since": 1793576344,
+    "respawn_secs": 5520,
     "round_kills": 0,
-    "total_kills": 181
+    "total_kills": 190
   }
 }

@@ -1942,6 +1942,90 @@ static const MapleWbRegionDef* maple_find_wb_region(const std::string& key) {
     return nullptr;
 }
 
+// ─── 野王寶箱 ────────────────────────────────────────────────────────────────
+// 每隻野外首領一種寶箱（夜市7／7-1、克雷塞爾莊園1／2 掉落表相同，各算一種）。
+// 開啟＝打贏那隻首領一次的掉落：掉落表每一筆照原本機率各自獨立擲骰（跟實際擊殺完全相同），
+// 所以可能開出好幾樣，也可能什麼都沒有；不含瘋幣、經驗值。主要給管理員發補償用（商店不賣）。
+// item_id 用 880001 起，跟一般道具（96xxx／97xxx／99xxx）和強化裝備交易臨時ID（9億起）都離很遠。
+struct MapleBoxDef { std::string key, name; int item_id; std::string wb_region; };
+static const std::vector<MapleBoxDef> MAPLE_BOXES = {
+    {"box_wb_coastal_grass",   "紅寶王寶箱",     880001, "coastal_grass"},
+    {"box_wb_subway_station3", "冥界幽靈寶箱",   880002, "subway_station3"},
+    {"box_wb_east_rock4",      "樹妖王寶箱",     880003, "east_rock4"},
+    {"box_wb_turtle_beach",    "寄居蟹寶箱",     880004, "turtle_beach"},
+    {"box_wb_cactus_desert",   "仙人長老寶箱",   880005, "cactus_desert"},
+    {"box_wb_ice_canyon2",     "雪山巨狼寶箱",   880006, "ice_canyon2"},
+    {"box_wb_witch_forest",    "殭屍猴王寶箱",   880007, "witch_forest"},
+    {"box_wb_advanced_dojo",   "仙人娃娃寶箱",   880008, "advanced_dojo"},
+    {"box_wb_dead_forest4",    "厄運死神寶箱",   880009, "dead_forest4"},
+    {"box_wb_cursed_temple",   "巴洛古寶箱",     880010, "cursed_temple"},
+    {"box_wb_japan_shrine",    "藍色蘑菇王寶箱", 880011, "japan_shrine"},
+    {"box_wb_night_market",    "黑輪王寶箱",     880012, "night_market7"},
+    {"box_wb_snow_valley",     "雪毛怪人寶箱",   880013, "snow_valley"},
+    {"box_wb_memory_road5",    "多多寶箱",       880014, "memory_road5"},
+    {"box_wb_kressel",         "克雷塞爾寶箱",   880015, "kressel_manor1"},
+};
+static const MapleBoxDef* maple_find_box(const std::string& key) {
+    for (auto& b : MAPLE_BOXES) if (b.key == key) return &b;
+    return nullptr;
+}
+static const MapleBoxDef* maple_find_box_by_id(int id) {
+    for (auto& b : MAPLE_BOXES) if (b.item_id == id) return &b;
+    return nullptr;
+}
+// 掉落 key（卷軸或裝備）的顯示名稱
+static std::string maple_drop_key_name(const std::string& key) {
+    if (const MapleScrollDef* s = maple_find_scroll(key)) return s->name;
+    if (const MapleItemDef* it = maple_find_item(key)) return it->name;
+    return key;
+}
+// 寶箱內容說明：每一筆的掉落機率（跟打野王一樣各自獨立），多選一的列出第一個＋「等N種隨機一個」
+static std::string maple_box_contents_text(const MapleBoxDef& b) {
+    const MapleWbRegionDef* r = maple_find_wb_region(b.wb_region);
+    if (!r) return "（內容遺失）";
+    std::string out;
+    for (auto& d : r->boss.drops) {
+        if (d.set.empty()) continue;
+        char pct[32];
+        if (d.per_mille % 10 == 0) snprintf(pct, sizeof(pct), "%d%%", d.per_mille / 10);
+        else                       snprintf(pct, sizeof(pct), "%.1f%%", d.per_mille / 10.0);
+        std::string name = maple_drop_key_name(d.set[0]);
+        if (d.set.size() > 1) name += " 等" + std::to_string(d.set.size()) + "種隨機一個";
+        out += "　• " + name + "　" + pct + "\n";
+    }
+    return out.empty() ? "（沒有內容）" : out;
+}
+// 開一個寶箱：扣 1 個，照首領掉落表每一筆各自擲骰，掉到的放進背包，回傳結果文字；
+// ok=false 表示沒開成功（沒有寶箱等）。呼叫前需持有 data_mutex。
+static std::string maple_box_open_locked(MapleCharacter& c, const std::string& box_key, bool& ok) {
+    ok = false;
+    const MapleBoxDef* b = maple_find_box(box_key);
+    if (!b) return "❌ 找不到這個寶箱。";
+    auto bit = c.boxes.find(box_key);
+    if (bit == c.boxes.end() || bit->second <= 0) return "❌ 你沒有" + b->name + "。";
+    const MapleWbRegionDef* r = maple_find_wb_region(b->wb_region);
+    if (!r) return "❌ 寶箱內容遺失，請通知管理員。";
+
+    static std::mt19937 box_rng(std::random_device{}());
+    std::vector<std::string> got;
+    for (auto& d : r->boss.drops) {
+        if (d.set.empty()) continue;
+        if (std::uniform_int_distribution<int>(0, 999)(box_rng) >= d.per_mille) continue;
+        const std::string& key = d.set.size() == 1 ? d.set[0]
+            : d.set[std::uniform_int_distribution<int>(0, (int)d.set.size() - 1)(box_rng)];
+        if (const MapleScrollDef* sd = maple_find_scroll(key))  { c.scrolls[key]++;   got.push_back(sd->name); }
+        else if (const MapleItemDef* it = maple_find_item(key)) { c.equipment[key]++; got.push_back(it->name); }
+    }
+
+    if (--bit->second <= 0) c.boxes.erase(bit);
+    ok = true;
+    std::string out = "🎁 打開了 **" + b->name + "**";
+    if (got.empty()) return out + "，可惜什麼都沒有掉……";
+    out += "，獲得：";
+    for (auto& g : got) out += "\n　• **" + g + "** ×1";
+    return out;
+}
+
 // 這隻首領目前記錄到的「上次被討伐時間」，0＝從未被討伐過。呼叫前需持有 data_mutex。
 static time_t maple_wb_dead_since_locked(const std::string& region_key) {
     auto it = maple_wb_state.find(region_key);
@@ -2800,6 +2884,7 @@ static void save_maple_data() {
                 {"skill_levels",      c.skill_levels},
                 {"skill_reset_used",  c.skill_reset_used},
                 {"scrolls",           c.scrolls},
+                {"boxes",             c.boxes},
                 {"equipment",         c.equipment},
                 {"enh_next_id",       c.enh_next_id},
                 {"enh_items",         [&]{
@@ -2887,6 +2972,8 @@ static void load_maple_data() {
             c.skill_reset_used  = v.value("skill_reset_used",  false);
             if (v.contains("scrolls") && v["scrolls"].is_object())
                 c.scrolls       = v["scrolls"].get<std::map<std::string,int>>();
+            if (v.contains("boxes") && v["boxes"].is_object())
+                c.boxes         = v["boxes"].get<std::map<std::string,int>>();
             if (v.contains("equipment") && v["equipment"].is_object())
                 c.equipment     = v["equipment"].get<std::map<std::string,int>>();
             c.enh_next_id       = v.value("enh_next_id", 1);
@@ -3681,6 +3768,7 @@ static dpp::message make_maple_enh_msg(dpp::snowflake uid, const std::string& sl
         .set_spacing(dpp::sep_small).set_divider(true));
 
     bool any = false;
+    bool has_fail = e && e->slots_used > e->enh_count; // 有強化失敗紀錄才能用純白／潔白卷軸
     if (item && key != "wooden_sword") {
         for (auto& s : MAPLE_SCROLLS) {
             if (!maple_scroll_applies(s, c, slot)) continue;
@@ -3690,16 +3778,17 @@ static dpp::message make_maple_enh_msg(dpp::snowflake uid, const std::string& sl
             std::string text = "**" + s.name + "**　×" + std::to_string(n) + "\n"
                              + "成功率 " + std::to_string(s.rate) + "%　效果："
                              + maple_scroll_effect_text(s);
+            if (s.restore_slot && !has_fail) text += "\n-# 🚫 這件裝備沒有強化失敗紀錄，不能使用";
             container.add_component_v2(dpp::component()
                 .set_type(dpp::cot_section)
                 .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
                 .set_accessory(dpp::component().set_type(dpp::cot_button)
                     .set_label("使用").set_id("maple_enhuse_" + uid_s + "_" + slot + (from_equip ? "_eq" : "") + "_" + s.key)
-                    .set_style(dpp::cos_success).set_disabled(slots_full && !s.restore_slot && !s.is_curse_shield)));
+                    .set_style(dpp::cos_success).set_disabled(s.restore_slot ? !has_fail
+                                                              : (slots_full && !s.is_curse_shield))));
         }
     }
     if (slots_full) {
-        bool has_fail = e && e->slots_used > e->enh_count;
         container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
             .set_content(has_fail
                 ? "🚫 一般卷軸的強化次數已用完，但這件裝備有強化失敗紀錄，上面的純白卷軸還是可以用來歸還次數。"
@@ -5733,7 +5822,28 @@ static dpp::message make_maple_tokenshop_msg(dpp::snowflake uid) {
 }
 
 // 潛能方塊兌換頁：象徵三種各一個區塊；備用副武器改用一排排小按鈕（最多12種，5個一排），避免超過 40 個元件
-static dpp::message make_maple_cubeex_msg(dpp::snowflake uid) {
+// 有潛能／強化過的備用副武器（enh_items 裡、沒穿在身上的），兌換頁跟確認頁共用
+static std::vector<const MapleEnhItem*> maple_spare_enh_offhands(const MapleCharacter& c) {
+    std::vector<const MapleEnhItem*> out;
+    for (auto& e : c.enh_items) {
+        const MapleItemDef* it = maple_find_item(e.base_key);
+        if (it && it->slot == "offhand" && !maple_enh_is_equipped(c, e.id)) out.push_back(&e);
+    }
+    return out;
+}
+// 強化副武器的簡短名稱：「史詩 雙刀 +3 #12」
+static std::string maple_enh_offhand_label(const MapleEnhItem& e) {
+    const MapleItemDef* it = maple_find_item(e.base_key);
+    std::string s;
+    if (e.pot1_type >= 0 || e.pot2_type >= 0 || e.pot3_type >= 0)
+        s += std::string(MAPLE_POT_GRADE_NAME[std::clamp(e.pot_grade, 0, 3)]) + " ";
+    s += it ? it->name : e.base_key;
+    if (e.enh_count > 0) s += " +" + std::to_string(e.enh_count);
+    s += " #" + std::to_string(e.id);
+    return s;
+}
+
+static dpp::message make_maple_cubeex_msg(dpp::snowflake uid, const std::string& result = "") {
     MapleCharacter c = maple_get_or_create(uid);
     std::string uid_s = std::to_string((uint64_t)uid);
     int cubes = c.equipment.count("potential_cube") ? c.equipment.at("potential_cube") : 0;
@@ -5743,7 +5853,8 @@ static dpp::message make_maple_cubeex_msg(dpp::snowflake uid) {
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 🔮 潛能方塊兌換\n目前持有潛能方塊：**" + std::to_string(cubes) + "** 顆"));
+        .set_content("## 🔮 潛能方塊兌換\n目前持有潛能方塊：**" + std::to_string(cubes) + "** 顆"
+                     + (result.empty() ? "" : "\n" + result)));
 
     struct TokenRow { const char* key; const char* name; int rate; const char* btn; };
     const TokenRow tokens[] = {
@@ -5781,11 +5892,70 @@ static dpp::message make_maple_cubeex_msg(dpp::snowflake uid) {
                 .set_style(dpp::cos_primary));
         container.add_component_v2(r);
     }
+
+    // 有潛能／強化過的副武器：兌換數量一樣，但按下去會先跳確認頁（換掉會失去潛能和強化）
+    // 元件上限 40：這區最多 1 段文字＋1 排 5 顆按鈕
+    auto enh_ohs = maple_spare_enh_offhands(c);
+    if (!enh_ohs.empty()) {
+        const size_t SHOW = 5;
+        std::string t = "**✨ 有潛能／強化過的副武器**（數量跟上面一樣，按下去會先確認）";
+        if (enh_ohs.size() > SHOW)
+            t += "\n-# 只顯示前 " + std::to_string(SHOW) + " 件，換掉之後會顯示剩下的 " + std::to_string(enh_ohs.size() - SHOW) + " 件";
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(t));
+        dpp::component r; r.set_type(dpp::cot_action_row);
+        for (size_t j = 0; j < enh_ohs.size() && j < SHOW; j++)
+            r.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label(maple_enh_offhand_label(*enh_ohs[j]))
+                .set_id("maple_ohenhcube_" + uid_s + "_" + std::to_string(enh_ohs[j]->id))
+                .set_style(dpp::cos_secondary));
+        container.add_component_v2(r);
+    }
     msg.add_component_v2(container);
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回特殊商店").set_id("maple_tokenshop_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
+    return msg;
+}
+
+// 強化副武器換方塊的確認頁：列出會失去的潛能／強化，按「確定」才真的換
+static dpp::message make_maple_ohenhcube_confirm_msg(dpp::snowflake uid, int enh_id) {
+    MapleCharacter c = maple_get_or_create(uid);
+    std::string uid_s = std::to_string((uint64_t)uid);
+    const MapleEnhItem* e = maple_find_enh(c, enh_id);
+    const MapleItemDef* it = e ? maple_find_item(e->base_key) : nullptr;
+    if (!e || !it || it->slot != "offhand" || maple_enh_is_equipped(c, enh_id))
+        return make_maple_cubeex_msg(uid, "❌ 找不到這件副武器（可能已經換掉、交易掉或穿在身上）。");
+
+    int rate = maple_offhand_cube_rate(*it);
+    std::string t = "## ⚠️ 確定要把這件副武器換成潛能方塊嗎？\n";
+    t += "**" + maple_enh_offhand_label(*e) + "**\n";
+    bool has_pot = (e->pot1_type >= 0 || e->pot2_type >= 0 || e->pot3_type >= 0);
+    if (has_pot) {
+        t += "\n🔮 潛能（" + std::string(MAPLE_POT_GRADE_NAME[std::clamp(e->pot_grade, 0, 3)]) + "）\n";
+        t += "　• " + maple_pot_line_text(e->pot1_type, e->pot1_value, e->pot1_sub) + "\n";
+        t += "　• " + maple_pot_line_text(e->pot2_type, e->pot2_value, e->pot2_sub) + "\n";
+        t += "　• " + maple_pot_line_text(e->pot3_type, e->pot3_value, e->pot3_sub) + "\n";
+    }
+    if (e->slots_used > 0)
+        t += "\n📜 卷軸：成功 " + std::to_string(e->enh_count) + " 次／已用 " + std::to_string(e->slots_used) + " 次\n";
+    t += "\n換掉後會得到 💎 **" + std::to_string(rate) + "** 顆潛能方塊（跟一般副武器一樣）。\n";
+    t += "**潛能和強化會全部消失，換了就不能復原。**";
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(t));
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("⚠️ 確定換成 " + std::to_string(rate) + " 顆方塊")
+        .set_id("maple_ohenhcubeok_" + uid_s + "_" + std::to_string(enh_id)).set_style(dpp::cos_danger));
+    row.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 取消").set_id("maple_cubeexpage_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
     return msg;
 }
@@ -6348,6 +6518,80 @@ static std::string maple_item_cat(const std::string& slot) {
     return "armor";
 }
 
+// 背包「寶箱」分頁：列出持有的野王寶箱，每個都有開啟按鈕（maple_boxopen_<uid>_<page>_<key>）
+static dpp::message make_maple_box_msg(dpp::snowflake uid, int page = 0, const std::string& result = "") {
+    MapleCharacter c = maple_get_or_create(uid);
+    std::string uid_s = std::to_string((uint64_t)uid);
+
+    std::vector<const MapleBoxDef*> owned;
+    for (auto& b : MAPLE_BOXES) {
+        auto it = c.boxes.find(b.key);
+        if (it != c.boxes.end() && it->second > 0) owned.push_back(&b);
+    }
+    const int PAGE_SIZE = 4;
+    int total_pages = std::max(1, (int)((owned.size() + PAGE_SIZE - 1) / PAGE_SIZE));
+    page = std::max(0, std::min(page, total_pages - 1));
+    int start = page * PAGE_SIZE, end = std::min((int)owned.size(), start + PAGE_SIZE);
+
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE8, 0x7A, 0x41));
+    std::string head = "## 🎒 背包\n🪙 瘋幣：**" + std::to_string(c.coins) + "**\n\n**🎁 野王寶箱**\n"
+                       "-# 開啟＝打贏一次該首領的掉落（每一項照機率各自判定，可能掉好幾樣也可能沒掉；不含瘋幣、經驗值），掉到的直接放進背包";
+    if (!result.empty()) head += "\n\n" + result;
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(head));
+
+    if (owned.empty()) {
+        container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content("（沒有寶箱）"));
+    } else {
+        for (int i = start; i < end; i++) {
+            const MapleBoxDef& b = *owned[i];
+            std::string text = "**" + b.name + "**　ID:`" + std::to_string(b.item_id) + "`　×"
+                             + std::to_string(c.boxes.at(b.key)) + "\n" + maple_box_contents_text(b);
+            container.add_component_v2(dpp::component()
+                .set_type(dpp::cot_section)
+                .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
+                .set_accessory(dpp::component().set_type(dpp::cot_button)
+                    .set_label("開啟").set_id("maple_boxopen_" + uid_s + "_" + std::to_string(page) + "_" + b.key)
+                    .set_style(dpp::cos_success)));
+        }
+        if (total_pages > 1)
+            container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+                .set_content("-# 第 " + std::to_string(page + 1) + "/" + std::to_string(total_pages) + " 頁"));
+    }
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("-# 寶箱可用 `!交易` 指令交換（帶上 ID）"));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.add_component_v2(container);
+
+    dpp::component tabs; tabs.set_type(dpp::cot_action_row);
+    tabs.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("📜 卷軸").set_id("maple_bag_" + uid_s + "_scroll").set_style(dpp::cos_secondary));
+    tabs.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("📦 其他").set_id("maple_bag_" + uid_s + "_other").set_style(dpp::cos_secondary));
+    tabs.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("🎁 寶箱").set_id("maple_boxes_" + uid_s + "_0").set_style(dpp::cos_primary).set_disabled(true));
+    msg.add_component_v2(tabs);
+
+    if (total_pages > 1) {
+        dpp::component pg; pg.set_type(dpp::cot_action_row);
+        pg.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("◀ 上一頁").set_id("maple_boxes_" + uid_s + "_" + std::to_string(page - 1))
+            .set_style(dpp::cos_secondary).set_disabled(page <= 0));
+        pg.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("▶ 下一頁").set_id("maple_boxes_" + uid_s + "_" + std::to_string(page + 1))
+            .set_style(dpp::cos_secondary).set_disabled(page >= total_pages - 1));
+        msg.add_component_v2(pg);
+    }
+
+    dpp::component nav; nav.set_type(dpp::cot_action_row);
+    nav.add_component(dpp::component().set_type(dpp::cot_button)
+        .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
+    msg.add_component_v2(nav);
+    return msg;
+}
+
 static dpp::message make_maple_bag_msg(dpp::snowflake uid, const std::string& tab, int page = 0, std::string subcat = "") {
     MapleCharacter c = maple_get_or_create(uid);
     std::string uid_s = std::to_string((uint64_t)uid);
@@ -6409,6 +6653,9 @@ static dpp::message make_maple_bag_msg(dpp::snowflake uid, const std::string& ta
             .set_label("📜 卷軸").set_id("maple_bag_" + uid_s + "_scroll").set_style(dpp::cos_primary).set_disabled(true));
         tabs.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("📦 其他").set_id("maple_bag_" + uid_s + "_other").set_style(dpp::cos_secondary));
+        if (!c.boxes.empty()) // 有寶箱才顯示寶箱分頁
+            tabs.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("🎁 寶箱").set_id("maple_boxes_" + uid_s + "_0").set_style(dpp::cos_secondary));
         msg.add_component_v2(tabs);
 
         dpp::component cats; cats.set_type(dpp::cot_action_row);
@@ -6508,6 +6755,9 @@ static dpp::message make_maple_bag_msg(dpp::snowflake uid, const std::string& ta
         tabs.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("📦 其他").set_id("maple_bag_" + uid_s + "_other")
             .set_style(dpp::cos_primary).set_disabled(true));
+        if (!c.boxes.empty()) // 有寶箱才顯示寶箱分頁
+            tabs.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("🎁 寶箱").set_id("maple_boxes_" + uid_s + "_0").set_style(dpp::cos_secondary));
         msg.add_component_v2(tabs);
 
         dpp::component cats; cats.set_type(dpp::cot_action_row);

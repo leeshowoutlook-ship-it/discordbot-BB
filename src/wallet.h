@@ -3,6 +3,9 @@
 #include "wolfplayerstats.h"
 #include "guess.h"
 #include "rl_stats.h"
+#include "lolbet.h"
+#include "niuniu.h"
+#include "numbomb.h"
 
 static std::string wallet_work_status(const Pet& pet) {
     time_t now = time(nullptr);
@@ -246,6 +249,9 @@ static dpp::message make_wallet_games_msg(dpp::snowflake uid) {
 
     // 猜數字
     content += "**🔢 猜數字** " + guess_stats_line(uid) + "\n";
+    content += "**🏆 世界賽下注** " + lol_stats_line(uid) + "\n";
+    content += "**🐂 妞妞** " + nn_stats_line(uid) + "\n";
+    content += "**💣 數字炸彈** " + nb_stats_line(uid) + "\n";
 
     // 誰是臥底
     int uc_cg = 0, uc_cw = 0, uc_sg = 0, uc_sw = 0;

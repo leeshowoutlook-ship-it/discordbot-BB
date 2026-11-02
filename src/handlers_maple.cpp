@@ -69,9 +69,19 @@ std::string maple_admin_give_exp(dpp::snowflake uid, int64_t amount) {
 // mv_locked_transfer_enh_item，往下看「強化裝備交易」區塊），因為每件強化實例有自己的加成，
 // 不是靠數量計數，需要用交易用臨時ID（見 types.h 的 MV_ENH_TRADE_ID_BASE）指定是哪一件。
 
+// 道具 key 對應到角色身上的哪個背包欄位：卷軸／野王寶箱／裝備
+static std::map<std::string,int>& mv_bucket(MapleCharacter& c, const std::string& key) {
+    if (maple_find_scroll(key)) return c.scrolls;
+    if (maple_find_box(key))    return c.boxes;
+    return c.equipment;
+}
+
 bool mv_item_info(int id, std::string& key_out, std::string& name_out) {
     if (const MapleScrollDef* s = maple_find_scroll_by_id(id)) {
         key_out = s->key; name_out = s->name; return true;
+    }
+    if (const MapleBoxDef* b = maple_find_box_by_id(id)) {
+        key_out = b->key; name_out = b->name; return true;
     }
     if (const MapleItemDef* it = maple_find_item_by_id(id)) {
         if (!it->sellable) return false;            // 新手木劍等不可交易
@@ -81,6 +91,7 @@ bool mv_item_info(int id, std::string& key_out, std::string& name_out) {
 }
 bool mv_is_item_key(const std::string& key) {
     if (maple_find_scroll(key)) return true;
+    if (maple_find_box(key)) return true;
     const MapleItemDef* it = maple_find_item(key);
     return it && it->sellable;
 }
@@ -89,21 +100,17 @@ bool mv_is_item_key(const std::string& key) {
 bool mv_locked_has_item(dpp::snowflake uid, const std::string& key, int64_t qty) {
     auto it = maple_data.find(uid);
     if (it == maple_data.end()) return false;
-    if (maple_find_scroll(key)) {
-        auto sit = it->second.scrolls.find(key);
-        return sit != it->second.scrolls.end() && sit->second >= qty;
-    }
-    auto eit = it->second.equipment.find(key);
-    return eit != it->second.equipment.end() && eit->second >= qty;
+    auto& m = mv_bucket(it->second, key);
+    auto mit = m.find(key);
+    return mit != m.end() && mit->second >= qty;
 }
 bool mv_has_item(dpp::snowflake uid, const std::string& key, int64_t qty) {
     std::lock_guard<std::mutex> lk(data_mutex);
     return mv_locked_has_item(uid, key, qty);
 }
 void mv_locked_transfer_item(dpp::snowflake from, dpp::snowflake to, const std::string& key, int64_t qty) {
-    bool is_scroll = maple_find_scroll(key) != nullptr;
-    auto& fm = is_scroll ? maple_data[from].scrolls : maple_data[from].equipment;
-    auto& tm = is_scroll ? maple_data[to].scrolls   : maple_data[to].equipment;
+    auto& fm = mv_bucket(maple_data[from], key);
+    auto& tm = mv_bucket(maple_data[to], key);
     fm[key] -= qty;
     if (fm[key] <= 0) fm.erase(key);
     tm[key] += qty;
@@ -183,6 +190,7 @@ bool mv_resolve_item(const std::string& raw, std::string& key_out, std::string& 
         if (mv_item_info(id, key_out, name_out)) return true;
     } catch (...) {}
     if (const MapleScrollDef* s = maple_find_scroll(raw)) { key_out = s->key; name_out = s->name; return true; }
+    if (const MapleBoxDef* b = maple_find_box(raw))       { key_out = b->key; name_out = b->name; return true; }
     if (const MapleItemDef* it = maple_find_item(raw)) {
         if (!it->sellable) return false;
         key_out = it->key; name_out = it->name; return true;
@@ -191,8 +199,7 @@ bool mv_resolve_item(const std::string& raw, std::string& key_out, std::string& 
 }
 // 管理員給道具用：直接給予（不扣除任何人），qty 可為負（沒收，下限0）；回傳實際變動量。呼叫前需持有 data_mutex。
 int64_t mv_locked_give_item(dpp::snowflake uid, const std::string& key, int64_t qty) {
-    bool is_scroll = maple_find_scroll(key) != nullptr;
-    auto& m = is_scroll ? maple_data[uid].scrolls : maple_data[uid].equipment;
+    auto& m = mv_bucket(maple_data[uid], key);
     int64_t before = m.count(key) ? m[key] : 0;
     int64_t after = before + qty;
     if (after < 0) after = 0;
@@ -212,6 +219,10 @@ std::vector<MvOwnedItem> mv_list_owned_items(dpp::snowflake uid) {
     for (auto& [key, qty] : it->second.equipment) {
         if (qty <= 0) continue;
         if (auto* i = maple_find_item(key)) out.push_back({key, i->name, i->item_id, qty});
+    }
+    for (auto& [key, qty] : it->second.boxes) {
+        if (qty <= 0) continue;
+        if (auto* b = maple_find_box(key)) out.push_back({key, b->name, b->item_id, qty});
     }
     for (auto& e : it->second.enh_items) {
         std::string name;
@@ -1490,6 +1501,44 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
         }
         save_maple_data();
         ev.reply(dpp::ir_update_message, make_maple_wb_region_list_msg(uid));
+        return;
+    }
+
+    // ── 野王寶箱：maple_boxes_<uid>_<page>（分頁）／maple_boxopen_<uid>_<page>_<box_key>（開啟）────
+    if (cid.rfind("maple_boxes_", 0) == 0) {
+        std::string rest = cid.substr(12);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        int page = 0; try { page = std::stoi(rest.substr(sep + 1)); } catch (...) {}
+        ev.reply(dpp::ir_update_message, make_maple_box_msg(uid, page));
+        return;
+    }
+    if (cid.rfind("maple_boxopen_", 0) == 0) {
+        std::string rest = cid.substr(14);
+        size_t s1 = rest.find('_');
+        if (s1 == std::string::npos) return;
+        size_t s2 = rest.find('_', s1 + 1);
+        if (s2 == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, s1)));
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        int page = 0; try { page = std::stoi(rest.substr(s1 + 1, s2 - s1 - 1)); } catch (...) {}
+        std::string box_key = rest.substr(s2 + 1);
+        std::string result;
+        bool ok = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            result = maple_box_open_locked(maple_data[uid], box_key, ok);
+        }
+        if (ok) save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_box_msg(uid, page, result));
         return;
     }
 
@@ -2775,6 +2824,47 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
         }
         save_maple_data();
         ev.reply(dpp::ir_update_message, make_maple_cubeex_msg(uid));
+        return;
+    }
+
+    // maple_ohenhcube_<uid>_<enh_id>：有潛能／強化過的副武器換方塊 → 先顯示確認頁
+    if (cid.rfind("maple_ohenhcube_", 0) == 0) {
+        if (!check_owner("maple_ohenhcube_")) return;
+        std::string rest = cid.substr(std::string("maple_ohenhcube_").size());
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        int enh_id = std::atoi(rest.c_str() + sep + 1);
+        ev.reply(dpp::ir_update_message, make_maple_ohenhcube_confirm_msg(uid, enh_id));
+        return;
+    }
+    // maple_ohenhcubeok_<uid>_<enh_id>：確認後才真的換（重新檢查還在、沒穿在身上）
+    if (cid.rfind("maple_ohenhcubeok_", 0) == 0) {
+        if (!check_owner("maple_ohenhcubeok_")) return;
+        std::string rest = cid.substr(std::string("maple_ohenhcubeok_").size());
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        int enh_id = std::atoi(rest.c_str() + sep + 1);
+        std::string result;
+        bool ok = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            auto eit = std::find_if(c.enh_items.begin(), c.enh_items.end(),
+                                    [&](const MapleEnhItem& e) { return e.id == enh_id; });
+            const MapleItemDef* it = (eit != c.enh_items.end()) ? maple_find_item(eit->base_key) : nullptr;
+            if (!it || it->slot != "offhand")          result = "❌ 找不到這件副武器（可能已經換掉或交易掉了）。";
+            else if (maple_enh_is_equipped(c, enh_id)) result = "❌ 這件副武器正穿在身上，請先脫下來。";
+            else {
+                std::string label = maple_enh_offhand_label(*eit);
+                int rate = maple_offhand_cube_rate(*it);
+                c.enh_items.erase(eit);
+                c.equipment["potential_cube"] += rate;
+                result = "✅ 已把 **" + label + "** 換成 💎 " + std::to_string(rate) + " 顆潛能方塊。";
+                ok = true;
+            }
+        }
+        if (ok) save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_cubeex_msg(uid, result));
         return;
     }
 

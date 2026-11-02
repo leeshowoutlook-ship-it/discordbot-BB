@@ -181,18 +181,6 @@
       "uid": "558513044632895509"
     },
     {
-      "created_at": 1793377096,
-      "currency": "chips",
-      "id": 248,
-      "is_buy": false,
-      "item_id": 80001,
-      "item_key": "hunt_scroll",
-      "item_name": "怪物狩獵卷",
-      "price": 100000000,
-      "qty": 32,
-      "uid": "604244623124070423"
-    },
-    {
       "created_at": 1793377110,
       "currency": "chips",
       "id": 249,
@@ -215,7 +203,55 @@
       "price": 60000,
       "qty": 4,
       "uid": "558513044632895509"
+    },
+    {
+      "created_at": 1793548480,
+      "currency": "chips",
+      "id": 254,
+      "is_buy": false,
+      "item_id": 80001,
+      "item_key": "hunt_scroll",
+      "item_name": "怪物狩獵卷",
+      "price": 888888888,
+      "qty": 1,
+      "uid": "959450115007975444"
+    },
+    {
+      "created_at": 1793549410,
+      "currency": "chips",
+      "id": 255,
+      "is_buy": false,
+      "item_id": 96001,
+      "item_key": "weekly_hunt_scroll",
+      "item_name": "每週怪物狩獵卷",
+      "price": 1000000,
+      "qty": 5,
+      "uid": "1376834202275676170"
+    },
+    {
+      "created_at": 1793551101,
+      "currency": "chips",
+      "id": 256,
+      "is_buy": false,
+      "item_id": 80001,
+      "item_key": "hunt_scroll",
+      "item_name": "怪物狩獵卷",
+      "price": 222222222,
+      "qty": 36,
+      "uid": "604244623124070423"
+    },
+    {
+      "created_at": 1793551477,
+      "currency": "coins",
+      "id": 257,
+      "is_buy": false,
+      "item_id": 96527,
+      "item_key": "sc_wpn_xbow20",
+      "item_name": "弩 攻擊力卷軸 20%",
+      "price": 13500,
+      "qty": 1,
+      "uid": "723170866892111984"
     }
   ],
-  "next_id": 252
+  "next_id": 258
 }

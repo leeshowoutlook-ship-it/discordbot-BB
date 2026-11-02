@@ -1,5 +1,6 @@
 #pragma once
 #include "helpers.h"
+#include "guild_members.h"
 #include <fstream>
 #include <set>
 #include <nlohmann/json.hpp>
@@ -579,7 +580,8 @@ static dpp::message handle_weekly_claim(dpp::snowflake uid, bool* claimed_out = 
 
 // ─── Leaderboard with pagination ──────────────────────────────────────────────
 
-static dpp::message handle_leaderboard(int page = 0) {
+// scope_guild：0＝全部玩家；非 0＝只列該伺服器成員。current_guild：目前所在伺服器（用來顯示切換按鈕，私訊為 0）
+static dpp::message handle_leaderboard(int page = 0, dpp::snowflake scope_guild = 0, dpp::snowflake current_guild = 0) {
     std::map<std::string, int64_t> stock_prices;
     { std::lock_guard<std::mutex> lk(stock_mutex);
       for (auto& [k, s] : stock_market) stock_prices[k] = s.price; }
@@ -599,8 +601,14 @@ static dpp::message handle_leaderboard(int page = 0) {
             if (sv > 0) wealth_map[uid] += sv;
         }
     }
+    std::set<uint64_t> members;
+    bool members_ok = scope_guild == 0 || guild_members_get(scope_guild, members);
     std::vector<std::pair<dpp::snowflake, int64_t>> sorted;
-    for (auto& [uid, w] : wealth_map) if (w > 0) sorted.push_back({uid, w});
+    for (auto& [uid, w] : wealth_map) {
+        if (w <= 0) continue;
+        if (scope_guild != 0 && !members.count((uint64_t)uid)) continue;
+        sorted.push_back({uid, w});
+    }
     std::sort(sorted.begin(), sorted.end(),
               [](auto& a, auto& b) { return a.second > b.second; });
 
@@ -609,11 +617,29 @@ static dpp::message handle_leaderboard(int page = 0) {
     int total_pages = std::max(1, (total + PAGE_SIZE - 1) / PAGE_SIZE);
     page = std::max(0, std::min(page, total_pages - 1));
 
+    // 切換「全部／本伺服器」的按鈕（私訊沒有伺服器就不顯示）
+    auto add_scope_row = [&](dpp::message& msg) {
+        if (current_guild == 0) return;
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🌐 全部")
+            .set_id("lb_0").set_style(scope_guild == 0 ? dpp::cos_primary : dpp::cos_secondary)
+            .set_disabled(scope_guild == 0));
+        row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🏠 本伺服器")
+            .set_id("lbg_" + std::to_string((uint64_t)current_guild) + "_0")
+            .set_style(scope_guild != 0 ? dpp::cos_primary : dpp::cos_secondary)
+            .set_disabled(scope_guild != 0));
+        msg.add_component(row);
+    };
+
     dpp::embed e;
-    e.set_title("💰  富豪榜").set_color(0xF1C40F);
+    e.set_title(scope_guild != 0 ? "💰  富豪榜（本伺服器）" : "💰  富豪榜（全部）").set_color(0xF1C40F);
+    if (!members_ok) {
+        e.set_description("⏳ 這個伺服器的成員名單還在讀取中，請稍後再試。");
+        dpp::message msg; msg.add_embed(e); add_scope_row(msg); return msg;
+    }
     if (sorted.empty()) {
         e.set_description("目前沒有人有籌碼");
-        dpp::message msg; msg.add_embed(e); return msg;
+        dpp::message msg; msg.add_embed(e); add_scope_row(msg); return msg;
     }
     static const char* MEDALS[] = {"🥇", "🥈", "🥉"};
     std::ostringstream oss;
@@ -629,16 +655,22 @@ static dpp::message handle_leaderboard(int page = 0) {
         "第 " + std::to_string(page+1) + "/" + std::to_string(total_pages) + " 頁  共 " + std::to_string(total) + " 人（含銀行存款、股票市值）"));
 
     dpp::message msg; msg.add_embed(e);
+    // 翻頁按鈕：全部＝lb_<頁>，本伺服器＝lbg_<伺服器>_<頁>
+    auto page_id = [&](int p) {
+        return scope_guild != 0 ? "lbg_" + std::to_string((uint64_t)scope_guild) + "_" + std::to_string(p)
+                                : "lb_" + std::to_string(p);
+    };
     if (total_pages > 1) {
         dpp::component row; row.set_type(dpp::cot_action_row);
         dpp::component prev, next;
-        prev.set_type(dpp::cot_button).set_label("◀").set_id("lb_" + std::to_string(page-1))
+        prev.set_type(dpp::cot_button).set_label("◀").set_id(page_id(page-1))
             .set_style(dpp::cos_secondary).set_disabled(page == 0);
-        next.set_type(dpp::cot_button).set_label("▶").set_id("lb_" + std::to_string(page+1))
+        next.set_type(dpp::cot_button).set_label("▶").set_id(page_id(page+1))
             .set_style(dpp::cos_secondary).set_disabled(page == total_pages-1);
         row.add_component(prev); row.add_component(next);
         msg.add_component(row);
     }
+    add_scope_row(msg);
     return msg;
 }
 
@@ -897,8 +929,13 @@ inline void announce_bankrupt(dpp::snowflake uid, dpp::snowflake channel_id) {
 // game: "" = all, "21" "骰子" "射龍門" "火箭" "刮刮樂"
 
 // asc=true: most negative first (虧損排序), asc=false: most positive first (盈利排序)
-static dpp::message handle_losers_board(int page = 0, const std::string& game = "", bool asc = true) {
+// scope_guild != 0：只看該伺服器成員；current_guild != 0 時顯示「全部／本伺服器」切換列
+// id 的方向字元：a/d＝全部，A/D＝本伺服器（伺服器取按鈕所在的伺服器）
+static dpp::message handle_losers_board(int page = 0, const std::string& game = "", bool asc = true,
+                                        dpp::snowflake scope_guild = 0, dpp::snowflake current_guild = 0) {
     std::vector<std::pair<dpp::snowflake, int64_t>> sorted;
+    std::set<uint64_t> members;
+    bool members_ok = (scope_guild == 0) || guild_members_get(scope_guild, members);
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         std::set<dpp::snowflake> all_uids;
@@ -909,6 +946,7 @@ static dpp::message handle_losers_board(int page = 0, const std::string& game = 
         for (auto& [u,_] : scratch_stats_data) all_uids.insert(u);
 
         for (auto uid : all_uids) {
+            if (scope_guild != 0 && !members.count((uint64_t)uid)) continue;
             int64_t total = 0;
             if (game == "" || game == "21") {
                 auto it = bj_stats_data.find(uid);
@@ -939,7 +977,8 @@ static dpp::message handle_losers_board(int page = 0, const std::string& game = 
         std::sort(sorted.begin(), sorted.end(), [](auto& a, auto& b) { return a.second > b.second; });
 
     std::string game_label = game.empty() ? "全遊戲" : game;
-    std::string dir_c = asc ? "a" : "d";
+    bool scoped = (scope_guild != 0);
+    std::string dir_c = scoped ? (asc ? "A" : "D") : (asc ? "a" : "d");
     const int PAGE_SIZE = 10;
     int total = (int)sorted.size();
     int total_pages = std::max(1, (total + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -947,8 +986,11 @@ static dpp::message handle_losers_board(int page = 0, const std::string& game = 
 
     dpp::embed e;
     std::string title = asc ? ("📉  虧損榜 — " + game_label) : ("📈  盈利榜 — " + game_label);
+    title += scoped ? "（本伺服器）" : "（全部）";
     e.set_title(title).set_color(asc ? 0xE74C3C : 0x2ECC71);
-    if (sorted.empty()) {
+    if (!members_ok) {
+        e.set_description("⏳ 這個伺服器的成員名單還在讀取中，請稍後再試。");
+    } else if (sorted.empty()) {
         e.set_description("目前沒有記錄");
     } else {
         static const char* MEDALS[] = {"🥇", "🥈", "🥉"};
@@ -984,7 +1026,7 @@ static dpp::message handle_losers_board(int page = 0, const std::string& game = 
     msg.add_component(sel_row);
 
     // Navigation + sort toggle row (always shown)
-    std::string flip_c = asc ? "d" : "a";
+    std::string flip_c = scoped ? (asc ? "D" : "A") : (asc ? "d" : "a");
     dpp::component nav_row; nav_row.set_type(dpp::cot_action_row);
     dpp::component prev, sort_btn, next;
     prev.set_type(dpp::cot_button).set_label("◀")
@@ -999,6 +1041,19 @@ static dpp::message handle_losers_board(int page = 0, const std::string& game = 
         .set_style(dpp::cos_secondary).set_disabled(page == total_pages-1);
     nav_row.add_component(prev); nav_row.add_component(sort_btn); nav_row.add_component(next);
     msg.add_component(nav_row);
+
+    // 範圍切換：🌐 全部 / 🏠 本伺服器（私訊時不顯示）
+    if (current_guild != 0) {
+        std::string a = asc ? "a" : "d", A = asc ? "A" : "D";
+        dpp::component scope_row; scope_row.set_type(dpp::cot_action_row);
+        scope_row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🌐 全部")
+            .set_id("losers_0_" + a + "_" + game)
+            .set_style(!scoped ? dpp::cos_primary : dpp::cos_secondary).set_disabled(!scoped));
+        scope_row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🏠 本伺服器")
+            .set_id("losers_0_" + A + "_" + game)
+            .set_style(scoped ? dpp::cos_primary : dpp::cos_secondary).set_disabled(scoped));
+        msg.add_component(scope_row);
+    }
 
     return msg;
 }

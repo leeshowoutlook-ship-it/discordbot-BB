@@ -742,6 +742,19 @@ static int admin_kill_everything() {
     return n;
 }
 
+// ─── 伺服器頻道限制 ───────────────────────────────────────────────────────────
+// 某些伺服器只接受指定文字頻道（以及開在那個頻道底下的討論串）的指令，其他頻道一律不理。
+static const std::map<uint64_t, uint64_t> GUILD_ONLY_CHANNEL = {
+    {1392583413717930174ULL, 1521890393002872952ULL},
+};
+static bool channel_allowed(dpp::snowflake guild_id, dpp::snowflake channel_id) {
+    auto it = GUILD_ONLY_CHANNEL.find((uint64_t)guild_id);
+    if (it == GUILD_ONLY_CHANNEL.end()) return true;
+    if ((uint64_t)channel_id == it->second) return true;
+    const dpp::channel* c = dpp::find_channel(channel_id); // 討論串：看它的上層頻道
+    return c && (uint64_t)c->parent_id == it->second; // 一般頻道的上層是分類，只有討論串的上層會是這個文字頻道
+}
+
 // ─── main ─────────────────────────────────────────────────────────────────────
 
 int main(int argc, char* argv[]) {
@@ -799,6 +812,9 @@ int main(int argc, char* argv[]) {
     load_announcement();
     load_signin();
     load_settings();
+    load_lolbet();
+    load_nn_stats();
+    load_numbomb();
     fprintf(stderr, "[STARTUP] all loads complete\n"); fflush(stderr);
 
     dpp::cluster bot(cfg.token, dpp::i_default_intents | dpp::i_message_content);
@@ -810,6 +826,7 @@ int main(int argc, char* argv[]) {
     bot.on_message_create([&bot](const dpp::message_create_t& ev) {
         // 擋掉所有機器人帳號（含其他 bot／webhook），避免被拿來自動洗 !領取 等指令
         if (ev.msg.author.is_bot()) return;
+        if (!channel_allowed(ev.msg.guild_id, ev.msg.channel_id)) return;
 
         // Normalize full-width ！ (U+FF01, UTF-8: EF BC 81) to ASCII !
         std::string content = ev.msg.content;
@@ -839,6 +856,9 @@ int main(int argc, char* argv[]) {
                 "!抽獎","！抽獎",
                 "!摸彩",
                 "!摸彩紀錄",
+                "!猜數字",
+                "!世界賽",
+                "!妞妞","!數字炸彈",
             };
             for (auto& s : EXACT) if (content == s) return true;
             // Secret owner-only command
@@ -852,6 +872,8 @@ int main(int argc, char* argv[]) {
                 "!簽到 ","！簽到 ",
                 "!經驗活動 ","！經驗活動 ",
                 "!抽獎 ","！抽獎 ",
+                "!世界賽 ",
+                "!妞妞 ","!數字炸彈 ",
             };
             for (auto& s : PREFIX) if (content.rfind(s, 0) == 0) return true;
             // standalone (no args)
@@ -888,7 +910,7 @@ int main(int argc, char* argv[]) {
             m.set_reference(ev.msg.id); m.channel_id = ch;
             bot.message_create(m);
         }
-        else if (content == "!幫助") {
+        else if (content == "!幫助" || content == "!help") {
             dpp::message m = make_help_msg(0);
             m.set_reference(ev.msg.id); m.channel_id = ch;
             bot.message_create(m);
@@ -899,7 +921,7 @@ int main(int argc, char* argv[]) {
             bot.message_create(m);
         }
         else if (content == "!富豪榜") {
-            dpp::message m = handle_leaderboard(0);
+            dpp::message m = handle_leaderboard(0, 0, ev.msg.guild_id);
             m.channel_id = ch;
             bot.message_create(m, [uid](const dpp::confirmation_callback_t& cb) {
                 if (!cb.is_error()) {
@@ -908,8 +930,50 @@ int main(int argc, char* argv[]) {
                 }
             });
         }
+        // ── 英雄聯盟世界賽下注 ─────────────────────────────────────────────────
+        else if (content == "!世界賽") {
+            dpp::message m = make_lol_board_msg(false);
+            m.channel_id = ch;
+            bot.message_create(m);
+        }
+        else if (content.rfind("!世界賽 ", 0) == 0) {
+            if (!si_perm(uid, ev.msg.member.get_roles())) {
+                dpp::message m("❌ 世界賽的管理指令只有副會長、會長或管理員能用；下注請打 `!世界賽` 或 `/世界賽`。");
+                m.channel_id = ch; bot.message_create(m); return;
+            }
+            std::vector<std::string> args;
+            { std::istringstream iss(content.substr(std::string("!世界賽 ").size())); std::string w; while (iss >> w) args.push_back(w); }
+            auto reply_later = [&bot, ch](const std::string& t) { dpp::message m(ch, t); m.set_allowed_mentions(false, false, false, false, {}, {}); bot.message_create(m); };
+            reply_later(lol_admin_cmd(bot, ch, args, reply_later));
+        }
+        // ── 妞妞 ───────────────────────────────────────────────────────────────
+        else if (content == "!妞妞" || content.rfind("!妞妞 ", 0) == 0) {
+            std::string arg = content.size() > std::string("!妞妞 ").size() ? content.substr(std::string("!妞妞 ").size()) : "";
+            std::string name = ev.msg.member.get_nickname();
+            if (name.empty()) name = ev.msg.author.global_name;
+            if (name.empty()) name = ev.msg.author.username;
+            bool err = false;
+            dpp::message m = nn_play(uid, ch, arg, ev.msg.author.get_avatar_url(), name, err);
+            m.channel_id = ch; m.set_reference(ev.msg.id);
+            bot.message_create(m);
+        }
+        // ── 數字炸彈 ───────────────────────────────────────────────────────────
+        else if (content == "!數字炸彈" || content.rfind("!數字炸彈 ", 0) == 0) {
+            std::string arg = content.size() > std::string("!數字炸彈 ").size() ? content.substr(std::string("!數字炸彈 ").size()) : "";
+            int64_t fee = arg.empty() ? 0 : std::atoll(arg.c_str());
+            std::string name = ev.msg.member.get_nickname();
+            if (name.empty()) name = ev.msg.author.global_name;
+            if (name.empty()) name = ev.msg.author.username;
+            dpp::message m;
+            bool ok = nb_create(ch, uid, fee, name, ev.msg.author.get_avatar_url(), m);
+            m.channel_id = ch;
+            uint64_t chu = (uint64_t)ch;
+            bot.message_create(m, [ok, chu](const dpp::confirmation_callback_t& cb) {
+                if (ok && !cb.is_error()) nb_set_msg_id(chu, std::get<dpp::message>(cb.value).id);
+            });
+        }
         else if (content == "!虧損榜") {
-            dpp::message m = handle_losers_board(0, "");
+            dpp::message m = handle_losers_board(0, "", true, 0, ev.msg.guild_id);
             m.channel_id = ch;
             bot.message_create(m, [uid](const dpp::confirmation_callback_t& cb) {
                 if (!cb.is_error()) {
@@ -1376,7 +1440,7 @@ int main(int argc, char* argv[]) {
             }
         }
         else if (content == "!警告榜單") {
-            dpp::message m = handle_warn_board();
+            dpp::message m = handle_warn_board(0, ev.msg.guild_id);
             m.set_reference(ev.msg.id); m.channel_id = ch; bot.message_create(m);
         }
         // !幸運頻道 <最大頻道數>
@@ -1694,12 +1758,16 @@ int main(int argc, char* argv[]) {
 
     // ── 按鈕 ──────────────────────────────────────────────────────────────────
     bot.on_button_click([&bot](const dpp::button_click_t& ev) {
+        if (!channel_allowed(ev.command.guild_id, ev.command.channel_id)) return;
         const std::string& cid  = ev.custom_id;
         const dpp::user&   user = ev.command.get_issuing_user();
         dpp::snowflake     uid  = user.id;
         bool               adm  = is_admin(ev.command);
 
       try {
+        if (lol_handle_button(ev)) return;
+        if (nn_handle_button(ev)) return;
+        if (nb_handle_button(ev)) return;
         // 報名流程按鈕需要 owner 驗證
         if (cid.rfind("boss_",0)==0 || cid.rfind("slot_",0)==0 ||
             cid == "confirm_time"   || cid.rfind("pos_",0)==0   ||
@@ -2163,7 +2231,20 @@ int main(int argc, char* argv[]) {
                     dpp::message("❌ 這不是你的頁面！").set_flags(dpp::m_ephemeral)); return;
             }
             int page = std::stoi(cid.substr(3));
-            ev.reply(dpp::ir_update_message, handle_leaderboard(page));
+            ev.reply(dpp::ir_update_message, handle_leaderboard(page, 0, ev.command.guild_id));
+        }
+        // ── 富豪榜（本伺服器）翻頁：lbg_<伺服器>_<頁> ─────────────────────────
+        else if (cid.rfind("lbg_", 0) == 0) {
+            if (!page_is_mine(ev.command.message_id, uid)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 這不是你的頁面！").set_flags(dpp::m_ephemeral)); return;
+            }
+            std::string rest = cid.substr(4);
+            size_t sep = rest.find('_');
+            if (sep == std::string::npos) return;
+            dpp::snowflake gid(std::stoull(rest.substr(0, sep)));
+            int page = 0; try { page = std::stoi(rest.substr(sep + 1)); } catch (...) {}
+            ev.reply(dpp::ir_update_message, handle_leaderboard(page, gid, ev.command.guild_id));
         }
         // ── 虧損榜翻頁 ───────────────────────────────────────────────────────
         else if (cid.rfind("losers_", 0) == 0) {
@@ -2176,9 +2257,12 @@ int main(int argc, char* argv[]) {
             size_t p1 = rest.find('_');
             int page = p1 != std::string::npos ? std::stoi(rest.substr(0, p1)) : 0;
             size_t p2 = (p1 != std::string::npos) ? rest.find('_', p1+1) : std::string::npos;
-            bool asc = (p1 != std::string::npos) && (rest[p1+1] == 'a');
+            char dch = (p1 != std::string::npos && p1+1 < rest.size()) ? rest[p1+1] : 'a';
+            bool asc = (dch == 'a' || dch == 'A');
+            bool scoped = (dch == 'A' || dch == 'D');
             std::string game = (p2 != std::string::npos) ? rest.substr(p2+1) : "";
-            ev.reply(dpp::ir_update_message, handle_losers_board(page, game, asc));
+            ev.reply(dpp::ir_update_message, handle_losers_board(page, game, asc,
+                scoped ? ev.command.guild_id : dpp::snowflake(0), ev.command.guild_id));
         }
         // ── 轉帳確認/取消 ─────────────────────────────────────────────────────
         else if (cid.rfind("xfer_ok_", 0) == 0) {
@@ -2829,11 +2913,17 @@ int main(int argc, char* argv[]) {
         }
         // ── 警告榜單按鈕 ──────────────────────────────────────────────────────
         else if (cid == "warn_board") {
-            ev.reply(dpp::ir_update_message, handle_warn_board());
+            ev.reply(dpp::ir_update_message, handle_warn_board(0, ev.command.guild_id));
+        }
+        else if (cid == "warn_boardg") { // 本伺服器
+            ev.reply(dpp::ir_update_message, handle_warn_board(ev.command.guild_id, ev.command.guild_id));
         }
         else if (cid.rfind("warn_detail_", 0) == 0) {
-            dpp::snowflake target(std::stoull(cid.substr(12)));
-            ev.reply(dpp::ir_update_message, handle_warn_detail(target));
+            std::string rest = cid.substr(12);
+            bool scoped = rest.size() > 2 && rest.compare(rest.size() - 2, 2, "_g") == 0;
+            if (scoped) rest.resize(rest.size() - 2);
+            dpp::snowflake target(std::stoull(rest));
+            ev.reply(dpp::ir_update_message, handle_warn_detail(target, scoped));
         }
         // ── 管理員面板 Modal 觸發 ─────────────────────────────────────────────
         else if (cid == "admin_chip_modal_btn" || cid == "admin_item_btn" || cid == "admin_maplecoin_btn" || cid == "admin_mapleexp_btn" || cid == "admin_kill_btn") {
@@ -3303,10 +3393,13 @@ int main(int argc, char* argv[]) {
 
     // ── Modal 送出（管理員操作）─────────────────────────────────────────────
     bot.on_form_submit([](const dpp::form_submit_t& ev) {
+        if (!channel_allowed(ev.command.guild_id, ev.command.channel_id)) return;
         const std::string& cid = ev.custom_id;
         dpp::snowflake issuer = ev.command.get_issuing_user().id;
 
         if (cid.rfind("maple_raidguessm_", 0) == 0 || cid.rfind("maple_factionptsm_", 0) == 0) { handle_maple_modal(ev); return; }
+        if (lol_handle_form(ev)) return;
+        if (nb_handle_form(ev)) return;
 
         // Pet rename modal
         if (cid.rfind("pet_rename_modal_", 0) == 0 || cid.rfind("pet_release_modal_", 0) == 0) {
@@ -3767,10 +3860,12 @@ int main(int argc, char* argv[]) {
 
     // ── 選單 ──────────────────────────────────────────────────────────────────
     bot.on_select_click([](const dpp::select_click_t& ev) {
+        if (!channel_allowed(ev.command.guild_id, ev.command.channel_id)) return;
         const std::string& cid  = ev.custom_id;
         const dpp::user&   user = ev.command.get_issuing_user();
         dpp::snowflake     uid  = user.id;
 
+        if (lol_handle_select(ev)) return;
         if (cid == "day_select") {
             if (!check_owner(ev, uid)) return;
             int new_day = std::stoi(ev.values[0]);
@@ -3804,9 +3899,12 @@ int main(int argc, char* argv[]) {
             size_t p1 = rest.find('_');
             int page = p1 != std::string::npos ? std::stoi(rest.substr(0, p1)) : 0;
             size_t p2 = (p1 != std::string::npos) ? rest.find('_', p1+1) : std::string::npos;
-            bool asc = (p1 != std::string::npos) && (rest[p1+1] == 'a');
+            char dch = (p1 != std::string::npos && p1+1 < rest.size()) ? rest[p1+1] : 'a';
+            bool asc = (dch == 'a' || dch == 'A');
+            bool scoped = (dch == 'A' || dch == 'D');
             std::string game = (p2 != std::string::npos) ? rest.substr(p2+1) : "";
-            ev.reply(dpp::ir_update_message, handle_losers_board(page, game, asc));
+            ev.reply(dpp::ir_update_message, handle_losers_board(page, game, asc,
+                scoped ? ev.command.guild_id : dpp::snowflake(0), ev.command.guild_id));
         }
         else if (cid == "petdex_chain_sel") {
             ev.reply(dpp::ir_update_message, make_petdex_msg(ev.values[0]));
@@ -3927,6 +4025,7 @@ int main(int argc, char* argv[]) {
 
     // ── 斜線指令 ──────────────────────────────────────────────────────────────
     bot.on_slashcommand([&bot](const dpp::slashcommand_t& ev) {
+        if (!channel_allowed(ev.command.guild_id, ev.command.channel_id)) return;
         const std::string  cmd_name = ev.command.get_command_name();
         const dpp::user&   user     = ev.command.get_issuing_user();
         dpp::snowflake     uid      = user.id;
@@ -4187,7 +4286,7 @@ int main(int argc, char* argv[]) {
             ev.reply(dpp::ir_channel_message_with_source, make_wallet_home_msg(uid));
         }
         else if (cmd_name == "富豪榜" || cmd_name == "leaderboard") {
-            ev.reply(dpp::ir_channel_message_with_source, handle_leaderboard(0));
+            ev.reply(dpp::ir_channel_message_with_source, handle_leaderboard(0, 0, ev.command.guild_id));
             ev.get_original_response([uid](const dpp::confirmation_callback_t& cb) {
                 if (!cb.is_error()) {
                     std::lock_guard<std::mutex> lk(data_mutex);
@@ -4237,8 +4336,33 @@ int main(int argc, char* argv[]) {
         else if (cmd_name == "背包" || cmd_name == "bag" || cmd_name == "petuse" || cmd_name == "寵物圖鑑" || cmd_name == "petdex") {
             handle_pet_slash(ev, cmd_name);
         }
+        else if (cmd_name == "妞妞" || cmd_name == "niuniu") {
+            auto bp = ev.get_parameter("籌碼");
+            std::string arg = std::holds_alternative<std::string>(bp) ? std::get<std::string>(bp) : "";
+            bool err = false;
+            dpp::message m = nn_play(uid, ch, arg, user.get_avatar_url(), nb_display_name(ev.command), err);
+            if (err) m.set_flags(dpp::m_ephemeral);
+            ev.reply(dpp::ir_channel_message_with_source, m);
+        }
+        else if (cmd_name == "數字炸彈" || cmd_name == "numberbomb") {
+            int64_t fee = 0;
+            auto fp = ev.get_parameter("入場費");
+            if (std::holds_alternative<int64_t>(fp)) fee = std::get<int64_t>(fp);
+            dpp::message m;
+            if (!nb_create(ch, uid, fee, nb_display_name(ev.command), user.get_avatar_url(), m)) {
+                ev.reply(dpp::ir_channel_message_with_source, m.set_flags(dpp::m_ephemeral)); return;
+            }
+            ev.reply(dpp::ir_channel_message_with_source, m);
+            uint64_t chu = (uint64_t)ch;
+            ev.get_original_response([chu](const dpp::confirmation_callback_t& cb) {
+                if (!cb.is_error()) nb_set_msg_id(chu, std::get<dpp::message>(cb.value).id);
+            });
+        }
+        else if (cmd_name == "世界賽" || cmd_name == "worlds") {
+            ev.reply(dpp::ir_channel_message_with_source, make_lol_board_msg(false));
+        }
         else if (cmd_name == "虧損榜" || cmd_name == "lossboard") {
-            ev.reply(dpp::ir_channel_message_with_source, handle_losers_board(0, ""));
+            ev.reply(dpp::ir_channel_message_with_source, handle_losers_board(0, "", true, 0, ev.command.guild_id));
             ev.get_original_response([uid](const dpp::confirmation_callback_t& cb) {
                 if (!cb.is_error()) {
                     std::lock_guard<std::mutex> lk(data_mutex);
@@ -4267,7 +4391,7 @@ int main(int argc, char* argv[]) {
             ev.reply(dpp::ir_channel_message_with_source, handle_warn(target, target_name, reason));
         }
         else if (cmd_name == "警告榜單" || cmd_name == "warnboard") {
-            ev.reply(dpp::ir_channel_message_with_source, handle_warn_board());
+            ev.reply(dpp::ir_channel_message_with_source, handle_warn_board(0, ev.command.guild_id));
         }
         else if (cmd_name == "幸運頻道" || cmd_name == "lucky") {
             int64_t max_ch = std::get<int64_t>(ev.get_parameter("最大頻道數"));
@@ -4609,6 +4733,7 @@ int main(int argc, char* argv[]) {
     bot.on_guild_create([&bot](const dpp::guild_create_t& ev) {
         dpp::snowflake gid = ev.created.id;
         fprintf(stderr, "[STARTUP] on_guild_create fired, gid=%llu\n", (unsigned long long)gid); fflush(stderr);
+        refresh_guild_members(bot, gid); // 富豪榜「本伺服器」與限定收藏用的成員名單
 
         // 抓 emoji（try-catch 防止型別不符崩潰）
         bot.guild_emojis_get(gid, [](const dpp::confirmation_callback_t& cb) {
@@ -4813,6 +4938,16 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("undercover","Start Undercover (Who is spy?)", bot.me.id),
                 dpp::slashcommand("猜數字",    "猜四位不重複數字（1A2B）",       bot.me.id),
                 dpp::slashcommand("guess",     "Guess the 4-digit number (1A2B)",bot.me.id),
+                dpp::slashcommand("世界賽",    "英雄聯盟世界賽下注（勝負／比分／冠軍）", bot.me.id),
+                dpp::slashcommand("worlds",    "Bet on the LoL World Championship", bot.me.id),
+                dpp::slashcommand("妞妞", "妞妞 — 跟莊家比牛（輸贏都照牌型倍數）", bot.me.id)
+                    .add_option(dpp::command_option(dpp::co_string, "籌碼", "下注碼數（數字 或 ALL）", true)),
+                dpp::slashcommand("niuniu", "Niu Niu card game vs the dealer", bot.me.id)
+                    .add_option(dpp::command_option(dpp::co_string, "籌碼", "Bet amount (number or ALL)", true)),
+                dpp::slashcommand("數字炸彈", "團康：輪流猜數字，踩到炸彈的人輸", bot.me.id)
+                    .add_option(dpp::command_option(dpp::co_integer, "入場費", "每人入場費（不填＝0，純娛樂）", false).set_min_value(0)),
+                dpp::slashcommand("numberbomb", "Party game: guess numbers, avoid the bomb", bot.me.id)
+                    .add_option(dpp::command_option(dpp::co_integer, "入場費", "Entry fee per player (default 0)", false).set_min_value(0)),
                 dpp::slashcommand("摸彩",      "消耗1張彩券抽獎",               bot.me.id),
                 dpp::slashcommand("摸彩紀錄",  "查看自己最近的摸彩紀錄",         bot.me.id),
                 giveaway_cmd, giveaway_en,
@@ -4918,6 +5053,13 @@ int main(int argc, char* argv[]) {
         lot_settle_orphaned_games(); // 補結算上次重啟前卡在動畫中的摸彩
         fprintf(stderr, "[STARTUP] before start_stock_price_timer\n"); fflush(stderr);
         bot.start_timer([](dpp::timer)     { cleanup_expired(); },  3600);
+        // 限定收藏只給本家伺服器成員：開機抓一次成員名單，之後每 10 分鐘更新
+        // 各伺服器成員名單：on_guild_create 抓第一次，這裡每 10 分鐘全部更新（富豪榜本伺服器篩選、限定收藏）
+        bot.start_timer([&bot](dpp::timer) { refresh_all_guild_members(bot); }, 600);
+        nb_resume_all(); // 數字炸彈：重開後把回合計時器／大廳逾時掛回去
+        bot.start_timer([](dpp::timer)     { lol_tick(); }, 60);            // 世界賽：開賽時間到自動封盤
+        bot.start_timer([&bot](dpp::timer) { lol_sync(bot); }, 900);       // 世界賽：每 15 分鐘從 Leaguepedia 抓賽程／結果
+        bot.start_timer([&bot](dpp::timer t) { bot.stop_timer(t); lol_sync(bot); }, 20); // 開機後先抓一次
         bot.start_timer([&bot](dpp::timer) { check_giveaways(bot); save_giveaways(); }, 30);
         bot.start_timer([](dpp::timer)     { apply_daily_interest(); }, 300); // 每 5 分鐘檢查是否跨日
         start_stock_price_timer(); // 開機立即抓一次股價，之後每 5 分鐘更新

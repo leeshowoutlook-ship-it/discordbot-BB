@@ -2,6 +2,7 @@
 #include "types.h"
 #include "chips.h"
 #include "helpers.h"
+#include "guild_members.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <random>
@@ -289,6 +290,14 @@ static const std::set<std::string> SPECIAL_COL_ITEMS = {
     "col_bb_risk_dice", "col_rd_lovebook", "col_rd_simpmanual", "col_rd_dogbook",
     "lottery_ticket", "col_tj_transform_potion",
 };
+
+// ─── 限定收藏只給本家伺服器成員 ─────────────────────────────────────────────
+// 不在本家伺服器的玩家：看不到「限定收藏」頁、探險也骰不到限定收藏品。
+// 成員名單見 guild_members.h；還沒抓到名單前一律放行，避免誤擋。
+inline constexpr uint64_t LIMITED_HOME_GUILD_ID = 1383364102826496000ULL;
+static bool is_home_guild_member(dpp::snowflake uid) {
+    return guild_has_member(LIMITED_HOME_GUILD_ID, uid, true);
+}
 
 // ─── Collectible selling（限定收藏品全球唯一，不可售出，只能 !交易）──────────────
 // 低級 1000／中級 2000／高級 3000。賣掉套組其中一件，該分級的套組加成就會失效。
@@ -594,12 +603,14 @@ static dpp::message make_collection_msg(dpp::snowflake uid,
     std::string user_tag = dn.empty() ? uid_s : dn;
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
+    bool home_member = is_home_guild_member(uid);
     container.add_component_v2(v2_section(
         "## 📚 收藏\n"
         "📗 **一般收藏**：各地區探險掉落的蒐藏品，未獲得者顯示 `????`。\n"
-        "⭐ **限定收藏**：全球唯一的限定品，可透過 `!交易` 轉讓。\n\n"
-        "目前持有　📗 一般：**" + std::to_string(normal_cnt) + "**　⭐ 限定：**" + std::to_string(limited_cnt) + "**"
-        "\n\n-# 👤 " + user_tag, av));
+        + std::string(home_member ? "⭐ **限定收藏**：全球唯一的限定品，可透過 `!交易` 轉讓。\n" : "") + "\n"
+        "目前持有　📗 一般：**" + std::to_string(normal_cnt) + "**"
+        + (home_member ? "　⭐ 限定：**" + std::to_string(limited_cnt) + "**" : std::string())
+        + "\n\n-# 👤 " + user_tag, av));
 
     dpp::message msg;
     msg.set_flags(dpp::m_using_components_v2);
@@ -609,8 +620,9 @@ static dpp::message make_collection_msg(dpp::snowflake uid,
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📗 一般收藏").set_id("adv_col_normal_" + uid_s + "_1").set_style(dpp::cos_primary));
-    row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("⭐ 限定收藏").set_id("adv_col_limited_" + uid_s).set_style(dpp::cos_primary));
+    if (is_home_guild_member(uid))
+        row.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("⭐ 限定收藏").set_id("adv_col_limited_" + uid_s).set_style(dpp::cos_primary));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("💰 售出").set_id("adv_col_sell_" + uid_s).set_style(dpp::cos_danger));
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -762,6 +774,12 @@ static const std::vector<std::pair<std::string,std::string>> LIMITED_ORDER = {
     // 扭曲叢林 — 全球限量（100瓶，歷史累計，喝掉不釋出名額）
     {"col_tj_transform_potion", "可消耗喝下，永久獲得寵物生命值 +1（可重複疊加）── 全球限量 100 瓶"},
 };
+
+// 非本家成員探險時要排除的道具：所有限定收藏品
+static void add_limited_exclusions(std::set<std::string>& excluded) {
+    for (auto& k : LIMITED_COL_ITEMS) excluded.insert(k);
+    for (auto& [k, eff] : LIMITED_ORDER) excluded.insert(k);
+}
 
 static dpp::message make_limited_col_msg(dpp::snowflake uid,
                                           const std::string& dn, const std::string& av, int page = 1) {
@@ -1522,6 +1540,11 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         try { page = std::stoi(cid.substr(16 + uid_s.size())); } catch (...) {}
         ev.reply(dpp::ir_update_message, make_normal_col_msg(uid, dn, av, page)); return;
     }
+    // 限定收藏只給本家伺服器成員看（舊按鈕也擋）
+    if (cid.rfind("adv_col_limited_", 0) == 0 && !is_home_guild_member(uid)) {
+        ev.reply(dpp::ir_channel_message_with_source,
+            dpp::message("❌ 限定收藏只開放給本家伺服器的成員。").set_flags(dpp::m_ephemeral)); return;
+    }
     // 限定收藏: adv_col_limited_<uid>
     if (cid == "adv_col_limited_" + uid_s) {
         ev.reply(dpp::ir_update_message, make_limited_col_msg(uid, dn, av)); return;
@@ -1971,6 +1994,8 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
             }
             // 華瑄的變身密藥：全球歷史累計上限100瓶（喝掉不釋出名額，用全域計數器追蹤，不是目前持有數）
             if (g_tj_potion_granted >= 100) claimed_limited.insert("col_tj_transform_potion");
+            // 不在本家伺服器的玩家探不到任何限定收藏品
+            if (!is_home_guild_member(uid)) add_limited_exclusions(claimed_limited);
 
             // 骰之前先記錄目前持有的假髮／內衣（新骰到的這次不算數）
             auto owned = [&](const std::string& k) { auto it = inv.find(k); return it != inv.end() ? it->second : 0; };
