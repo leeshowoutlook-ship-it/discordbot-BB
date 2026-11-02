@@ -19,224 +19,39 @@
 [STARTUP] on_guild_create handler returning
 [STARTUP] on_guild_create fired, gid=1383364102826496000
 [STARTUP] on_guild_create handler returning
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1383364102826496000 成員名單更新：185 人
 [guild_members] 1392583413717930174 成員名單更新：146 人
 [guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
+[guild_members] 1383364102826496000 成員名單更新：186 人
 [lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
 [guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
+[guild_members] 1383364102826496000 成員名單更新：186 人
 [guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1383364102826496000 成員名單更新：185 人
+[guild_members] 1383364102826496000 成員名單更新：186 人
 [guild_members] 555383406830288907 成員名單更新：214 人
 [guild_members] 1392583413717930174 成員名單更新：146 人
 [lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
 [guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
 [guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 555383406830288907 成員名單更新：214 人
+[guild_members] 1383364102826496000 成員名單更新：186 人
 [guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
 [guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
+[guild_members] 1383364102826496000 成員名單更新：186 人
 [lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
 [guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
+[guild_members] 1383364102826496000 成員名單更新：186 人
 [guild_members] 555383406830288907 成員名單更新：214 人
 [lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
+[guild_members] 1392583413717930174 成員名單更新：147 人
+[guild_members] 1383364102826496000 成員名單更新：186 人
 [guild_members] 555383406830288907 成員名單更新：214 人
+[guild_members] 1383364102826496000 成員名單更新：186 人
+[guild_members] 555383406830288907 成員名單更新：214 人
+[guild_members] 1392583413717930174 成員名單更新：147 人
 [lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
+[guild_members] 1392583413717930174 成員名單更新：147 人
 [guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
+[guild_members] 1383364102826496000 成員名單更新：186 人
 [lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 555383406830288907 成員名單更新：214 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
-[lolbet] Leaguepedia 同步失敗：You've exceeded your rate limit. Please wait some time and try again.
-[guild_members] 1383364102826496000 成員名單更新：185 人
-[guild_members] 1392583413717930174 成員名單更新：146 人
+[guild_members] 1392583413717930174 成員名單更新：147 人
+[guild_members] 1383364102826496000 成員名單更新：186 人
 [guild_members] 555383406830288907 成員名單更新：214 人

@@ -63,7 +63,8 @@ static const char* const DATA_FILES[] = {
     "onwstats.json","pets.json","proposed_teams.json","purchases.json","registrations.json",
     "rlstats.json","rocketstats.json","rpsstats.json","scratch_games.json","scratchstats.json",
     "settings.json","shootstats.json","shop.json","signin.json","stock_holdings.json",
-    "stock_market.json","uc_stats.json","warnings.json","wolfplayerstats.json", nullptr
+    "stock_market.json","uc_stats.json","warnings.json","wolfplayerstats.json",
+    "lolbet.json","niuniu_stats.json","numbomb.json", nullptr
 };
 
 static inline bool json_file_valid(const std::filesystem::path& p) {

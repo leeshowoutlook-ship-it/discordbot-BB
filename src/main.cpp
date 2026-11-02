@@ -5113,7 +5113,9 @@ int main(int argc, char* argv[]) {
         bot.start_timer([](dpp::timer) {
             time_t now = time(nullptr);
             int64_t now_hour = now / 3600;
-            bool changed = false;
+            // 這些玩家的自動領取也順便補每日怪物狩獵卷（規則同 !領取）
+            static const std::set<uint64_t> AUTO_HUNT_SCROLL_UIDS = { 1036953796007448606ULL };
+            bool changed = false, inv_changed = false;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 for (auto& [uid, cd] : chip_data) {
@@ -5126,9 +5128,23 @@ int main(int argc, char* argv[]) {
                         cd.last_claim      = now; // 防止同小時重複手動領取
                         changed            = true;
                     }
+                    if (AUTO_HUNT_SCROLL_UIDS.count((uint64_t)uid)) {
+                        struct tm now_tm{}, last_tm{};
+                        localtime_s(&now_tm, &now);
+                        localtime_s(&last_tm, &cd.last_hunt_daily);
+                        if (now_tm.tm_year != last_tm.tm_year || now_tm.tm_yday != last_tm.tm_yday) {
+                            auto& inv = inventory_data[uid];
+                            int cur = inv.count("hunt_scroll") ? inv["hunt_scroll"] : 0;
+                            int max_scrolls = (inv.count("col_yaya_bounty") && inv["col_yaya_bounty"] > 0) ? 3 : 2;
+                            if (cur < max_scrolls) { inv["hunt_scroll"] = max_scrolls; inv_changed = true; }
+                            cd.last_hunt_daily = now;
+                            changed = true;
+                        }
+                    }
                 }
             }
             if (changed) save_chips();
+            if (inv_changed) save_inventory();
         }, 300);
 
         // ── 寵物監工 自動再派 (每 5 分鐘掃一次) ─────────────────────────────

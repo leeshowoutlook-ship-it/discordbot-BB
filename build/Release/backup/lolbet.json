@@ -1,0 +1,203 @@
+{
+  "announce_ch": "0",
+  "champ": {
+    "exists": true,
+    "lock_time": 1793743200,
+    "odds": [
+      20.0,
+      16.66,
+      2.29,
+      26.31,
+      8.19,
+      9.09,
+      50.0,
+      6.06
+    ],
+    "pool": {
+      "560474152755134464": {
+        "amount": 1000,
+        "payout": -1,
+        "pick": "7",
+        "to_win": 6060
+      },
+      "604244623124070423": {
+        "amount": 520,
+        "payout": -1,
+        "pick": "4",
+        "to_win": 4258
+      }
+    },
+    "status": 0,
+    "teams": [
+      "Top Esports",
+      "Invictus Gaming",
+      "Gen.G",
+      "LYON",
+      "Dplus Kia",
+      "Bilibili Gaming",
+      "Karmine Corp",
+      "T1"
+    ],
+    "winner": ""
+  },
+  "matches": [
+    {
+      "bestof": 5,
+      "key": "2026 Season World Championship/Main Event_Quarterfinals_1",
+      "no": 1,
+      "odds1": 0.0,
+      "odds2": 0.0,
+      "score1": 0,
+      "score2": 0,
+      "score_pool": {},
+      "stage": "八強 1",
+      "start": 1793743200,
+      "status": 0,
+      "team1": "Top Esports",
+      "team2": "Invictus Gaming",
+      "win_pool": {
+        "560474152755134464": {
+          "amount": 1000,
+          "payout": -1,
+          "pick": "2",
+          "to_win": 1940
+        }
+      }
+    },
+    {
+      "bestof": 5,
+      "key": "2026 Season World Championship/Main Event_Quarterfinals_2",
+      "no": 2,
+      "odds1": 0.0,
+      "odds2": 0.0,
+      "score1": 0,
+      "score2": 0,
+      "score_pool": {},
+      "stage": "八強 2",
+      "start": 1793829600,
+      "status": 0,
+      "team1": "Gen.G",
+      "team2": "LYON",
+      "win_pool": {
+        "560474152755134464": {
+          "amount": 1000,
+          "payout": -1,
+          "pick": "1",
+          "to_win": 1440
+        },
+        "879413644495028254": {
+          "amount": 15000,
+          "payout": -1,
+          "pick": "1",
+          "to_win": 21600
+        }
+      }
+    },
+    {
+      "bestof": 5,
+      "key": "2026 Season World Championship/Main Event_Quarterfinals_3",
+      "no": 3,
+      "odds1": 0.0,
+      "odds2": 0.0,
+      "score1": 0,
+      "score2": 0,
+      "score_pool": {
+        "604244623124070423": {
+          "amount": 1500,
+          "payout": -1,
+          "pick": "3-1",
+          "to_win": 7845
+        }
+      },
+      "stage": "八強 3",
+      "start": 1793916000,
+      "status": 0,
+      "team1": "Dplus Kia",
+      "team2": "Bilibili Gaming",
+      "win_pool": {
+        "604244623124070423": {
+          "amount": 1500,
+          "payout": -1,
+          "pick": "1",
+          "to_win": 2940
+        }
+      }
+    },
+    {
+      "bestof": 5,
+      "key": "2026 Season World Championship/Main Event_Quarterfinals_4",
+      "no": 4,
+      "odds1": 0.0,
+      "odds2": 0.0,
+      "score1": 0,
+      "score2": 0,
+      "score_pool": {
+        "723170866892111984": {
+          "amount": 200,
+          "payout": -1,
+          "pick": "0-3",
+          "to_win": 1600
+        }
+      },
+      "stage": "八強 4",
+      "start": 1794002400,
+      "status": 0,
+      "team1": "Karmine Corp",
+      "team2": "T1",
+      "win_pool": {
+        "416236509918789632": {
+          "amount": 1000,
+          "payout": -1,
+          "pick": "2",
+          "to_win": 2000
+        },
+        "560474152755134464": {
+          "amount": 2000,
+          "payout": -1,
+          "pick": "2",
+          "to_win": 4000
+        },
+        "723170866892111984": {
+          "amount": 500,
+          "payout": -1,
+          "pick": "2",
+          "to_win": 1000
+        },
+        "879413644495028254": {
+          "amount": 15000,
+          "payout": -1,
+          "pick": "2",
+          "to_win": 30000
+        }
+      }
+    }
+  ],
+  "next_no": 5,
+  "stats": {
+    "416236509918789632": {
+      "bets": 1,
+      "profit": 0,
+      "wins": 0
+    },
+    "560474152755134464": {
+      "bets": 4,
+      "profit": 0,
+      "wins": 0
+    },
+    "604244623124070423": {
+      "bets": 3,
+      "profit": 0,
+      "wins": 0
+    },
+    "723170866892111984": {
+      "bets": 2,
+      "profit": 0,
+      "wins": 0
+    },
+    "879413644495028254": {
+      "bets": 2,
+      "profit": 0,
+      "wins": 0
+    }
+  }
+}

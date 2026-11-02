@@ -74,6 +74,11 @@
     "total_win_attempts": 531,
     "wins": 92
   },
+  "559423937860206594": {
+    "games": 1,
+    "total_win_attempts": 5,
+    "wins": 1
+  },
   "560474152755134464": {
     "games": 2,
     "total_win_attempts": 0,
@@ -118,5 +123,10 @@
     "games": 1,
     "total_win_attempts": 4,
     "wins": 1
+  },
+  "988795213768171581": {
+    "games": 5,
+    "total_win_attempts": 34,
+    "wins": 5
   }
 }
