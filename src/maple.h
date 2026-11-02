@@ -389,15 +389,15 @@ static const std::vector<MapleSkillDef> MAPLE_SKILLS = {
     // 單下攻擊技能，滿級提高到430%；前期每級加比較多、後期趨緩（遞減式成長，頭尾不變）
     {"knight_element_strike", "屬性攻擊", "將元素力量注入大劍揮擊敵人，技能係數如上", "knight", 20, "damage_coef",
         {240,259,277,294,310,325,339,352,364,375,385,394,402,409,415,420,424,427,429,430}, "", {"大劍"}},
-    {"knight_magic_break", "魔防消除", "削弱敵人的魔法防禦力，增加總傷害（每級 +1%）；首領突襲戰中，隊伍裡的法師系（冰雷/僧侶/冰雷魔導士/祭司）也一起吃到同樣的加成", "knight", 20, "buff_pct",
+    {"knight_magic_break", "魔防消除", "削弱敵人的魔法防禦力，增加總傷害（每級 +1%）；首領突襲戰中，額外增加自己與隊伍裡法師系（冰雷/僧侶/冰雷魔導士/祭司）隊友的首領傷害（每級 +1%）", "knight", 20, "buff_pct",
         {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20}, "", {}},
     {"knight_enchant", "屬性附魔", "為武器附加屬性之力（每級 +1 攻擊力）；滿級後，在冰雷享有攻擊力加成的地圖，騎士也吃得到跟冰雷一樣的加成", "knight", 10, "buff_pct",
         {1,2,3,4,5,6,7,8,9,10}, "", {}},
 
     // 本身只打1下；電閃雷鳴滿級後才會變成2下（只認冰雷合擊，魔力爪沒有這個加成）。
-    // 滿級2下合計340%，電閃雷鳴點滿後才會真的贏過魔力爪(230%+100%=330%)；前期每級加比較多、後期趨緩（頭尾不變）
+    // 13級170%起，電閃雷鳴點滿後2下合計340%就贏過魔力爪(230%+100%=330%)；滿20級2下合計360%；前期每級加比較多、後期趨緩（頭尾不變）
     {"il_wizard_combo", "冰雷合擊", "連續施放冰與雷的合擊魔法攻擊敵人，技能係數如上；電閃雷鳴滿級後可以額外多打一下", "il_wizard", 20, "damage_coef",
-        {75,84,93,102,110,117,124,131,137,142,147,152,156,159,162,165,167,168,169,170}, "", {"法杖"}, 1},
+        {75,86,96,106,115,124,132,140,147,154,160,166,170,172,174,176,177,178,179,180}, "", {"法杖"}, 1},
     // 沿用舊有的「續能激發」死代碼鉤子：每級攻擊力+1、攻擊間隔-0.5秒、冒險休息時間-1秒（三個效果同時生效）
     {"energy_boost", "蓄能強化", "蓄積魔力強化自身：每級攻擊力+1、攻擊間隔縮短0.5秒、冒險擊殺後休息時間縮短1秒", "il_wizard", 20, "buff_pct",
         {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20}, "", {}},
@@ -441,11 +441,11 @@ static const std::vector<MapleSkillDef> MAPLE_SKILLS = {
 
     // 前期每級加比較多、後期趨緩（頭尾不變）
     {"xbow_ranger_aimed", "定向攻擊", "瞄準要害射擊敵人，技能係數如上", "xbow_ranger", 20, "damage_coef",
-        {110,129,147,164,180,195,209,222,234,245,255,264,272,279,285,290,294,297,299,300}, "", {"弩"}},
+        {147,172,196,219,240,260,279,296,312,327,340,352,363,372,380,387,392,396,399,400}, "", {"弩"}},
     {"xbow_ranger_scope", "狙擊鏡強化", "強化瞄準鏡的精準度，提升爆擊率（每級 +1%）", "xbow_ranger", 20, "buff_pct",
         {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20}, "", {}},
-    {"xbow_ranger_retreat", "戰場脫離", "戰鬥中隨時脫離戰場，冒險時擊殺後的休息時間縮短（每級 -2%）", "xbow_ranger", 10, "buff_pct",
-        {2,4,6,8,10,12,14,16,18,20}, "", {}},
+    {"xbow_ranger_retreat", "戰場脫離", "戰鬥中隨時脫離戰場，冒險時擊殺後的休息時間縮短（每級 -4%）", "xbow_ranger", 10, "buff_pct",
+        {4,8,12,16,20,24,28,32,36,40}, "", {}},
 };
 
 static const MapleSkillDef* maple_find_skill(const std::string& key) {
@@ -855,12 +855,12 @@ struct MapleCompanionBuffDef {
     bool mage_only; // 只有法師系（冰雷/僧侶/冰雷魔導士/祭司）可以租借
 };
 static const std::vector<MapleCompanionBuffDef> MAPLE_COMPANION_BUFFS = {
-    {"haste",              "速度激發", "攻擊間隔 -1 秒（相當於速度激發滿級效果）",      200000, false},
-    {"angel_blessing",     "天使祝福", "攻擊力 +5、爆擊率 +25%（相當於天使祝福滿級效果）", 220000, false},
+    {"haste",              "速度激發", "攻擊間隔 -1 秒（速度激發滿級效果，只在冒險生效）",      200000, false},
+    {"angel_blessing",     "天使祝福", "攻擊力 +2.5、爆擊率 +12.5%（天使祝福滿級效果的一半，只在冒險生效）", 220000, false},
     {"bishop_prayer",      "祈禱",     "冒險經驗 +25%（祈禱滿級加成的一半，只在冒險生效）", 300000, false},
-    {"knight_magic_break", "魔防消除", "總傷害 +20%（相當於魔防消除滿級效果，只有法師系可以租借）", 260000, true},
-    {"snow_crystal",       "飄雪結晶", "攻擊力 +10（固定值，加的是攻擊力不是傷害%）",    60000,  false},
-    {"crusader_encourage", "激勵",     "首領傷害 +20%、攻擊力 +10（相當於激勵滿級效果，首領傷害只在突襲首領生效）", 260000, false},
+    {"knight_magic_break", "魔防消除", "總傷害 +10%（魔防消除滿級效果的一半，只有法師系可以租借，只在冒險生效）", 260000, true},
+    {"snow_crystal",       "飄雪結晶", "攻擊力 +10（固定值，加的是攻擊力不是傷害%，只在冒險生效）",    60000,  false},
+    {"crusader_encourage", "激勵",     "首領傷害 +10%、攻擊力 +5（激勵滿級效果的一半，首領傷害只在突襲首領生效，其餘效果只在冒險生效）", 260000, false},
 };
 // 擁有者帳號（NOTIFY_USER_ID）租借假人夥伴免費
 static bool maple_companion_is_free(dpp::snowflake uid) {
@@ -896,7 +896,7 @@ static const MapleCompanionBuffDef* maple_companion_active(const MapleCharacter&
 // 冒險用：天使祝福租借時的「虛擬等級」覆寫值（跟首領突襲戰的隊伍天使祝福共用同一個 angel_override 參數）
 static double maple_companion_angel_override(const MapleCharacter& c) {
     const MapleCompanionBuffDef* b = maple_companion_active(c);
-    return (b && b->key == "angel_blessing") ? 5.0 : -1.0;
+    return (b && b->key == "angel_blessing") ? 2.5 : -1.0;
 }
 // 冒險用：速度激發租借時的「虛擬等級」覆寫值（跟首領突襲戰的隊伍速度激發共用同一個 team_haste_lvl 參數）
 static double maple_companion_haste_override(const MapleCharacter& c) {
@@ -911,17 +911,17 @@ static int maple_companion_snowcrystal_bonus(const MapleCharacter& c) {
 // 冒險用：魔防消除租借時的總傷害%加成（只在冒險生效；首領突襲戰的版本走假人隊伍buff那一套，見下方 raid 部分）
 static double maple_companion_magicbreak_pct(const MapleCharacter& c) {
     const MapleCompanionBuffDef* b = maple_companion_active(c);
-    return (b && b->key == "knight_magic_break") ? 20.0 : 0.0;
+    return (b && b->key == "knight_magic_break") ? 10.0 : 0.0;
 }
 // 冒險用：祈禱租借時的經驗%加成（滿級祈禱+50%的一半）
 static double maple_companion_prayer_exp_pct(const MapleCharacter& c) {
     const MapleCompanionBuffDef* b = maple_companion_active(c);
     return (b && b->key == "bishop_prayer") ? 25.0 : 0.0;
 }
-// 冒險／突襲用：激勵租借時的「虛擬等級」覆寫值（相當於滿級20，跟天使祝福的 override 用法一樣）
+// 冒險／突襲用：激勵租借時的「虛擬等級」覆寫值（滿級20的一半，跟天使祝福的 override 用法一樣）
 static double maple_companion_encourage_override(const MapleCharacter& c) {
     const MapleCompanionBuffDef* b = maple_companion_active(c);
-    return (b && b->key == "crusader_encourage") ? 20.0 : -1.0;
+    return (b && b->key == "crusader_encourage") ? 10.0 : -1.0;
 }
 
 // ─── 技能點數投入的等級限制 ─────────────────────────────────────────────────
@@ -1584,7 +1584,7 @@ static int maple_eff_rest_sec(const MapleCharacter& c) {
                + maple_buff_value(c, "invisible_bow")      // 無形之弓：每級 2% → 滿級 20%
                + maple_buff_value(c, "invisible_xbow")     // 無形之弩：每級 2% → 滿級 20%
                + maple_buff_value(c, "dart_kid_potion")    // 藥劑精通：每級 1% → 滿級(10級) 10%
-               + maple_buff_value(c, "xbow_ranger_retreat"); // 戰場脫離：每級 2% → 滿級(10級) 20%
+               + maple_buff_value(c, "xbow_ranger_retreat"); // 戰場脫離：每級 4% → 滿級(10級) 40%
     if (pct > 70.0) pct = 70.0;
     double v = MAPLE_ADV_REST_SEC * (1.0 - pct / 100.0) - maple_buff_value(c, "energy_boost") // 續能激發：每級 -1 秒
              - maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_REST_SEC); // 潛能「冒險休息時間」
@@ -1911,7 +1911,7 @@ static const std::vector<MapleWbRegionDef> MAPLE_WB_REGIONS = {
         {50,  {"sc_earring60"}},
         {10,  {"sc_wpn_cleanwhite10"}},
         {10,  {"sc_equip_cleanwhite10"}},
-        {30,  {"wpn_red_katana"}},
+        {18,  {"wpn_red_katana"}},
         {30,  {"wpn_frozen_tuna_sniper"}},
         {30,  {"wpn_dark_red_brick_rifle"}},
     }}},
@@ -2093,8 +2093,8 @@ static int64_t maple_wb_kill_secs(const MapleCharacter& c, const MapleWbRegionDe
                            + std::max(maple_buff_value(c, "bishop_prayer"),      team_prayer)
                            + maple_buff_value(c, "mana_resist_ice")
                            + maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_BOSS_DMG); // 潛能「BOSS傷害」
-    if (maple_base_job(c) == "mage") boss_dmg_bonus += team_magic_break; // 魔防消除：法師系隊友也吃得到
-
+    // 魔防消除：法師系隊友吃得到，騎士本人（見習騎士／騎士線）也吃得到自己的這份首領傷害加成
+    if (maple_base_job(c) == "mage" || maple_tier2_base_job(c) == "page") boss_dmg_bonus += team_magic_break;
 
     double avg_dmg = std::max(1.0, maple_atk_power_avg(c, team_angel, 0, team_encourage) * maple_crit_avg_mult(c, team_angel)
                                   * (1.0 + boss_dmg_bonus / 100.0)
@@ -2412,7 +2412,8 @@ static double maple_raid_member_dps_locked(const MapleCharacter& c, const MapleR
                            + std::max(maple_buff_value(c, "bishop_prayer"),      team_prayer)
                            + maple_buff_value(c, "mana_resist_ice")
                            + maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_BOSS_DMG); // 潛能「BOSS傷害」
-    if (maple_base_job(c) == "mage") boss_dmg_bonus += team_magic_break; // 魔防消除：法師系隊友也吃得到
+    // 魔防消除：法師系隊友吃得到，騎士本人（見習騎士／騎士線）也吃得到自己的這份首領傷害加成
+    if (maple_base_job(c) == "mage" || maple_tier2_base_job(c) == "page") boss_dmg_bonus += team_magic_break;
     const MapleRaidBossDef* boss = maple_find_raid_boss(room.boss_key);
     double ul_mult = boss ? maple_underlevel_mult(c.level, boss->suggested_level) : 1.0;
     double avg_dmg = std::max(1.0, maple_atk_power_avg(c, team_angel, 0, team_encourage) * maple_crit_avg_mult(c, team_angel)
