@@ -1,21 +1,21 @@
 {
   "advanced_dojo": {
-    "dead_since": 1793626224,
-    "respawn_secs": 10620,
+    "dead_since": 1793637179,
+    "respawn_secs": 10260,
     "round_kills": 0,
-    "total_kills": 195
+    "total_kills": 196
   },
   "cactus_desert": {
-    "dead_since": 1793629912,
-    "respawn_secs": 4740,
+    "dead_since": 1793640235,
+    "respawn_secs": 4860,
     "round_kills": 0,
-    "total_kills": 429
+    "total_kills": 431
   },
   "coastal_grass": {
-    "dead_since": 1793633057,
+    "dead_since": 1793639545,
     "respawn_secs": 3000,
     "round_kills": 0,
-    "total_kills": 896
+    "total_kills": 898
   },
   "cursed_temple": {
     "dead_since": 1793631953,
@@ -24,22 +24,22 @@
     "total_kills": 91
   },
   "dead_forest4": {
-    "dead_since": 1793629847,
-    "respawn_secs": 3840,
+    "dead_since": 1793638201,
+    "respawn_secs": 6600,
     "round_kills": 0,
-    "total_kills": 257
+    "total_kills": 259
   },
   "east_rock4": {
-    "dead_since": 1793631516,
-    "respawn_secs": 4140,
+    "dead_since": 1793640967,
+    "respawn_secs": 3900,
     "round_kills": 0,
-    "total_kills": 686
+    "total_kills": 688
   },
   "ice_canyon2": {
-    "dead_since": 1793624944,
-    "respawn_secs": 9780,
+    "dead_since": 1793634932,
+    "respawn_secs": 8640,
     "round_kills": 0,
-    "total_kills": 273
+    "total_kills": 274
   },
   "japan_shrine": {
     "dead_since": 1793463665,
@@ -66,27 +66,27 @@
     "total_kills": 6
   },
   "snow_valley": {
-    "dead_since": 1793629484,
-    "respawn_secs": 2760,
-    "round_kills": 1,
-    "total_kills": 47
+    "dead_since": 1793640975,
+    "respawn_secs": 2820,
+    "round_kills": 0,
+    "total_kills": 49
   },
   "subway_station3": {
-    "dead_since": 1793629590,
-    "respawn_secs": 3600,
+    "dead_since": 1793638442,
+    "respawn_secs": 3300,
     "round_kills": 0,
-    "total_kills": 637
+    "total_kills": 639
   },
   "turtle_beach": {
-    "dead_since": 1793631853,
-    "respawn_secs": 4200,
+    "dead_since": 1793636296,
+    "respawn_secs": 5580,
     "round_kills": 0,
-    "total_kills": 508
+    "total_kills": 509
   },
   "witch_forest": {
-    "dead_since": 1793626796,
-    "respawn_secs": 6540,
+    "dead_since": 1793638854,
+    "respawn_secs": 5820,
     "round_kills": 0,
-    "total_kills": 194
+    "total_kills": 195
   }
 }

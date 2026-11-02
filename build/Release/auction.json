@@ -217,18 +217,6 @@
       "uid": "1376834202275676170"
     },
     {
-      "created_at": 1793551101,
-      "currency": "chips",
-      "id": 256,
-      "is_buy": false,
-      "item_id": 80001,
-      "item_key": "hunt_scroll",
-      "item_name": "怪物狩獵卷",
-      "price": 222222222,
-      "qty": 36,
-      "uid": "604244623124070423"
-    },
-    {
       "created_at": 1793551477,
       "currency": "coins",
       "id": 257,
@@ -263,7 +251,19 @@
       "price": 888888898,
       "qty": 5,
       "uid": "959450115007975444"
+    },
+    {
+      "created_at": 1793638929,
+      "currency": "chips",
+      "id": 263,
+      "is_buy": false,
+      "item_id": 80001,
+      "item_key": "hunt_scroll",
+      "item_name": "怪物狩獵卷",
+      "price": 100000000,
+      "qty": 38,
+      "uid": "604244623124070423"
     }
   ],
-  "next_id": 262
+  "next_id": 264
 }
