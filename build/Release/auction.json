@@ -169,18 +169,6 @@
       "uid": "592404587248615458"
     },
     {
-      "created_at": 1793222813,
-      "currency": "chips",
-      "id": 244,
-      "is_buy": false,
-      "item_id": 80001,
-      "item_key": "hunt_scroll",
-      "item_name": "怪物狩獵卷",
-      "price": 1000000,
-      "qty": 24,
-      "uid": "558513044632895509"
-    },
-    {
       "created_at": 1793377110,
       "currency": "chips",
       "id": 249,
@@ -191,18 +179,6 @@
       "price": 10000000,
       "qty": 3,
       "uid": "604244623124070423"
-    },
-    {
-      "created_at": 1793407631,
-      "currency": "chips",
-      "id": 251,
-      "is_buy": false,
-      "item_id": 80001,
-      "item_key": "hunt_scroll",
-      "item_name": "怪物狩獵卷",
-      "price": 60000,
-      "qty": 4,
-      "uid": "558513044632895509"
     },
     {
       "created_at": 1793549410,
@@ -253,17 +229,89 @@
       "uid": "959450115007975444"
     },
     {
-      "created_at": 1793638929,
+      "created_at": 1793707697,
       "currency": "chips",
-      "id": 263,
+      "id": 265,
+      "is_buy": false,
+      "item_id": 80001,
+      "item_key": "hunt_scroll",
+      "item_name": "怪物狩獵卷",
+      "price": 1000000,
+      "qty": 32,
+      "uid": "558513044632895509"
+    },
+    {
+      "created_at": 1793710751,
+      "currency": "coins",
+      "id": 269,
+      "is_buy": false,
+      "item_id": 96724,
+      "item_key": "wpn_wolf_fang",
+      "item_name": "狼牙",
+      "price": 50000,
+      "qty": 1,
+      "uid": "978574913306755084"
+    },
+    {
+      "created_at": 1793711025,
+      "currency": "coins",
+      "id": 270,
+      "is_buy": false,
+      "item_id": 96790,
+      "item_key": "wpn_palm_spike",
+      "item_name": "掌刺",
+      "price": 100000,
+      "qty": 1,
+      "uid": "978574913306755084"
+    },
+    {
+      "created_at": 1793711123,
+      "currency": "coins",
+      "id": 271,
+      "is_buy": false,
+      "item_id": 96699,
+      "item_key": "arm_underworld_clothes",
+      "item_name": "冥界套服",
+      "price": 50000,
+      "qty": 2,
+      "uid": "978574913306755084"
+    },
+    {
+      "created_at": 1793711599,
+      "currency": "coins",
+      "id": 272,
+      "is_buy": false,
+      "item_id": 96690,
+      "item_key": "wpn_rod_club",
+      "item_name": "原始人棒槌",
+      "price": 60000,
+      "qty": 1,
+      "uid": "978574913306755084"
+    },
+    {
+      "created_at": 1793722193,
+      "currency": "chips",
+      "id": 273,
       "is_buy": false,
       "item_id": 80001,
       "item_key": "hunt_scroll",
       "item_name": "怪物狩獵卷",
       "price": 100000000,
-      "qty": 38,
+      "qty": 40,
       "uid": "604244623124070423"
+    },
+    {
+      "created_at": 1793722337,
+      "currency": "coins",
+      "id": 274,
+      "is_buy": false,
+      "item_id": 96503,
+      "item_key": "sc_glove_atk100",
+      "item_name": "手套 攻擊力卷軸 100%",
+      "price": 5000,
+      "qty": 1,
+      "uid": "558513044632895509"
     }
   ],
-  "next_id": 264
+  "next_id": 276
 }

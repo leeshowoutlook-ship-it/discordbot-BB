@@ -1,4 +1,10 @@
 {
+  "1008386641834025011": {
+    "civ_games": 1,
+    "civ_wins": 1,
+    "spy_games": 0,
+    "spy_wins": 0
+  },
   "1036953796007448606": {
     "civ_games": 71,
     "civ_wins": 41,
@@ -59,6 +65,12 @@
     "spy_games": 2,
     "spy_wins": 1
   },
+  "411917312078249986": {
+    "civ_games": 0,
+    "civ_wins": 0,
+    "spy_games": 1,
+    "spy_wins": 0
+  },
   "457478323665240065": {
     "civ_games": 135,
     "civ_wins": 83,
@@ -95,6 +107,12 @@
     "spy_games": 4,
     "spy_wins": 2
   },
+  "559423937860206594": {
+    "civ_games": 1,
+    "civ_wins": 1,
+    "spy_games": 0,
+    "spy_wins": 0
+  },
   "592404587248615458": {
     "civ_games": 8,
     "civ_wins": 6,
@@ -112,6 +130,12 @@
     "civ_wins": 61,
     "spy_games": 27,
     "spy_wins": 13
+  },
+  "687270072385142807": {
+    "civ_games": 1,
+    "civ_wins": 1,
+    "spy_games": 0,
+    "spy_wins": 0
   },
   "811232678590152790": {
     "civ_games": 42,

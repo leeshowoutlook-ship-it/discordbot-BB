@@ -75,6 +75,20 @@
       "shares": 30
     }
   },
+  "527334459708538883": {
+    "stock_0050": {
+      "avg_cost": 101,
+      "shares": 20
+    },
+    "stock_nvda": {
+      "avg_cost": 202,
+      "shares": 5
+    },
+    "stock_tsmc": {
+      "avg_cost": 2295,
+      "shares": 3
+    }
+  },
   "559287346131107861": {
     "stock_0050": {
       "avg_cost": 103,

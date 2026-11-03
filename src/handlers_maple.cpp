@@ -496,6 +496,22 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
         return;
     }
 
+    // maple_wbsrv_<uid>_<page>：本伺服器野外首領列表（看的是按下按鈕的這個伺服器）
+    if (cid.rfind("maple_wbsrv_", 0) == 0) {
+        if (!check_owner("maple_wbsrv_")) return;
+        uint64_t gid = (uint64_t)ev.command.guild_id;
+        if (!gid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 本伺服器首領只能在伺服器頻道裡使用。").set_flags(dpp::m_ephemeral)); return;
+        }
+        int page = 0;
+        std::string rest = cid.substr(std::string("maple_wbsrv_").size());
+        size_t psep = rest.find('_');
+        if (psep != std::string::npos) { try { page = std::stoi(rest.substr(psep + 1)); } catch (...) {} }
+        ev.reply(dpp::ir_update_message, make_maple_wb_region_list_msg(uid, page, gid));
+        return;
+    }
+
     if (cid.rfind("maple_ambush_", 0) == 0) {
         if (!check_owner("maple_ambush_")) return;
         ev.reply(dpp::ir_update_message, make_maple_ambush_msg(uid));
@@ -1317,8 +1333,14 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
         std::string rest = cid.substr(std::string("maple_nmexplore_").size());
         size_t sep = rest.find('_');
         std::string group_key = (sep != std::string::npos) ? rest.substr(sep + 1) : "night_market";
+        uint64_t scope_gid = maple_wb_scope_guild(group_key);   // 本伺服器版：group_key 後面接 @伺服器ID
+        group_key = maple_wb_base_key(group_key);
         const MapleWbExploreGroup* group = maple_wb_explore_group_by_key(group_key);
         if (!group || group->region_keys.empty()) return;
+        if (scope_gid && scope_gid != (uint64_t)ev.command.guild_id) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這是別的伺服器的首領，只有在那個伺服器裡才能挑戰。").set_flags(dpp::m_ephemeral)); return;
+        }
         time_t now = time(nullptr);
         std::string err;
         bool already = false;
@@ -1326,7 +1348,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
             bool any_up = false;
-            for (auto& rk : group->region_keys) if (maple_wb_is_up_locked(rk, now)) { any_up = true; break; }
+            for (auto& rk : group->region_keys) if (maple_wb_is_up_locked(maple_wb_scoped_key(rk, scope_gid), now)) { any_up = true; break; }
             if (c.nm_explore_until > 0) already = true;
             else if (!any_up) err = group->label + "目前很平靜，所有首領都已經被討伐了，等重生後再來探索吧！";
             else if (maple_is_adventuring(c)) { ask_end_adv(c, "探索" + group->label); return; }
@@ -1334,7 +1356,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
             else if (!c.raid_room_id.empty() && maple_find_raid_room(c.raid_room_id)) err = "正在突襲首領房間裡，無法探索！";
             else {
                 int idx = std::uniform_int_distribution<int>(0, (int)group->region_keys.size() - 1)(maple_wb_rng());
-                c.nm_explore_region = group->region_keys[idx];
+                c.nm_explore_region = maple_wb_scoped_key(group->region_keys[idx], scope_gid);
                 c.nm_explore_until  = now + 60;
             }
         }
@@ -1357,14 +1379,16 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
     // maple_nmexit_<uid>：放棄這次夜市探索結果（不管有沒有氣息），回到野外首領列表
     if (cid.rfind("maple_nmexit_", 0) == 0) {
         if (!check_owner("maple_nmexit_")) return;
+        uint64_t scope_gid = 0;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
+            scope_gid = maple_wb_scope_guild(c.nm_explore_region);
             c.nm_explore_until = 0;
             c.nm_explore_region.clear();
         }
         save_maple_data();
-        ev.reply(dpp::ir_update_message, make_maple_wb_region_list_msg(uid));
+        ev.reply(dpp::ir_update_message, make_maple_wb_region_list_msg(uid, 0, scope_gid));
         return;
     }
 
@@ -1380,6 +1404,11 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
         }
         const MapleWbRegionDef* region = maple_find_wb_region(region_key);
         if (!region || !region->open) return;
+        uint64_t scope_gid = maple_wb_scope_guild(region_key);
+        if (scope_gid && scope_gid != (uint64_t)ev.command.guild_id) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這是別的伺服器的首領，只有在那個伺服器裡才能挑戰。").set_flags(dpp::m_ephemeral)); return;
+        }
         time_t now = time(nullptr);
         {
             std::lock_guard<std::mutex> lk(data_mutex);
@@ -1425,11 +1454,30 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
         }
         time_t now = time(nullptr);
         if (now - snap.wb_started_at < snap.wb_required_secs) {
-            ev.reply(dpp::ir_update_message, make_maple_wb_status_msg(uid)); return;
+            // 還沒打完，但這一輪已經被別人打光（本輪關閉）→ 不用等了，直接結束、無功而返
+            bool round_closed = false;
+            {
+                std::lock_guard<std::mutex> lk(data_mutex);
+                auto& c = maple_data[uid];
+                if (maple_is_wb_fighting(c) && maple_wb_dead_since_locked(c.wb_region) != c.wb_epoch) {
+                    round_closed = true;
+                    c.wb_region.clear();
+                    c.wb_started_at = 0;
+                    c.wb_required_secs = 0;
+                    c.wb_epoch = 0;
+                }
+            }
+            if (!round_closed) { ev.reply(dpp::ir_update_message, make_maple_wb_status_msg(uid)); return; }
+            save_maple_data();
+            const MapleWbRegionDef* rg = maple_find_wb_region(snap.wb_region);
+            ev.reply(dpp::ir_update_message, make_maple_wb_result_msg(uid, false, rg ? rg->boss.name : "野外首領",
+                0, 0, 0, {}, 0, maple_wb_max_winners(snap.wb_region), maple_wb_scope_guild(snap.wb_region)));
+            return;
         }
         const MapleWbRegionDef* region = maple_find_wb_region(snap.wb_region);
         std::string boss_name = region ? region->boss.name : "野外首領";
-        int max_winners = region ? region->max_winners : MAPLE_WB_MAX_WINNERS;
+        int max_winners = maple_wb_max_winners(snap.wb_region); // 本伺服器版＝全服名額 ÷3 無條件進位
+        uint64_t scope_gid = maple_wb_scope_guild(snap.wb_region);
         bool win = false;
         int place = 0; // 本輪第幾位擊殺成功（1~max_winners）
         int64_t exp_gain = 0, coin_gain = 0;
@@ -1483,16 +1531,18 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
         if (win) save_maple_wb_state();
         save_maple_data();
         if (level_ups > 0) save_maple_faction_state();
-        ev.reply(dpp::ir_update_message, make_maple_wb_result_msg(uid, win, boss_name, exp_gain, coin_gain, level_ups, drops, place, max_winners));
+        ev.reply(dpp::ir_update_message, make_maple_wb_result_msg(uid, win, boss_name, exp_gain, coin_gain, level_ups, drops, place, max_winners, scope_gid));
         return;
     }
 
     if (cid.rfind("maple_wbcancel_", 0) == 0) {
         if (!check_owner("maple_wbcancel_")) return;
+        uint64_t scope_gid = 0;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
             auto& c = maple_data[uid];
             if (!maple_is_wb_fighting(c)) { ev.reply(dpp::ir_update_message, make_maple_wb_region_list_msg(uid)); return; }
+            scope_gid = maple_wb_scope_guild(c.wb_region);
             // 中斷不會結算戰果（沒有獎勵、不會標記王死亡），王會繼續開放給其他人挑戰
             c.wb_region.clear();
             c.wb_started_at = 0;
@@ -1500,7 +1550,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
             c.wb_epoch = 0;
         }
         save_maple_data();
-        ev.reply(dpp::ir_update_message, make_maple_wb_region_list_msg(uid));
+        ev.reply(dpp::ir_update_message, make_maple_wb_region_list_msg(uid, 0, scope_gid));
         return;
     }
 

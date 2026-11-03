@@ -1940,9 +1940,29 @@ static const std::vector<MapleWbRegionDef> MAPLE_WB_REGIONS = {
     }}, 2, true},
 };
 
+// 本伺服器野外首領：區域 key 後面接「@伺服器ID」（例：japan_shrine@1392583413717930174），
+// 每個伺服器各自一套重生／擊殺數，只有在那個伺服器裡按按鈕才能打；一輪名額＝全服版 ÷3 無條件進位。
+static std::string maple_wb_base_key(const std::string& key) {
+    size_t at = key.find('@');
+    return at == std::string::npos ? key : key.substr(0, at);
+}
+static uint64_t maple_wb_scope_guild(const std::string& key) {
+    size_t at = key.find('@');
+    if (at == std::string::npos) return 0;
+    try { return std::stoull(key.substr(at + 1)); } catch (...) { return 0; }
+}
+static std::string maple_wb_scoped_key(const std::string& base, uint64_t gid) {
+    return gid ? base + "@" + std::to_string(gid) : base;
+}
 static const MapleWbRegionDef* maple_find_wb_region(const std::string& key) {
-    for (auto& r : MAPLE_WB_REGIONS) if (r.key == key) return &r;
+    std::string base = maple_wb_base_key(key);
+    for (auto& r : MAPLE_WB_REGIONS) if (r.key == base) return &r;
     return nullptr;
+}
+static int maple_wb_max_winners(const std::string& key) {
+    const MapleWbRegionDef* r = maple_find_wb_region(key);
+    int mw = r ? r->max_winners : 3;
+    return maple_wb_scope_guild(key) ? (mw + 2) / 3 : mw;
 }
 
 // ─── 野王寶箱 ────────────────────────────────────────────────────────────────
@@ -4546,9 +4566,12 @@ static std::vector<MapleWbListRow> maple_wb_list_rows() {
     return rows;
 }
 
-static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid, int page = 0) {
+// gid≠0：本伺服器版（每個區域 key 接上 @gid，名額 ÷3 無條件進位）
+static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid, int page = 0, uint64_t gid = 0) {
     std::string uid_s = std::to_string((uint64_t)uid);
     time_t now = time(nullptr);
+    auto SK = [gid](const std::string& base) { return maple_wb_scoped_key(base, gid); };
+    std::string page_prefix = gid ? "maple_wbsrv_" : "maple_wbrefresh_";
     std::vector<MapleWbListRow> rows = maple_wb_list_rows();
     int total = (int)rows.size();
     int pages = std::max(1, (total + MAPLE_WB_LIST_PAGE_SIZE - 1) / MAPLE_WB_LIST_PAGE_SIZE);
@@ -4560,7 +4583,8 @@ static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid, int page =
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 🐉 野外首領\n全服共用一隻，先搶先贏！攻擊力越高打越快，但過程中被別人搶先擊殺就會無功而返。"
+        .set_content((gid ? std::string("## 🏠 本伺服器野外首領\n只有這個伺服器的人能挑戰，跟全服首領分開重生；每輪名額是全服的 1/3（無條件進位）。")
+                          : std::string("## 🐉 野外首領\n全服共用一隻，先搶先贏！攻擊力越高打越快，但過程中被別人搶先擊殺就會無功而返。"))
                      + (pages > 1 ? "\n第 **" + std::to_string(page + 1) + "/" + std::to_string(pages) + "** 頁" : std::string())));
     container.add_component_v2(dpp::component().set_type(dpp::cot_separator)
         .set_spacing(dpp::sep_small).set_divider(true));
@@ -4575,14 +4599,16 @@ static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid, int page =
             int hunters = 0;
             bool up = false;
             { std::lock_guard<std::mutex> lk(data_mutex);
+              std::vector<std::string> keys;
+              for (auto& rk : g.region_keys) keys.push_back(SK(rk));
               for (auto& [uid2, c2] : maple_data) {
-                  bool in_group = std::find(g.region_keys.begin(), g.region_keys.end(), c2.wb_region) != g.region_keys.end();
+                  bool in_group = std::find(keys.begin(), keys.end(), c2.wb_region) != keys.end();
                   bool exploring_group = c2.nm_explore_until > 0
-                      && std::find(g.region_keys.begin(), g.region_keys.end(), c2.nm_explore_region) != g.region_keys.end();
+                      && std::find(keys.begin(), keys.end(), c2.nm_explore_region) != keys.end();
                   if (in_group || exploring_group) hunters++;
               }
               // 這裡已經持有 data_mutex，要用 _locked 版本（maple_wb_is_up 會再鎖一次，同執行緒重複鎖會卡死/崩潰）
-              for (auto& rk : g.region_keys) if (maple_wb_is_up_locked(rk, now)) { up = true; break; } }
+              for (auto& rk : keys) if (maple_wb_is_up_locked(rk, now)) { up = true; break; } }
             std::string text = "**" + g.label + "**　建議 Lv. " + std::to_string(lv) + "~\n" + g.desc + "\n";
             if (up) text += "😈 " + g.label + "似乎發生了奇怪的動靜...\n";
             if (hunters > 0) text += "🔍 目前 " + std::to_string(hunters) + " 人正在探索／挑戰\n";
@@ -4590,7 +4616,7 @@ static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid, int page =
                 .set_type(dpp::cot_section)
                 .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
                 .set_accessory(dpp::component().set_type(dpp::cot_button)
-                    .set_label(up ? "🔍 探索" : "💤 都被討伐了").set_id("maple_nmexplore_" + uid_s + "_" + g.key)
+                    .set_label(up ? "🔍 探索" : "💤 都被討伐了").set_id("maple_nmexplore_" + uid_s + "_" + SK(g.key))
                     .set_style(dpp::cos_danger).set_disabled(!up)));
             continue;
         }
@@ -4600,15 +4626,17 @@ static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid, int page =
             : std::to_string(r.respawn_min_lo) + "~" + std::to_string(r.respawn_min_hi);
         std::string text = "**" + r.name + "**　建議 Lv. " + std::to_string(r.suggested_level)
                           + "~　（重生間隔 " + respawn_text + " 分鐘）\n";
+        std::string rkey = SK(r.key);
         int round_kills;
-        { std::lock_guard<std::mutex> lk(data_mutex); round_kills = maple_wb_state[r.key].round_kills; }
-        text += "💀 這一輪已討伐 **" + std::to_string(round_kills) + "/" + std::to_string(r.max_winners) + "** 隻\n";
+        { std::lock_guard<std::mutex> lk(data_mutex); auto sit = maple_wb_state.find(rkey);
+          round_kills = sit == maple_wb_state.end() ? 0 : sit->second.round_kills; }
+        text += "💀 這一輪已討伐 **" + std::to_string(round_kills) + "/" + std::to_string(maple_wb_max_winners(rkey)) + "** 隻\n";
         std::string btn_label;
         bool enterable = false;
         if (!r.open) {
             text += "🚧 尚未開放";
             btn_label = "尚未開放";
-        } else if (maple_wb_is_up(r.key, now)) {
+        } else if (maple_wb_is_up(rkey, now)) {
             text += "😈 " + r.name + "似乎發生了奇怪的動靜...";
             btn_label = "進入";
             enterable = true;
@@ -4616,13 +4644,13 @@ static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid, int page =
             text += "⏳ 尚未重生";
             btn_label = "尚未重生";
         }
-        int hunters = maple_wb_hunters_count(r.key);
+        int hunters = maple_wb_hunters_count(rkey);
         if (hunters > 0) text += "　🔍 目前 " + std::to_string(hunters) + " 人正在尋找首領";
         container.add_component_v2(dpp::component()
             .set_type(dpp::cot_section)
             .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
             .set_accessory(dpp::component().set_type(dpp::cot_button)
-                .set_label(btn_label).set_id("maple_wbopen_" + uid_s + "_" + r.key)
+                .set_label(btn_label).set_id("maple_wbopen_" + uid_s + "_" + rkey)
                 .set_style(enterable ? dpp::cos_danger : dpp::cos_secondary)
                 .set_disabled(!enterable)));
     }
@@ -4631,17 +4659,26 @@ static dpp::message make_maple_wb_region_list_msg(dpp::snowflake uid, int page =
     dpp::component row; row.set_type(dpp::cot_action_row);
     if (pages > 1)
         row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("◀ 上一頁").set_id("maple_wbrefresh_" + uid_s + "_" + std::to_string(page - 1))
+            .set_label("◀ 上一頁").set_id(page_prefix + uid_s + "_" + std::to_string(page - 1))
             .set_style(dpp::cos_secondary).set_disabled(page <= 0));
     row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🔄 重新整理").set_id("maple_wbrefresh_" + uid_s + "_" + std::to_string(page)).set_style(dpp::cos_primary));
+        .set_label("🔄 重新整理").set_id(page_prefix + uid_s + "_" + std::to_string(page)).set_style(dpp::cos_primary));
     if (pages > 1)
         row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("▶ 下一頁").set_id("maple_wbrefresh_" + uid_s + "_" + std::to_string(page + 1))
+            .set_label("▶ 下一頁").set_id(page_prefix + uid_s + "_" + std::to_string(page + 1))
             .set_style(dpp::cos_secondary).set_disabled(page >= pages - 1));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
+    // 全服／本伺服器切換
+    dpp::component row2; row2.set_type(dpp::cot_action_row);
+    if (gid)
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🌐 全服首領").set_id("maple_wbrefresh_" + uid_s + "_0").set_style(dpp::cos_secondary));
+    else
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("🏠 本伺服器").set_id("maple_wbsrv_" + uid_s + "_0").set_style(dpp::cos_success));
+    msg.add_component_v2(row2);
 
     return msg;
 }
@@ -4651,7 +4688,8 @@ static dpp::message make_maple_wb_status_msg(dpp::snowflake uid) {
     std::string uid_s = std::to_string((uint64_t)uid);
     const MapleWbRegionDef* region = maple_find_wb_region(c.wb_region);
 
-    std::string content = "## ⚔️ 挑戰中 — " + (region ? region->name : c.wb_region) + "\n";
+    std::string content = "## ⚔️ 挑戰中 — " + (region ? region->name : c.wb_region)
+                        + (maple_wb_scope_guild(c.wb_region) ? "（本伺服器）" : "") + "\n";
     if (region) content += "對手：**" + region->boss.name + "**\n";
     content += "\n你已經纏鬥了 **" + maple_fmt_duration(std::max((time_t)0, time(nullptr) - c.wb_started_at)) + "**...\n";
     content += "-# 勝負未定，用「查看戰況」確認結果。若中途被別人搶先討伐，這趟就會無功而返。";
@@ -4707,12 +4745,13 @@ static dpp::message make_maple_nm_status_msg(dpp::snowflake uid) {
     }
 
     const MapleWbRegionDef* region = maple_find_wb_region(c.nm_explore_region);
-    bool up = region && maple_wb_is_up(region->key, now);
+    bool up = region && maple_wb_is_up(c.nm_explore_region, now);
     std::string region_name = region ? region->name : c.nm_explore_region;
+    if (maple_wb_scope_guild(c.nm_explore_region)) region_name += "（本伺服器）";
     std::string content = "## " + grp_label + "\n你走進了 **" + region_name + "**...\n\n";
     if (up) {
         content += "😈 空氣中瀰漫著一股邪惡的氣息...\n對手：**" + region->boss.name + "**";
-        int hunters = maple_wb_hunters_count(region->key);
+        int hunters = maple_wb_hunters_count(c.nm_explore_region);
         if (hunters > 0) content += "\n🔍 目前 " + std::to_string(hunters) + " 人正在挑戰";
     } else {
         content += "🌌 靜悄悄的，沒有感覺到什麼邪惡的氣息...";
@@ -4723,7 +4762,7 @@ static dpp::message make_maple_nm_status_msg(dpp::snowflake uid) {
     dpp::component row; row.set_type(dpp::cot_action_row);
     if (up && region) {
         row.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("⚔️ 戰鬥").set_id("maple_wbopen_" + uid_s + "_" + region->key).set_style(dpp::cos_danger));
+            .set_label("⚔️ 戰鬥").set_id("maple_wbopen_" + uid_s + "_" + c.nm_explore_region).set_style(dpp::cos_danger));
     }
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("↩ 退出").set_id("maple_nmexit_" + uid_s).set_style(dpp::cos_secondary));
@@ -4734,7 +4773,7 @@ static dpp::message make_maple_nm_status_msg(dpp::snowflake uid) {
 static dpp::message make_maple_wb_result_msg(dpp::snowflake uid, bool win, const std::string& boss_name,
                                              int64_t exp_gain, int64_t coin_gain, int level_ups,
                                              const std::vector<std::string>& drops = {}, int place = 0,
-                                             int max_winners = MAPLE_WB_MAX_WINNERS) {
+                                             int max_winners = MAPLE_WB_MAX_WINNERS, uint64_t scope_gid = 0) {
     std::string uid_s = std::to_string((uint64_t)uid);
     std::string content;
     if (win) {
@@ -4748,6 +4787,7 @@ static dpp::message make_maple_wb_result_msg(dpp::snowflake uid, bool win, const
     } else {
         content = "## 💨 無功而返\n晚了一步，**" + boss_name + "** 這一輪的名額已經被別人搶完了...下次動作要快！";
     }
+    if (scope_gid) content += "\n-# 🏠 本伺服器首領";
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(win ? 0x2E : 0x95, win ? 0xCC : 0x95, win ? 0x71 : 0x95));
@@ -4759,7 +4799,8 @@ static dpp::message make_maple_wb_result_msg(dpp::snowflake uid, bool win, const
 
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🐉 野外首領").set_id("maple_wb_" + uid_s).set_style(dpp::cos_primary));
+        .set_label(scope_gid ? "🐉 本伺服器首領" : "🐉 野外首領")
+        .set_id(scope_gid ? "maple_wbsrv_" + uid_s + "_0" : "maple_wb_" + uid_s).set_style(dpp::cos_primary));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("🏠 大廳").set_id("lobby_main_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
