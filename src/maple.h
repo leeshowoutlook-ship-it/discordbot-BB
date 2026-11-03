@@ -275,8 +275,8 @@ static const std::vector<MapleSkillDef> MAPLE_SKILLS = {
     // 盜賊
     {"double_throw", "雙飛閃", "快速投擲兩枚飛鏢攻擊敵人（每下套用技能係數，共 2 下）", "thief", 10, "damage_coef",
         {100,108,116,124,130,135,140,144,148,150}, "", {"拳套"}, 2},
-    {"haste", "速度激發", "自己與周圍玩家的攻擊間隔縮短（每級 -0.1 秒，滿級 -1 秒）", "thief", 10, "buff_pct",
-        {1,2,3,4,5,6,7,8,9,10}, "", {}},
+    {"haste", "速度激發", "自己與周圍玩家的攻擊間隔縮短（每級 -0.3 秒，滿級 -3 秒）", "thief", 10, "buff_pct",
+        {3,6,9,12,15,18,21,24,27,30}, "", {}},
     // 法師
     {"magic_claw", "魔力爪", "運用自身魔力化成尖銳的爪擊攻擊敵人，技能係數如上", "mage", 10, "damage_coef",
         {120,140,160,175,180,190,200,210,220,230}, "", {"法杖"}},
@@ -855,7 +855,7 @@ struct MapleCompanionBuffDef {
     bool mage_only; // 只有法師系（冰雷/僧侶/冰雷魔導士/祭司）可以租借
 };
 static const std::vector<MapleCompanionBuffDef> MAPLE_COMPANION_BUFFS = {
-    {"haste",              "速度激發", "攻擊間隔 -1 秒（速度激發滿級效果，只在冒險生效）",      200000, false},
+    {"haste",              "速度激發", "攻擊間隔 -1.5 秒（速度激發滿級效果的一半，只在冒險生效）", 200000, false},
     {"angel_blessing",     "天使祝福", "攻擊力 +2.5、爆擊率 +12.5%（天使祝福滿級效果的一半，只在冒險生效）", 220000, false},
     {"bishop_prayer",      "祈禱",     "冒險經驗 +25%（祈禱滿級加成的一半，只在冒險生效）", 300000, false},
     {"knight_magic_break", "魔防消除", "總傷害 +10%（魔防消除滿級效果的一半，只有法師系可以租借，只在冒險生效）", 260000, true},
@@ -899,9 +899,10 @@ static double maple_companion_angel_override(const MapleCharacter& c) {
     return (b && b->key == "angel_blessing") ? 2.5 : -1.0;
 }
 // 冒險用：速度激發租借時的「虛擬等級」覆寫值（跟首領突襲戰的隊伍速度激發共用同一個 team_haste_lvl 參數）
+// 15.0 × 0.1 = -1.5秒（速度激發滿級-3秒的一半，租借只拿到一半效果）
 static double maple_companion_haste_override(const MapleCharacter& c) {
     const MapleCompanionBuffDef* b = maple_companion_active(c);
-    return (b && b->key == "haste") ? 10.0 : 0.0;
+    return (b && b->key == "haste") ? 15.0 : 0.0;
 }
 // 冒險用：飄雪結晶租借時額外的武器攻擊力（跟陣營攻擊力一樣，是「攻擊力」不是「傷害%」，會被屬性係數放大）
 static int maple_companion_snowcrystal_bonus(const MapleCharacter& c) {
@@ -1568,7 +1569,7 @@ static int maple_eff_atk_interval(const MapleCharacter& c, double team_haste_lvl
     double base = maple_atk_speed_sec(c);
     double haste_lvl = std::max(maple_buff_value(c, "haste"), team_haste_lvl); // 速度激發是全體技能，隊伍裡最高的算數
     double cut = maple_buff_value(c, "teleport") * 0.1   // 瞬間移動：每級 0.1 秒 → 滿級 -2 秒
-               + haste_lvl * 0.1                          // 速度激發：每級 0.1 秒 → 滿級 -1 秒（全體共享，取隊伍最高）
+               + haste_lvl * 0.1                          // 速度激發：每級 0.1 秒 → 滿級 -3 秒（全體共享，取隊伍最高）
                + maple_buff_value(c, "charge")            // 衝鋒：每級約 0.5 秒 → 滿級 -5 秒
                + maple_buff_value(c, "energy_boost") * 0.5  // 續能激發：每級 0.5 秒 → 滿級 -5 秒
                + maple_buff_value(c, "ranger_gale_step") * 0.1  // 疾風步：每級 0.1 秒 → 滿級(10級) -2 秒
