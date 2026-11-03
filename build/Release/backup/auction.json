@@ -311,7 +311,19 @@
       "price": 5000,
       "qty": 1,
       "uid": "558513044632895509"
+    },
+    {
+      "created_at": 1793726023,
+      "currency": "coins",
+      "id": 276,
+      "is_buy": false,
+      "item_id": 96001,
+      "item_key": "weekly_hunt_scroll",
+      "item_name": "每週怪物狩獵卷",
+      "price": 200000,
+      "qty": 1,
+      "uid": "1008386641834025011"
     }
   ],
-  "next_id": 275
+  "next_id": 277
 }

@@ -419,7 +419,7 @@ static const std::vector<MapleItemDef>& maple_items() {
             MapleItemDef e;
             e.key = "wpn_spore_sniper"; e.name = "芽孢狙擊槍"; e.slot = "weapon";
             e.level_req = 80; e.secondary_req = 100; e.sellable = true;
-            e.atk_bonus = 74; e.atk_speed_sec = 45; e.weapon_type = "弩"; // 比一般弩快一階攻速（60→45）
+            e.atk_bonus = 64; e.atk_speed_sec = 45; e.weapon_type = "弩"; // 比一般弩快一階攻速（60→45）
             e.price = 0; e.item_id = 96795;
             items.push_back(e);
         }
@@ -473,7 +473,7 @@ static const std::vector<MapleItemDef>& maple_items() {
             items.push_back(e);
         }
         // 米伽勒的平底鍋：法杖，限制等級90、限制副屬性100、限職業法師，攻速比一般法杖快兩階(90→60)，
-        // 攻擊力80、主屬性(智力)+15。黑輪王（夜市徒步區7/7-1）掉落，不在商店販售。
+        // 攻擊力55、主屬性(智力)+15。黑輪王（夜市徒步區7/7-1）掉落，不在商店販售。
         {
             MapleItemDef e;
             e.key = "wpn_michael_pan";
@@ -482,7 +482,7 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.level_req = 90;
             e.secondary_req = 100;
             e.sellable = true;
-            e.atk_bonus = 80;
+            e.atk_bonus = 55;
             e.atk_speed_sec = 60;
             e.weapon_type = "法杖";
             e.job_req = "mage";
@@ -506,7 +506,7 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.item_id = 96804;
             items.push_back(e);
         }
-        // 紅色武士刀：大劍，限職業劍士、限制等級110、限制副屬性150，攻速比一般大劍(70)快兩階段(45)，攻擊力88。
+        // 紅色武士刀：大劍，限職業劍士、限制等級110、限制副屬性150，攻速比一般大劍(70)快兩階段(45)，攻擊力73。
         // 多多（回憶之路5）3% 掉落，不在商店販售。
         {
             MapleItemDef e;
@@ -516,7 +516,7 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.level_req = 110;
             e.secondary_req = 150;
             e.sellable = true;
-            e.atk_bonus = 88;
+            e.atk_bonus = 73;
             e.atk_speed_sec = 45;
             e.weapon_type = "大劍";
             e.job_req = "warrior";

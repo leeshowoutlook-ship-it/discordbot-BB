@@ -9,14 +9,14 @@
   "three_eye_octopus": {
     "atk_pts": 3,
     "coin_pts": 0,
-    "exp": 714,
+    "exp": 880,
     "exp_pts": 13,
     "level": 16
   },
   "water_spirit": {
     "atk_pts": 2,
     "coin_pts": 0,
-    "exp": 316,
+    "exp": 407,
     "exp_pts": 25,
     "level": 27
   }

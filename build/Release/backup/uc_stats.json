@@ -1,13 +1,13 @@
 {
   "1008386641834025011": {
-    "civ_games": 1,
-    "civ_wins": 1,
+    "civ_games": 3,
+    "civ_wins": 3,
     "spy_games": 0,
     "spy_wins": 0
   },
   "1036953796007448606": {
-    "civ_games": 71,
-    "civ_wins": 41,
+    "civ_games": 72,
+    "civ_wins": 42,
     "spy_games": 13,
     "spy_wins": 6
   },
@@ -47,6 +47,12 @@
     "spy_games": 0,
     "spy_wins": 0
   },
+  "1500454493043822602": {
+    "civ_games": 3,
+    "civ_wins": 3,
+    "spy_games": 1,
+    "spy_wins": 0
+  },
   "1506454940221177958": {
     "civ_games": 3,
     "civ_wins": 0,
@@ -59,6 +65,12 @@
     "spy_games": 0,
     "spy_wins": 0
   },
+  "335959081984720896": {
+    "civ_games": 3,
+    "civ_wins": 3,
+    "spy_games": 1,
+    "spy_wins": 0
+  },
   "353567910285017090": {
     "civ_games": 29,
     "civ_wins": 25,
@@ -66,9 +78,9 @@
     "spy_wins": 1
   },
   "411917312078249986": {
-    "civ_games": 0,
-    "civ_wins": 0,
-    "spy_games": 1,
+    "civ_games": 2,
+    "civ_wins": 2,
+    "spy_games": 3,
     "spy_wins": 0
   },
   "457478323665240065": {
@@ -108,8 +120,8 @@
     "spy_wins": 2
   },
   "559423937860206594": {
-    "civ_games": 1,
-    "civ_wins": 1,
+    "civ_games": 3,
+    "civ_wins": 3,
     "spy_games": 0,
     "spy_wins": 0
   },
@@ -132,8 +144,14 @@
     "spy_wins": 13
   },
   "687270072385142807": {
-    "civ_games": 1,
-    "civ_wins": 1,
+    "civ_games": 5,
+    "civ_wins": 5,
+    "spy_games": 0,
+    "spy_wins": 0
+  },
+  "741919638505652226": {
+    "civ_games": 2,
+    "civ_wins": 2,
     "spy_games": 0,
     "spy_wins": 0
   },

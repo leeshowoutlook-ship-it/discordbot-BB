@@ -311,7 +311,43 @@
       "price": 5000,
       "qty": 1,
       "uid": "558513044632895509"
+    },
+    {
+      "created_at": 1793726023,
+      "currency": "coins",
+      "id": 276,
+      "is_buy": false,
+      "item_id": 96001,
+      "item_key": "weekly_hunt_scroll",
+      "item_name": "每週怪物狩獵卷",
+      "price": 200000,
+      "qty": 1,
+      "uid": "1008386641834025011"
+    },
+    {
+      "created_at": 1793726273,
+      "currency": "chips",
+      "id": 278,
+      "is_buy": false,
+      "item_id": 96517,
+      "item_key": "sc_wpn_dagger60",
+      "item_name": "匕首 攻擊力卷軸 60%",
+      "price": 20000,
+      "qty": 1,
+      "uid": "1008386641834025011"
+    },
+    {
+      "created_at": 1793726419,
+      "currency": "coins",
+      "id": 279,
+      "is_buy": false,
+      "item_id": 96525,
+      "item_key": "sc_wpn_dagger20",
+      "item_name": "匕首 攻擊力卷軸 20%",
+      "price": 30000,
+      "qty": 1,
+      "uid": "1008386641834025011"
     }
   ],
-  "next_id": 276
+  "next_id": 280
 }

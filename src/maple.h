@@ -82,16 +82,20 @@ static MapleFactionState maple_faction_state_of(const std::string& key) {
     return it != maple_faction_state.end() ? it->second : MapleFactionState{};
 }
 // 套用陣營經驗值並處理連續升級，回傳升了幾級；呼叫前需持有 data_mutex（跟操作 maple_data 同一把鎖）
+static const int MAPLE_FACTION_MAX_LEVEL = 45; // 陣營等級上限
+static const int MAPLE_FACTION_MAX_PTS   = 15; // 攻擊／經驗／瘋幣 每一項最多分配幾點
 static int maple_faction_apply_exp(const std::string& faction_key, int64_t exp_gain) {
     if (faction_key.empty() || exp_gain <= 0) return 0;
     MapleFactionState& st = maple_faction_state[faction_key];
+    if (st.level >= MAPLE_FACTION_MAX_LEVEL) { st.exp = 0; return 0; } // 滿級不再累積經驗
     st.exp += exp_gain;
     int levels = 0;
-    while (st.exp >= maple_faction_exp_to_next(st.level)) {
+    while (st.level < MAPLE_FACTION_MAX_LEVEL && st.exp >= maple_faction_exp_to_next(st.level)) {
         st.exp -= maple_faction_exp_to_next(st.level);
         st.level++;
         levels++;
     }
+    if (st.level >= MAPLE_FACTION_MAX_LEVEL) st.exp = 0;
     return levels;
 }
 // 呼叫前需持有 data_mutex
@@ -1568,10 +1572,12 @@ static const int64_t MAPLE_ADV_REST_SEC = 60;
 static int maple_eff_atk_interval(const MapleCharacter& c, double team_haste_lvl = 0.0) {
     double base = maple_atk_speed_sec(c);
     double haste_lvl = std::max(maple_buff_value(c, "haste"), team_haste_lvl); // 速度激發是全體技能，隊伍裡最高的算數
-    double cut = maple_buff_value(c, "teleport") * 0.1   // 瞬間移動：每級 0.1 秒 → 滿級 -2 秒
+    // 米伽勒的平底鍋：不吃瞬間移動、蓄能強化的攻擊間隔減免（快速法杖等「快一階」照常）
+    bool is_pan = maple_equipped_key(c, "weapon") == "wpn_michael_pan";
+    double cut = (is_pan ? 0.0 : maple_buff_value(c, "teleport") * 0.1)   // 瞬間移動：每級 0.1 秒 → 滿級 -2 秒
                + haste_lvl * 0.1                          // 速度激發：每級 0.1 秒 → 滿級 -3 秒（全體共享，取隊伍最高）
                + maple_buff_value(c, "charge")            // 衝鋒：每級約 0.5 秒 → 滿級 -5 秒
-               + maple_buff_value(c, "energy_boost") * 0.5  // 續能激發：每級 0.5 秒 → 滿級 -5 秒
+               + (is_pan ? 0.0 : maple_buff_value(c, "energy_boost") * 0.5)  // 蓄能強化：每級 0.5 秒（平底鍋不吃）
                + maple_buff_value(c, "ranger_gale_step") * 0.1  // 疾風步：每級 0.1 秒 → 滿級(10級) -2 秒
                + maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_ATK_SPEED); // 潛能「攻擊間隔」
     double floor_v = std::max(5.0, base * 0.3);
@@ -2199,6 +2205,11 @@ static void load_maple_faction_state() {
             st.atk_pts  = v.value("atk_pts", 0);
             st.exp_pts  = v.value("exp_pts", 0);
             st.coin_pts = v.value("coin_pts", 0);
+            // 上限調整：等級最多 45；每項 buff 最多 15 點，超過的退回成未分配點數
+            if (st.level > MAPLE_FACTION_MAX_LEVEL) { st.level = MAPLE_FACTION_MAX_LEVEL; st.exp = 0; }
+            st.atk_pts  = std::min(st.atk_pts,  MAPLE_FACTION_MAX_PTS);
+            st.exp_pts  = std::min(st.exp_pts,  MAPLE_FACTION_MAX_PTS);
+            st.coin_pts = std::min(st.coin_pts, MAPLE_FACTION_MAX_PTS);
             maple_faction_state[key] = st;
         }
     } catch (...) {}
@@ -5274,9 +5285,12 @@ static dpp::message make_maple_faction_msg(dpp::snowflake uid) {
           st = maple_faction_state_of(c.faction_key);
           members = maple_faction_member_count_locked(c.faction_key); }
         int64_t need = maple_faction_exp_to_next(st.level);
+        bool fmax = st.level >= MAPLE_FACTION_MAX_LEVEL;
         content += "目前陣營：**" + (f ? f->name : c.faction_key) + "**\n"
-                 + "陣營等級：Lv. " + std::to_string(st.level) + "　" + hp_bar((int)std::min<int64_t>(st.exp, need), (int)need, 10)
-                 + "　" + std::to_string(st.exp) + "/" + std::to_string(need) + " EXP\n"
+                 + "陣營等級：Lv. " + std::to_string(st.level)
+                 + (fmax ? std::string("　（已達上限 Lv. ") + std::to_string(MAPLE_FACTION_MAX_LEVEL) + "）\n"
+                         : "　" + hp_bar((int)std::min<int64_t>(st.exp, need), (int)need, 10)
+                           + "　" + std::to_string(st.exp) + "/" + std::to_string(need) + " EXP\n")
                  + "陣營人數：**" + std::to_string(members) + "** 人";
     }
     content += "\n🪙 瘋幣：**" + std::to_string(c.coins) + "**";
@@ -5572,7 +5586,8 @@ static dpp::message make_maple_faction_commander_msg(dpp::snowflake uid, int pag
         : "目前尚未選出統帥（還沒有人投票）";
     content += "\n\n🎯 陣營技能點：已分配 " + std::to_string(maple_faction_spent_pts(st)) + " / " + std::to_string(st.level) + "\n"
              + "⚔️ 武器攻擊力 +" + std::to_string(st.atk_pts) + "　📈 經驗加成 +" + std::to_string(st.exp_pts)
-             + "%　🪙 瘋幣加成 +" + std::to_string(st.coin_pts) + "%";
+             + "%　🪙 瘋幣加成 +" + std::to_string(st.coin_pts) + "%"
+             + "\n-# 每一項最多 " + std::to_string(MAPLE_FACTION_MAX_PTS) + " 點；陣營等級上限 Lv. " + std::to_string(MAPLE_FACTION_MAX_LEVEL);
     if (!result_note.empty()) content += "\n\n" + result_note;
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
     msg.add_component_v2(container);
@@ -5585,13 +5600,13 @@ static dpp::message make_maple_faction_commander_msg(dpp::snowflake uid, int pag
         };
         dpp::component prow; prow.set_type(dpp::cot_action_row);
         prow.add_component(pts_btn("⚔️ 攻擊 -1", "maple_factionptssub_" + uid_s + "_atk", st.atk_pts <= 0, dpp::cos_secondary));
-        prow.add_component(pts_btn("⚔️ 攻擊 +1", "maple_factionptsadd_" + uid_s + "_atk", unspent <= 0, dpp::cos_primary));
+        prow.add_component(pts_btn("⚔️ 攻擊 +1", "maple_factionptsadd_" + uid_s + "_atk", unspent <= 0 || st.atk_pts >= MAPLE_FACTION_MAX_PTS, dpp::cos_primary));
         prow.add_component(pts_btn("📈 經驗 -1", "maple_factionptssub_" + uid_s + "_exp", st.exp_pts <= 0, dpp::cos_secondary));
-        prow.add_component(pts_btn("📈 經驗 +1", "maple_factionptsadd_" + uid_s + "_exp", unspent <= 0, dpp::cos_primary));
+        prow.add_component(pts_btn("📈 經驗 +1", "maple_factionptsadd_" + uid_s + "_exp", unspent <= 0 || st.exp_pts >= MAPLE_FACTION_MAX_PTS, dpp::cos_primary));
         msg.add_component_v2(prow);
         dpp::component prow2; prow2.set_type(dpp::cot_action_row);
         prow2.add_component(pts_btn("🪙 瘋幣 -1", "maple_factionptssub_" + uid_s + "_coin", st.coin_pts <= 0, dpp::cos_secondary));
-        prow2.add_component(pts_btn("🪙 瘋幣 +1", "maple_factionptsadd_" + uid_s + "_coin", unspent <= 0, dpp::cos_primary));
+        prow2.add_component(pts_btn("🪙 瘋幣 +1", "maple_factionptsadd_" + uid_s + "_coin", unspent <= 0 || st.coin_pts >= MAPLE_FACTION_MAX_PTS, dpp::cos_primary));
         prow2.add_component(pts_btn("✏️ 輸入分配（剩" + std::to_string(unspent) + "）", "maple_factionptsinput_" + uid_s, false, dpp::cos_success));
         prow2.add_component(pts_btn("🔄 全部重置", "maple_factionptsreset_" + uid_s, maple_faction_spent_pts(st) <= 0, dpp::cos_danger));
         msg.add_component_v2(prow2);

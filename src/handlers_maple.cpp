@@ -1223,11 +1223,11 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
             else if (maple_faction_commander_locked(c.faction_key) != uid) err = "只有統帥可以分配陣營技能點。";
             else {
                 MapleFactionState& st = maple_faction_state[c.faction_key];
+                int* pts = type == "atk" ? &st.atk_pts : type == "exp" ? &st.exp_pts : type == "coin" ? &st.coin_pts : nullptr;
                 if (maple_faction_unspent_pts(st) <= 0) err = "沒有剩餘的陣營技能點了。";
-                else if (type == "atk") st.atk_pts++;
-                else if (type == "exp") st.exp_pts++;
-                else if (type == "coin") st.coin_pts++;
-                else err = "未知的類型。";
+                else if (!pts) err = "未知的類型。";
+                else if (*pts >= MAPLE_FACTION_MAX_PTS) err = "這一項最多只能分配 " + std::to_string(MAPLE_FACTION_MAX_PTS) + " 點。";
+                else (*pts)++;
             }
         }
         if (!err.empty()) {
@@ -3191,7 +3191,9 @@ void handle_maple_modal(const dpp::form_submit_t& ev)
             else if (maple_faction_commander_locked(c.faction_key) != uid) err = "只有統帥可以分配陣營技能點。";
             else {
                 MapleFactionState& st = maple_faction_state[c.faction_key];
-                if ((int64_t)atk + exp + coin > st.level)
+                if (atk > MAPLE_FACTION_MAX_PTS || exp > MAPLE_FACTION_MAX_PTS || coin > MAPLE_FACTION_MAX_PTS)
+                    err = "每一項最多只能分配 " + std::to_string(MAPLE_FACTION_MAX_PTS) + " 點。";
+                else if ((int64_t)atk + exp + coin > st.level)
                     err = "總共只有 " + std::to_string(st.level) + " 點，你填了 " + std::to_string(atk + exp + coin) + " 點。";
                 else { st.atk_pts = atk; st.exp_pts = exp; st.coin_pts = coin; }
             }

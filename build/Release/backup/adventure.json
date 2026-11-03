@@ -1,8 +1,8 @@
 {
   "1008386641834025011": {
     "ch": 1566114307022913676,
-    "duration_hours": 2,
-    "end_time": 1793722298,
+    "duration_hours": 8,
+    "end_time": 1793752949,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -11,9 +11,9 @@
     "pet_stage": 0,
     "pet_talent1": "",
     "pet_talent2": "",
-    "region_key": "water_spirit_cave",
+    "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1793715098
+    "start_time": 1793724149
   },
   "1036953796007448606": {
     "ch": 1516832192284852316,
@@ -33,8 +33,8 @@
   },
   "1047734346372612116": {
     "ch": 1521890393002872952,
-    "duration_hours": 2,
-    "end_time": 1793722975,
+    "duration_hours": 6,
+    "end_time": 1793745151,
     "finish_notified": false,
     "funds": 10,
     "no_interest": false,
@@ -45,13 +45,13 @@
     "pet_talent2": "",
     "region_key": "water_spirit_cave",
     "star_boost": false,
-    "start_time": 1793715775
+    "start_time": 1793723551
   },
   "1115212853289427004": {
     "ch": 1516835156713934929,
     "duration_hours": 4,
     "end_time": 1793725972,
-    "finish_notified": false,
+    "finish_notified": true,
     "funds": 6000,
     "no_interest": true,
     "notify_on_finish": true,
@@ -99,7 +99,7 @@
     "ch": 1516831527156322427,
     "duration_hours": 12,
     "end_time": 1793723677,
-    "finish_notified": false,
+    "finish_notified": true,
     "funds": 0,
     "no_interest": false,
     "notify_on_finish": true,
@@ -161,24 +161,8 @@
   },
   "1500454493043822602": {
     "ch": 1521890393002872952,
-    "duration_hours": 2,
-    "end_time": 1793723996,
-    "finish_notified": false,
-    "funds": 0,
-    "no_interest": false,
-    "notify_on_finish": false,
-    "pet_along": true,
-    "pet_stage": 1,
-    "pet_talent1": "",
-    "pet_talent2": "",
-    "region_key": "twisted_jungle",
-    "star_boost": false,
-    "start_time": 1793716796
-  },
-  "1503509660311752714": {
-    "ch": 1521890393002872952,
-    "duration_hours": 2,
-    "end_time": 1793724322,
+    "duration_hours": 7,
+    "end_time": 1793750744,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -189,7 +173,23 @@
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1793717122
+    "start_time": 1793725544
+  },
+  "1503509660311752714": {
+    "ch": 1567058523517493249,
+    "duration_hours": 2,
+    "end_time": 1793732255,
+    "finish_notified": false,
+    "funds": 0,
+    "no_interest": false,
+    "notify_on_finish": false,
+    "pet_along": false,
+    "pet_stage": 0,
+    "pet_talent1": "",
+    "pet_talent2": "",
+    "region_key": "mushroom_kingdom",
+    "star_boost": false,
+    "start_time": 1793725055
   },
   "1506454940221177958": {
     "ch": 1516713893588635689,
@@ -258,7 +258,7 @@
   "353567910285017090": {
     "ch": 1516827526356271164,
     "duration_hours": 2,
-    "end_time": 1793723157,
+    "end_time": 1793732279,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -269,12 +269,12 @@
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1793716173
+    "start_time": 1793725295
   },
   "411917312078249986": {
     "ch": 1566121799329124542,
-    "duration_hours": 2,
-    "end_time": 1793722087,
+    "duration_hours": 6,
+    "end_time": 1793747093,
     "finish_notified": false,
     "funds": 100,
     "no_interest": false,
@@ -285,7 +285,7 @@
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1793714887
+    "start_time": 1793725493
   },
   "414789398891069450": {
     "ch": 1521890393002872952,
@@ -451,7 +451,7 @@
     "ch": 1518445582488961034,
     "duration_hours": 2,
     "end_time": 1793724995,
-    "finish_notified": false,
+    "finish_notified": true,
     "funds": 0,
     "no_interest": false,
     "notify_on_finish": true,
@@ -497,8 +497,8 @@
   },
   "604244623124070423": {
     "ch": 1516826709335212174,
-    "duration_hours": 4,
-    "end_time": 1793723637,
+    "duration_hours": 7,
+    "end_time": 1793748414,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -509,12 +509,12 @@
     "pet_talent2": "",
     "region_key": "bb_museum",
     "star_boost": false,
-    "start_time": 1793709525
+    "start_time": 1793723718
   },
   "648714079938150420": {
     "ch": 1566678546217177108,
     "duration_hours": 6,
-    "end_time": 1793665436,
+    "end_time": 1793744440,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -523,9 +523,9 @@
     "pet_stage": 0,
     "pet_talent1": "",
     "pet_talent2": "",
-    "region_key": "water_spirit_cave",
+    "region_key": "ghost_graveyard",
     "star_boost": false,
-    "start_time": 1793643836
+    "start_time": 1793722840
   },
   "651090037102084096": {
     "ch": 1516713985053949963,
@@ -609,10 +609,10 @@
   },
   "723170866892111984": {
     "ch": 1521890393002872952,
-    "duration_hours": 9,
-    "end_time": 1793724967,
+    "duration_hours": 2,
+    "end_time": 1793732263,
     "finish_notified": false,
-    "funds": 2500,
+    "funds": 264,
     "no_interest": false,
     "notify_on_finish": true,
     "pet_along": true,
@@ -621,7 +621,7 @@
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1793692567
+    "start_time": 1793725063
   },
   "724983832788598805": {
     "ch": 1517517762833027072,
@@ -817,8 +817,8 @@
   },
   "988795213768171581": {
     "ch": 1566362764161843280,
-    "duration_hours": 7,
-    "end_time": 1793724156,
+    "duration_hours": 8,
+    "end_time": 1793754259,
     "finish_notified": false,
     "funds": 0,
     "no_interest": false,
@@ -829,6 +829,6 @@
     "pet_talent2": "",
     "region_key": "mushroom_kingdom",
     "star_boost": false,
-    "start_time": 1793698956
+    "start_time": 1793725459
   }
 }
