@@ -403,6 +403,28 @@ static std::string chain_from_egg_key(const std::string& key) {
     return "";
 }
 
+// 玩家目前沒有寵物，但背包裡有蛋：自動把蛋套用成寵物欄（不用特地跑去背包手動使用）。
+// 需持有 data_mutex；回傳有沒有套用成功（套用成功時 egg_name 會填入該蛋的顯示名稱）。
+static bool pet_try_auto_apply_egg_locked(dpp::snowflake uid, std::string& egg_name) {
+    if (pet_data.count(uid)) return false; // 已經有寵物了
+    auto inv_it = inventory_data.find(uid);
+    if (inv_it == inventory_data.end()) return false;
+    for (const auto& vi : VIRTUAL_ITEMS) {
+        if (vi.category != "egg") continue;
+        auto cit = inv_it->second.find(vi.key);
+        if (cit == inv_it->second.end() || cit->second <= 0) continue;
+        std::string chain = chain_from_egg_key(vi.key);
+        if (chain.empty()) continue;
+        cit->second--;
+        if (cit->second <= 0) inv_it->second.erase(cit);
+        Pet p; p.chain = chain; p.stage = 0; p.exp = 0;
+        pet_data[uid] = p;
+        egg_name = vi.name;
+        return true;
+    }
+    return false;
+}
+
 // ─── 轉生卡／重生卡：品種／分支切換 ─────────────────────────────────────────────
 
 static const std::vector<std::string> ALL_PET_CHAINS = {"嫩寶", "菇菇仔", "肥肥", "小企鵝"};
@@ -595,6 +617,7 @@ static void load_pet_data() {
             p.notify_after_work  = v.value("notify_after_work",  false);
             p.work_notified      = v.value("work_notified",       false);
             p.onsen_notified     = v.value("onsen_notified",      false);
+            p.onsen_pending_reward = v.value("onsen_pending_reward", false);
             p.variant     = v.value("variant",      std::string{});
             p.custom_name = v.value("custom_name",  std::string{});
             p.talent      = v.value("talent",       std::string{});
@@ -621,6 +644,7 @@ static void save_pet_data() {
                 {"onsen_end", (int64_t)p.onsen_end}, {"is_supervisor_work", p.is_supervisor_work},
                 {"notify_after_work", p.notify_after_work}, {"work_notified", p.work_notified},
                 {"onsen_notified", p.onsen_notified},
+                {"onsen_pending_reward", p.onsen_pending_reward},
                 {"variant", p.variant}, {"custom_name", p.custom_name},
                 {"talent", p.talent}, {"talent2", p.talent2}, {"talent2_unlocked", p.talent2_unlocked},
                 {"enh_atk", p.enh_atk}, {"enh_def", p.enh_def}, {"enh_hp", p.enh_hp},
@@ -814,11 +838,14 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
                                        const std::string& avatar_url = "",
                                        const std::string& display_name = "") {
     Pet pet; bool has_pet = false;
+    bool auto_egg_applied = false; std::string auto_egg_name;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
+        auto_egg_applied = pet_try_auto_apply_egg_locked(uid, auto_egg_name);
         auto it = pet_data.find(uid);
         if (it != pet_data.end()) { pet = it->second; has_pet = true; }
     }
+    if (auto_egg_applied) { save_inventory(); save_pet_data(); }
 
     std::string uid_s = std::to_string((uint64_t)uid);
     std::string user_tag = display_name.empty() ? uid_s : display_name;
@@ -838,10 +865,11 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
     std::string display_n = pet.custom_name.empty() ? name : (pet.custom_name + "（" + name + "）");
 
     if (pet.stage == 0) {
+        std::string auto_note = auto_egg_applied ? ("🥚 自動套用了背包裡的**" + auto_egg_name + "**！\n") : "";
         dpp::component container;
         container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
         container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-            .set_content("## 🐾 " + display_n + "\n這是一顆 **" + name + "**\n使用孵蛋工具來孵化它！\n\n**狀態** 🥚 未孵化\n\n-# 👤 " + user_tag));
+            .set_content("## 🐾 " + display_n + "\n" + auto_note + "這是一顆 **" + name + "**\n使用孵蛋工具來孵化它！\n\n**狀態** 🥚 未孵化\n\n-# 👤 " + user_tag));
         msg.add_component_v2(container);
 
         dpp::component row; row.set_type(dpp::cot_action_row);
@@ -906,17 +934,19 @@ static dpp::message make_pet_view_msg(dpp::snowflake uid,
 
     time_t now = time(nullptr);
 
-    // Handle onsen completion: auto-clear debuffs
-    bool onsen_done = (pet.onsen_end > 0 && pet.onsen_end <= now);
+    // Handle onsen completion：先結算一次（狩獵／探險等其他入口可能已經先把狀態清掉了），
+    // 再用 onsen_pending_reward 判斷是否要在這裡顯示結果／跑黃金釣竿抽獎（只會顯示一次）
+    bool onsen_done;
     std::string onsen_bonus_msg;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        pet_resolve_onsen_locked(uid);
+        auto& p = pet_data[uid];
+        onsen_done = p.onsen_pending_reward;
+        if (onsen_done) p.onsen_pending_reward = false;
+        pet = p;
+    }
     if (onsen_done) {
-        {
-            std::lock_guard<std::mutex> lk(data_mutex);
-            auto& p = pet_data[uid];
-            p.statuses.clear();
-            p.onsen_end = 0;
-            pet = p;
-        }
         save_pet_data();
         bool has_rod = false;
         { std::lock_guard<std::mutex> lk(data_mutex);
@@ -1399,13 +1429,16 @@ static bool bag_item_is_other(const VirtualShopItem& vi) {
 static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
     Pet pet; bool has_pet = false;
     std::map<std::string,int> inv;
+    bool auto_egg_applied = false; std::string auto_egg_name;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
+        auto_egg_applied = pet_try_auto_apply_egg_locked(uid, auto_egg_name);
         auto pi = pet_data.find(uid);
         if (pi != pet_data.end()) { pet = pi->second; has_pet = true; }
         auto ii = inventory_data.find(uid);
         if (ii != inventory_data.end()) inv = ii->second;
     }
+    if (auto_egg_applied) { save_inventory(); save_pet_data(); }
 
     std::string uid_s = std::to_string((uint64_t)uid);
     dpp::message msg;
@@ -1437,7 +1470,7 @@ static dpp::message make_pet_use_msg(dpp::snowflake uid, int page = 0) {
         return msg;
     }
 
-    std::string desc;
+    std::string desc = auto_egg_applied ? ("🥚 自動套用了背包裡的**" + auto_egg_name + "**！\n") : "";
     for (auto& en : entries) {
         auto* vi = find_virtual_item(en.key);
         if (!vi) continue;
@@ -1936,20 +1969,10 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
         return m;
     }
 
-    if (!vi || !has_pet || item_count <= 0) return err("道具不存在或數量不足！");
-
-    static thread_local std::mt19937 rng(std::random_device{}());
-    auto roll = [&](int pct) { return std::uniform_int_distribution<int>(1,100)(rng) <= pct; };
-
-    // 天賦：天然呆 — 5% 機率不消耗道具
-    bool consume_item = !((pet.talent == "天然呆" || (pet.talent2_unlocked && pet.talent2 == "天然呆")) && roll(5));
-
-    bool success = false;
-    std::string result_desc;
-
-    // ── 蛋（從背包使用）──────────────────────────────────────────────────────
-    if (vi->category == "egg") {
+    // ── 蛋（從背包使用）：不需要先有寵物，提前處理 ────────────────────────────────
+    if (vi && vi->category == "egg") {
         if (has_pet) return err("你已經有寵物了！放生後才能孵新蛋。");
+        if (item_count <= 0) return err("道具數量不足！");
         std::string chain = chain_from_egg_key(key);
         if (chain.empty()) return err("無效的蛋！");
         {
@@ -1969,6 +1992,32 @@ static dpp::message handle_pet_use_item(dpp::snowflake uid, const std::string& k
             m.add_component_v2(ct); m.add_component_v2(row); return m;
         }
     }
+
+    // 目前沒有寵物，但背包裡還有別的蛋沒套用（例如之前多買的）：自動套用，
+    // 這樣不用特地先開「我的寵物」頁面，直接用孵蛋器等道具也能生效，不會白白浪費道具。
+    if (!has_pet) {
+        std::string auto_egg_name; bool applied = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            applied = pet_try_auto_apply_egg_locked(uid, auto_egg_name);
+            if (applied) {
+                auto pi = pet_data.find(uid);
+                if (pi != pet_data.end()) { pet = pi->second; has_pet = true; }
+            }
+        }
+        if (applied) { save_inventory(); save_pet_data(); }
+    }
+
+    if (!vi || !has_pet || item_count <= 0) return err("道具不存在或數量不足！");
+
+    static thread_local std::mt19937 rng(std::random_device{}());
+    auto roll = [&](int pct) { return std::uniform_int_distribution<int>(1,100)(rng) <= pct; };
+
+    // 天賦：天然呆 — 5% 機率不消耗道具
+    bool consume_item = !((pet.talent == "天然呆" || (pet.talent2_unlocked && pet.talent2 == "天然呆")) && roll(5));
+
+    bool success = false;
+    std::string result_desc;
 
     // ── 孵蛋工具 ──────────────────────────────────────────────────────────────
     if (vi->category == "incubator") {
@@ -2800,6 +2849,7 @@ static dpp::message handle_pet_start_onsen(dpp::snowflake uid) {
         if (col_set_water_adv(uid)) onsen_secs = (int64_t)std::ceil(7200.0 * 0.95);
         p.onsen_end      = time(nullptr) + onsen_secs;
         p.onsen_notified = false;
+        p.onsen_pending_reward = false;
         p.work_task = 0; p.work_end = 0; p.is_supervisor_work = false;
     }
     save_pet_data();

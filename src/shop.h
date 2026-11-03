@@ -522,8 +522,11 @@ static dpp::message make_vcat_shop_msg(dpp::snowflake uid, const std::string& ca
     std::string content = "## " + title + "\n";
     if (!can_buy) {
         std::string reason;
-        if (cat == "incubator") reason = "你的寵物已孵化，不需要孵蛋工具！";
-        else                    reason = "你的寵物已達最高階！";
+        if (cat == "incubator") {
+            bool has_pet_record = false;
+            { std::lock_guard<std::mutex> lk(data_mutex); has_pet_record = pet_data.count(uid) > 0; }
+            reason = has_pet_record ? "你的寵物已孵化，不需要孵蛋工具！" : "你還沒有蛋，請先購買 **寵物蛋**！";
+        } else reason = "你的寵物已達最高階！";
         content += "❌ " + reason + "\n\n以下商品供參考：\n";
     }
     for (auto* vi : items)

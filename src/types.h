@@ -196,6 +196,7 @@ struct Pet {
     bool        notify_after_work  = false; // 打工/溫泉完成後私訊通知
     bool        work_notified      = false; // 打工：已發送通知（防重複）
     bool        onsen_notified     = false; // 溫泉：已發送通知（防重複）
+    bool        onsen_pending_reward = false; // 溫泉已到期結算（狀態已清除），但還沒在寵物頁面顯示過結果/抽過黃金釣竿獎勵
     int         enh_atk = 0; // 強化等級 0~10：攻擊力每層 +1%
     int         enh_def = 0; // 強化等級 0~10：防禦力每兩層 +1
     int         enh_hp  = 0; // 強化等級 0~10：生命值每層 +1%
@@ -1016,6 +1017,21 @@ inline std::map<dpp::snowflake, DDGame>             dd_games;         // channel
 inline std::atomic<uint64_t>                        raid_counter{1};
 inline std::mutex                               data_mutex;
 inline std::mutex                               io_mutex;   // serializes disk writes, held only during atomic_write
+
+// 溫泉到期時結算：清掉所有負面狀態。原本只有打開「!寵物」頁面時才會結算，
+// 導致泡完溫泉後若先去打工/狩獵/探險，讀到的還是結算前的舊狀態。
+// 任何要讀 pet.statuses 做遊戲邏輯判定的地方，呼叫前都要先呼叫這個結算一次。需持有 data_mutex。
+inline bool pet_resolve_onsen_locked(dpp::snowflake uid) {
+    auto it = pet_data.find(uid);
+    if (it == pet_data.end()) return false;
+    if (it->second.onsen_end > 0 && it->second.onsen_end <= time(nullptr)) {
+        it->second.statuses.clear();
+        it->second.onsen_end = 0;
+        it->second.onsen_pending_reward = true; // 讓下次打開寵物頁面時還能跑一次結果顯示／黃金釣竿抽獎
+        return true;
+    }
+    return false;
+}
 
 // ─── 交易系統 ─────────────────────────────────────────────────────────────────
 

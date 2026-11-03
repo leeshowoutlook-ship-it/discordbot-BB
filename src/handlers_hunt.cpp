@@ -61,6 +61,7 @@ void handle_hunt_message(const dpp::message_create_t& ev, const std::string& con
         std::string av = ev.msg.author.get_avatar_url();
         Pet pet;
         { std::lock_guard<std::mutex> lk(data_mutex);
+          pet_resolve_onsen_locked(uid);
           auto it = pet_data.find(uid); if (it != pet_data.end()) pet = it->second; }
         dpp::message m = make_hunt_main_msg(uid, pet, dn, av);
         m.channel_id = ch;
@@ -86,6 +87,7 @@ void handle_hunt_button(const dpp::button_click_t& ev)
     dpp::snowflake uid = user.id;
     std::string dn = user.global_name.empty() ? user.username : user.global_name;
     std::string av = user.get_avatar_url();
+    { std::lock_guard<std::mutex> lk(data_mutex); pet_resolve_onsen_locked(uid); }
 
     // ── hunt_village_{uid}: 選擇村落 ─────────────────────────────────────────
     if (cid.rfind("hunt_village_", 0) == 0) {
@@ -748,6 +750,7 @@ void handle_hunt_slash(const dpp::slashcommand_t& ev, const std::string& cmd_nam
     if (cmd_name == "怪物狩獵" || cmd_name == "hunt") {
         Pet pet2;
         { std::lock_guard<std::mutex> lk(data_mutex);
+          pet_resolve_onsen_locked(uid);
           auto it = pet_data.find(uid); if (it != pet_data.end()) pet2 = it->second; }
         ev.reply(dpp::ir_channel_message_with_source, make_hunt_main_msg(uid, pet2, dn, av));
     }

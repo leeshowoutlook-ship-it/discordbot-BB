@@ -1189,6 +1189,7 @@ static dpp::message make_adv_setup_msg(dpp::snowflake uid,
         bool pet_no_interest = false;
         if (setup.partner == 1) {
             std::lock_guard<std::mutex> lk(data_mutex);
+            pet_resolve_onsen_locked(uid);
             auto pit = pet_data.find(uid);
             if (pit != pet_data.end()) {
                 pet_stage = pit->second.stage;
@@ -1527,6 +1528,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
                          : ev.command.get_issuing_user().global_name;
     std::string av = ev.command.get_issuing_user().get_avatar_url();
     std::string uid_s = std::to_string((uint64_t)uid);
+    { std::lock_guard<std::mutex> lk(data_mutex); pet_resolve_onsen_locked(uid); }
 
     if (cid == "adv_main_" + uid_s) {
         ev.reply(dpp::ir_update_message, make_adv_main_msg(uid, dn, av)); return;

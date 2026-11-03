@@ -5203,9 +5203,14 @@ int main(int argc, char* argv[]) {
             // ── 打工完成通知（私訊）──────────────────────────────────────────
             std::vector<dpp::snowflake> to_notify_work;
             std::vector<dpp::snowflake> to_notify_onsen;
+            bool any_onsen_resolved = false;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 for (auto& [uid, pet] : pet_data) {
+                    // 溫泉到期結算：不管有沒有開通知都先清掉負面狀態，不要只靠使用者自己打開寵物頁面才結算
+                    // （不然泡完溫泉後先去打工/狩獵/探險，讀到的還是結算前的舊狀態）
+                    bool onsen_just_resolved = pet_resolve_onsen_locked(uid);
+                    if (onsen_just_resolved) any_onsen_resolved = true;
                     if (!pet.notify_after_work) continue;
                     // 打工完成
                     if (!pet.work_notified && pet.work_task != 0 && pet.work_end <= now) {
@@ -5213,13 +5218,13 @@ int main(int argc, char* argv[]) {
                         to_notify_work.push_back(uid);
                     }
                     // 溫泉完成
-                    if (!pet.onsen_notified && pet.onsen_end > 0 && pet.onsen_end <= now) {
+                    if (onsen_just_resolved && !pet.onsen_notified) {
                         pet.onsen_notified = true;
                         to_notify_onsen.push_back(uid);
                     }
                 }
             }
-            if (!to_notify_work.empty() || !to_notify_onsen.empty()) {
+            if (!to_notify_work.empty() || !to_notify_onsen.empty() || any_onsen_resolved) {
                 save_pet_data();
                 for (auto nuid : to_notify_work)
                     g_bot->direct_message_create(nuid, dpp::message("🐾 你的寵物打工完成了！快輸入 `!寵物` 去領取獎勵吧！"));
