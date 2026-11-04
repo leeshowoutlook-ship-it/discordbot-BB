@@ -744,15 +744,15 @@ static int admin_kill_everything() {
 
 // ─── 伺服器頻道限制 ───────────────────────────────────────────────────────────
 // 某些伺服器只接受指定文字頻道（以及開在那個頻道底下的討論串）的指令，其他頻道一律不理。
-static const std::map<uint64_t, uint64_t> GUILD_ONLY_CHANNEL = {
-    {1392583413717930174ULL, 1521890393002872952ULL},
+static const std::map<uint64_t, std::set<uint64_t>> GUILD_ONLY_CHANNEL = {
+    {1392583413717930174ULL, {1521890393002872952ULL, 1567504573571014727ULL}},
 };
 static bool channel_allowed(dpp::snowflake guild_id, dpp::snowflake channel_id) {
     auto it = GUILD_ONLY_CHANNEL.find((uint64_t)guild_id);
     if (it == GUILD_ONLY_CHANNEL.end()) return true;
-    if ((uint64_t)channel_id == it->second) return true;
+    if (it->second.count((uint64_t)channel_id)) return true;
     const dpp::channel* c = dpp::find_channel(channel_id); // 討論串：看它的上層頻道
-    return c && (uint64_t)c->parent_id == it->second; // 一般頻道的上層是分類，只有討論串的上層會是這個文字頻道
+    return c && it->second.count((uint64_t)c->parent_id); // 一般頻道的上層是分類，只有討論串的上層會是這些文字頻道
 }
 
 // ─── main ─────────────────────────────────────────────────────────────────────

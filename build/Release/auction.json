@@ -205,30 +205,6 @@
       "uid": "723170866892111984"
     },
     {
-      "created_at": 1793607241,
-      "currency": "chips",
-      "id": 258,
-      "is_buy": false,
-      "item_id": 80001,
-      "item_key": "hunt_scroll",
-      "item_name": "怪物狩獵卷",
-      "price": 8888888,
-      "qty": 3,
-      "uid": "959450115007975444"
-    },
-    {
-      "created_at": 1793607388,
-      "currency": "chips",
-      "id": 260,
-      "is_buy": false,
-      "item_id": 96001,
-      "item_key": "weekly_hunt_scroll",
-      "item_name": "每週怪物狩獵卷",
-      "price": 888888898,
-      "qty": 5,
-      "uid": "959450115007975444"
-    },
-    {
       "created_at": 1793707697,
       "currency": "chips",
       "id": 265,
@@ -301,18 +277,6 @@
       "uid": "604244623124070423"
     },
     {
-      "created_at": 1793722337,
-      "currency": "coins",
-      "id": 274,
-      "is_buy": false,
-      "item_id": 96503,
-      "item_key": "sc_glove_atk100",
-      "item_name": "手套 攻擊力卷軸 100%",
-      "price": 5000,
-      "qty": 1,
-      "uid": "558513044632895509"
-    },
-    {
       "created_at": 1793726023,
       "currency": "coins",
       "id": 276,
@@ -325,29 +289,101 @@
       "uid": "1008386641834025011"
     },
     {
-      "created_at": 1793726273,
-      "currency": "chips",
-      "id": 278,
+      "created_at": 1793757872,
+      "currency": "coins",
+      "id": 280,
       "is_buy": false,
       "item_id": 96517,
       "item_key": "sc_wpn_dagger60",
       "item_name": "匕首 攻擊力卷軸 60%",
-      "price": 20000,
-      "qty": 1,
-      "uid": "1008386641834025011"
+      "price": 50000,
+      "qty": 7,
+      "uid": "353567910285017090"
     },
     {
-      "created_at": 1793726419,
+      "created_at": 1793757902,
       "currency": "coins",
-      "id": 279,
+      "id": 281,
       "is_buy": false,
-      "item_id": 96525,
-      "item_key": "sc_wpn_dagger20",
-      "item_name": "匕首 攻擊力卷軸 20%",
-      "price": 30000,
+      "item_id": 96517,
+      "item_key": "sc_wpn_dagger60",
+      "item_name": "匕首 攻擊力卷軸 60%",
+      "price": 50000,
+      "qty": 7,
+      "uid": "353567910285017090"
+    },
+    {
+      "created_at": 1793757917,
+      "currency": "coins",
+      "id": 282,
+      "is_buy": false,
+      "item_id": 96517,
+      "item_key": "sc_wpn_dagger60",
+      "item_name": "匕首 攻擊力卷軸 60%",
+      "price": 50000,
+      "qty": 7,
+      "uid": "353567910285017090"
+    },
+    {
+      "created_at": 1793757935,
+      "currency": "coins",
+      "id": 283,
+      "is_buy": false,
+      "item_id": 96517,
+      "item_key": "sc_wpn_dagger60",
+      "item_name": "匕首 攻擊力卷軸 60%",
+      "price": 50000,
+      "qty": 7,
+      "uid": "353567910285017090"
+    },
+    {
+      "created_at": 1793758010,
+      "currency": "coins",
+      "id": 284,
+      "is_buy": false,
+      "item_id": 96532,
+      "item_key": "sc_wpn_rod_curse50",
+      "item_name": "棒子攻擊力詛咒卷軸 50%",
+      "price": 60000,
+      "qty": 3,
+      "uid": "353567910285017090"
+    },
+    {
+      "created_at": 1793761894,
+      "currency": "chips",
+      "id": 285,
+      "is_buy": false,
+      "item_id": 80001,
+      "item_key": "hunt_scroll",
+      "item_name": "怪物狩獵卷",
+      "price": 888888898,
+      "qty": 5,
+      "uid": "959450115007975444"
+    },
+    {
+      "created_at": 1793761979,
+      "currency": "chips",
+      "id": 286,
+      "is_buy": false,
+      "item_id": 96001,
+      "item_key": "weekly_hunt_scroll",
+      "item_name": "每週怪物狩獵卷",
+      "price": 888888898,
+      "qty": 6,
+      "uid": "959450115007975444"
+    },
+    {
+      "created_at": 1793794316,
+      "currency": "coins",
+      "id": 288,
+      "is_buy": false,
+      "item_id": 96692,
+      "item_key": "wpn_underworld_staff",
+      "item_name": "冥界法杖",
+      "price": 15000,
       "qty": 1,
       "uid": "1008386641834025011"
     }
   ],
-  "next_id": 280
+  "next_id": 289
 }

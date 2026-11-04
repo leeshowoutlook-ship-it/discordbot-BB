@@ -27,7 +27,7 @@
         "to_win": 4258
       }
     },
-    "status": 0,
+    "status": 1,
     "teams": [
       "Top Esports",
       "Invictus Gaming",
@@ -47,18 +47,18 @@
       "no": 1,
       "odds1": 0.0,
       "odds2": 0.0,
-      "score1": 0,
-      "score2": 0,
+      "score1": 1,
+      "score2": 3,
       "score_pool": {},
       "stage": "八強 1",
       "start": 1793743200,
-      "status": 0,
+      "status": 2,
       "team1": "Top Esports",
       "team2": "Invictus Gaming",
       "win_pool": {
         "560474152755134464": {
           "amount": 1000,
-          "payout": -1,
+          "payout": 1940,
           "pick": "2",
           "to_win": 1940
         }
@@ -187,8 +187,8 @@
     },
     "560474152755134464": {
       "bets": 4,
-      "profit": 0,
-      "wins": 0
+      "profit": 940,
+      "wins": 1
     },
     "590819539357532190": {
       "bets": 1,

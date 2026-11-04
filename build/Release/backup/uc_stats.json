@@ -1,7 +1,7 @@
 {
   "1008386641834025011": {
-    "civ_games": 3,
-    "civ_wins": 3,
+    "civ_games": 9,
+    "civ_wins": 7,
     "spy_games": 0,
     "spy_wins": 0
   },
@@ -48,8 +48,8 @@
     "spy_wins": 0
   },
   "1500454493043822602": {
-    "civ_games": 3,
-    "civ_wins": 3,
+    "civ_games": 8,
+    "civ_wins": 6,
     "spy_games": 1,
     "spy_wins": 0
   },
@@ -59,6 +59,12 @@
     "spy_games": 0,
     "spy_wins": 0
   },
+  "257607108571168772": {
+    "civ_games": 5,
+    "civ_wins": 3,
+    "spy_games": 1,
+    "spy_wins": 0
+  },
   "308970166287466497": {
     "civ_games": 6,
     "civ_wins": 5,
@@ -66,10 +72,10 @@
     "spy_wins": 0
   },
   "335959081984720896": {
-    "civ_games": 3,
-    "civ_wins": 3,
-    "spy_games": 1,
-    "spy_wins": 0
+    "civ_games": 4,
+    "civ_wins": 4,
+    "spy_games": 2,
+    "spy_wins": 1
   },
   "353567910285017090": {
     "civ_games": 29,
@@ -78,9 +84,15 @@
     "spy_wins": 1
   },
   "411917312078249986": {
-    "civ_games": 2,
-    "civ_wins": 2,
+    "civ_games": 4,
+    "civ_wins": 3,
     "spy_games": 3,
+    "spy_wins": 0
+  },
+  "439624259589898250": {
+    "civ_games": 3,
+    "civ_wins": 2,
+    "spy_games": 0,
     "spy_wins": 0
   },
   "457478323665240065": {
@@ -143,17 +155,23 @@
     "spy_games": 27,
     "spy_wins": 13
   },
-  "687270072385142807": {
-    "civ_games": 5,
-    "civ_wins": 5,
+  "649615198562418710": {
+    "civ_games": 2,
+    "civ_wins": 1,
     "spy_games": 0,
     "spy_wins": 0
   },
+  "687270072385142807": {
+    "civ_games": 9,
+    "civ_wins": 8,
+    "spy_games": 2,
+    "spy_wins": 1
+  },
   "741919638505652226": {
-    "civ_games": 2,
-    "civ_wins": 2,
-    "spy_games": 0,
-    "spy_wins": 0
+    "civ_games": 4,
+    "civ_wins": 3,
+    "spy_games": 4,
+    "spy_wins": 1
   },
   "811232678590152790": {
     "civ_games": 42,
