@@ -101,6 +101,12 @@ bool    mv_resolve_enh_item(dpp::snowflake owner_uid, int enh_id, std::string& k
 bool    mv_locked_has_enh_item(dpp::snowflake uid, int enh_id);
 bool    mv_locked_resolve_enh_item(dpp::snowflake owner_uid, int enh_id, std::string& key_out, std::string& name_out);
 void    mv_locked_transfer_enh_item(dpp::snowflake from, dpp::snowflake to, int enh_id); // 轉移後會替對方重新編號
+// 拍賣行：強化裝備託管與顯示（定義在 handlers_maple.cpp）
+bool        mv_locked_take_enh_item(dpp::snowflake uid, int enh_id, MapleEnhItem& out); // 呼叫前需持有 data_mutex；穿在身上／不可交易回傳 false
+void        mv_locked_put_enh_item(dpp::snowflake uid, MapleEnhItem e);                 // 呼叫前需持有 data_mutex；會重新編號
+std::string mv_enh_display_name(const MapleEnhItem& e);
+int         mv_enh_base_item_id(const MapleEnhItem& e);
+std::string mv_item_detail_text(const std::string& key, const MapleEnhItem* enh = nullptr); // 楓之谷道具素質，非楓之谷道具回傳空字串
 
 // ─── Chest reward helpers（實作在各自的 cpp）──────────────────────────────────
 // 呼叫前不可持有 data_mutex（內部自行加鎖）

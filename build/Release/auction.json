@@ -383,7 +383,31 @@
       "price": 15000,
       "qty": 1,
       "uid": "1008386641834025011"
+    },
+    {
+      "created_at": 1793806531,
+      "currency": "coins",
+      "id": 289,
+      "is_buy": false,
+      "item_id": 96527,
+      "item_key": "sc_wpn_xbow20",
+      "item_name": "弩 攻擊力卷軸 20%",
+      "price": 13500,
+      "qty": 1,
+      "uid": "1503509660311752714"
+    },
+    {
+      "created_at": 1793806772,
+      "currency": "coins",
+      "id": 290,
+      "is_buy": false,
+      "item_id": 96517,
+      "item_key": "sc_wpn_dagger60",
+      "item_name": "匕首 攻擊力卷軸 60%",
+      "price": 20000,
+      "qty": 1,
+      "uid": "1503509660311752714"
     }
   ],
-  "next_id": 289
+  "next_id": 292
 }

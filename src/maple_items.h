@@ -697,7 +697,7 @@ static const std::vector<MapleScrollDef> MAPLE_SCROLLS = {
 };
 
 // ─── 陣營系統 ─────────────────────────────────────────────────────────────────
-// 三大陣營，玩家可任選一個加入；退出後保留該陣營的等級/經驗，之後回鍋接續。
+// 五大陣營，玩家可任選一個加入；退出後保留該陣營的等級/經驗，之後回鍋接續。
 // 陣營經驗值目前還沒有接來源（先建架構），等級/經驗公式已經定案。
 
 struct MapleFactionDef { std::string key, name; };
@@ -705,6 +705,8 @@ static const std::vector<MapleFactionDef> MAPLE_FACTIONS = {
     {"mushroom_baby",     "菇菇寶貝"},
     {"water_spirit",      "綠水靈"},
     {"three_eye_octopus", "三眼章魚"},
+    {"star_pixie",        "星光精靈"},
+    {"stone_ball",        "石球"},
 };
 static const int64_t MAPLE_FACTION_JOIN_FEE  = 50000; // 入陣營費
 static const int64_t MAPLE_FACTION_LEAVE_FEE = 50000; // 退陣營費

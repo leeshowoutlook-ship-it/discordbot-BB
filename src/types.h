@@ -790,6 +790,9 @@ static const int MV_ENH_TRADE_ID_BASE = 900000000;
 inline bool mv_is_enh_trade_id(int id)      { return id >= MV_ENH_TRADE_ID_BASE; }
 inline int  mv_enh_id_from_trade_id(int id) { return id - MV_ENH_TRADE_ID_BASE; }
 inline int  mv_enh_trade_id(int enh_id)     { return MV_ENH_TRADE_ID_BASE + enh_id; }
+// 強化實例 ↔ JSON（楓之谷存檔、拍賣行掛售中的強化裝備共用同一套欄位）。定義在 handlers_maple.cpp。
+nlohmann::json mv_enh_to_json(const MapleEnhItem& e);
+MapleEnhItem   mv_enh_from_json(const nlohmann::json& j);
 
 // ─── 楓之谷世界：野外首領（全服共用一隻，前3個擊殺完成的人獲得獎勵，湊滿3人才開始算重生）───
 struct MapleWorldBossState {
@@ -1068,7 +1071,11 @@ struct AuctionListing {
     std::string    currency;            // "chips"（籌碼）或 "coins"（瘋幣）
     int64_t        price      = 0;      // 這筆訂單的總金額（不是單價）
     time_t         created_at = 0;
+    time_t         expires_at = 0;      // 到期自動下架時間（刊登後 7 天），到期退回道具／金額
+    bool           has_enh    = false;  // 掛售的是「強化過的養成裝備」：整件實例託管在 enh（item_key 只記底子 key）
+    MapleEnhItem   enh;
 };
+static const time_t AUCTION_EXPIRE_SECS = 7 * 86400; // 拍賣訂單有效期 7 天
 inline std::map<uint64_t, AuctionListing> auction_listings;
 inline std::atomic<uint64_t>              auction_counter{1};
 

@@ -1,1 +1,25 @@
-null
+{
+  "1387417573100093493": {
+    "avatar_url": "https://cdn.discordapp.com/avatars/1387417573100093493/858ff00efd81ec2cfc2b0444703b49f4.png",
+    "bet": 100,
+    "channel_id": 1566131871551721604,
+    "created_at": 1793812484,
+    "display_name": "",
+    "extra_count": 0,
+    "extra_mode": false,
+    "revealed": 4,
+    "safe_scratches": 1,
+    "sq": [
+      -1,
+      10,
+      0,
+      0,
+      15,
+      10,
+      20,
+      0,
+      -1
+    ],
+    "total_paid": 100
+  }
+}

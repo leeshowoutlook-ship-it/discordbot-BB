@@ -218,6 +218,75 @@ static void auction_save_all() {
     mv_save_data();
 }
 
+// 退回一筆訂單：求售退款、掛售退道具（強化裝備整件放回）。呼叫前需持有 data_mutex。
+static void auction_locked_refund(const AuctionListing& a) {
+    if (a.is_buy)        auction_locked_add_currency(a.uid, a.currency, a.price);
+    else if (a.has_enh)  mv_locked_put_enh_item(a.uid, a.enh);
+    else                 auction_locked_give_item(a.uid, a.item_key, a.qty);
+}
+// 顯示名稱：強化裝備用託管中的實例算（含強化徽章），其他用刊登時的名稱
+static std::string auction_item_name(const AuctionListing& a) {
+    return a.has_enh ? mv_enh_display_name(a.enh) : a.item_name;
+}
+// 道具素質／效果說明：寵物裝備（含寶珠）、寵物道具、養成裝備（含強化與潛能）、卷軸。沒有可顯示的回傳空字串。
+static std::string auction_item_detail(const AuctionListing& a) {
+    if (a.has_enh) return mv_item_detail_text("", &a.enh);
+    if (const GachaItem* gi = find_gacha_item(a.item_key)) {
+        std::string t = rarity_label(gi->rarity) + "　" + slot_label(gi->slot);
+        if (!gi->set_name.empty()) t += "　套裝：" + gi->set_name;
+        std::string st = stat_label(*gi);
+        if (!st.empty()) t += "\n" + st;
+        return t;
+    }
+    for (auto& vi : VIRTUAL_ITEMS) if (vi.key == a.item_key) return vi.desc;
+    if (trade_is_mv(a.item_key)) return mv_item_detail_text(a.item_key);
+    return "";
+}
+// 每一行前面加 "-# "（Discord 小字）
+static std::string auction_small_text(const std::string& t) {
+    std::string out, line;
+    for (size_t i = 0; i <= t.size(); i++) {
+        if (i == t.size() || t[i] == '\n') {
+            if (!line.empty()) out += (out.empty() ? "" : "\n") + std::string("-# ") + line;
+            line.clear();
+        } else line += t[i];
+    }
+    return out;
+}
+static std::string auction_time_left(const AuctionListing& a) {
+    int64_t left = (int64_t)a.expires_at - (int64_t)time(nullptr);
+    if (left <= 0) return "⏳ 即將下架";
+    int64_t d = left / 86400, h = (left % 86400) / 3600;
+    if (d > 0) return "⏳ 剩 " + std::to_string(d) + " 天 " + std::to_string(h) + " 小時";
+    if (h > 0) return "⏳ 剩 " + std::to_string(h) + " 小時";
+    return "⏳ 剩 " + std::to_string(std::max<int64_t>(1, left / 60)) + " 分鐘";
+}
+// 到期自動下架：退回道具／金額，私訊通知刊登者。開機時與每 5 分鐘的計時器呼叫。
+static void auction_expire_sweep() {
+    time_t now = time(nullptr);
+    std::vector<AuctionListing> expired;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto it = auction_listings.begin(); it != auction_listings.end(); ) {
+            if (it->second.expires_at > 0 && it->second.expires_at <= now) {
+                auction_locked_refund(it->second);
+                expired.push_back(it->second);
+                it = auction_listings.erase(it);
+            } else ++it;
+        }
+    }
+    if (expired.empty()) return;
+    auction_save_all();
+    for (auto& a : expired) {
+        std::string cur = a.currency == "coins" ? "瘋幣" : "籌碼";
+        std::string text = "🏛️ 你在拍賣行的" + std::string(a.is_buy ? "求售" : "掛售") + "「" + auction_item_name(a)
+                         + "」×" + std::to_string(a.qty) + " 已刊登滿 7 天，自動下架了。\n"
+                         + (a.is_buy ? "先扣的 " + std::to_string(a.price) + " " + cur + " 已經退回。"
+                                     : std::string("道具已經退回給你。"));
+        g_bot->direct_message_create(a.uid, dpp::message(text));
+    }
+}
+
 // ─── 拍賣行：畫面 ───────────────────────────────────────────────────────────────
 
 static dpp::message make_auction_home_msg(dpp::snowflake uid) {
@@ -236,7 +305,8 @@ static dpp::message make_auction_home_msg(dpp::snowflake uid) {
         .set_content("## 🏛️ 拍賣行\n"
                      "**💰 掛售**：把你的道具刊登出去賣，刊登當下道具會先扣起來，成交才會給對方\n"
                      "**🙋 求售**：出價收購道具，刊登當下籌碼/瘋幣會先扣起來，等別人賣給你\n"
-                     "**🔍 逛拍**：看看大家在賣/在收什麼，點進去可以直接成交\n\n"
+                     "**🔍 逛拍**：看看大家在賣/在收什麼，點進去可以直接成交\n"
+                     "-# 每筆訂單刊登 7 天，到期沒成交會自動下架，道具／金額退回給你\n\n"
                      "你目前刊登中：**" + std::to_string(my_listings) + "** 筆（逛拍裡找得到，可以取消）"));
     msg.add_component_v2(container);
 
@@ -292,9 +362,11 @@ static dpp::message make_auction_myorders_msg(dpp::snowflake uid, int page) {
     for (int i = start; i < end; i++) {
         auto& a = mine[i];
         std::string cur = a.currency == "coins" ? "瘋幣" : "籌碼";
-        std::string text = std::string(a.is_buy ? "🙋 求售" : "💰 掛售") + "　**" + a.item_name + "**　ID:`"
+        std::string text = std::string(a.is_buy ? "🙋 求售" : "💰 掛售") + "　**" + auction_item_name(a) + "**　ID:`"
                           + std::to_string(a.item_id) + "`　×" + std::to_string(a.qty) + "\n"
-                          + (a.is_buy ? "願付：" : "要價：") + std::to_string(a.price) + " " + cur;
+                          + (a.is_buy ? "願付：" : "要價：") + std::to_string(a.price) + " " + cur
+                          + "　" + auction_time_left(a);
+        { std::string d = auction_item_detail(a); if (!d.empty()) text += "\n" + auction_small_text(d); }
         container.add_component_v2(dpp::component()
             .set_type(dpp::cot_section)
             .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
@@ -349,11 +421,12 @@ static dpp::message make_auction_browse_msg(dpp::snowflake uid, int page) {
     for (int i = start; i < end; i++) {
         auto& a = all[i];
         std::string cur = a.currency == "coins" ? "瘋幣" : "籌碼";
-        std::string text = std::string(a.is_buy ? "🙋 求售" : "💰 掛售") + "　**" + a.item_name + "**　ID:`"
+        std::string text = std::string(a.is_buy ? "🙋 求售" : "💰 掛售") + "　**" + auction_item_name(a) + "**　ID:`"
                           + std::to_string(a.item_id) + "`　×" + std::to_string(a.qty) + "\n"
                           + (a.is_buy ? "願付：" : "要價：") + std::to_string(a.price) + " " + cur
                           + "　刊登者：<@" + std::to_string((uint64_t)a.uid) + ">"
-                          + (a.uid == uid ? "（你的）" : "");
+                          + (a.uid == uid ? "（你的）" : "") + "　" + auction_time_left(a);
+        { std::string d = auction_item_detail(a); if (!d.empty()) text += "\n" + auction_small_text(d); }
         container.add_component_v2(dpp::component()
             .set_type(dpp::cot_section)
             .add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text))
@@ -405,13 +478,16 @@ static dpp::message make_auction_detail_msg(dpp::snowflake uid, uint64_t listing
     std::string content = "## 🔍 訂單詳情\n";
     if (!notice.empty()) content += notice + "\n\n";
     content += std::string(a.is_buy ? "🙋 **求售**（對方要收購這個道具）\n" : "💰 **掛售**（對方要賣這個道具）\n");
-    content += "道具：**" + a.item_name + "**　ID:`" + std::to_string(a.item_id) + "`　數量 ×" + std::to_string(a.qty) + "\n";
+    std::string iname = auction_item_name(a);
+    content += "道具：**" + iname + "**　ID:`" + std::to_string(a.item_id) + "`　數量 ×" + std::to_string(a.qty) + "\n";
+    { std::string d = auction_item_detail(a); if (!d.empty()) content += "📋 素質：\n" + d + "\n"; }
     content += std::string(a.is_buy ? "對方付款：**" : "要價：**") + std::to_string(a.price) + "** " + cur + "\n";
     content += "刊登者：<@" + std::to_string((uint64_t)a.uid) + ">" + (mine ? "（你自己的）" : "") + "\n";
+    content += auction_time_left(a) + std::string("（到期自動下架，") + (a.is_buy ? "金額" : "道具") + "退回刊登者）\n";
     if (!mine) {
         content += a.is_buy
-            ? "-# 成交後：你的「" + a.item_name + "」×" + std::to_string(a.qty) + " 會給對方，你收到 " + std::to_string(a.price) + " " + cur
-            : "-# 成交後：你付出 " + std::to_string(a.price) + " " + cur + "，「" + a.item_name + "」×" + std::to_string(a.qty) + " 直接進你的背包";
+            ? "-# 成交後：你的「" + iname + "」×" + std::to_string(a.qty) + " 會給對方，你收到 " + std::to_string(a.price) + " " + cur
+            : "-# 成交後：你付出 " + std::to_string(a.price) + " " + cur + "，「" + iname + "」×" + std::to_string(a.qty) + " 直接進你的背包";
     }
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
     msg.add_component_v2(container);
@@ -3204,9 +3280,7 @@ int main(int argc, char* argv[]) {
                 std::lock_guard<std::mutex> lk(data_mutex);
                 auto it = auction_listings.find(lid);
                 if (it != auction_listings.end() && it->second.uid == uid) {
-                    AuctionListing a = it->second;
-                    if (a.is_buy) auction_locked_add_currency(a.uid, a.currency, a.price); // 退款
-                    else          auction_locked_give_item(a.uid, a.item_key, a.qty);      // 退道具
+                    auction_locked_refund(it->second); // 求售退款／掛售退道具
                     auction_listings.erase(it);
                     ok = true;
                 }
@@ -3259,7 +3333,8 @@ int main(int argc, char* argv[]) {
                         else {
                             auction_locked_add_currency(uid, a.currency, -a.price);
                             auction_locked_add_currency(a.uid, a.currency, a.price);
-                            auction_locked_give_item(uid, a.item_key, a.qty);
+                            if (a.has_enh) mv_locked_put_enh_item(uid, a.enh); // 強化裝備整件交給買家（重新編號）
+                            else           auction_locked_give_item(uid, a.item_key, a.qty);
                             auction_listings.erase(it);
                         }
                     }
@@ -3526,11 +3601,17 @@ int main(int argc, char* argv[]) {
             try { chips_amt = std::stoll(fields[2]); } catch (...) {}
             try { coins_amt = std::stoll(fields[3]); } catch (...) {}
 
-            if (mv_is_enh_trade_id(item_id)) {
+            bool is_enh = mv_is_enh_trade_id(item_id);
+            if (is_enh && is_buy) {
                 ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 強化裝備目前不支援上架拍賣行，請用 `!交易`／`/交易`！").set_flags(dpp::m_ephemeral)); return;
+                    dpp::message("❌ 強化過的裝備每件都不一樣，只能掛售，不能求售！").set_flags(dpp::m_ephemeral)); return;
             }
-            auto [key, name] = trade_item_info(item_id);
+            if (is_enh) qty = 1; // 強化裝備是唯一實例
+            auto [key, name] = trade_item_info(item_id, modal_uid);
+            if (key.empty() && is_enh) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 找不到這件強化裝備，或它正穿在身上（要先卸下才能掛售）！").set_flags(dpp::m_ephemeral)); return;
+            }
             if (key.empty()) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 找不到道具 ID `" + std::to_string(item_id) + "`！").set_flags(dpp::m_ephemeral)); return;
@@ -3559,8 +3640,23 @@ int main(int argc, char* argv[]) {
                         auction_locked_add_currency(modal_uid, currency, -price); // 先扣款，等人賣給你
                         new_id = auction_counter++;
                         auction_listings[new_id] = AuctionListing{
-                            new_id, modal_uid, true, item_id, key, name, qty, currency, price, time(nullptr)
+                            new_id, modal_uid, true, item_id, key, name, qty, currency, price,
+                            time(nullptr), time(nullptr) + AUCTION_EXPIRE_SECS
                         };
+                    }
+                } else if (is_enh) {
+                    // 強化裝備：整件實例（卷軸加成、潛能）從身上拿出來託管在訂單裡
+                    MapleEnhItem e;
+                    if (!mv_locked_take_enh_item(modal_uid, mv_enh_id_from_trade_id(item_id), e))
+                        err = "找不到這件強化裝備，或它正穿在身上（要先卸下才能掛售）！";
+                    else {
+                        new_id = auction_counter++;
+                        AuctionListing a{
+                            new_id, modal_uid, false, mv_enh_base_item_id(e), e.base_key, mv_enh_display_name(e), 1,
+                            currency, price, time(nullptr), time(nullptr) + AUCTION_EXPIRE_SECS
+                        };
+                        a.has_enh = true; a.enh = e;
+                        auction_listings[new_id] = a;
                     }
                 } else {
                     if (!auction_locked_has_item(modal_uid, key, qty))
@@ -3569,7 +3665,8 @@ int main(int argc, char* argv[]) {
                         auction_locked_take_item(modal_uid, key, qty); // 先扣道具，暫時不能用
                         new_id = auction_counter++;
                         auction_listings[new_id] = AuctionListing{
-                            new_id, modal_uid, false, item_id, key, name, qty, currency, price, time(nullptr)
+                            new_id, modal_uid, false, item_id, key, name, qty, currency, price,
+                            time(nullptr), time(nullptr) + AUCTION_EXPIRE_SECS
                         };
                     }
                 }
@@ -5108,6 +5205,12 @@ int main(int argc, char* argv[]) {
         bot.start_timer([](dpp::timer) {
             try { backup_data_files(); } catch (...) {}
         }, 3600);
+
+        // ── 拍賣行到期自動下架（開機先掃一次，之後每 5 分鐘掃一次） ────────────
+        try { auction_expire_sweep(); } catch (...) {}
+        bot.start_timer([](dpp::timer) {
+            try { auction_expire_sweep(); } catch (...) {}
+        }, 300);
 
         // ── 尊爵VIP 自動領取 (每 5 分鐘掃一次) ──────────────────────────────
         bot.start_timer([](dpp::timer) {

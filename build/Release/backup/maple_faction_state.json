@@ -2,7 +2,7 @@
   "mushroom_baby": {
     "atk_pts": 9,
     "coin_pts": 0,
-    "exp": 785,
+    "exp": 983,
     "exp_pts": 15,
     "level": 24
   },
@@ -16,7 +16,7 @@
   "water_spirit": {
     "atk_pts": 12,
     "coin_pts": 0,
-    "exp": 1071,
+    "exp": 1211,
     "exp_pts": 15,
     "level": 27
   }

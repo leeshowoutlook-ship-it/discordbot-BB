@@ -14,7 +14,7 @@ static void save_auction() {
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         for (auto& [id, a] : auction_listings) {
-            arr.push_back({
+            nlohmann::json o = {
                 {"id",         a.id},
                 {"uid",        std::to_string((uint64_t)a.uid)},
                 {"is_buy",     a.is_buy},
@@ -25,7 +25,10 @@ static void save_auction() {
                 {"currency",   a.currency},
                 {"price",      a.price},
                 {"created_at", (int64_t)a.created_at},
-            });
+                {"expires_at", (int64_t)a.expires_at},
+            };
+            if (a.has_enh) o["enh"] = mv_enh_to_json(a.enh);
+            arr.push_back(o);
         }
     }
     j["listings"] = arr;
@@ -52,6 +55,10 @@ static void load_auction() {
             a.currency   = v.value("currency", std::string("chips"));
             a.price      = v.value("price", (int64_t)0);
             a.created_at = (time_t)v.value("created_at", (int64_t)0);
+            // 舊訂單沒有到期時間：從這次上線起算 7 天，不要一開機就把舊訂單全部下架
+            a.expires_at = (time_t)v.value("expires_at", (int64_t)0);
+            if (a.expires_at <= 0) a.expires_at = time(nullptr) + AUCTION_EXPIRE_SECS;
+            if (v.contains("enh") && v["enh"].is_object()) { a.has_enh = true; a.enh = mv_enh_from_json(v["enh"]); }
             if (a.id > 0) auction_listings[a.id] = a;
         }
     } catch (...) {}

@@ -183,6 +183,108 @@ void mv_locked_transfer_enh_item(dpp::snowflake from, dpp::snowflake to, int enh
     }
 }
 
+// ─── 強化實例存檔格式（楓之谷存檔、拍賣行共用）──────────────────────────────────
+nlohmann::json mv_enh_to_json(const MapleEnhItem& e) {
+    return {{"id", e.id}, {"base_key", e.base_key},
+            {"add_primary", e.add_primary}, {"add_secondary", e.add_secondary},
+            {"add_atk", e.add_atk}, {"enh_count", e.enh_count},
+            {"slots_used", e.slots_used},
+            {"add_str", e.add_str}, {"add_dex", e.add_dex},
+            {"add_int", e.add_int}, {"add_luk", e.add_luk},
+            {"curse_shield", e.curse_shield},
+            {"pot_grade", e.pot_grade},
+            {"pot1_type", e.pot1_type}, {"pot1_value", e.pot1_value}, {"pot1_sub", e.pot1_sub}, {"pot1_locked", e.pot1_locked},
+            {"pot2_type", e.pot2_type}, {"pot2_value", e.pot2_value}, {"pot2_sub", e.pot2_sub}, {"pot2_locked", e.pot2_locked},
+            {"pot3_type", e.pot3_type}, {"pot3_value", e.pot3_value}, {"pot3_sub", e.pot3_sub}, {"pot3_locked", e.pot3_locked}};
+}
+MapleEnhItem mv_enh_from_json(const nlohmann::json& ej) {
+    MapleEnhItem e;
+    e.id            = ej.value("id", 0);
+    e.base_key      = ej.value("base_key", std::string());
+    e.add_primary   = ej.value("add_primary", 0);
+    e.add_secondary = ej.value("add_secondary", 0);
+    e.add_atk       = ej.value("add_atk", 0);
+    e.enh_count     = ej.value("enh_count", 0);
+    e.slots_used    = ej.value("slots_used", 0);
+    e.add_str       = ej.value("add_str", 0);
+    e.add_dex       = ej.value("add_dex", 0);
+    e.add_int       = ej.value("add_int", 0);
+    e.add_luk       = ej.value("add_luk", 0);
+    e.curse_shield  = ej.value("curse_shield", false);
+    e.pot_grade     = ej.value("pot_grade", 0);
+    e.pot1_type     = ej.value("pot1_type", -1);
+    e.pot1_value    = ej.value("pot1_value", 0.0);
+    e.pot1_sub      = ej.value("pot1_sub", 0);
+    e.pot1_locked   = ej.value("pot1_locked", false);
+    e.pot2_type     = ej.value("pot2_type", -1);
+    e.pot2_value    = ej.value("pot2_value", 0.0);
+    e.pot2_sub      = ej.value("pot2_sub", 0);
+    e.pot2_locked   = ej.value("pot2_locked", false);
+    e.pot3_type     = ej.value("pot3_type", -1);
+    e.pot3_value    = ej.value("pot3_value", 0.0);
+    e.pot3_sub      = ej.value("pot3_sub", 0);
+    e.pot3_locked   = ej.value("pot3_locked", false);
+    return e;
+}
+
+// ─── 拍賣行：強化裝備託管 ───────────────────────────────────────────────────────
+// 掛售強化裝備時，整件實例（含卷軸加成、潛能）從賣家身上拿出來，存在拍賣訂單裡；
+// 成交給買家、取消／到期退回賣家時，再用 mv_locked_put_enh_item 放回去（重新編號）。呼叫前都要持有 data_mutex。
+bool mv_locked_take_enh_item(dpp::snowflake uid, int enh_id, MapleEnhItem& out) {
+    auto it = maple_data.find(uid);
+    if (it == maple_data.end()) return false;
+    if (!mv_enh_tradeable_locked(it->second, enh_id)) return false;
+    auto& vec = it->second.enh_items;
+    for (size_t i = 0; i < vec.size(); i++) {
+        if (vec[i].id != enh_id) continue;
+        out = vec[i];
+        vec.erase(vec.begin() + i);
+        return true;
+    }
+    return false;
+}
+void mv_locked_put_enh_item(dpp::snowflake uid, MapleEnhItem e) {
+    auto& c = maple_data[uid];
+    e.id = c.enh_next_id++;
+    c.enh_items.push_back(e);
+}
+
+// 拍賣行顯示用：強化裝備的名稱（底子名＋強化徽章）與底子的道具ID
+std::string mv_enh_display_name(const MapleEnhItem& e) {
+    const MapleItemDef* def = maple_find_item(e.base_key);
+    if (!def) return e.base_key;
+    return def->name + maple_enh_badge(e, def->slot);
+}
+int mv_enh_base_item_id(const MapleEnhItem& e) {
+    const MapleItemDef* def = maple_find_item(e.base_key);
+    return def ? def->item_id : 0;
+}
+// 拍賣行顯示用：楓之谷道具的素質說明。enh 不是 nullptr 時，另外附上卷軸強化與潛能。
+// 找不到（不是楓之谷道具）回傳空字串。
+std::string mv_item_detail_text(const std::string& key, const MapleEnhItem* enh) {
+    std::string base_key = enh ? enh->base_key : key;
+    if (const MapleItemDef* it = maple_find_item(base_key)) {
+        std::string t = maple_item_stat_text(*it);
+        while (!t.empty() && t[0] == '\n') t.erase(0, 1);
+        if (t.rfind("　", 0) == 0) t.erase(0, std::string("　").size());
+        if (enh && maple_enh_has_bonus(*enh)) t += "\n強化：" + maple_enh_bonus_text(*enh);
+        return t;
+    }
+    if (const MapleScrollDef* sc = maple_find_scroll(key)) {
+        std::string t = "成功率 " + std::to_string(sc->rate) + "%　適用：" + sc->applies_to;
+        if (sc->atk_bonus)       t += "　攻擊力+" + std::to_string(sc->atk_bonus);
+        if (sc->primary_bonus)   t += "　主屬性+" + std::to_string(sc->primary_bonus);
+        if (sc->secondary_bonus) t += "　副屬性+" + std::to_string(sc->secondary_bonus);
+        if (sc->str_bonus)       t += "　力量+" + std::to_string(sc->str_bonus);
+        if (sc->dex_bonus)       t += "　敏捷+" + std::to_string(sc->dex_bonus);
+        if (sc->int_bonus)       t += "　智力+" + std::to_string(sc->int_bonus);
+        if (sc->luk_bonus)       t += "　幸運+" + std::to_string(sc->luk_bonus);
+        if (sc->explode_pct)     t += "　失敗時 " + std::to_string(sc->explode_pct) + "% 爆裝";
+        return t;
+    }
+    return "";
+}
+
 // 管理員給道具用：接受道具ID（數字）或 key 字串，找楓之谷卷軸／裝備
 bool mv_resolve_item(const std::string& raw, std::string& key_out, std::string& name_out) {
     try {

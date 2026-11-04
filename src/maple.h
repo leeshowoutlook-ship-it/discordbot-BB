@@ -64,7 +64,7 @@ static std::string maple_fmt_num(double v) {
 }
 
 // ─── 陣營系統 ─────────────────────────────────────────────────────────────────
-// 三大陣營任選一個加入；等級/經驗是「全服共用」的陣營狀態（不分玩家），加入/退出不影響陣營本身的進度。
+// 五大陣營任選一個加入；等級/經驗是「全服共用」的陣營狀態（不分玩家），加入/退出不影響陣營本身的進度。
 // 經驗來源：① 角色（楓之谷世界）每升一級，所屬陣營 +該等級點經驗；② 突襲首領結算成功，每個參戰者的陣營各自 +首領設定的經驗值；③ 玩家捐贈。
 // 統帥：陣營成員互相投票，得票最多者是統帥；陣營每升一級 +1 陣營技能點，由統帥自由分配到「攻擊力／經驗加成／瘋幣加成」三種效果，只在冒險中生效。
 
@@ -2924,18 +2924,7 @@ static void save_maple_data() {
                 {"enh_next_id",       c.enh_next_id},
                 {"enh_items",         [&]{
                     nlohmann::json arr = nlohmann::json::array();
-                    for (auto& e : c.enh_items)
-                        arr.push_back({{"id", e.id}, {"base_key", e.base_key},
-                                       {"add_primary", e.add_primary}, {"add_secondary", e.add_secondary},
-                                       {"add_atk", e.add_atk}, {"enh_count", e.enh_count},
-                                       {"slots_used", e.slots_used},
-                                       {"add_str", e.add_str}, {"add_dex", e.add_dex},
-                                       {"add_int", e.add_int}, {"add_luk", e.add_luk},
-                                       {"curse_shield", e.curse_shield},
-                                       {"pot_grade", e.pot_grade},
-                                       {"pot1_type", e.pot1_type}, {"pot1_value", e.pot1_value}, {"pot1_sub", e.pot1_sub}, {"pot1_locked", e.pot1_locked},
-                                       {"pot2_type", e.pot2_type}, {"pot2_value", e.pot2_value}, {"pot2_sub", e.pot2_sub}, {"pot2_locked", e.pot2_locked},
-                                       {"pot3_type", e.pot3_type}, {"pot3_value", e.pot3_value}, {"pot3_sub", e.pot3_sub}, {"pot3_locked", e.pot3_locked}});
+                    for (auto& e : c.enh_items) arr.push_back(mv_enh_to_json(e));
                     return arr;
                 }()},
                 {"adv_atk_skill",     c.adv_atk_skill},
@@ -3014,32 +3003,7 @@ static void load_maple_data() {
             c.enh_next_id       = v.value("enh_next_id", 1);
             if (v.contains("enh_items") && v["enh_items"].is_array()) {
                 for (auto& ej : v["enh_items"]) {
-                    MapleEnhItem e;
-                    e.id            = ej.value("id", 0);
-                    e.base_key      = ej.value("base_key", std::string());
-                    e.add_primary   = ej.value("add_primary", 0);
-                    e.add_secondary = ej.value("add_secondary", 0);
-                    e.add_atk       = ej.value("add_atk", 0);
-                    e.enh_count     = ej.value("enh_count", 0);
-                    e.slots_used    = ej.value("slots_used", 0);
-                    e.add_str       = ej.value("add_str", 0);
-                    e.add_dex       = ej.value("add_dex", 0);
-                    e.add_int       = ej.value("add_int", 0);
-                    e.add_luk       = ej.value("add_luk", 0);
-                    e.curse_shield  = ej.value("curse_shield", false);
-                    e.pot_grade     = ej.value("pot_grade", 0);
-                    e.pot1_type     = ej.value("pot1_type", -1);
-                    e.pot1_value    = ej.value("pot1_value", 0.0);
-                    e.pot1_sub      = ej.value("pot1_sub", 0);
-                    e.pot1_locked   = ej.value("pot1_locked", false);
-                    e.pot2_type     = ej.value("pot2_type", -1);
-                    e.pot2_value    = ej.value("pot2_value", 0.0);
-                    e.pot2_sub      = ej.value("pot2_sub", 0);
-                    e.pot2_locked   = ej.value("pot2_locked", false);
-                    e.pot3_type     = ej.value("pot3_type", -1);
-                    e.pot3_value    = ej.value("pot3_value", 0.0);
-                    e.pot3_sub      = ej.value("pot3_sub", 0);
-                    e.pot3_locked   = ej.value("pot3_locked", false);
+                    MapleEnhItem e = mv_enh_from_json(ej);
                     if (e.id > 0 && !e.base_key.empty()) c.enh_items.push_back(e);
                 }
             }
@@ -3961,6 +3925,31 @@ static dpp::message make_maple_potential_confirm_msg(dpp::snowflake uid, const s
 
 // 每頁最多幾件裝備（裸裝備＋每個強化實例各算一件）；擁有的種類/強化實例太多時分頁，
 // 避免跟背包一樣塞爆 Discord 訊息的元件上限、按「更換」沒反應。
+// 裝備本身（不含卷軸強化）的素質文字：攻擊力、攻速、限制、能力值。裝備選擇頁跟拍賣行共用。
+static std::string maple_item_stat_text(const MapleItemDef& item) {
+    std::string text;
+    if (item.atk_bonus > 0) text += "　⚔️+" + std::to_string(item.atk_bonus);
+    if (item.slot == "weapon")
+        text += "　⚡" + maple_atk_speed_name(item.atk_speed_sec) + "(" + std::to_string(item.atk_speed_sec) + "秒)";
+    text += "\n限制等級 " + std::to_string(item.level_req)
+          + "　限制副屬性 " + std::to_string(item.secondary_req);
+    const MapleJobDef* jr = item.job_req.empty() ? nullptr : maple_find_job(item.job_req);
+    if (jr) text += "　限制職業 " + jr->name;
+    if (!item.offhand_wtypes.empty()) {
+        std::string wr;
+        for (auto& w : item.offhand_wtypes) wr += (wr.empty() ? "" : "／") + w;
+        text += "　限主武器 " + wr;
+    }
+    if (item.str_bonus) text += "　力量+" + std::to_string(item.str_bonus);
+    if (item.dex_bonus) text += "　敏捷+" + std::to_string(item.dex_bonus);
+    if (item.int_bonus) text += "　智力+" + std::to_string(item.int_bonus);
+    if (item.luk_bonus) text += "　幸運+" + std::to_string(item.luk_bonus);
+    if (item.primary_generic)   text += "　主屬性+" + std::to_string(item.primary_generic);
+    if (item.secondary_generic) text += "　副屬性+" + std::to_string(item.secondary_generic);
+    if (!item.sellable) text += "　🚫無法售出";
+    return text;
+}
+
 static const int MAPLE_EQUIP_SLOT_PAGE_SIZE = 8;
 
 static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::string& slot, int page = 0) {
@@ -3977,29 +3966,7 @@ static dpp::message make_maple_equip_slot_msg(dpp::snowflake uid, const std::str
     // 裝備欄要分開列「裸裝備」跟「每一個強化實例」——同一種類可能同時擁有好幾件不同強化結果的，
     // 不能只用「這個種類是不是已裝備」概括，不然除了裸的那份庫存被卡住選不到之外，
     // 好幾把強化程度不同的同款裝備也會只看得到其中一把，其他的完全選不到。
-    auto item_common_text = [](const MapleItemDef& item) {
-        std::string text;
-        if (item.atk_bonus > 0) text += "　⚔️+" + std::to_string(item.atk_bonus);
-        if (item.slot == "weapon")
-            text += "　⚡" + maple_atk_speed_name(item.atk_speed_sec) + "(" + std::to_string(item.atk_speed_sec) + "秒)";
-        text += "\n限制等級 " + std::to_string(item.level_req)
-              + "　限制副屬性 " + std::to_string(item.secondary_req);
-        const MapleJobDef* jr = item.job_req.empty() ? nullptr : maple_find_job(item.job_req);
-        if (jr) text += "　限制職業 " + jr->name;
-        if (!item.offhand_wtypes.empty()) {
-            std::string wr;
-            for (auto& w : item.offhand_wtypes) wr += (wr.empty() ? "" : "／") + w;
-            text += "　限主武器 " + wr;
-        }
-        if (item.str_bonus) text += "　力量+" + std::to_string(item.str_bonus);
-        if (item.dex_bonus) text += "　敏捷+" + std::to_string(item.dex_bonus);
-        if (item.int_bonus) text += "　智力+" + std::to_string(item.int_bonus);
-        if (item.luk_bonus) text += "　幸運+" + std::to_string(item.luk_bonus);
-        if (item.primary_generic)   text += "　主屬性+" + std::to_string(item.primary_generic);
-        if (item.secondary_generic) text += "　副屬性+" + std::to_string(item.secondary_generic);
-        if (!item.sellable) text += "　🚫無法售出";
-        return text;
-    };
+    auto item_common_text = [](const MapleItemDef& item) { return maple_item_stat_text(item); };
     // 先把「這一格所有可選項目」（裸裝備＋每個強化實例）收集成清單，再依頁碼切片顯示
     struct EqPickEntry { std::string text, btn_label, btn_id; bool disabled; };
     std::vector<EqPickEntry> entries;
@@ -5496,7 +5463,7 @@ static dpp::message make_maple_faction_buff_msg(dpp::snowflake uid) {
     return msg;
 }
 
-// 陣營總覽：讓已加入陣營的玩家看到三大陣營各自的等級、人數、目前統帥
+// 陣營總覽：讓已加入陣營的玩家看到各陣營各自的等級、人數、目前統帥
 static dpp::message make_maple_faction_overview_msg(dpp::snowflake uid) {
     MapleCharacter c = maple_get_or_create(uid);
     std::string uid_s = std::to_string((uint64_t)uid);
