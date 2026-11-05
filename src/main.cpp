@@ -2322,6 +2322,20 @@ int main(int argc, char* argv[]) {
             int page = 0; try { page = std::stoi(rest.substr(sep + 1)); } catch (...) {}
             ev.reply(dpp::ir_update_message, handle_leaderboard(page, gid, ev.command.guild_id));
         }
+        // ── 富豪榜 全部／本伺服器 切換：lbsc_all 或 lbsc_g_<伺服器> ─────────────
+        else if (cid.rfind("lbsc_", 0) == 0) {
+            if (!page_is_mine(ev.command.message_id, uid)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 這不是你的頁面！").set_flags(dpp::m_ephemeral)); return;
+            }
+            std::string rest = cid.substr(5);
+            if (rest == "all") {
+                ev.reply(dpp::ir_update_message, handle_leaderboard(0, 0, ev.command.guild_id));
+            } else if (rest.rfind("g_", 0) == 0) {
+                dpp::snowflake gid(std::stoull(rest.substr(2)));
+                ev.reply(dpp::ir_update_message, handle_leaderboard(0, gid, ev.command.guild_id));
+            }
+        }
         // ── 虧損榜翻頁 ───────────────────────────────────────────────────────
         else if (cid.rfind("losers_", 0) == 0) {
             if (!page_is_mine(ev.command.message_id, uid)) {
@@ -2338,6 +2352,20 @@ int main(int argc, char* argv[]) {
             bool scoped = (dch == 'A' || dch == 'D');
             std::string game = (p2 != std::string::npos) ? rest.substr(p2+1) : "";
             ev.reply(dpp::ir_update_message, handle_losers_board(page, game, asc,
+                scoped ? ev.command.guild_id : dpp::snowflake(0), ev.command.guild_id));
+        }
+        // ── 虧損榜 全部／本伺服器 切換：lsc_{dir}_{game}  dir='a'|'d'|'A'|'D' ──
+        else if (cid.rfind("lsc_", 0) == 0) {
+            if (!page_is_mine(ev.command.message_id, uid)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 這不是你的頁面！").set_flags(dpp::m_ephemeral)); return;
+            }
+            std::string rest = cid.substr(4);
+            char dch = rest.empty() ? 'a' : rest[0];
+            bool asc = (dch == 'a' || dch == 'A');
+            bool scoped = (dch == 'A' || dch == 'D');
+            std::string game = (rest.size() > 2) ? rest.substr(2) : "";
+            ev.reply(dpp::ir_update_message, handle_losers_board(0, game, asc,
                 scoped ? ev.command.guild_id : dpp::snowflake(0), ev.command.guild_id));
         }
         // ── 轉帳確認/取消 ─────────────────────────────────────────────────────

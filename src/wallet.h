@@ -7,6 +7,175 @@
 #include "niuniu.h"
 #include "numbomb.h"
 
+// ─── Loss leaderboard ─────────────────────────────────────────────────────────
+// game: "" = all, "21" "骰子" "射龍門" "火箭" "刮刮樂" "轉盤" "俄羅斯輪盤" "猜拳" "妞妞" "數字炸彈"
+// 放在 wallet.h 而不是 chips.h：妞妞／數字炸彈的統計表定義在 niuniu.h／numbomb.h 裡，
+// 而那兩個檔案本身會 include chips.h，chips.h 若要用到它們會造成循環 include，
+// 所以挪到已經 include 了這些檔案的這裡。
+
+// asc=true: most negative first (虧損排序), asc=false: most positive first (盈利排序)
+// scope_guild != 0：只看該伺服器成員；current_guild != 0 時顯示「全部／本伺服器」切換列
+// id 的方向字元：a/d＝全部，A/D＝本伺服器（伺服器取按鈕所在的伺服器）
+static dpp::message handle_losers_board(int page = 0, const std::string& game = "", bool asc = true,
+                                        dpp::snowflake scope_guild = 0, dpp::snowflake current_guild = 0) {
+    std::vector<std::pair<dpp::snowflake, int64_t>> sorted;
+    std::set<uint64_t> members;
+    bool members_ok = (scope_guild == 0) || guild_members_get(scope_guild, members);
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        std::set<dpp::snowflake> all_uids;
+        for (auto& [u,_] : bj_stats_data)      all_uids.insert(u);
+        for (auto& [u,_] : dice_stats_data)    all_uids.insert(u);
+        for (auto& [u,_] : shoot_stats_data)   all_uids.insert(u);
+        for (auto& [u,_] : rocket_stats_data)  all_uids.insert(u);
+        for (auto& [u,_] : scratch_stats_data) all_uids.insert(u);
+        for (auto& [u,_] : euroulette_stats_data) all_uids.insert(u);
+        for (auto& [u,_] : roulette_stats_data)   all_uids.insert(u);
+        for (auto& [u,_] : rps_stats_data)        all_uids.insert(u);
+        for (auto& [u,_] : nn_stats_data)  all_uids.insert(dpp::snowflake(u));
+        for (auto& [u,_] : nb_stats)       all_uids.insert(dpp::snowflake(u));
+
+        for (auto uid : all_uids) {
+            if (scope_guild != 0 && !members.count((uint64_t)uid)) continue;
+            int64_t total = 0;
+            if (game == "" || game == "21") {
+                auto it = bj_stats_data.find(uid);
+                if (it != bj_stats_data.end()) total += it->second.profit;
+            }
+            if (game == "" || game == "骰子") {
+                auto it = dice_stats_data.find(uid);
+                if (it != dice_stats_data.end()) total += it->second.profit;
+            }
+            if (game == "" || game == "射龍門") {
+                auto it = shoot_stats_data.find(uid);
+                if (it != shoot_stats_data.end()) total += it->second.profit;
+            }
+            if (game == "" || game == "火箭") {
+                auto it = rocket_stats_data.find(uid);
+                if (it != rocket_stats_data.end()) total += it->second.profit;
+            }
+            if (game == "" || game == "刮刮樂") {
+                auto it = scratch_stats_data.find(uid);
+                if (it != scratch_stats_data.end()) total += it->second.profit;
+            }
+            if (game == "" || game == "轉盤") {
+                auto it = euroulette_stats_data.find(uid);
+                if (it != euroulette_stats_data.end()) total += it->second.profit;
+            }
+            if (game == "" || game == "俄羅斯輪盤") {
+                auto it = roulette_stats_data.find(uid);
+                if (it != roulette_stats_data.end()) total += it->second.profit;
+            }
+            if (game == "" || game == "猜拳") {
+                auto it = rps_stats_data.find(uid);
+                if (it != rps_stats_data.end()) total += it->second.profit;
+            }
+            if (game == "" || game == "妞妞") {
+                auto it = nn_stats_data.find((uint64_t)uid);
+                if (it != nn_stats_data.end()) total += it->second.profit;
+            }
+            if (game == "" || game == "數字炸彈") {
+                auto it = nb_stats.find((uint64_t)uid);
+                if (it != nb_stats.end()) total += it->second.profit;
+            }
+            sorted.push_back({uid, total});
+        }
+    }
+    if (asc)
+        std::sort(sorted.begin(), sorted.end(), [](auto& a, auto& b) { return a.second < b.second; });
+    else
+        std::sort(sorted.begin(), sorted.end(), [](auto& a, auto& b) { return a.second > b.second; });
+
+    std::string game_label = game.empty() ? "全遊戲" : game;
+    bool scoped = (scope_guild != 0);
+    std::string dir_c = scoped ? (asc ? "A" : "D") : (asc ? "a" : "d");
+    const int PAGE_SIZE = 10;
+    int total = (int)sorted.size();
+    int total_pages = std::max(1, (total + PAGE_SIZE - 1) / PAGE_SIZE);
+    page = std::max(0, std::min(page, total_pages - 1));
+
+    dpp::embed e;
+    std::string title = asc ? ("📉  虧損榜 — " + game_label) : ("📈  盈利榜 — " + game_label);
+    title += scoped ? "（本伺服器）" : "（全部）";
+    e.set_title(title).set_color(asc ? 0xE74C3C : 0x2ECC71);
+    if (!members_ok) {
+        e.set_description("⏳ 這個伺服器的成員名單還在讀取中，請稍後再試。");
+    } else if (sorted.empty()) {
+        e.set_description("目前沒有記錄");
+    } else {
+        static const char* MEDALS[] = {"🥇", "🥈", "🥉"};
+        std::ostringstream oss;
+        int start = page * PAGE_SIZE;
+        int end   = std::min(start + PAGE_SIZE, total);
+        for (int i = start; i < end; i++) {
+            std::string rank = (i < 3) ? MEDALS[i] : (std::to_string(i + 1) + ".");
+            int64_t val = sorted[i].second;
+            std::string val_str = (val >= 0 ? "+" : "") + std::to_string(val);
+            oss << rank << " <@" << (uint64_t)sorted[i].first
+                << ">  **" << val_str << "** 碼\n";
+        }
+        e.set_description(oss.str());
+    }
+    e.set_footer(dpp::embed_footer().set_text(
+        "第 " + std::to_string(page+1) + "/" + std::to_string(total_pages) + " 頁  共 " + std::to_string(total) + " 人"));
+
+    dpp::message msg; msg.add_embed(e);
+
+    // Dropdown: preserve current sort direction in values
+    dpp::component sel_row; sel_row.set_type(dpp::cot_action_row);
+    dpp::component sel; sel.set_type(dpp::cot_selectmenu)
+        .set_id("losers_game_sel")
+        .set_placeholder("選擇遊戲篩選");
+    sel.add_select_option(dpp::select_option("全遊戲",    "losers_0_" + dir_c + "_",         "所有遊戲加總").set_default(game == ""));
+    sel.add_select_option(dpp::select_option("21點",      "losers_0_" + dir_c + "_21",       "只看21點"));
+    sel.add_select_option(dpp::select_option("骰子",      "losers_0_" + dir_c + "_骰子",     "只看骰子"));
+    sel.add_select_option(dpp::select_option("射龍門",    "losers_0_" + dir_c + "_射龍門",   "只看射龍門"));
+    sel.add_select_option(dpp::select_option("火箭升空",  "losers_0_" + dir_c + "_火箭",     "只看火箭升空"));
+    sel.add_select_option(dpp::select_option("刮刮樂",    "losers_0_" + dir_c + "_刮刮樂",   "只看刮刮樂"));
+    sel.add_select_option(dpp::select_option("轉盤",      "losers_0_" + dir_c + "_轉盤",     "只看轉盤"));
+    sel.add_select_option(dpp::select_option("俄羅斯輪盤","losers_0_" + dir_c + "_俄羅斯輪盤","只看俄羅斯輪盤"));
+    sel.add_select_option(dpp::select_option("猜拳",      "losers_0_" + dir_c + "_猜拳",     "只看猜拳"));
+    sel.add_select_option(dpp::select_option("妞妞",      "losers_0_" + dir_c + "_妞妞",     "只看妞妞"));
+    sel.add_select_option(dpp::select_option("數字炸彈",  "losers_0_" + dir_c + "_數字炸彈", "只看數字炸彈"));
+    sel_row.add_component(sel);
+    msg.add_component(sel_row);
+
+    // Navigation + sort toggle row (always shown)
+    std::string flip_c = scoped ? (asc ? "D" : "A") : (asc ? "d" : "a");
+    dpp::component nav_row; nav_row.set_type(dpp::cot_action_row);
+    dpp::component prev, sort_btn, next;
+    prev.set_type(dpp::cot_button).set_label("◀")
+        .set_id("losers_" + std::to_string(page-1) + "_" + dir_c + "_" + game)
+        .set_style(dpp::cos_secondary).set_disabled(page == 0);
+    sort_btn.set_type(dpp::cot_button)
+        .set_label(asc ? "📈 切換為盈利排序" : "📉 切換為虧損排序")
+        .set_id("losers_0_" + flip_c + "_" + game)
+        .set_style(dpp::cos_primary);
+    next.set_type(dpp::cot_button).set_label("▶")
+        .set_id("losers_" + std::to_string(page+1) + "_" + dir_c + "_" + game)
+        .set_style(dpp::cos_secondary).set_disabled(page == total_pages-1);
+    nav_row.add_component(prev); nav_row.add_component(sort_btn); nav_row.add_component(next);
+    msg.add_component(nav_row);
+
+    // 範圍切換：🌐 全部 / 🏠 本伺服器（私訊時不顯示）
+    // 注意：id 用獨立的 "lsc_" 前綴，不可重用 "losers_0_<dir>_<game>"——
+    // 翻到第 2 頁時，上一頁按鈕的 id 正好也是 "losers_0_<dir>_<game>"，
+    // 兩個按鈕 id 撞在一起會被 Discord 拒絕，整個翻頁就會顯示「互動失敗」。
+    if (current_guild != 0) {
+        std::string a = asc ? "a" : "d", A = asc ? "A" : "D";
+        dpp::component scope_row; scope_row.set_type(dpp::cot_action_row);
+        scope_row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🌐 全部")
+            .set_id("lsc_" + a + "_" + game)
+            .set_style(!scoped ? dpp::cos_primary : dpp::cos_secondary).set_disabled(!scoped));
+        scope_row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🏠 本伺服器")
+            .set_id("lsc_" + A + "_" + game)
+            .set_style(scoped ? dpp::cos_primary : dpp::cos_secondary).set_disabled(scoped));
+        msg.add_component(scope_row);
+    }
+
+    return msg;
+}
+
 static std::string wallet_work_status(const Pet& pet) {
     time_t now = time(nullptr);
     if (pet.work_task > 0 && pet.work_end > now) {
