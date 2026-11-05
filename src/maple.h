@@ -727,9 +727,9 @@ static std::string maple_current_weapon_type_key(const MapleCharacter& c) {
     for (auto& wt : MAPLE_WEAPON_TYPES) if (wt.type_cn == cn) return wt.type_key;
     return "";
 }
-// 一階更快的攻速（秒／下）：90→70→60→45→30，已經是最快就不變
+// 一階更快的攻速（秒／下）：90→75→60→45→30，已經是最快就不變
 static int maple_atk_speed_one_tier_faster(int sec) {
-    static const int TIERS[] = {90, 70, 60, 45, 30}; // 慢→快，索引越大越快
+    static const int TIERS[] = {90, 75, 60, 45, 30}; // 慢→快，索引越大越快
     for (int i = 0; i < 5; i++)
         if (TIERS[i] == sec) return TIERS[std::min(4, i + 1)]; // 往「快」的方向移一階
     return sec;
@@ -1567,7 +1567,7 @@ static const MapleAdvRegionDef* maple_find_adv_region(const std::string& key) {
 static const int64_t MAPLE_ADV_REST_SEC = 60;
 
 // ─── buff 技能效果 ─────────────────────────────────────────────────────────
-// 有效攻擊間隔（秒）：底攻速 − 瞬間移動/速度激發/衝鋒 縮減；下限 = max(5, 底值×30%)
+// 有效攻擊間隔（秒）：底攻速 − 瞬間移動/速度激發/衝鋒 縮減；下限固定 10 秒（所有職業統一）
 // team_haste_lvl：隊伍（同一場首領突襲戰的所有人）裡最高的速度激發等級數值，沒有就傳0（自己吃自己的就好）
 static int maple_eff_atk_interval(const MapleCharacter& c, double team_haste_lvl = 0.0) {
     double base = maple_atk_speed_sec(c);
@@ -1580,7 +1580,7 @@ static int maple_eff_atk_interval(const MapleCharacter& c, double team_haste_lvl
                + (is_pan ? 0.0 : maple_buff_value(c, "energy_boost") * 0.5)  // 蓄能強化：每級 0.5 秒（平底鍋不吃）
                + maple_buff_value(c, "ranger_gale_step") * 0.1  // 疾風步：每級 0.1 秒 → 滿級(10級) -2 秒
                + maple_pot_line_value(maple_equipped_enh(c, "offhand"), POT_ATK_SPEED); // 潛能「攻擊間隔」
-    double floor_v = std::max(5.0, base * 0.3);
+    double floor_v = 10.0; // 攻擊間隔下限：所有職業統一最快 10 秒
     double v = base - cut;
     if (v < floor_v) v = floor_v;
     return (int)llround(v);

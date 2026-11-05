@@ -15,7 +15,7 @@ struct MapleItemDef {
     int  secondary_req = 0; // 限制副屬性
     bool sellable       = true;
     int  atk_bonus      = 0;
-    int  atk_speed_sec  = 60; // 武器攻速（秒／下）：30最快 45較快 60普通 70較慢 90最慢
+    int  atk_speed_sec  = 60; // 武器攻速（秒／下）：30最快 45較快 60普通 75較慢 90最慢
     int  str_bonus = 0, dex_bonus = 0, int_bonus = 0, luk_bonus = 0; // 裝備提供的能力值
     std::string weapon_type; // 武器類型（法杖/拳套/匕首/弓/弩/大劍/棒子），非武器留空
     std::string job_req;     // 職業限制（一轉職業key，"" = 無限制）
@@ -37,7 +37,7 @@ struct MapleWeaponTypeDef {
     int         atk[7];
 };
 static const std::vector<MapleWeaponTypeDef> MAPLE_WEAPON_TYPES = {
-    {"大劍", "gsword",  "warrior", "str", 70, {22,40,55,70,92,108,120}},
+    {"大劍", "gsword",  "warrior", "str", 75, {22,40,55,70,92,108,120}},
     {"法杖", "staff",   "mage",    "int", 90, {40,70,85,102,135,170,210}},
     {"拳套", "claw",    "thief",   "luk", 45, {12,24,35,46,57,64,74}},
     {"匕首", "dagger",  "thief",   "luk", 45, {25,40,54,68,90,108,118}},
@@ -225,7 +225,7 @@ static const std::vector<MapleItemDef>& maple_items() {
         {
             struct UwWpn { std::string type_cn, type_key, job_req, stat; int speed; int atk; int item_id; };
             static const std::vector<UwWpn> UW_WPNS = {
-                {"大劍", "gsword",  "warrior", "str", 70, 34, 96691},
+                {"大劍", "gsword",  "warrior", "str", 75, 34, 96691},
                 {"法杖", "staff",   "mage",    "int", 90, 58, 96692},
                 {"拳套", "claw",    "thief",   "luk", 45, 21, 96693},
                 {"匕首", "dagger",  "thief",   "luk", 45, 36, 96694},
@@ -411,7 +411,7 @@ static const std::vector<MapleItemDef>& maple_items() {
             MapleItemDef e;
             e.key = "wpn_spore_sword"; e.name = "孢形劍"; e.slot = "weapon";
             e.level_req = 80; e.secondary_req = 100; e.sellable = true;
-            e.atk_bonus = 77; e.atk_speed_sec = 70; e.weapon_type = "大劍";
+            e.atk_bonus = 77; e.atk_speed_sec = 75; e.weapon_type = "大劍";
             e.price = 0; e.item_id = 96794;
             items.push_back(e);
         }
@@ -524,7 +524,7 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.item_id = 96805;
             items.push_back(e);
         }
-        // 冷凍金槍魚狙擊槍：弩，限職業弓手、限制等級110、限制副屬性100，攻速比一般弩(60)慢一階段(70)，攻擊力115。
+        // 冷凍金槍魚狙擊槍：弩，限職業弓手、限制等級110、限制副屬性100，攻速比一般弩(60)慢一階段(75)，攻擊力115。
         // 多多（回憶之路5）3% 掉落，不在商店販售。
         {
             MapleItemDef e;
@@ -535,7 +535,7 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.secondary_req = 100;
             e.sellable = true;
             e.atk_bonus = 115;
-            e.atk_speed_sec = 70;
+            e.atk_speed_sec = 75;
             e.weapon_type = "弩";
             e.job_req = "archer";
             e.price = 0;
