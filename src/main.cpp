@@ -65,6 +65,40 @@ static dpp::message make_expevent_start_confirm_msg(double mult, time_t until, b
     return m;
 }
 
+// ─── 楓之谷世界養成系統：掉落活動 ───────────────────────────────────────────────
+// 日期參數：支援 !簽到 的所有格式（HH:MM／Xm／Xh／M/D HH:MM），另外只寫 M/D 代表那天 23:59:59 結束。
+static time_t parse_drop_event_until(std::string s) {
+    while (!s.empty() && s.front() == ' ') s.erase(0, 1);
+    while (!s.empty() && s.back() == ' ') s.pop_back();
+    if (s.find('/') != std::string::npos && s.find(' ') == std::string::npos) s += " 23:59:59";
+    return parse_si_deadline(s);
+}
+static std::string drop_event_status_text() {
+    if (maple_drop_event.until > time(nullptr) && maple_drop_event.mult > 0)
+        return "📅 掉落活動進行中：野外首領每次擊殺掉 **" + std::to_string(maple_drop_event.mult)
+             + "** 個該首領寶箱，到 <t:" + std::to_string((int64_t)maple_drop_event.until) + ":f>（<t:"
+             + std::to_string((int64_t)maple_drop_event.until) + ":R>）";
+    return "目前沒有進行中的掉落活動。";
+}
+// 設定掉落活動：mult 0＝結束；2／3＝每次擊殺給幾個寶箱。回傳要回覆的文字。
+static std::string drop_event_apply(int mult, const std::string& date_arg) {
+    if (mult == 0) {
+        bool was = maple_drop_event.until > time(nullptr);
+        { std::lock_guard<std::mutex> lk(data_mutex); maple_drop_event.mult = 0; maple_drop_event.until = 0; }
+        maple_save_drop_event();
+        return was ? "✅ 掉落活動已結束。" : "目前沒有進行中的掉落活動。";
+    }
+    if (mult != 2 && mult != 3) return "❌ 倍率只能填 0（結束）、2 或 3！";
+    if (date_arg.empty()) return "❌ 請填結束日期，例：`!掉落活動 2 11/10`（11/10 當天結束）或 `!掉落活動 3 11/10 22:00`";
+    time_t until = parse_drop_event_until(date_arg);
+    if (until <= time(nullptr)) return "❌ 日期格式錯誤或已經過去。格式：M/D、M/D HH:MM、HH:MM、Xh、Xm";
+    { std::lock_guard<std::mutex> lk(data_mutex); maple_drop_event.mult = mult; maple_drop_event.until = until; }
+    maple_save_drop_event();
+    return "✅ 掉落活動開始！養成「野外首領」每次擊殺改為掉落 **" + std::to_string(mult)
+         + "** 個該首領的寶箱（瘋幣、經驗值照常），持續到 <t:" + std::to_string((int64_t)until) + ":f>（<t:"
+         + std::to_string((int64_t)until) + ":R>）";
+}
+
 // ─── 禁止領取的討論串 ──────────────────────────────────────────────────────────
 // 這個討論串裡 !領取／/領取 直接拒絕，而且自動記一次警告。回傳 true 代表已經擋下來，
 // out_msg 填好要回覆的訊息；呼叫端收到 true 就不要再呼叫 handle_claim()。
@@ -831,6 +865,22 @@ static bool channel_allowed(dpp::snowflake guild_id, dpp::snowflake channel_id) 
     return c && it->second.count((uint64_t)c->parent_id); // 一般頻道的上層是分類，只有討論串的上層會是這些文字頻道
 }
 
+// ─── 黑名單 ───────────────────────────────────────────────────────────────────
+// blacklist.json（使用者 ID 陣列）裡的玩家：所有指令、按鈕、選單、表單一律不理。
+// 啟動時載入一次，之後只讀，不需要鎖。
+static std::set<uint64_t> g_blacklist;
+static void load_blacklist() {
+    try {
+        std::ifstream f("blacklist.json");
+        if (!f) return;
+        nlohmann::json j = nlohmann::json::parse(f);
+        for (auto& v : j) g_blacklist.insert(v.is_string() ? std::stoull(v.get<std::string>()) : v.get<uint64_t>());
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[blacklist] 載入失敗：%s\n", e.what()); fflush(stderr);
+    }
+}
+static bool is_blacklisted(dpp::snowflake uid) { return g_blacklist.count((uint64_t)uid) > 0; }
+
 // ─── main ─────────────────────────────────────────────────────────────────────
 
 int main(int argc, char* argv[]) {
@@ -891,6 +941,7 @@ int main(int argc, char* argv[]) {
     load_lolbet();
     load_nn_stats();
     load_numbomb();
+    load_blacklist();
     fprintf(stderr, "[STARTUP] all loads complete\n"); fflush(stderr);
 
     dpp::cluster bot(cfg.token, dpp::i_default_intents | dpp::i_message_content);
@@ -902,6 +953,7 @@ int main(int argc, char* argv[]) {
     bot.on_message_create([&bot](const dpp::message_create_t& ev) {
         // 擋掉所有機器人帳號（含其他 bot／webhook），避免被拿來自動洗 !領取 等指令
         if (ev.msg.author.is_bot()) return;
+        if (is_blacklisted(ev.msg.author.id)) return;
         if (!channel_allowed(ev.msg.guild_id, ev.msg.channel_id)) return;
 
         // Normalize full-width ！ (U+FF01, UTF-8: EF BC 81) to ASCII !
@@ -929,6 +981,7 @@ int main(int argc, char* argv[]) {
                 "!簽到","！簽到","!簽到名單","！簽到名單","!結束簽到","！結束簽到",
                 "!簽到重整","！簽到重整",
                 "!經驗活動","！經驗活動",
+                "!掉落活動","！掉落活動","!擊殺紀錄","！擊殺紀錄",
                 "!抽獎","！抽獎",
                 "!摸彩",
                 "!摸彩紀錄",
@@ -947,6 +1000,7 @@ int main(int argc, char* argv[]) {
                 "!公告 ","！公告 ",
                 "!簽到 ","！簽到 ",
                 "!經驗活動 ","！經驗活動 ",
+                "!掉落活動 ","！掉落活動 ","!擊殺紀錄 ","！擊殺紀錄 ",
                 "!抽獎 ","！抽獎 ",
                 "!世界賽 ",
                 "!妞妞 ","!數字炸彈 ",
@@ -1457,6 +1511,43 @@ int main(int argc, char* argv[]) {
             dpp::message m = make_expevent_start_confirm_msg(mult, until, active);
             m.channel_id = ch; bot.message_create(m);
         }
+        // !擊殺紀錄 [首領或地區關鍵字]：野外首領擊殺紀錄（時間／伺服器／誰）
+        else if (content == "!擊殺紀錄" || content == "！擊殺紀錄" ||
+                 content.rfind("!擊殺紀錄 ", 0) == 0 || content.rfind("！擊殺紀錄 ", 0) == 0) {
+            dpp::message m; m.channel_id = ch;
+            if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
+                m.set_content("❌ 沒有權限！"); bot.message_create(m); return;
+            }
+            std::string kw;
+            { size_t sp = content.find(' '); if (sp != std::string::npos) kw = content.substr(sp + 1); }
+            while (!kw.empty() && kw.front() == ' ') kw.erase(0, 1);
+            while (!kw.empty() && kw.back() == ' ') kw.pop_back();
+            dpp::message km = maple_wb_kill_log_msg(kw, 0);
+            km.channel_id = ch;
+            bot.message_create(km); return;
+        }
+        // !掉落活動 <倍率 0/2/3> <日期>：野外首領擊殺改掉 N 個寶箱；倍率 0 結束
+        else if (content == "!掉落活動" || content == "！掉落活動" ||
+                 content.rfind("!掉落活動 ", 0) == 0 || content.rfind("！掉落活動 ", 0) == 0) {
+            dpp::message m; m.channel_id = ch;
+            if (!si_perm(uid, ev.msg.member.get_roles())) {
+                m.set_content("❌ 只有副會長、會長或管理員才能設定掉落活動！"); bot.message_create(m); return;
+            }
+            std::string args;
+            { size_t sp = content.find(' '); if (sp != std::string::npos) args = content.substr(sp + 1); }
+            while (!args.empty() && args.front() == ' ') args.erase(0, 1);
+            if (args.empty()) {
+                m.set_content(drop_event_status_text()
+                    + "\n用法：`!掉落活動 <倍率> <日期>`　倍率 2／3＝野外首領每次擊殺掉 2／3 個該首領寶箱"
+                      "\n例：`!掉落活動 2 11/10`（到 11/10 當天結束）、`!掉落活動 3 11/10 22:00`；提前結束：`!掉落活動 0`");
+                bot.message_create(m); return;
+            }
+            std::string mult_str = args, date_arg;
+            { size_t sp = args.find(' '); if (sp != std::string::npos) { mult_str = args.substr(0, sp); date_arg = args.substr(sp + 1); } }
+            int mult = -1; try { mult = std::stoi(mult_str); } catch (...) {}
+            if (mult_str == "結束") mult = 0;
+            m.set_content(drop_event_apply(mult, date_arg)); bot.message_create(m); return;
+        }
         // ── 骰子/射/火箭/卷軸/刮刮樂/猜數字 → handlers_games.cpp ───────────
         else if (content.rfind("!骰子", 0) == 0 ||
                  (content.rfind("!射", 0) == 0 && (content.size() == 4 || content[4] == ' ')) ||
@@ -1834,6 +1925,7 @@ int main(int argc, char* argv[]) {
 
     // ── 按鈕 ──────────────────────────────────────────────────────────────────
     bot.on_button_click([&bot](const dpp::button_click_t& ev) {
+        if (is_blacklisted(ev.command.get_issuing_user().id)) return;
         if (!channel_allowed(ev.command.guild_id, ev.command.channel_id)) return;
         const std::string& cid  = ev.custom_id;
         const dpp::user&   user = ev.command.get_issuing_user();
@@ -2369,6 +2461,17 @@ int main(int argc, char* argv[]) {
                 scoped ? ev.command.guild_id : dpp::snowflake(0), ev.command.guild_id));
         }
         // ── 轉帳確認/取消 ─────────────────────────────────────────────────────
+        // 不是發起人按的：只回私人提示，原訊息（含按鈕）保持不動，發起人仍可確認／取消
+        else if ((cid.rfind("xfer_ok_", 0) == 0 || cid.rfind("xfer_free_", 0) == 0 || cid.rfind("xfer_cancel_", 0) == 0)
+                 && [&]{
+                     uint64_t tid = 0;
+                     try { tid = std::stoull(cid.substr(cid.rfind('_') + 1)); } catch (...) { return false; }
+                     std::lock_guard<std::mutex> lk(data_mutex);
+                     auto it = pending_transfers.find(tid);
+                     return it != pending_transfers.end() && it->second.from_uid != uid;
+                 }()) {
+            ev.reply(dpp::message("❌ 只有發起轉帳的人才能按這些按鈕。").set_flags(dpp::m_ephemeral));
+        }
         else if (cid.rfind("xfer_ok_", 0) == 0) {
             uint64_t tid = std::stoull(cid.substr(8));
             ev.reply(dpp::ir_update_message, handle_transfer_confirm(tid, uid, false));
@@ -3496,6 +3599,7 @@ int main(int argc, char* argv[]) {
 
     // ── Modal 送出（管理員操作）─────────────────────────────────────────────
     bot.on_form_submit([](const dpp::form_submit_t& ev) {
+        if (is_blacklisted(ev.command.get_issuing_user().id)) return;
         if (!channel_allowed(ev.command.guild_id, ev.command.channel_id)) return;
         const std::string& cid = ev.custom_id;
         dpp::snowflake issuer = ev.command.get_issuing_user().id;
@@ -3909,7 +4013,7 @@ int main(int argc, char* argv[]) {
             }
             if (key.empty()) {
                 ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 找不到道具：`" + raw + "`\n可輸入道具／裝備 ID 數字（如 96001、94009、96515）或 key（如 weekly_hunt_scroll、EQ_K_BEAR、earring_snail）").set_flags(dpp::m_ephemeral)); return;
+                    dpp::message("❌ 找不到道具：`" + raw + "`\n可輸入道具／裝備 ID 數字（如 80002、94009、96515）或 key（如 weekly_hunt_scroll、EQ_K_BEAR、earring_snail）").set_flags(dpp::m_ephemeral)); return;
             }
             int qty = 1;
             try { qty = std::stoi(fields[2]); } catch (...) {}
@@ -3985,6 +4089,7 @@ int main(int argc, char* argv[]) {
 
     // ── 選單 ──────────────────────────────────────────────────────────────────
     bot.on_select_click([](const dpp::select_click_t& ev) {
+        if (is_blacklisted(ev.command.get_issuing_user().id)) return;
         if (!channel_allowed(ev.command.guild_id, ev.command.channel_id)) return;
         const std::string& cid  = ev.custom_id;
         const dpp::user&   user = ev.command.get_issuing_user();
@@ -4150,6 +4255,7 @@ int main(int argc, char* argv[]) {
 
     // ── 斜線指令 ──────────────────────────────────────────────────────────────
     bot.on_slashcommand([&bot](const dpp::slashcommand_t& ev) {
+        if (is_blacklisted(ev.command.get_issuing_user().id)) return;
         if (!channel_allowed(ev.command.guild_id, ev.command.channel_id)) return;
         const std::string  cmd_name = ev.command.get_command_name();
         const dpp::user&   user     = ev.command.get_issuing_user();
@@ -4292,6 +4398,36 @@ int main(int argc, char* argv[]) {
                         "✅ 已用目前伺服器成員名單重新比對，補回 **" + std::to_string(added) + "** 位未簽到成員" + note));
                 });
             });
+        }
+        else if (cmd_name == "擊殺紀錄") {
+            if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral));
+                return;
+            }
+            std::string kw;
+            auto kp = ev.get_parameter("首領"); if (std::holds_alternative<std::string>(kp)) kw = std::get<std::string>(kp);
+            ev.reply(dpp::ir_channel_message_with_source,
+                maple_wb_kill_log_msg(kw, 0).set_flags(dpp::m_ephemeral | dpp::m_using_components_v2));
+        }
+        else if (cmd_name == "掉落活動" || cmd_name == "dropevent") {
+            if (!si_perm(ev.command)) {
+                ev.reply(dpp::ir_channel_message_with_source,
+                    dpp::message("❌ 只有副會長、會長或管理員才能設定掉落活動！").set_flags(dpp::m_ephemeral));
+                return;
+            }
+            int64_t mult = -1;
+            auto mp = ev.get_parameter("倍率"); if (std::holds_alternative<int64_t>(mp)) mult = std::get<int64_t>(mp);
+            std::string date_arg;
+            auto dp = ev.get_parameter("日期"); if (std::holds_alternative<std::string>(dp)) date_arg = std::get<std::string>(dp);
+            if (mult < 0) {
+                ev.reply(dpp::ir_channel_message_with_source, dpp::message(drop_event_status_text()));
+                return;
+            }
+            std::string res = drop_event_apply((int)mult, date_arg);
+            dpp::message m(res);
+            if (res.rfind("❌", 0) == 0) m.set_flags(dpp::m_ephemeral);
+            ev.reply(dpp::ir_channel_message_with_source, m);
         }
         else if (cmd_name == "經驗活動" || cmd_name == "expevent") {
             if (!si_perm(ev.command)) {
@@ -5092,6 +5228,20 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("簽到名單",  "查看簽到名單（副會長/會長/管理員）", bot.me.id),
                 dpp::slashcommand("結束簽到",  "強制結束目前的簽到（副會長/會長/管理員）", bot.me.id),
                 dpp::slashcommand("簽到重整",  "用目前伺服器成員補回誤刪的未簽到名單（副會長/會長/管理員）", bot.me.id),
+                [&]() {
+                    dpp::slashcommand c("擊殺紀錄", "查看野外首領擊殺紀錄：時間／伺服器／誰（擁有者限定）", bot.me.id);
+                    c.add_option(dpp::command_option(dpp::co_string, "首領", "只看某隻首領或地區，例：黑輪王（不填＝全部）", false));
+                    return c;
+                }(),
+                [&]() {
+                    dpp::slashcommand c("掉落活動", "野外首領掉落活動：擊殺改掉 2／3 個該首領寶箱（副會長/會長/管理員）", bot.me.id);
+                    c.add_option(dpp::command_option(dpp::co_integer, "倍率", "每次擊殺掉幾個寶箱；0＝結束目前活動（不填則查看目前狀態）", false)
+                        .add_choice(dpp::command_option_choice("0（結束活動）", (int64_t)0))
+                        .add_choice(dpp::command_option_choice("2 個寶箱", (int64_t)2))
+                        .add_choice(dpp::command_option_choice("3 個寶箱", (int64_t)3)));
+                    c.add_option(dpp::command_option(dpp::co_string, "日期", "結束日期，例：11/10（當天結束）、11/10 22:00、3h", false));
+                    return c;
+                }(),
                 [&]() {
                     dpp::slashcommand c("經驗活動", "設定楓之谷世界養成系統「冒險」限時經驗倍率（副會長/會長/管理員）", bot.me.id);
                     c.add_option(dpp::command_option(dpp::co_number, "倍率", "冒險經驗值倍率，例：2；填0可提前結束目前活動（不填則查看目前狀態）", false));

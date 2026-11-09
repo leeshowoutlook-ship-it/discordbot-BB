@@ -70,30 +70,30 @@
       "no": 2,
       "odds1": 0.0,
       "odds2": 0.0,
-      "score1": 0,
+      "score1": 3,
       "score2": 0,
       "score_pool": {},
       "stage": "八強 2",
       "start": 1793829600,
-      "status": 0,
+      "status": 2,
       "team1": "Gen.G",
       "team2": "LYON",
       "win_pool": {
         "560474152755134464": {
           "amount": 1000,
-          "payout": -1,
+          "payout": 1440,
           "pick": "1",
           "to_win": 1440
         },
         "590819539357532190": {
           "amount": 1000,
-          "payout": -1,
+          "payout": 1440,
           "pick": "1",
           "to_win": 1440
         },
         "879413644495028254": {
           "amount": 15000,
-          "payout": -1,
+          "payout": 21600,
           "pick": "1",
           "to_win": 21600
         }
@@ -106,24 +106,24 @@
       "odds1": 0.0,
       "odds2": 0.0,
       "score1": 0,
-      "score2": 0,
+      "score2": 3,
       "score_pool": {
         "604244623124070423": {
           "amount": 1500,
-          "payout": -1,
+          "payout": 0,
           "pick": "3-1",
           "to_win": 7845
         }
       },
       "stage": "八強 3",
       "start": 1793916000,
-      "status": 0,
+      "status": 2,
       "team1": "Dplus Kia",
       "team2": "Bilibili Gaming",
       "win_pool": {
         "604244623124070423": {
           "amount": 1500,
-          "payout": -1,
+          "payout": 0,
           "pick": "1",
           "to_win": 2940
         }
@@ -135,80 +135,219 @@
       "no": 4,
       "odds1": 0.0,
       "odds2": 0.0,
-      "score1": 0,
-      "score2": 0,
+      "score1": 1,
+      "score2": 3,
       "score_pool": {
+        "1387417573100093493": {
+          "amount": 1000,
+          "payout": 5330,
+          "pick": "1-3",
+          "to_win": 5330
+        },
         "723170866892111984": {
           "amount": 200,
-          "payout": -1,
+          "payout": 0,
           "pick": "0-3",
           "to_win": 1600
         }
       },
       "stage": "八強 4",
       "start": 1794002400,
-      "status": 0,
+      "status": 2,
       "team1": "Karmine Corp",
       "team2": "T1",
       "win_pool": {
+        "1387417573100093493": {
+          "amount": 5000,
+          "payout": 10000,
+          "pick": "2",
+          "to_win": 10000
+        },
         "416236509918789632": {
           "amount": 1000,
-          "payout": -1,
+          "payout": 2000,
           "pick": "2",
           "to_win": 2000
         },
         "560474152755134464": {
           "amount": 2000,
-          "payout": -1,
+          "payout": 4000,
           "pick": "2",
           "to_win": 4000
         },
+        "590819539357532190": {
+          "amount": 2000,
+          "payout": 4000,
+          "pick": "2",
+          "to_win": 4000
+        },
+        "687270072385142807": {
+          "amount": 10000,
+          "payout": 20000,
+          "pick": "2",
+          "to_win": 20000
+        },
         "723170866892111984": {
           "amount": 500,
-          "payout": -1,
+          "payout": 1000,
           "pick": "2",
           "to_win": 1000
         },
         "879413644495028254": {
           "amount": 15000,
-          "payout": -1,
+          "payout": 30000,
           "pick": "2",
           "to_win": 30000
         }
       }
+    },
+    {
+      "bestof": 5,
+      "key": "2026 Season World Championship/Main Event_Semifinals_1",
+      "no": 5,
+      "odds1": 0.0,
+      "odds2": 0.0,
+      "score1": 0,
+      "score2": 3,
+      "score_pool": {},
+      "stage": "四強 1",
+      "start": 1794088800,
+      "status": 2,
+      "team1": "Invictus Gaming",
+      "team2": "Gen.G",
+      "win_pool": {
+        "1387417573100093493": {
+          "amount": 5000,
+          "payout": 7550,
+          "pick": "2",
+          "to_win": 7550
+        },
+        "411917312078249986": {
+          "amount": 40000,
+          "payout": 60400,
+          "pick": "2",
+          "to_win": 60400
+        },
+        "879413644495028254": {
+          "amount": 30000,
+          "payout": 45300,
+          "pick": "2",
+          "to_win": 45300
+        }
+      }
+    },
+    {
+      "bestof": 5,
+      "key": "2026 Season World Championship/Main Event_Semifinals_2",
+      "no": 6,
+      "odds1": 0.0,
+      "odds2": 0.0,
+      "score1": 0,
+      "score2": 0,
+      "score_pool": {
+        "1387417573100093493": {
+          "amount": 1000,
+          "payout": -1,
+          "pick": "2-3",
+          "to_win": 5160
+        },
+        "416236509918789632": {
+          "amount": 2000,
+          "payout": -1,
+          "pick": "2-3",
+          "to_win": 10320
+        },
+        "723170866892111984": {
+          "amount": 1000,
+          "payout": -1,
+          "pick": "0-3",
+          "to_win": 7190
+        }
+      },
+      "stage": "四強 2",
+      "start": 1794175200,
+      "status": 1,
+      "team1": "Bilibili Gaming",
+      "team2": "T1",
+      "win_pool": {
+        "1387417573100093493": {
+          "amount": 5000,
+          "payout": -1,
+          "pick": "2",
+          "to_win": 9350
+        },
+        "416236509918789632": {
+          "amount": 5665,
+          "payout": -1,
+          "pick": "2",
+          "to_win": 10593
+        },
+        "559423937860206594": {
+          "amount": 8888,
+          "payout": -1,
+          "pick": "2",
+          "to_win": 16620
+        },
+        "723170866892111984": {
+          "amount": 4276,
+          "payout": -1,
+          "pick": "2",
+          "to_win": 7996
+        }
+      }
     }
   ],
-  "next_no": 5,
+  "next_no": 7,
   "stats": {
+    "1387417573100093493": {
+      "bets": 5,
+      "profit": 11880,
+      "wins": 3
+    },
+    "411917312078249986": {
+      "bets": 1,
+      "profit": 20400,
+      "wins": 1
+    },
     "416236509918789632": {
+      "bets": 3,
+      "profit": 1000,
+      "wins": 1
+    },
+    "559423937860206594": {
       "bets": 1,
       "profit": 0,
       "wins": 0
     },
     "560474152755134464": {
       "bets": 4,
-      "profit": 940,
-      "wins": 1
+      "profit": 3380,
+      "wins": 3
     },
     "590819539357532190": {
-      "bets": 1,
-      "profit": 0,
-      "wins": 0
+      "bets": 2,
+      "profit": 2440,
+      "wins": 2
     },
     "604244623124070423": {
       "bets": 3,
-      "profit": 0,
+      "profit": -3000,
       "wins": 0
+    },
+    "687270072385142807": {
+      "bets": 1,
+      "profit": 10000,
+      "wins": 1
     },
     "723170866892111984": {
-      "bets": 2,
-      "profit": 0,
-      "wins": 0
+      "bets": 4,
+      "profit": 300,
+      "wins": 1
     },
     "879413644495028254": {
-      "bets": 2,
-      "profit": 0,
-      "wins": 0
+      "bets": 3,
+      "profit": 36900,
+      "wins": 3
     }
   }
 }

@@ -3,16 +3,265 @@
 #include "maple.h"
 #include "handler_decls.h"
 #include <cstdio>
+#include <deque>
+
+// ─── 野外首領擊殺紀錄（!擊殺紀錄）──────────────────────────────────────────────
+// 每次有人成功擊殺就記一筆：時間、在哪個伺服器按的、誰、哪隻、第幾位、掉了什麼。只留最近 WB_KILL_LOG_MAX 筆。
+struct WbKillLogEntry {
+    time_t t = 0; std::string region; uint64_t guild = 0, uid = 0; int place = 0, max_winners = 0; std::string drops;
+};
+static std::deque<WbKillLogEntry> g_wb_kill_log; // 受 data_mutex 保護
+static const std::string WB_KILL_LOG_FILE = "maple_wb_kill_log.json";
+static const size_t WB_KILL_LOG_MAX = 3000;
+
+static void save_wb_kill_log() {
+    nlohmann::json arr = nlohmann::json::array();
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      for (auto& e : g_wb_kill_log)
+          arr.push_back({{"t", (int64_t)e.t}, {"region", e.region}, {"guild", std::to_string(e.guild)},
+                         {"uid", std::to_string(e.uid)}, {"place", e.place}, {"max", e.max_winners}, {"drops", e.drops}}); }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
+    atomic_write(WB_KILL_LOG_FILE, arr.dump(1));
+}
+static void load_wb_kill_log() {
+    std::ifstream f(WB_KILL_LOG_FILE);
+    if (!f.is_open()) return;
+    try {
+        nlohmann::json arr; f >> arr;
+        std::lock_guard<std::mutex> lk(data_mutex);
+        g_wb_kill_log.clear();
+        for (auto& v : arr) {
+            WbKillLogEntry e;
+            e.t = (time_t)v.value("t", (int64_t)0);
+            e.region = v.value("region", std::string());
+            try { e.guild = std::stoull(v.value("guild", std::string("0"))); } catch (...) {}
+            try { e.uid   = std::stoull(v.value("uid",   std::string("0"))); } catch (...) {}
+            e.place = v.value("place", 0); e.max_winners = v.value("max", 0);
+            e.drops = v.value("drops", std::string());
+            g_wb_kill_log.push_back(e);
+        }
+    } catch (...) {}
+}
+
+// ─── 野王圖鑑：每隻首領「掉過的東西」──────────────────────────────────────────────
+// key＝首領基本地區 key（全服／本伺服器版共用），value＝掉過的 scroll/item key。受 data_mutex 保護。
+static std::map<std::string, std::set<std::string>> g_wb_seen_drops;
+static const std::string WB_SEEN_DROPS_FILE = "maple_wb_seen_drops.json";
+
+static std::string maple_wb_drop_key_name(const std::string& key) {
+    if (const MapleScrollDef* sd = maple_find_scroll(key)) return sd->name;
+    if (const MapleItemDef* it = maple_find_item(key)) return it->name;
+    return key;
+}
+static void save_wb_seen_drops() {
+    nlohmann::json j = nlohmann::json::object();
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      for (auto& [r, s] : g_wb_seen_drops) j[r] = std::vector<std::string>(s.begin(), s.end()); }
+    std::lock_guard<std::mutex> io_lk(io_mutex);
+    atomic_write(WB_SEEN_DROPS_FILE, j.dump(1));
+}
+// 檔案不存在時，從擊殺紀錄（存的是道具名稱）反查回 key 補建一次
+static void load_wb_seen_drops() {
+    std::ifstream f(WB_SEEN_DROPS_FILE);
+    if (f.is_open()) {
+        try {
+            nlohmann::json j; f >> j;
+            std::lock_guard<std::mutex> lk(data_mutex);
+            g_wb_seen_drops.clear();
+            for (auto& [r, arr] : j.items()) for (auto& k : arr) g_wb_seen_drops[r].insert(k.get<std::string>());
+        } catch (...) {}
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (auto& e : g_wb_kill_log) {
+            if (e.drops.empty()) continue;
+            std::string base = maple_wb_base_key(e.region);
+            const MapleWbRegionDef* r = maple_find_wb_region(base);
+            if (!r) continue;
+            // drops 格式：「名稱 ×1、名稱 ×1」→ 拆成一項一項，名稱要完全相同才算（避免「雙刀」配到「夜梟雙刀」這種）
+            std::set<std::string> got;
+            const std::string SEP = "、";
+            size_t pos = 0;
+            while (pos <= e.drops.size()) {
+                size_t nx = e.drops.find(SEP, pos);
+                std::string tok = e.drops.substr(pos, nx == std::string::npos ? std::string::npos : nx - pos);
+                size_t x = tok.rfind(" ×");
+                if (x != std::string::npos) tok = tok.substr(0, x);
+                if (!tok.empty()) got.insert(tok);
+                if (nx == std::string::npos) break;
+                pos = nx + SEP.size();
+            }
+            for (auto& d : r->boss.drops) for (auto& k : d.set)
+                if (got.count(maple_wb_drop_key_name(k))) g_wb_seen_drops[base].insert(k);
+        }
+    }
+    save_wb_seen_drops();
+}
+
+static const int MAPLE_WB_DEX_PAGE_SIZE = 5;
+static dpp::message make_maple_wb_dex_msg(dpp::snowflake uid, int page) {
+    std::string uid_s = std::to_string((uint64_t)uid);
+    int total = (int)MAPLE_WB_REGIONS.size();
+    int pages = std::max(1, (total + MAPLE_WB_DEX_PAGE_SIZE - 1) / MAPLE_WB_DEX_PAGE_SIZE);
+    page = std::max(0, std::min(page, pages - 1));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x8E, 0x44, 0xAD));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
+        .set_content("## 📖 野王圖鑑\n掉落物只列出曾經有人打出來過的。　第 **"
+                     + std::to_string(page + 1) + "/" + std::to_string(pages) + "** 頁"));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_separator).set_spacing(dpp::sep_small).set_divider(true));
+
+    std::string body;
+    {
+        std::lock_guard<std::mutex> lk(data_mutex);
+        for (int i = page * MAPLE_WB_DEX_PAGE_SIZE; i < std::min(total, (page + 1) * MAPLE_WB_DEX_PAGE_SIZE); i++) {
+            auto& r = MAPLE_WB_REGIONS[i];
+            body += "### " + r.boss.name + "\n📍 " + r.name + "　Lv. **" + std::to_string(r.suggested_level)
+                  + "**　❤️ HP **" + std::to_string(r.boss.hp) + "**\n";
+            // 依掉落表順序列出掉過的
+            std::vector<std::string> names;
+            auto sit = g_wb_seen_drops.find(r.key);
+            if (sit != g_wb_seen_drops.end())
+                for (auto& d : r.boss.drops) for (auto& k : d.set)
+                    if (sit->second.count(k)) {
+                        std::string n = maple_wb_drop_key_name(k);
+                        if (std::find(names.begin(), names.end(), n) == names.end()) names.push_back(n);
+                    }
+            std::string list;
+            for (auto& n : names) list += (list.empty() ? "" : "、") + n;
+            body += "🎁 " + (list.empty() ? std::string("（還沒有人打出掉落物）") : list) + "\n\n";
+        }
+    }
+    if (body.size() > 3900) body = body.substr(0, 3900) + "…";
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(body));
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("◀ 上一頁")
+        .set_id("maple_wbdex_" + uid_s + "_" + std::to_string(page - 1)).set_style(dpp::cos_secondary).set_disabled(page <= 0));
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("▶ 下一頁")
+        .set_id("maple_wbdex_" + uid_s + "_" + std::to_string(page + 1)).set_style(dpp::cos_secondary).set_disabled(page >= pages - 1));
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("↩ 野外首領")
+        .set_id("maple_wbrefresh_" + uid_s + "_0").set_style(dpp::cos_secondary));
+    msg.add_component_v2(row);
+    return msg;
+}
+
+// !擊殺紀錄 畫面：只看最近 12 小時，最新的在最上面，每頁 WB_KLOG_PAGE_SIZE 筆，可以翻頁。
+// 翻頁按鈕 maple_wbklog_<page>_<keyword>（keyword 可以是空的）
+static const int    WB_KLOG_PAGE_SIZE = 8;
+static const time_t WB_KLOG_WINDOW    = 12 * 3600;
+dpp::message maple_wb_kill_log_msg(const std::string& keyword, int page) {
+    time_t now = time(nullptr);
+    std::vector<WbKillLogEntry> rows;
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      for (auto it = g_wb_kill_log.rbegin(); it != g_wb_kill_log.rend(); ++it) {
+          if (now - it->t > WB_KLOG_WINDOW) break; // 依時間順序存，超過 12 小時後面都更舊
+          if (!keyword.empty()) {
+              const MapleWbRegionDef* r = maple_find_wb_region(maple_wb_base_key(it->region));
+              bool hit = r && (r->boss.name.find(keyword) != std::string::npos || r->name.find(keyword) != std::string::npos);
+              if (!hit) continue;
+          }
+          rows.push_back(*it);
+      } }
+    int total = (int)rows.size();
+    int pages = std::max(1, (total + WB_KLOG_PAGE_SIZE - 1) / WB_KLOG_PAGE_SIZE);
+    page = std::max(0, std::min(page, pages - 1));
+
+    dpp::message msg;
+    msg.set_flags(dpp::m_using_components_v2);
+    msg.set_allowed_mentions(false, false, false, false, {}, {}); // 列出玩家但不要 tag 到人
+    dpp::component container;
+    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE6, 0x7E, 0x22));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(
+        "## 📜 野外首領擊殺紀錄" + (keyword.empty() ? std::string() : "（" + keyword + "）")
+        + "\n最近 12 小時共 **" + std::to_string(total) + "** 筆　第 **" + std::to_string(page + 1) + "/" + std::to_string(pages) + "** 頁"));
+    container.add_component_v2(dpp::component().set_type(dpp::cot_separator).set_spacing(dpp::sep_small).set_divider(true));
+
+    std::string body;
+    for (int i = page * WB_KLOG_PAGE_SIZE; i < std::min(total, (page + 1) * WB_KLOG_PAGE_SIZE); i++) {
+        auto& e = rows[i];
+        const MapleWbRegionDef* r = maple_find_wb_region(maple_wb_base_key(e.region));
+        std::string gname = "未知伺服器";
+        if (dpp::guild* g = dpp::find_guild(dpp::snowflake(e.guild))) gname = g->name;
+        else if (e.guild) gname = std::to_string(e.guild);
+        bool local = maple_wb_scope_guild(e.region) != 0;
+        std::string ts = std::to_string((int64_t)e.t);
+        body += "**" + (r ? r->boss.name : e.region) + "**　" + (local ? "🏠 本服" : "🌐 全服")
+              + "　第 " + std::to_string(e.place) + "/" + std::to_string(e.max_winners) + " 位\n"
+              + "🕐 <t:" + ts + ":t>（<t:" + ts + ":R>）　👤 <@" + std::to_string(e.uid) + ">\n"
+              + "📍 " + gname + (r ? "　🗺️ " + r->name : std::string()) + "\n"
+              + "🎁 " + (e.drops.empty() ? std::string("沒有掉落") : e.drops) + "\n\n";
+    }
+    if (body.empty()) body = "最近 12 小時沒有擊殺紀錄。";
+    if (body.size() > 3700) body = body.substr(0, 3700) + "…";
+    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(body));
+    msg.add_component_v2(container);
+
+    dpp::component row; row.set_type(dpp::cot_action_row);
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("◀ 上一頁")
+        .set_id("maple_wbklog_" + std::to_string(page - 1) + "_" + keyword).set_style(dpp::cos_secondary).set_disabled(page <= 0));
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("🔄 重新整理")
+        .set_id("maple_wbklog_" + std::to_string(page) + "_" + keyword).set_style(dpp::cos_primary));
+    row.add_component(dpp::component().set_type(dpp::cot_button).set_label("▶ 下一頁")
+        .set_id("maple_wbklog_" + std::to_string(page + 1) + "_" + keyword).set_style(dpp::cos_secondary).set_disabled(page >= pages - 1));
+    msg.add_component_v2(row);
+    return msg;
+}
+
+// （舊版純文字，保留給其他地方呼叫）keyword 比對首領名／地區名（空＝全部），最新的在最上面，最多 limit 筆
+std::string maple_wb_kill_log_text(const std::string& keyword, int limit) {
+    std::vector<WbKillLogEntry> rows;
+    size_t total_match = 0;
+    { std::lock_guard<std::mutex> lk(data_mutex);
+      for (auto it = g_wb_kill_log.rbegin(); it != g_wb_kill_log.rend(); ++it) {
+          const MapleWbRegionDef* r = maple_find_wb_region(maple_wb_base_key(it->region));
+          if (!keyword.empty()) {
+              bool hit = r && (r->boss.name.find(keyword) != std::string::npos || r->name.find(keyword) != std::string::npos);
+              if (!hit) continue;
+          }
+          total_match++;
+          if ((int)rows.size() < limit) rows.push_back(*it);
+      } }
+    std::string head = "## 📜 野外首領擊殺紀錄" + (keyword.empty() ? std::string() : "（" + keyword + "）")
+                     + "\n共 " + std::to_string(total_match) + " 筆，顯示最新 " + std::to_string(rows.size()) + " 筆\n";
+    if (rows.empty()) return head + "（沒有紀錄）";
+    std::string body;
+    for (auto& e : rows) {
+        const MapleWbRegionDef* r = maple_find_wb_region(maple_wb_base_key(e.region));
+        std::string gname = "未知伺服器";
+        if (dpp::guild* g = dpp::find_guild(dpp::snowflake(e.guild))) gname = g->name;
+        else if (e.guild) gname = std::to_string(e.guild);
+        bool local = maple_wb_scope_guild(e.region) != 0;
+        std::string line = "<t:" + std::to_string((int64_t)e.t) + ":f>　**" + (r ? r->boss.name : e.region) + "**"
+            + (r ? "（" + r->name + "）" : std::string()) + (local ? "🏠本服" : "🌐全服")
+            + "\n　<@" + std::to_string(e.uid) + ">　第 " + std::to_string(e.place) + "/" + std::to_string(e.max_winners)
+            + " 位　📍" + gname;
+        if (!e.drops.empty()) line += "\n　-# 掉落：" + e.drops;
+        line += "\n";
+        if (head.size() + body.size() + line.size() > 1950) break;
+        body += line;
+    }
+    return head + body;
+}
 
 void load_maple_all_data() {
+    load_wb_kill_log();
+    load_wb_seen_drops(); // 要在擊殺紀錄之後（第一次會從擊殺紀錄補建）
     load_maple_data();
     load_maple_wb_state();
     load_maple_raid_rooms();
     load_maple_exp_event();
+    load_maple_drop_event();
     load_maple_faction_state();
 }
 
 void maple_save_exp_event() { save_maple_exp_event(); }
+void maple_save_drop_event() { save_maple_drop_event(); }
 
 // 換下一場活動、或手動提前結束前呼叫：把目前這場（如果真的曾經生效過）存進歷史，
 // until 夾到「現在」避免超出實際生效時間；同時順手清掉超過30天的舊紀錄。呼叫前需持有 data_mutex。
@@ -368,6 +617,7 @@ struct MapleAdvSettleResult {
     int64_t exp_gain = 0, coin_gain = 0, secs = 0, faction_exp_gained = 0;
     int level_ups = 0;
     std::string region_name, faction_name;
+    std::string bonus_drop; // 長時間冒險額外掉落的道具名稱（空＝沒有）
 };
 static MapleAdvSettleResult maple_adv_settle_locked(MapleCharacter& c) {
     MapleAdvSettleResult r;
@@ -376,6 +626,12 @@ static MapleAdvSettleResult maple_adv_settle_locked(MapleCharacter& c) {
     maple_adv_progress(c, r.exp_gain, r.coin_gain, r.secs);
     c.coins += r.coin_gain;
     r.level_ups = maple_apply_exp(c, r.exp_gain);
+    // 長時間冒險掉落：這一趟冒險滿 long_drop_secs 才結算的人額外拿 1 個
+    if (region && !region->long_drop_key.empty() && r.secs >= region->long_drop_secs)
+        if (const MapleItemDef* ld = maple_find_item(region->long_drop_key)) {
+            c.equipment[region->long_drop_key]++;
+            r.bonus_drop = ld->name;
+        }
     // 每升一級陣營+該等級經驗，這裡算出這次總共加了多少（等差級數）方便顯示
     if (r.level_ups > 0 && !c.faction_key.empty()) {
         r.faction_exp_gained = (int64_t)r.level_ups * (2 * c.level - r.level_ups + 1) / 2;
@@ -396,6 +652,21 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
     dpp::snowflake uid = user.id;
     std::string dn = maple_display_name(user, ev.command.member.get_nickname());
     std::string av = user.get_avatar_url();
+
+    // 擊殺紀錄翻頁（只有 bot 擁有者能按）：maple_wbklog_<page>_<keyword>
+    if (cid.rfind("maple_wbklog_", 0) == 0) {
+        if (cfg.notify_user_id.empty() || std::to_string((uint64_t)uid) != cfg.notify_user_id) {
+            ev.reply(dpp::ir_channel_message_with_source, dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral));
+            return;
+        }
+        std::string rest = cid.substr(std::string("maple_wbklog_").size());
+        size_t sep = rest.find('_');
+        int page = 0;
+        try { page = std::stoi(rest.substr(0, sep)); } catch (...) {}
+        std::string kw = sep == std::string::npos ? std::string() : rest.substr(sep + 1);
+        ev.reply(dpp::ir_update_message, maple_wb_kill_log_msg(kw, page));
+        return;
+    }
 
     auto check_owner = [&](const std::string& prefix) -> bool {
         dpp::snowflake owner(std::stoull(cid.substr(prefix.size())));
@@ -549,7 +820,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
         save_maple_data();
         if (r.level_ups > 0) save_maple_faction_state();
         ev.reply(dpp::ir_update_message, make_maple_adv_settle_msg(uid, r.region_name, r.exp_gain, r.coin_gain, r.secs,
-                                                                    r.level_ups, r.faction_name, r.faction_exp_gained));
+                                                                    r.level_ups, r.faction_name, r.faction_exp_gained, r.bonus_drop));
         return;
     }
 
@@ -595,6 +866,17 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
         size_t psep = rest.find('_');
         if (psep != std::string::npos) { try { page = std::stoi(rest.substr(psep + 1)); } catch (...) {} }
         ev.reply(dpp::ir_update_message, make_maple_wb_region_list_msg(uid, page));
+        return;
+    }
+
+    // maple_wbdex_<uid>_<page>：野王圖鑑
+    if (cid.rfind("maple_wbdex_", 0) == 0) {
+        if (!check_owner("maple_wbdex_")) return;
+        int page = 0;
+        std::string rest = cid.substr(std::string("maple_wbdex_").size());
+        size_t psep = rest.find('_');
+        if (psep != std::string::npos) { try { page = std::stoi(rest.substr(psep + 1)); } catch (...) {} }
+        ev.reply(dpp::ir_update_message, make_maple_wb_dex_msg(uid, page));
         return;
     }
 
@@ -1143,7 +1425,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
 
     if (cid.rfind("maple_factionpick_", 0) == 0) {
         if (!check_owner("maple_factionpick_")) return;
-        ev.reply(dpp::ir_update_message, make_maple_faction_pick_msg(uid));
+        ev.reply(dpp::ir_update_message, make_maple_faction_pick_msg(uid, (uint64_t)ev.command.guild_id));
         return;
     }
 
@@ -1158,6 +1440,10 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
         }
         if (!maple_find_faction(fkey)) return;
+        if (!maple_faction_allowed_in_guild(fkey, (uint64_t)ev.command.guild_id)) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這個伺服器不能加入這個陣營。").set_flags(dpp::m_ephemeral)); return;
+        }
         std::string err;
         {
             std::lock_guard<std::mutex> lk(data_mutex);
@@ -1610,8 +1896,15 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
                 coin_gain = maple_wb_coin_gain(region->boss, wb_rng);
                 c.coins  += coin_gain;
                 level_ups = maple_apply_exp(c, exp_gain);
+                // 掉落活動：不擲掉落表，直接給 N 個這隻首領的寶箱
+                int ev_boxes = maple_drop_event_boxes();
+                const MapleBoxDef* ev_box = ev_boxes > 0 ? maple_box_for_wb_region(c.wb_region) : nullptr;
+                if (ev_box) {
+                    c.boxes[ev_box->key] += ev_boxes;
+                    drops.push_back(ev_box->name + " ×" + std::to_string(ev_boxes) + "（掉落活動）");
+                }
                 // 掉落表：每一筆各自獨立擲一次機率，中的話從 set 裡隨機選一個（scroll/item key 都支援）
-                for (auto& d : region->boss.drops) {
+                if (!ev_box) for (auto& d : region->boss.drops) {
                     if (d.set.empty()) continue;
                     if (std::uniform_int_distribution<int>(0, 999)(wb_rng) >= d.per_mille) continue;
                     const std::string& key = d.set.size() == 1 ? d.set[0]
@@ -1619,18 +1912,27 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
                     if (const MapleScrollDef* sd = maple_find_scroll(key)) {
                         c.scrolls[key]++;
                         drops.push_back(sd->name + " ×1");
+                        g_wb_seen_drops[region->key].insert(key);
                     } else if (const MapleItemDef* it = maple_find_item(key)) {
                         c.equipment[key]++;
                         drops.push_back(it->name + " ×1");
+                        g_wb_seen_drops[region->key].insert(key);
                     }
                 }
+                // 擊殺紀錄（!擊殺紀錄 查詢）
+                WbKillLogEntry le;
+                le.t = now; le.region = c.wb_region; le.guild = (uint64_t)ev.command.guild_id; le.uid = (uint64_t)uid;
+                le.place = place; le.max_winners = max_winners;
+                for (auto& d : drops) le.drops += (le.drops.empty() ? "" : "、") + d;
+                g_wb_kill_log.push_back(le);
+                while (g_wb_kill_log.size() > WB_KILL_LOG_MAX) g_wb_kill_log.pop_front();
             }
             c.wb_region.clear();
             c.wb_started_at = 0;
             c.wb_required_secs = 0;
             c.wb_epoch = 0;
         }
-        if (win) save_maple_wb_state();
+        if (win) { save_maple_wb_state(); save_wb_kill_log(); if (!drops.empty()) save_wb_seen_drops(); }
         save_maple_data();
         if (level_ups > 0) save_maple_faction_state();
         ev.reply(dpp::ir_update_message, make_maple_wb_result_msg(uid, win, boss_name, exp_gain, coin_gain, level_ups, drops, place, max_winners, scope_gid));
@@ -3147,6 +3449,61 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
                 dpp::message("❌ 還不能三轉！").set_flags(dpp::m_ephemeral)); return;
         }
         ev.reply(dpp::ir_update_message, make_maple_job3_select_msg(uid));
+        return;
+    }
+
+    if (cid.rfind("maple_j4open_", 0) == 0) {
+        if (!check_owner("maple_j4open_")) return;
+        MapleCharacter c = maple_get_or_create(uid);
+        if (!maple_can_fourth_job(c)) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 還不能四轉！").set_flags(dpp::m_ephemeral)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_job4_quest_msg(uid));
+        return;
+    }
+
+    // maple_j4give_<uid>_<stage>_<itemkey>：四轉任務上交道具（stage 用來擋重複點擊／舊訊息）
+    if (cid.rfind("maple_j4give_", 0) == 0) {
+        std::string rest = cid.substr(13);
+        size_t s1 = rest.find('_');
+        if (s1 == std::string::npos) return;
+        size_t s2 = rest.find('_', s1 + 1);
+        if (s2 == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, s1)));
+        int stage = 0;
+        try { stage = std::stoi(rest.substr(s1 + 1, s2 - s1 - 1)); } catch (...) { return; }
+        std::string key = rest.substr(s2 + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            int cur = c.job4_stage < 0 ? 0 : c.job4_stage;
+            std::vector<std::string> allowed;
+            if (cur == 0) allowed = {"etc_hunter_hat"};
+            else if (cur == 1) allowed = maple_job4_mediums(c.job);
+            auto eit = c.equipment.find(key);
+            if (!maple_can_fourth_job(c)) err = "還不能四轉！";
+            else if (stage != cur || std::find(allowed.begin(), allowed.end(), key) == allowed.end())
+                err = "任務進度已經變動，請重新開啟四轉畫面。";
+            else if (eit == c.equipment.end() || eit->second <= 0) err = "你沒有這個道具。";
+            else {
+                eit->second--;
+                if (eit->second <= 0) c.equipment.erase(eit);
+                if (cur == 1) c.job4_medium = key;
+                c.job4_stage = cur + 1;
+            }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_job4_quest_msg(uid));
         return;
     }
 

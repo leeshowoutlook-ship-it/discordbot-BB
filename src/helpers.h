@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "types.h"
 #include <fstream>
 #include <sstream>
@@ -59,7 +59,7 @@ static const char* const DATA_FILES[] = {
     "gacha_hero_pity.json","gacha_mystery_pity.json","gacha_pity.json","giveaways.json",
     "guess_stats.json","hunt_clear.json","inventory.json","lottery_games.json",
     "lottery_history.json","lottery_stock.json","lotterystats.json","maple_data.json",
-    "maple_exp_event.json","maple_faction_state.json","maple_raid_rooms.json","maple_wb_state.json",
+    "maple_exp_event.json","maple_drop_event.json","maple_wb_kill_log.json","blacklist.json","maple_wb_seen_drops.json","maple_faction_state.json","maple_raid_rooms.json","maple_wb_state.json",
     "onwstats.json","pets.json","proposed_teams.json","purchases.json","registrations.json",
     "rlstats.json","rocketstats.json","rpsstats.json","scratch_games.json","scratchstats.json",
     "settings.json","shootstats.json","shop.json","signin.json","stock_holdings.json",

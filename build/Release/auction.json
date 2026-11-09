@@ -3,6 +3,7 @@
     {
       "created_at": 1789614337,
       "currency": "coins",
+      "expires_at": 1794496232,
       "id": 36,
       "is_buy": false,
       "item_id": 96519,
@@ -15,6 +16,7 @@
     {
       "created_at": 1789614572,
       "currency": "coins",
+      "expires_at": 1794496232,
       "id": 40,
       "is_buy": false,
       "item_id": 96526,
@@ -27,6 +29,7 @@
     {
       "created_at": 1789614591,
       "currency": "coins",
+      "expires_at": 1794496232,
       "id": 41,
       "is_buy": false,
       "item_id": 96527,
@@ -39,6 +42,7 @@
     {
       "created_at": 1789788332,
       "currency": "chips",
+      "expires_at": 1794496232,
       "id": 66,
       "is_buy": false,
       "item_id": 92004,
@@ -51,6 +55,7 @@
     {
       "created_at": 1789788362,
       "currency": "chips",
+      "expires_at": 1794496232,
       "id": 67,
       "is_buy": false,
       "item_id": 92033,
@@ -63,6 +68,7 @@
     {
       "created_at": 1790744515,
       "currency": "chips",
+      "expires_at": 1794496232,
       "id": 117,
       "is_buy": false,
       "item_id": 96517,
@@ -75,6 +81,7 @@
     {
       "created_at": 1790744541,
       "currency": "chips",
+      "expires_at": 1794496232,
       "id": 118,
       "is_buy": false,
       "item_id": 96518,
@@ -87,6 +94,7 @@
     {
       "created_at": 1790784630,
       "currency": "chips",
+      "expires_at": 1794496232,
       "id": 127,
       "is_buy": false,
       "item_id": 70001,
@@ -99,6 +107,7 @@
     {
       "created_at": 1790821279,
       "currency": "chips",
+      "expires_at": 1794496232,
       "id": 131,
       "is_buy": false,
       "item_id": 96508,
@@ -111,6 +120,7 @@
     {
       "created_at": 1793013959,
       "currency": "chips",
+      "expires_at": 1794496232,
       "id": 225,
       "is_buy": false,
       "item_id": 80001,
@@ -123,9 +133,10 @@
     {
       "created_at": 1793013990,
       "currency": "chips",
+      "expires_at": 1794496232,
       "id": 226,
       "is_buy": false,
-      "item_id": 96001,
+      "item_id": 80002,
       "item_key": "weekly_hunt_scroll",
       "item_name": "每週怪物狩獵卷",
       "price": 9999999,
@@ -133,47 +144,12 @@
       "uid": "856481432581701643"
     },
     {
-      "created_at": 1793169413,
-      "currency": "chips",
-      "id": 239,
-      "is_buy": false,
-      "item_id": 90008,
-      "item_key": "col_mb_crown",
-      "item_name": "菇菇寶貝的王冠",
-      "price": 88888,
-      "qty": 1,
-      "uid": "592404587248615458"
-    },
-    {
-      "created_at": 1793169443,
-      "currency": "chips",
-      "id": 240,
-      "is_buy": false,
-      "item_id": 90009,
-      "item_key": "col_mb_staff",
-      "item_name": "菇菇寶貝的手杖",
-      "price": 77777,
-      "qty": 1,
-      "uid": "592404587248615458"
-    },
-    {
-      "created_at": 1793169470,
-      "currency": "chips",
-      "id": 241,
-      "is_buy": false,
-      "item_id": 90007,
-      "item_key": "col_mushroom_head",
-      "item_name": "蘑菇頭",
-      "price": 99999,
-      "qty": 1,
-      "uid": "592404587248615458"
-    },
-    {
       "created_at": 1793377110,
       "currency": "chips",
+      "expires_at": 1794496232,
       "id": 249,
       "is_buy": false,
-      "item_id": 96001,
+      "item_id": 80002,
       "item_key": "weekly_hunt_scroll",
       "item_name": "每週怪物狩獵卷",
       "price": 10000000,
@@ -183,9 +159,10 @@
     {
       "created_at": 1793549410,
       "currency": "chips",
+      "expires_at": 1794496232,
       "id": 255,
       "is_buy": false,
-      "item_id": 96001,
+      "item_id": 80002,
       "item_key": "weekly_hunt_scroll",
       "item_name": "每週怪物狩獵卷",
       "price": 1000000,
@@ -195,6 +172,7 @@
     {
       "created_at": 1793551477,
       "currency": "coins",
+      "expires_at": 1794496232,
       "id": 257,
       "is_buy": false,
       "item_id": 96527,
@@ -205,20 +183,9 @@
       "uid": "723170866892111984"
     },
     {
-      "created_at": 1793707697,
-      "currency": "chips",
-      "id": 265,
-      "is_buy": false,
-      "item_id": 80001,
-      "item_key": "hunt_scroll",
-      "item_name": "怪物狩獵卷",
-      "price": 1000000,
-      "qty": 32,
-      "uid": "558513044632895509"
-    },
-    {
       "created_at": 1793710751,
       "currency": "coins",
+      "expires_at": 1794496232,
       "id": 269,
       "is_buy": false,
       "item_id": 96724,
@@ -231,6 +198,7 @@
     {
       "created_at": 1793711025,
       "currency": "coins",
+      "expires_at": 1794496232,
       "id": 270,
       "is_buy": false,
       "item_id": 96790,
@@ -241,20 +209,9 @@
       "uid": "978574913306755084"
     },
     {
-      "created_at": 1793711123,
-      "currency": "coins",
-      "id": 271,
-      "is_buy": false,
-      "item_id": 96699,
-      "item_key": "arm_underworld_clothes",
-      "item_name": "冥界套服",
-      "price": 50000,
-      "qty": 2,
-      "uid": "978574913306755084"
-    },
-    {
       "created_at": 1793711599,
       "currency": "coins",
+      "expires_at": 1794496232,
       "id": 272,
       "is_buy": false,
       "item_id": 96690,
@@ -265,32 +222,9 @@
       "uid": "978574913306755084"
     },
     {
-      "created_at": 1793722193,
-      "currency": "chips",
-      "id": 273,
-      "is_buy": false,
-      "item_id": 80001,
-      "item_key": "hunt_scroll",
-      "item_name": "怪物狩獵卷",
-      "price": 100000000,
-      "qty": 40,
-      "uid": "604244623124070423"
-    },
-    {
-      "created_at": 1793726023,
-      "currency": "coins",
-      "id": 276,
-      "is_buy": false,
-      "item_id": 96001,
-      "item_key": "weekly_hunt_scroll",
-      "item_name": "每週怪物狩獵卷",
-      "price": 200000,
-      "qty": 1,
-      "uid": "1008386641834025011"
-    },
-    {
       "created_at": 1793757872,
       "currency": "coins",
+      "expires_at": 1794496232,
       "id": 280,
       "is_buy": false,
       "item_id": 96517,
@@ -303,19 +237,8 @@
     {
       "created_at": 1793757902,
       "currency": "coins",
+      "expires_at": 1794496232,
       "id": 281,
-      "is_buy": false,
-      "item_id": 96517,
-      "item_key": "sc_wpn_dagger60",
-      "item_name": "匕首 攻擊力卷軸 60%",
-      "price": 50000,
-      "qty": 7,
-      "uid": "353567910285017090"
-    },
-    {
-      "created_at": 1793757917,
-      "currency": "coins",
-      "id": 282,
       "is_buy": false,
       "item_id": 96517,
       "item_key": "sc_wpn_dagger60",
@@ -327,6 +250,7 @@
     {
       "created_at": 1793757935,
       "currency": "coins",
+      "expires_at": 1794496232,
       "id": 283,
       "is_buy": false,
       "item_id": 96517,
@@ -339,6 +263,7 @@
     {
       "created_at": 1793758010,
       "currency": "coins",
+      "expires_at": 1794496232,
       "id": 284,
       "is_buy": false,
       "item_id": 96532,
@@ -349,23 +274,12 @@
       "uid": "353567910285017090"
     },
     {
-      "created_at": 1793761894,
-      "currency": "chips",
-      "id": 285,
-      "is_buy": false,
-      "item_id": 80001,
-      "item_key": "hunt_scroll",
-      "item_name": "怪物狩獵卷",
-      "price": 888888898,
-      "qty": 5,
-      "uid": "959450115007975444"
-    },
-    {
       "created_at": 1793761979,
       "currency": "chips",
+      "expires_at": 1794496232,
       "id": 286,
       "is_buy": false,
-      "item_id": 96001,
+      "item_id": 80002,
       "item_key": "weekly_hunt_scroll",
       "item_name": "每週怪物狩獵卷",
       "price": 888888898,
@@ -373,41 +287,148 @@
       "uid": "959450115007975444"
     },
     {
-      "created_at": 1793794316,
+      "created_at": 1793939209,
       "currency": "coins",
-      "id": 288,
+      "expires_at": 1794544009,
+      "id": 298,
       "is_buy": false,
-      "item_id": 96692,
-      "item_key": "wpn_underworld_staff",
-      "item_name": "冥界法杖",
-      "price": 15000,
+      "item_id": 94003,
+      "item_key": "EQ_K_ATHENA",
+      "item_name": "雅典娜的寶珠",
+      "price": 100000,
       "qty": 1,
-      "uid": "1008386641834025011"
+      "uid": "592685139717390346"
     },
     {
-      "created_at": 1793806531,
+      "created_at": 1793939258,
       "currency": "coins",
-      "id": 289,
+      "expires_at": 1794544058,
+      "id": 299,
       "is_buy": false,
-      "item_id": 96527,
-      "item_key": "sc_wpn_xbow20",
-      "item_name": "弩 攻擊力卷軸 20%",
-      "price": 13500,
+      "item_id": 94003,
+      "item_key": "EQ_K_ATHENA",
+      "item_name": "雅典娜的寶珠",
+      "price": 100000,
       "qty": 1,
-      "uid": "1503509660311752714"
+      "uid": "592685139717390346"
     },
     {
-      "created_at": 1793806772,
+      "created_at": 1793939306,
       "currency": "coins",
-      "id": 290,
+      "expires_at": 1794544106,
+      "id": 300,
       "is_buy": false,
-      "item_id": 96517,
-      "item_key": "sc_wpn_dagger60",
-      "item_name": "匕首 攻擊力卷軸 60%",
+      "item_id": 94004,
+      "item_key": "EQ_K_BEAR",
+      "item_name": "巨山狂熊的寶珠",
+      "price": 100000,
+      "qty": 1,
+      "uid": "592685139717390346"
+    },
+    {
+      "created_at": 1793939365,
+      "currency": "coins",
+      "expires_at": 1794544165,
+      "id": 302,
+      "is_buy": false,
+      "item_id": 94005,
+      "item_key": "EQ_K_VIKING",
+      "item_name": "維京的寶珠",
+      "price": 100000,
+      "qty": 1,
+      "uid": "592685139717390346"
+    },
+    {
+      "created_at": 1794009939,
+      "currency": "chips",
+      "expires_at": 1794614739,
+      "id": 307,
+      "is_buy": false,
+      "item_id": 80001,
+      "item_key": "hunt_scroll",
+      "item_name": "怪物狩獵卷",
+      "price": 1000000,
+      "qty": 34,
+      "uid": "558513044632895509"
+    },
+    {
+      "created_at": 1794062483,
+      "currency": "coins",
+      "expires_at": 1794667283,
+      "id": 311,
+      "is_buy": false,
+      "item_id": 94003,
+      "item_key": "EQ_K_ATHENA",
+      "item_name": "雅典娜的寶珠",
+      "price": 88888,
+      "qty": 2,
+      "uid": "741919638505652226"
+    },
+    {
+      "created_at": 1794065847,
+      "currency": "chips",
+      "expires_at": 1794670647,
+      "id": 312,
+      "is_buy": false,
+      "item_id": 80001,
+      "item_key": "hunt_scroll",
+      "item_name": "怪物狩獵卷",
+      "price": 99999,
+      "qty": 11,
+      "uid": "959450115007975444"
+    },
+    {
+      "created_at": 1794067357,
+      "currency": "chips",
+      "expires_at": 1794672157,
+      "id": 313,
+      "is_buy": false,
+      "item_id": 80001,
+      "item_key": "hunt_scroll",
+      "item_name": "怪物狩獵卷",
+      "price": 66666666,
+      "qty": 48,
+      "uid": "604244623124070423"
+    },
+    {
+      "created_at": 1794070134,
+      "currency": "coins",
+      "expires_at": 1794674934,
+      "id": 314,
+      "is_buy": false,
+      "item_id": 96699,
+      "item_key": "arm_underworld_clothes",
+      "item_name": "冥界套服",
+      "price": 70000,
+      "qty": 3,
+      "uid": "978574913306755084"
+    },
+    {
+      "created_at": 1794070172,
+      "currency": "coins",
+      "expires_at": 1794674972,
+      "id": 315,
+      "is_buy": false,
+      "item_id": 96695,
+      "item_key": "wpn_underworld_xbow",
+      "item_name": "冥界弩",
       "price": 20000,
       "qty": 1,
-      "uid": "1503509660311752714"
+      "uid": "978574913306755084"
+    },
+    {
+      "created_at": 1794155469,
+      "currency": "chips",
+      "expires_at": 1794760269,
+      "id": 319,
+      "is_buy": false,
+      "item_id": 80001,
+      "item_key": "hunt_scroll",
+      "item_name": "怪物狩獵卷",
+      "price": 12000,
+      "qty": 4,
+      "uid": "558513044632895509"
     }
   ],
-  "next_id": 292
+  "next_id": 320
 }

@@ -407,6 +407,8 @@ struct MapleCharacter {
     time_t         created_at = 0;
     std::string    companion_buff;     // 假人夥伴目前「使用中」的buff key，空字串＝沒有使用
     std::map<std::string, time_t> companion_owned; // 已購買的假人buff key -> 到期時間；每個buff各自購買、各自計時7天，期限內可以隨意切換使用
+    int            job4_stage = 0;       // 四轉任務進度：0＝第一階段；1＝第二階段；2＝第二階段已完成
+    std::string    job4_medium;          // 四轉任務第二階段上交的媒介道具key（神偷可選不同媒介，會決定轉職結果）
 };
 
 // ─── Raid system ─────────────────────────────────────────────────────────────
@@ -815,6 +817,14 @@ inline MapleExpEventState maple_exp_event;
 // 開新的一場會讓「前一場活動期間累積的倍率」在結算時被忘記，所以另外存一份歷史，結算時全部一起算重疊。
 struct MapleExpEventWindow { double mult; time_t start, until; };
 inline std::vector<MapleExpEventWindow> maple_exp_event_history;
+
+// ─── 楓之谷世界：野外首領掉落活動（管理員設定，全服共用）──────────────────────────
+// 活動期間擊殺野外首領，原本的掉落表不擲骰，改成直接給 mult 個「那隻首領的寶箱」（瘋幣、經驗值照常）。
+struct MapleDropEventState {
+    int    mult  = 0; // 每次擊殺給幾個寶箱（2 或 3），0＝沒有活動
+    time_t until = 0; // 活動結束時間，0或已過期＝沒有活動
+};
+inline MapleDropEventState maple_drop_event;
 
 // ─── 楓之谷世界：突襲首領（多人組隊房間，開始後自動討伐，隊長結算、全員各自獨立roll掉落）──
 struct MapleRaidMember {

@@ -25,6 +25,10 @@ struct MapleItemDef {
     int  secondary_generic = 0; // 給予「穿戴者當前職業副屬性」+N
     std::vector<std::string> offhand_wtypes; // 副武器限定：主武器類型需符合其中之一（空＝不限；只有 slot=="offhand" 用得到）
     bool shop = true; // 是否上架裝備商店（false＝不上架，但仍可裝備/交易/賣給系統，price 照樣算售價）
+    int  str_req = 0, dex_req = 0, int_req = 0, luk_req = 0; // 指定能力值需求（跟主/副屬性需求分開，例如奇型刀要力量100）
+    std::string offhand_main_key; // 副武器限定：主武器必須是這一把（item key），空＝不限
+    double primary_coef_bonus = 0; // 穿著時主屬性係數（武器係數）額外 +N
+    std::string desc;             // 道具說明（雜物類用，背包會顯示）
 };
 
 // 武器：8 種類型 × 7 個等級階（等級 10/30/50/70/100/120/150）
@@ -560,6 +564,71 @@ static const std::vector<MapleItemDef>& maple_items() {
             e.item_id = 96807;
             items.push_back(e);
         }
+        // ── 咕咕鐘（野外首領，60等）掉落：每樣 2%，都不在商店販售 ──────────────────
+        auto wpn = [&](const char* key, const char* name, const char* wtype, const char* job,
+                       int lv, int atk, int speed, int id) {
+            MapleItemDef e;
+            e.key = key; e.name = name; e.slot = "weapon"; e.weapon_type = wtype; e.job_req = job;
+            e.level_req = lv; e.atk_bonus = atk; e.atk_speed_sec = speed;
+            e.sellable = true; e.price = 0; e.item_id = id; e.shop = false;
+            return e;
+        };
+        { // 紙製頭盔：全職業、無需求，全屬性+3
+            MapleItemDef e;
+            e.key = "arm_paper_helmet"; e.name = "紙製頭盔"; e.slot = "helmet";
+            e.str_bonus = e.dex_bonus = e.int_bonus = e.luk_bonus = 3;
+            e.sellable = true; e.price = 0; e.item_id = 96811; e.shop = false;
+            items.push_back(e);
+        }
+        { // 奇型刀：匕首，限神偷、Lv90，攻擊120，需求 力量100／敏捷80／智力60
+            MapleItemDef e = wpn("wpn_odd_knife", "奇型刀", "匕首", "dagger_kid", 90, 120, 45, 96812);
+            e.str_req = 100; e.dex_req = 80; e.int_req = 60;
+            items.push_back(e);
+        }
+        // 橡皮榔頭：大劍，限騎士、Lv90，攻擊85；騎士裝備時在「僧侶／祭司 ×1.5」的冒險地圖也吃得到加乘（見 maple_adv_region_job_mult）
+        items.push_back(wpn("wpn_rubber_mallet", "橡皮榔頭", "大劍", "knight", 90, 85, 75, 96813));
+        { // 竹刀：副武器，限十字軍，攻擊+20；主武器必須是紙劍，裝備後主屬性係數（武器係數）+1.0
+            MapleItemDef e;
+            e.key = "oh_bamboo_sword"; e.name = "竹刀"; e.slot = "offhand"; e.job_req = "crusader";
+            e.atk_bonus = 20; e.offhand_main_key = "wpn_paper_sword"; e.primary_coef_bonus = 1.0;
+            e.sellable = true; e.price = 0; e.item_id = 96814; e.shop = false;
+            items.push_back(e);
+        }
+        // 紙劍：大劍，限十字軍，無等級／屬性需求，攻擊85
+        items.push_back(wpn("wpn_paper_sword", "紙劍", "大劍", "crusader", 0, 85, 75, 96815));
+        { // 桑拿服：套服，Lv77、全屬性需求40，全屬性+7，可強化7次（見 maple_enh_max_slots）
+            MapleItemDef e;
+            e.key = "arm_sauna_robe"; e.name = "桑拿服"; e.slot = "clothes"; e.level_req = 77;
+            e.str_req = e.dex_req = e.int_req = e.luk_req = 40;
+            e.str_bonus = e.dex_bonus = e.int_bonus = e.luk_bonus = 7;
+            e.sellable = true; e.price = 0; e.item_id = 96816; e.shop = false;
+            items.push_back(e);
+        }
+        { // 聖賢短杖：法杖，限祭司、Lv90，攻擊120，攻速較慢，需求幸運120
+            MapleItemDef e = wpn("wpn_sage_wand", "聖賢短杖", "法杖", "bishop", 90, 120, 70, 96817);
+            e.luk_req = 120;
+            items.push_back(e);
+        }
+        { // 海神叉：弩，限弩弓手（含狙擊手）、Lv90、副屬性90，攻擊55，攻速較快
+            MapleItemDef e = wpn("wpn_poseidon_fork", "海神叉", "弩", "crossbowman", 90, 55, 45, 96818);
+            e.secondary_req = 90;
+            items.push_back(e);
+        }
+        // 雜物（背包「其他 → 雜物」）：不能裝備、沒有用途，只能賣給系統或交易
+        auto etc = [&](const char* key, const char* name, const char* desc, int id) {
+            MapleItemDef e;
+            e.key = key; e.name = name; e.slot = "material"; e.desc = desc;
+            e.sellable = true; e.price = 0; e.item_id = id; e.shop = false;
+            items.push_back(e);
+        };
+        etc("etc_fire_capsule",   "火炎膠囊",     "很燙的膠囊，也不能吃，也不能裝備，不知道有啥用處", 96819);
+        etc("etc_frost_capsule",  "冰霜膠囊",     "很冰的膠囊，也不能吃，也不能裝備，不知道有啥用處", 96820);
+        etc("etc_poison_shroom",  "毒之菇",       "很毒的蘑菇，食用後似乎會死亡，也不能裝備，不知道有啥用處", 96821);
+        etc("etc_hunter_hat",     "獵人毛帽",     "很保暖的毛帽，但完全不知道有什麼用，甚至覺得他不該出現在這裡，也不能裝備", 96822);
+        etc("etc_rusty_star",     "生鏽的日飛鏢", "生鏽前很銳利，但完全不知道有什麼用，甚至覺得他不該出現在這裡，也不能裝備", 96823);
+        etc("etc_nameless_sword", "無名劍",       "不知道是誰的劍，也不知道是什麼用處，甚至覺得他不該出現在這裡，也不能裝備", 96824);
+        etc("etc_cube_essence",   "方塊濃縮液",   "方塊水靈身上濃縮出來的液體，要在方塊水靈之地待滿一整天才拿得到，目前還不知道有什麼用處", 96826);
+        etc("etc_holy_whip",      "聖光鞭子",     "散發神聖的氣息，似乎可以用來管教奴隸，但完全不知道有什麼用，甚至覺得他不該出現在這裡，也不能裝備", 96825);
         return items;
     }();
     return v;

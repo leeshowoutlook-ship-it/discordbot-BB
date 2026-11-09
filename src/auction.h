@@ -39,6 +39,7 @@ static void save_auction() {
 static void load_auction() {
     std::ifstream f(AUCTION_FILE);
     if (!f.is_open()) return;
+    bool migrated = false; // 有舊訂單補上到期時間 → 載入完馬上存一次，避免每次重開都重新起算 7 天
     try {
         nlohmann::json j; f >> j;
         std::lock_guard<std::mutex> lk(data_mutex);
@@ -57,9 +58,15 @@ static void load_auction() {
             a.created_at = (time_t)v.value("created_at", (int64_t)0);
             // 舊訂單沒有到期時間：從這次上線起算 7 天，不要一開機就把舊訂單全部下架
             a.expires_at = (time_t)v.value("expires_at", (int64_t)0);
-            if (a.expires_at <= 0) a.expires_at = time(nullptr) + AUCTION_EXPIRE_SECS;
+            if (a.expires_at <= 0) { a.expires_at = time(nullptr) + AUCTION_EXPIRE_SECS; migrated = true; }
             if (v.contains("enh") && v["enh"].is_object()) { a.has_enh = true; a.enh = mv_enh_from_json(v["enh"]); }
+            // 道具改過 ID（例如每週狩獵卷 96001→80002）：以 key 為準校正顯示用 ID
+            if (!a.has_enh)
+                if (const VirtualShopItem* vi = find_virtual_item(a.item_key))
+                    if (vi->item_id > 0 && vi->item_id != a.item_id) { a.item_id = vi->item_id; migrated = true; }
             if (a.id > 0) auction_listings[a.id] = a;
         }
     } catch (...) {}
+    f.close();
+    if (migrated) save_auction();
 }

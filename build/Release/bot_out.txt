@@ -1,0 +1,46 @@
+[Sun Nov  8 17:25:13 2026] DEBUG: Cluster: 993 of 1000 session starts remaining
+[Sun Nov  8 17:25:13 2026] INFO: Auto Shard: Bot requires 1 shard
+[Sun Nov  8 17:25:13 2026] DEBUG: Starting with 1 shards...
+[Sun Nov  8 17:25:13 2026] DEBUG: Connecting new session...
+[Sun Nov  8 17:25:14 2026] INFO: Shard id 0 (1/1) ready!
+[Sun Nov  8 17:25:14 2026] DEBUG: Resume URL for session 2c3110c915a39b2158548da488c4ffeb is wss://gateway-us-east1-c.discord.gg (host: gateway-us-east1-c.discord.gg)
+Bot 已上線：分類帽
+[Sun Nov  8 17:25:18 2026] DEBUG: Shards started.
+[Sun Nov  8 19:51:23 2026] DEBUG: Receiving exception: Reconnection requested, closing session 2c3110c915a39b2158548da488c4ffeb
+[Sun Nov  8 19:51:23 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Sun Nov  8 19:51:28 2026] INFO: Reconnecting shard 0
+[Sun Nov  8 19:51:28 2026] DEBUG: Resuming session 2c3110c915a39b2158548da488c4ffeb with seq=13038
+[Sun Nov  8 19:51:28 2026] DEBUG: Successfully resumed session id 2c3110c915a39b2158548da488c4ffeb
+[Sun Nov  8 19:51:29 2026] ERROR: Error: 10062: Unknown interaction
+[Sun Nov  8 19:51:29 2026] ERROR: Error: 10062: Unknown interaction
+[Sun Nov  8 19:51:29 2026] ERROR: Error: 10062: Unknown interaction
+[Sun Nov  8 19:51:31 2026] ERROR: Error: 10015: Unknown Webhook
+[Sun Nov  8 20:09:40 2026] ERROR: Error: 10062: Unknown interaction
+[Sun Nov  8 20:55:38 2026] DEBUG: Receiving exception: Reconnection requested, closing session 2c3110c915a39b2158548da488c4ffeb
+[Sun Nov  8 20:55:38 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Sun Nov  8 20:55:43 2026] INFO: Reconnecting shard 0
+[Sun Nov  8 20:55:43 2026] DEBUG: Resuming session 2c3110c915a39b2158548da488c4ffeb with seq=19103
+[Sun Nov  8 20:55:43 2026] DEBUG: Successfully resumed session id 2c3110c915a39b2158548da488c4ffeb
+[Sun Nov  8 22:00:39 2026] ERROR: Error: 10062: Unknown interaction
+[Sun Nov  8 22:44:34 2026] ERROR: Error: 50035: Invalid Form Body - data.components[3].components[0].custom_id: Component custom id cannot be duplicated (COMPONENT_CUSTOM_ID_DUPLICATED)
+[Sun Nov  8 22:44:47 2026] ERROR: Error: 50035: Invalid Form Body - data.components[3].components[0].custom_id: Component custom id cannot be duplicated (COMPONENT_CUSTOM_ID_DUPLICATED)
+[Sun Nov  8 22:46:15 2026] ERROR: Error: 50035: Invalid Form Body - data.components[3].components[0].custom_id: Component custom id cannot be duplicated (COMPONENT_CUSTOM_ID_DUPLICATED)
+[Sun Nov  8 22:46:26 2026] ERROR: Error: 50035: Invalid Form Body - data.components[3].components[0].custom_id: Component custom id cannot be duplicated (COMPONENT_CUSTOM_ID_DUPLICATED)
+[Mon Nov  9 00:45:14 2026] DEBUG: Receiving exception: Reconnection requested, closing session 2c3110c915a39b2158548da488c4ffeb
+[Mon Nov  9 00:45:14 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Mon Nov  9 00:45:23 2026] INFO: Reconnecting shard 0
+[Mon Nov  9 00:45:24 2026] DEBUG: Resuming session 2c3110c915a39b2158548da488c4ffeb with seq=32114
+[Mon Nov  9 00:45:24 2026] DEBUG: Successfully resumed session id 2c3110c915a39b2158548da488c4ffeb
+[Mon Nov  9 00:49:33 2026] ERROR: Error: 50035: Invalid Form Body - data.flags: The MessageFlags.IS_COMPONENTS_V2 flag cannot be removed from a message once it has been set. (MESSAGE_CANNOT_REMOVE_COMPONENTS_V2_FLAG)
+[Mon Nov  9 01:29:16 2026] ERROR: Error: 50035: Invalid Form Body - data.components[1].components: This field is required (BASE_TYPE_REQUIRED)
+[Mon Nov  9 02:42:44 2026] ERROR: Error: 10062: Unknown interaction
+[Mon Nov  9 03:04:52 2026] ERROR: Error: 50035: Invalid Form Body - data.components[1].components: This field is required (BASE_TYPE_REQUIRED)
+[Mon Nov  9 03:04:55 2026] ERROR: Error: 50035: Invalid Form Body - data.components[1].components: This field is required (BASE_TYPE_REQUIRED)
+[Mon Nov  9 03:05:01 2026] ERROR: Error: 50035: Invalid Form Body - data.components[1].components: This field is required (BASE_TYPE_REQUIRED)
+[Mon Nov  9 03:44:53 2026] DEBUG: Receiving exception: Reconnection requested, closing session 2c3110c915a39b2158548da488c4ffeb
+[Mon Nov  9 03:44:53 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
+[Mon Nov  9 03:44:58 2026] INFO: Reconnecting shard 0
+[Mon Nov  9 03:44:58 2026] DEBUG: Resuming session 2c3110c915a39b2158548da488c4ffeb with seq=40705
+[Mon Nov  9 03:44:58 2026] DEBUG: Successfully resumed session id 2c3110c915a39b2158548da488c4ffeb
+[Mon Nov  9 04:19:58 2026] DEBUG: Receiving exception: Reconnection requested, closing session 2c3110c915a39b2158548da488c4ffeb
+[Mon Nov  9 04:19:58 2026] DE

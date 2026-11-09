@@ -45,7 +45,7 @@ static std::string nn_stats_line(dpp::snowflake uid) {
     }
     int total = st.wins + st.losses;
     std::string wr = total > 0 ? std::to_string(st.wins * 100 / total) + "%" : "—";
-    return "勝率 **" + wr + "**　盈虧 **" + std::string(st.profit >= 0 ? "+" : "") + std::to_string(st.profit) + "** 碼";
+    return std::to_string(st.wins) + " 勝 " + std::to_string(st.losses) + " 敗　勝率 **" + wr + "**　盈虧 **" + std::string(st.profit >= 0 ? "+" : "") + std::to_string(st.profit) + "** 碼";
 }
 
 // ─── 牌型判定 ─────────────────────────────────────────────────────────────────

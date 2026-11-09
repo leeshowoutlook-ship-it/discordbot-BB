@@ -10,16 +10,25 @@ PowerShell / Bash 指令**直接執行，不需每次詢問確認**。
 
 Bot 執行中時 exe 被鎖，直接 build 會報 LNK1104 錯誤。正確步驟：
 
+**看門狗**：`build\Release\watchdog.ps1` 在背景跑，bot 不見時 15 秒內自動重開。
+- log 在 `watchdog.log`；bot 輸出在 `bot_err.txt` / `bot_out.txt`（DPP 連線 log 在 bot_out），上一次的存成 `*.prev.txt`。
+- 建立 `build\Release\watchdog.pause` 會暫停看門狗；刪掉就恢復。
+- 看門狗沒在跑時用這行啟動：
+  `Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','C:\Users\USER2021\discordbot-BB\build\Release\watchdog.ps1' -WindowStyle Hidden`
+
 ```powershell
+# 0. 暫停看門狗（避免 build 途中被它重開）
+New-Item "build\Release\watchdog.pause" -ItemType File -Force
+
 # 1. 先改名，讓 linker 可以寫入新檔
 Rename-Item "build\Release\dcbot.exe" "dcbot_old.exe"
 
 # 2. Build
 cmake --build build --config Release
 
-# 3. 關舊的、開新的
+# 3. 關舊的，恢復看門狗，由看門狗開新的（15 秒內）
 Stop-Process -Id <PID> -Force
-Start-Process -FilePath "build\Release\dcbot.exe" -WorkingDirectory "build\Release"
+Remove-Item "build\Release\watchdog.pause" -Force
 
 # 4. 確認新的在跑，刪舊檔
 Get-Process | Where-Object { $_.Name -like "dcbot*" }

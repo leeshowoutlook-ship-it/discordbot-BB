@@ -59,12 +59,6 @@
       "shares": 2
     }
   },
-  "470149299934593024": {
-    "stock_catbro": {
-      "avg_cost": 1088,
-      "shares": 100
-    }
-  },
   "479900597013708802": {
     "stock_mood": {
       "avg_cost": 860,
@@ -77,8 +71,8 @@
   },
   "527334459708538883": {
     "stock_0050": {
-      "avg_cost": 100,
-      "shares": 60
+      "avg_cost": 93,
+      "shares": 40
     },
     "stock_nvda": {
       "avg_cost": 202,
@@ -99,10 +93,10 @@
       "shares": 300
     }
   },
-  "592404587248615458": {
-    "stock_purse": {
-      "avg_cost": 965,
-      "shares": 50
+  "592685139717390346": {
+    "stock_btc": {
+      "avg_cost": 75645,
+      "shares": 5
     }
   },
   "604244623124070423": {
@@ -110,9 +104,9 @@
       "avg_cost": 77912,
       "shares": 6
     },
-    "stock_ntdo": {
-      "avg_cost": 8335,
-      "shares": 28
+    "stock_tsmc": {
+      "avg_cost": 2238,
+      "shares": 130
     }
   },
   "610001650089721886": {
@@ -131,7 +125,7 @@
       "shares": 3
     },
     "stock_tsmc": {
-      "avg_cost": 2295,
+      "avg_cost": 2277,
       "shares": 5
     }
   },
@@ -160,9 +154,13 @@
     }
   },
   "854140533890744350": {
+    "stock_0050": {
+      "avg_cost": 98,
+      "shares": 3
+    },
     "stock_nvda": {
-      "avg_cost": 207,
-      "shares": 30
+      "avg_cost": 205,
+      "shares": 36
     }
   },
   "856481432581701643": {

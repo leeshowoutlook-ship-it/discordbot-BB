@@ -1,0 +1,167 @@
+{
+ "advanced_dojo": [
+  "oh_dart_30",
+  "sc_glove_atk_curse50",
+  "sc_helmet20",
+  "sc_helmet_curse50"
+ ],
+ "cactus_desert": [
+  "sc_wpn_dagger20",
+  "sc_wpn_dagger60",
+  "sc_wpn_dagger_curse50",
+  "sc_wpn_gsword20",
+  "sc_wpn_gsword60",
+  "sc_wpn_gsword_curse50",
+  "sc_wpn_staff20",
+  "sc_wpn_staff60",
+  "sc_wpn_staff_curse50",
+  "wpn_palm_spike"
+ ],
+ "coastal_grass": [
+  "earring_snail",
+  "sc_earring_curse50",
+  "sc_wpn_bow60",
+  "sc_wpn_claw60",
+  "sc_wpn_dagger60",
+  "sc_wpn_gsword60",
+  "sc_wpn_staff60",
+  "sc_wpn_xbow60"
+ ],
+ "cuckoo_clock": [
+  "arm_paper_helmet",
+  "arm_sauna_robe",
+  "etc_fire_capsule",
+  "etc_frost_capsule",
+  "etc_holy_whip",
+  "etc_hunter_hat",
+  "etc_nameless_sword",
+  "etc_poison_shroom",
+  "etc_rusty_star",
+  "oh_bamboo_sword",
+  "wpn_odd_knife",
+  "wpn_paper_sword",
+  "wpn_poseidon_fork",
+  "wpn_rubber_mallet",
+  "wpn_sage_wand"
+ ],
+ "cursed_temple": [
+  "sc_glove_atk60",
+  "sc_glove_atk_curse50",
+  "sc_wpn_bow60",
+  "sc_wpn_claw60",
+  "sc_wpn_dagger60",
+  "sc_wpn_gsword60",
+  "sc_wpn_staff60",
+  "sc_wpn_xbow60"
+ ],
+ "dead_forest4": [
+  "sc_clothes_curse50",
+  "sc_wpn_bow_curse50",
+  "sc_wpn_dagger_curse50",
+  "sc_wpn_gsword_curse50",
+  "sc_wpn_staff_curse50",
+  "sc_wpn_xbow_curse50"
+ ],
+ "east_rock4": [
+  "sc_clothes60",
+  "sc_helmet60",
+  "sc_shoes60",
+  "sc_wpn_bow20",
+  "sc_wpn_claw20",
+  "sc_wpn_dagger20",
+  "sc_wpn_gsword20",
+  "sc_wpn_rod60",
+  "sc_wpn_rod_curse50",
+  "sc_wpn_staff20",
+  "sc_wpn_xbow20",
+  "wpn_rod_club"
+ ],
+ "ice_canyon2": [
+  "sc_shoes20",
+  "sc_shoes_curse50",
+  "wpn_wolf_fang"
+ ],
+ "japan_shrine": [
+  "arm_spore_shoes",
+  "oh_shield_10",
+  "sc_earring_atk100",
+  "sc_earring_atk60",
+  "wpn_spore_rifle",
+  "wpn_spore_sniper",
+  "wpn_spore_staff",
+  "wpn_spore_sword"
+ ],
+ "memory_road5": [
+  "sc_earring60",
+  "sc_helmet20",
+  "sc_helmet_curse50",
+  "wpn_dark_red_brick_rifle",
+  "wpn_frozen_tuna_sniper",
+  "wpn_red_katana"
+ ],
+ "night_market7": [
+  "oh_dart_10",
+  "sc_curse_shield",
+  "sc_equip_cleanwhite15",
+  "sc_necklace60",
+  "sc_necklace_curse50",
+  "sc_wpn_claw_curse50",
+  "sc_wpn_cleanwhite15",
+  "sc_wpn_dagger_curse50",
+  "sc_wpn_gsword_curse50",
+  "sc_wpn_staff_curse50",
+  "sc_wpn_xbow_curse50"
+ ],
+ "night_market7_1": [
+  "oh_grimoire_10",
+  "oh_scope_10",
+  "sc_curse_shield",
+  "sc_equip_cleanwhite15",
+  "sc_necklace60",
+  "sc_necklace_curse50",
+  "sc_wpn_bow_curse50",
+  "sc_wpn_claw_curse50",
+  "sc_wpn_dagger_curse50",
+  "sc_wpn_gsword_curse50",
+  "sc_wpn_xbow_curse50"
+ ],
+ "snow_valley": [
+  "sc_helmet20",
+  "sc_helmet60",
+  "sc_helmet_curse50",
+  "wpn_dog_beat_stick",
+  "wpn_ice_blue_skis",
+  "wpn_wolf_fang"
+ ],
+ "subway_station3": [
+  "arm_underworld_clothes",
+  "sc_wpn_bow20",
+  "sc_wpn_bow60",
+  "sc_wpn_claw20",
+  "sc_wpn_claw60",
+  "sc_wpn_dagger20",
+  "sc_wpn_dagger60",
+  "sc_wpn_gsword20",
+  "sc_wpn_gsword60",
+  "sc_wpn_staff20",
+  "sc_wpn_staff60",
+  "sc_wpn_xbow20",
+  "sc_wpn_xbow60",
+  "wpn_underworld_bow",
+  "wpn_underworld_claw",
+  "wpn_underworld_dagger",
+  "wpn_underworld_gsword"
+ ],
+ "turtle_beach": [
+  "arm_crab_claw",
+  "sc_glove_atk100",
+  "sc_glove_atk20",
+  "sc_glove_sec_curse50",
+  "sc_helmet_curse50"
+ ],
+ "witch_forest": [
+  "sc_glove_sec20",
+  "sc_glove_sec60",
+  "wpn_golden_staff"
+ ]
+}
