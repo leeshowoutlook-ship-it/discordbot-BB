@@ -288,7 +288,7 @@ static const std::map<std::string, LimitedMaxRule> LIMITED_MAX_COUNT = {
 // 「特殊」分頁：可使用的消耗型道具（風險骰子）＋限定票券（彩券）
 static const std::set<std::string> SPECIAL_COL_ITEMS = {
     "col_bb_risk_dice", "col_rd_lovebook", "col_rd_simpmanual", "col_rd_dogbook",
-    "lottery_ticket", "col_tj_transform_potion",
+    "col_tj_transform_potion",
 };
 
 // ─── 限定收藏只給本家伺服器成員 ─────────────────────────────────────────────

@@ -35,7 +35,7 @@
 #include "enhance.h"
 #include "stock.h"
 #include "announcement.h"
-#include "signin.h"
+#include "officer.h"
 #include "settings.h"
 #include "handler_decls.h"
 
@@ -66,7 +66,7 @@ static dpp::message make_expevent_start_confirm_msg(double mult, time_t until, b
 }
 
 // ─── 楓之谷世界養成系統：掉落活動 ───────────────────────────────────────────────
-// 日期參數：支援 !簽到 的所有格式（HH:MM／Xm／Xh／M/D HH:MM），另外只寫 M/D 代表那天 23:59:59 結束。
+// 日期參數：支援 parse_si_deadline 的所有格式（HH:MM／Xm／Xh／M/D HH:MM），另外只寫 M/D 代表那天 23:59:59 結束。
 static time_t parse_drop_event_until(std::string s) {
     while (!s.empty() && s.front() == ' ') s.erase(0, 1);
     while (!s.empty() && s.back() == ' ') s.pop_back();
@@ -855,7 +855,7 @@ static int admin_kill_everything() {
 // ─── 伺服器頻道限制 ───────────────────────────────────────────────────────────
 // 某些伺服器只接受指定文字頻道（以及開在那個頻道底下的討論串）的指令，其他頻道一律不理。
 static const std::map<uint64_t, std::set<uint64_t>> GUILD_ONLY_CHANNEL = {
-    {1392583413717930174ULL, {1521890393002872952ULL, 1567504573571014727ULL}},
+    {1392583413717930174ULL, {1521890393002872952ULL, 1567504573571014727ULL, 1569335485677969529ULL}},
 };
 static bool channel_allowed(dpp::snowflake guild_id, dpp::snowflake channel_id) {
     auto it = GUILD_ONLY_CHANNEL.find((uint64_t)guild_id);
@@ -902,7 +902,6 @@ int main(int argc, char* argv[]) {
     load_shootstats();
     load_rocketstats();
     load_scratchstats();
-    load_lotterystats();
     load_euroulettestats();
     load_wolf_player_stats();
     load_onw_stats();
@@ -936,7 +935,6 @@ int main(int argc, char* argv[]) {
     load_stock_market();
     load_stock_holdings();
     load_announcement();
-    load_signin();
     load_settings();
     load_lolbet();
     load_nn_stats();
@@ -978,13 +976,9 @@ int main(int argc, char* argv[]) {
                 "!道具圖鑑","!裝備圖鑑","!合成","!收藏","!輪盤","!探險","!猜拳","！猜拳","!強化","!股票",
                 "!拍賣","！拍賣",
                 "!公告","！公告","!小黑屋","！小黑屋",
-                "!簽到","！簽到","!簽到名單","！簽到名單","!結束簽到","！結束簽到",
-                "!簽到重整","！簽到重整",
                 "!經驗活動","！經驗活動",
                 "!掉落活動","！掉落活動","!擊殺紀錄","！擊殺紀錄",
                 "!抽獎","！抽獎",
-                "!摸彩",
-                "!摸彩紀錄",
                 "!猜數字",
                 "!世界賽",
                 "!妞妞","!數字炸彈",
@@ -998,7 +992,6 @@ int main(int argc, char* argv[]) {
                 "!21 ","!骰子 ","!射 ","!火箭 ","!刮 ","!猜 ","!轉 ",
                 "!幸運頻道 ","!警告 ","!轉帳 ","!交易 ","!卷軸使用 ","!輪盤 ","!猜拳 ","！猜拳 ",
                 "!公告 ","！公告 ",
-                "!簽到 ","！簽到 ",
                 "!經驗活動 ","！經驗活動 ",
                 "!掉落活動 ","！掉落活動 ","!擊殺紀錄 ","！擊殺紀錄 ",
                 "!抽獎 ","！抽獎 ",
@@ -1368,107 +1361,6 @@ int main(int argc, char* argv[]) {
             }
             m.channel_id = ch; bot.message_create(m);
         }
-        // !簽到 / ！簽到 [時間]：開始全體簽到（副會長/會長/管理員）
-        // 時間格式：HH:MM 或 Xm（分鐘）或 Xh（小時）
-        else if (content == "!簽到" || content == "！簽到" ||
-                 content.rfind("!簽到 ", 0) == 0 || content.rfind("！簽到 ", 0) == 0) {
-            if (!si_perm(uid, ev.msg.member.get_roles())) {
-                dpp::message m; m.set_content("❌ 只有副會長、會長或管理員才能開始簽到！"); m.channel_id = ch;
-                bot.message_create(m); return;
-            }
-            // 解析可選的截止時間
-            std::string time_arg;
-            { size_t sp = content.find(' '); if (sp != std::string::npos) time_arg = content.substr(sp + 1); }
-            time_t deadline = parse_si_deadline(time_arg);
-            bool was_active; { std::lock_guard<std::mutex> lk(data_mutex); was_active = g_signin.active; }
-            dpp::message m = make_si_start_confirm_msg(deadline, was_active);
-            m.channel_id = ch;
-            bot.message_create(m);
-        }
-        // !簽到名單 / ！簽到名單：查看目前簽到狀況（副會長/會長/管理員）
-        else if (content == "!簽到名單" || content == "！簽到名單") {
-            if (!si_perm(uid, ev.msg.member.get_roles())) {
-                dpp::message m; m.set_content("❌ 只有副會長、會長或管理員才能查看簽到名單！"); m.channel_id = ch;
-                bot.message_create(m); return;
-            }
-            dpp::message msg;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                if (!g_signin.active && g_signin.signed_in.empty() && g_signin.not_signed.empty()) {
-                    dpp::message m; m.set_content("❌ 目前沒有進行中的簽到！"); m.channel_id = ch;
-                    bot.message_create(m); return;
-                }
-                msg = make_si_overview_msg();
-            }
-            msg.channel_id = ch;
-            bot.message_create(msg);
-        }
-        // !結束簽到 / ！結束簽到：強制中斷目前簽到（副會長/會長/管理員）
-        else if (content == "!結束簽到" || content == "！結束簽到") {
-            if (!si_perm(uid, ev.msg.member.get_roles())) {
-                dpp::message m; m.set_content("❌ 只有副會長、會長或管理員才能結束簽到！"); m.channel_id = ch;
-                bot.message_create(m); return;
-            }
-            dpp::snowflake m_id = 0, m_ch = 0;
-            dpp::message closed;
-            bool had_session = false;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                if (!g_signin.active && g_signin.signed_in.empty() && g_signin.not_signed.empty()) {
-                    dpp::message m; m.set_content("❌ 目前沒有進行中的簽到！"); m.channel_id = ch;
-                    bot.message_create(m); return;
-                }
-                had_session = true;
-                if (g_signin.timer_id != 0) { bot.stop_timer(g_signin.timer_id); g_signin.timer_id = 0; }
-                g_signin.active = false;
-                m_id = g_signin.message_id;
-                m_ch = g_signin.channel_id;
-                closed = make_si_closed_msg();
-            }
-            save_signin();
-            if (m_id != 0) { closed.id = m_id; closed.channel_id = m_ch; bot.message_edit(closed); }
-            dpp::message conf; conf.set_content("✅ 簽到已強制結束。"); conf.channel_id = ch;
-            bot.message_create(conf);
-        }
-        // !簽到重整 / ！簽到重整：踢人失敗（權限不足）卻誤刪名單時，用現在的伺服器成員重新補回未簽到名單（副會長/會長/管理員）
-        else if (content == "!簽到重整" || content == "！簽到重整") {
-            if (!si_perm(uid, ev.msg.member.get_roles())) {
-                dpp::message m; m.set_content("❌ 只有副會長、會長或管理員才能重整簽到名單！"); m.channel_id = ch;
-                bot.message_create(m); return;
-            }
-            dpp::snowflake gid = ev.msg.guild_id;
-            bot.guild_get_members(gid, 1000, 0, [&bot, ch, gid](const dpp::confirmation_callback_t& cc) {
-                if (cc.is_error()) {
-                    bot.message_create(dpp::message(ch, "❌ 無法取得伺服器成員列表！"));
-                    return;
-                }
-                auto& gmap = std::get<dpp::guild_member_map>(cc.value);
-                int added = 0;
-                {
-                    std::lock_guard<std::mutex> lk(data_mutex);
-                    for (auto& [muid, gm] : gmap) {
-                        if (g_signin.signed_in.count(muid)) continue;
-                        if (g_signin.not_signed.count(muid)) continue;
-                        const dpp::user* user = dpp::find_user(muid);
-                        if (user && user->is_bot()) continue;
-                        std::string name;
-                        if (!gm.get_nickname().empty()) name = gm.get_nickname();
-                        else if (user) name = user->global_name.empty() ? user->username : user->global_name;
-                        else name = "<@" + std::to_string((uint64_t)muid) + ">";
-                        g_signin.not_signed[muid] = name;
-                        added++;
-                    }
-                }
-                save_signin();
-                grant_unsigned_role_to_all(bot, gid, [&bot, ch, added](int granted) {
-                    std::string note = granted < 0
-                        ? "\n⚠️ 「未簽到人員」身分組建立/發放失敗，請確認機器人有「管理身分組」權限。"
-                        : "，並補發「未簽到人員」身分組給 " + std::to_string(granted) + " 人。";
-                    bot.message_create(dpp::message(ch,
-                        "✅ 已用目前伺服器成員名單重新比對，補回 **" + std::to_string(added) + "** 位未簽到成員" + note));
-                });
-            });
-        }
         // !經驗活動 <倍率> <持續時間>：開啟楓之谷世界養成系統「冒險」限時經驗活動；<倍率> 填 0 或 "結束" 可提前結束
         else if (content == "!經驗活動" || content == "！經驗活動" ||
                  content.rfind("!經驗活動 ", 0) == 0 || content.rfind("！經驗活動 ", 0) == 0) {
@@ -1485,7 +1377,7 @@ int main(int argc, char* argv[]) {
                     ? ("📅 經驗活動進行中：冒險經驗值 ×" + fmt_exp_mult(maple_exp_event.mult)
                        + "，到 <t:" + std::to_string((int64_t)maple_exp_event.until) + ":f>（<t:"
                        + std::to_string((int64_t)maple_exp_event.until) + ":R>）")
-                    : "目前沒有進行中的經驗活動。\n用法：`!經驗活動 <倍率> <持續時間>`　例：`!經驗活動 2 3h`（時間格式同 `!簽到`：HH:MM／Xm／Xh）\n提前結束：`!經驗活動 0`");
+                    : "目前沒有進行中的經驗活動。\n用法：`!經驗活動 <倍率> <持續時間>`　例：`!經驗活動 2 3h`（時間格式：HH:MM／Xm／Xh）\n提前結束：`!經驗活動 0`");
                 m.channel_id = ch; bot.message_create(m); return;
             }
             std::istringstream iss(args);
@@ -1505,7 +1397,7 @@ int main(int argc, char* argv[]) {
             }
             time_t until = parse_si_deadline(time_str);
             if (until <= time(nullptr)) {
-                dpp::message m; m.set_content("❌ 時間格式錯誤或已經過去，格式同 `!簽到`：HH:MM／Xm／Xh／M/D HH:MM");
+                dpp::message m; m.set_content("❌ 時間格式錯誤或已經過去，格式：HH:MM／Xm／Xh／M/D HH:MM");
                 m.channel_id = ch; bot.message_create(m); return;
             }
             dpp::message m = make_expevent_start_confirm_msg(mult, until, active);
@@ -1556,8 +1448,7 @@ int main(int argc, char* argv[]) {
                  (content.rfind("!刮", 0) == 0 && (content.size() == 4 || content[4] == ' ')) ||
                  (content.rfind("!轉", 0) == 0 && (content.size() == 4 || content[4] == ' ')) ||
                  ((content.rfind("!猜", 0) == 0 || content.rfind("！猜", 0) == 0)
-                  && content.rfind("!猜拳", 0) != 0 && content.rfind("！猜拳", 0) != 0) ||
-                 content == "!摸彩" || content == "!摸彩紀錄") {
+                  && content.rfind("!猜拳", 0) != 0 && content.rfind("！猜拳", 0) != 0)) {
             handle_games_message(ev, content, uid, ch); return;
         }
         // !轉帳 @mention <碼>
@@ -2166,200 +2057,6 @@ int main(int argc, char* argv[]) {
             g_claim_verify_enabled = !g_claim_verify_enabled;
             save_settings();
             ev.reply(dpp::ir_update_message, make_admin_panel_msg());
-        }
-        // ── 簽到系統按鈕 ──────────────────────────────────────────────────────
-        // si_btn：任何人點擊「我要簽到」→ 直接簽到
-        else if (cid == "si_btn") {
-            std::string display_name;
-            bool was_unsigned = false;
-            bool session_still_active = false;
-            dpp::snowflake si_ch = 0, si_mid = 0, si_gid = 0;
-            dpp::message updated_main;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                session_still_active = g_signin.active;
-                auto it = g_signin.not_signed.find(uid);
-                if (it != g_signin.not_signed.end()) {
-                    display_name = it->second;
-                    if (session_still_active) {
-                        g_signin.signed_in[uid] = display_name;
-                        g_signin.not_signed.erase(it);
-                        was_unsigned = true;
-                        updated_main = make_si_status_msg();
-                    }
-                } else {
-                    display_name = g_signin.signed_in.count(uid) ? g_signin.signed_in[uid] : "";
-                }
-                si_ch  = g_signin.channel_id;
-                si_mid = g_signin.message_id;
-                si_gid = g_signin.guild_id;
-            }
-            if (was_unsigned) remove_unsigned_role(bot, si_gid, uid);
-            if (!was_unsigned) {
-                std::string msg;
-                if (!session_still_active)
-                    msg = "❌ 簽到已結束！";
-                else if (!display_name.empty())
-                    msg = "✅ 你已完成簽到！";
-                else
-                    msg = "❌ 你不在這次簽到名單中！（簽到開始後才加入伺服器）";
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message(msg).set_flags(dpp::m_ephemeral));
-                return;
-            }
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("✅ 簽到成功！歡迎 **" + display_name + "**！").set_flags(dpp::m_ephemeral));
-            if (si_mid != 0) {
-                save_signin();
-                updated_main.id = si_mid; updated_main.channel_id = si_ch;
-                bot.message_edit(updated_main);
-            }
-        }
-        // si_checked：查看已簽到名單（副會長/會長/管理員）
-        else if (cid == "si_checked") {
-            if (!si_perm(uid, ev.command.member.get_roles())) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
-            }
-            dpp::message m;
-            { std::lock_guard<std::mutex> lk(data_mutex); m = make_si_checked_msg(); }
-            ev.reply(dpp::ir_update_message, m);
-        }
-        // si_unc_{page}：查看未簽到名單分頁
-        else if (cid.rfind("si_unc_", 0) == 0) {
-            if (!si_perm(uid, ev.command.member.get_roles())) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
-            }
-            int page = 0;
-            try { page = std::stoi(cid.substr(7)); } catch (...) {}
-            dpp::message m;
-            { std::lock_guard<std::mutex> lk(data_mutex); m = make_si_unchecked_msg(page); }
-            ev.reply(dpp::ir_update_message, m);
-        }
-        // si_back：返回名單總覽
-        else if (cid == "si_back") {
-            if (!si_perm(uid, ev.command.member.get_roles())) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
-            }
-            dpp::message m;
-            { std::lock_guard<std::mutex> lk(data_mutex); m = make_si_overview_msg(); }
-            ev.reply(dpp::ir_update_message, m);
-        }
-        // si_kick_{tuid}_{page}：踢出確認
-        else if (cid.rfind("si_kick_", 0) == 0) {
-            if (!si_perm(uid, ev.command.member.get_roles())) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
-            }
-            std::string rest = cid.substr(8);
-            auto sep = rest.rfind('_');
-            if (sep == std::string::npos) return;
-            dpp::snowflake tuid(std::stoull(rest.substr(0, sep)));
-            int page = 0;
-            try { page = std::stoi(rest.substr(sep + 1)); } catch (...) {}
-            std::string name;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto it = g_signin.not_signed.find(tuid);
-                if (it == g_signin.not_signed.end()) {
-                    dpp::message m; { m = make_si_unchecked_msg(page); }
-                    ev.reply(dpp::ir_update_message, m); return;
-                }
-                name = it->second;
-            }
-            dpp::message m;
-            { std::lock_guard<std::mutex> lk(data_mutex); m = make_si_kick_confirm_msg(tuid, name, page); }
-            ev.reply(dpp::ir_update_message, m);
-        }
-        // si_kcf_{tuid}_{page}：確認踢出
-        else if (cid.rfind("si_kcf_", 0) == 0) {
-            if (!si_perm(uid, ev.command.member.get_roles())) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 沒有權限！").set_flags(dpp::m_ephemeral)); return;
-            }
-            std::string rest = cid.substr(7);
-            auto sep = rest.rfind('_');
-            if (sep == std::string::npos) return;
-            dpp::snowflake tuid(std::stoull(rest.substr(0, sep)));
-            int page = 0;
-            try { page = std::stoi(rest.substr(sep + 1)); } catch (...) {}
-            std::string name;
-            dpp::snowflake gid = 0;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto it = g_signin.not_signed.find(tuid);
-                if (it != g_signin.not_signed.end()) name = it->second;
-                gid = g_signin.guild_id;
-            }
-            if (name.empty() || gid == 0 || tuid == 0) {
-                dpp::message m;
-                { std::lock_guard<std::mutex> lk(data_mutex); m = make_si_unchecked_msg(page); }
-                if (name.empty()) {
-                    // 名單裡已經沒有這個人了，維持原樣顯示
-                } else {
-                    m.content = "❌ 找不到伺服器資訊，無法踢出 **" + name + "**。";
-                }
-                ev.reply(dpp::ir_update_message, m);
-                return;
-            }
-            // 踢人是非同步 API 呼叫，先 ACK 避免逾時，等 Discord 真的回應成功/失敗後才更新畫面，
-            // 不然權限不足或身分組層級不夠時，Discord 端會靜默失敗，卻顯示「已踢出」誤導管理員。
-            ev.reply(dpp::ir_deferred_update_message, dpp::message());
-            std::string itoken = ev.command.token;
-            bot.guild_member_kick(gid, tuid, [&bot, itoken, tuid, name, page](const dpp::confirmation_callback_t& cb) {
-                std::string result;
-                if (!cb.is_error()) {
-                    { std::lock_guard<std::mutex> lk(data_mutex); g_signin.not_signed.erase(tuid); }
-                    save_signin();
-                    result = "✅ 已踢出 **" + name + "**。";
-                } else {
-                    auto err = cb.get_error();
-                    std::string reason = !err.human_readable.empty() ? err.human_readable
-                                        : (!err.message.empty() ? err.message : "未知錯誤");
-                    result = "❌ 踢出失敗（HTTP " + std::to_string(cb.http_info.status)
-                           + (err.code ? "，錯誤碼 " + std::to_string(err.code) : "")
-                           + "）：" + reason
-                           + "\n請確認機器人有「踢出成員」權限，且身分組高於對方。";
-                }
-                dpp::message m;
-                { std::lock_guard<std::mutex> lk(data_mutex); m = make_si_unchecked_msg(page); }
-                m.content = result;
-                bot.interaction_response_edit(itoken, m);
-            });
-        }
-        // si_kno_{page}：取消踢出
-        else if (cid.rfind("si_kno_", 0) == 0) {
-            int page = 0;
-            try { page = std::stoi(cid.substr(7)); } catch (...) {}
-            dpp::message m;
-            { std::lock_guard<std::mutex> lk(data_mutex); m = make_si_unchecked_msg(page); }
-            ev.reply(dpp::ir_update_message, m);
-        }
-        // si_startok_{deadline}：確認開啟新的簽到（會覆蓋掉上一場紀錄，見 si_startno 的確認視窗）
-        else if (cid.rfind("si_startok_", 0) == 0) {
-            if (!si_perm(uid, ev.command.member.get_roles())) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 只有副會長、會長或管理員才能開始簽到！").set_flags(dpp::m_ephemeral)); return;
-            }
-            time_t deadline = 0;
-            try { deadline = (time_t)std::stoll(cid.substr(std::string("si_startok_").size())); } catch (...) {}
-            ev.reply(dpp::ir_deferred_update_message, dpp::message());
-            dpp::snowflake gid = ev.command.guild_id;
-            dpp::snowflake sch = ev.command.channel_id;
-            si_do_start(bot, gid, sch, deadline,
-                [ev, deadline](int total) {
-                    std::string dl_note = deadline > 0
-                        ? "，截止 <t:" + std::to_string((int64_t)deadline) + ":t>" : "";
-                    ev.edit_original_response(dpp::message(
-                        "✅ 簽到已開始！共 **" + std::to_string(total) + "** 位成員需要簽到" + dl_note + "。"));
-                },
-                [ev](const std::string& err) { ev.edit_original_response(dpp::message(err)); });
-        }
-        else if (cid == "si_startno") {
-            dpp::message m; m.set_content("❌ 已取消，沒有開始新的簽到。");
-            ev.reply(dpp::ir_update_message, m);
         }
         // expevent_startok_{mult×100}_{until}：確認開啟新的經驗活動（會覆蓋掉上一次的設定）
         else if (cid.rfind("expevent_startok_", 0) == 0) {
@@ -3282,7 +2979,7 @@ int main(int argc, char* argv[]) {
         else if (cid.rfind("dc_", 0) == 0 || cid.rfind("guess_", 0) == 0 ||
                  cid.rfind("shoot_", 0) == 0 || cid.rfind("rocket_", 0) == 0 ||
                  cid.rfind("scroll_", 0) == 0 || cid.rfind("sc9_", 0) == 0 ||
-                 cid.rfind("er_", 0) == 0 || cid.rfind("lot_", 0) == 0) {
+                 cid.rfind("er_", 0) == 0) {
             handle_games_button(ev); return;
         }
         // ── 錢包分頁按鈕 ──────────────────────────────────────────────────────
@@ -4302,103 +3999,6 @@ int main(int argc, char* argv[]) {
             }
             ev.reply(dpp::ir_channel_message_with_source, make_claim_jail_msg());
         }
-        else if (cmd_name == "簽到" || cmd_name == "signin") {
-            if (!si_perm(ev.command)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 只有副會長、會長或管理員才能開始簽到！").set_flags(dpp::m_ephemeral));
-                return;
-            }
-            // 解析截止時間 option
-            std::string time_arg;
-            auto tp = ev.get_parameter("截止時間"); if (std::holds_alternative<std::string>(tp)) time_arg = std::get<std::string>(tp);
-            auto tp2 = ev.get_parameter("deadline");  if (std::holds_alternative<std::string>(tp2)) time_arg = std::get<std::string>(tp2);
-            time_t deadline = parse_si_deadline(time_arg);
-            bool was_active; { std::lock_guard<std::mutex> lk(data_mutex); was_active = g_signin.active; }
-            ev.reply(dpp::ir_channel_message_with_source, make_si_start_confirm_msg(deadline, was_active));
-        }
-        else if (cmd_name == "簽到名單" || cmd_name == "signinlist") {
-            if (!si_perm(ev.command)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 只有副會長、會長或管理員才能查看簽到名單！").set_flags(dpp::m_ephemeral));
-                return;
-            }
-            dpp::message msg;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                if (!g_signin.active && g_signin.signed_in.empty() && g_signin.not_signed.empty()) {
-                    ev.reply(dpp::ir_channel_message_with_source,
-                        dpp::message("❌ 目前沒有進行中的簽到！").set_flags(dpp::m_ephemeral));
-                    return;
-                }
-                msg = make_si_overview_msg();
-            }
-            ev.reply(dpp::ir_channel_message_with_source, msg);
-        }
-        else if (cmd_name == "結束簽到" || cmd_name == "endsignin") {
-            if (!si_perm(ev.command)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 只有副會長、會長或管理員才能結束簽到！").set_flags(dpp::m_ephemeral));
-                return;
-            }
-            dpp::snowflake m_id = 0, m_ch = 0;
-            dpp::message closed;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                if (!g_signin.active && g_signin.signed_in.empty() && g_signin.not_signed.empty()) {
-                    ev.reply(dpp::ir_channel_message_with_source,
-                        dpp::message("❌ 目前沒有進行中的簽到！").set_flags(dpp::m_ephemeral));
-                    return;
-                }
-                if (g_signin.timer_id != 0) { bot.stop_timer(g_signin.timer_id); g_signin.timer_id = 0; }
-                g_signin.active = false;
-                m_id = g_signin.message_id;
-                m_ch = g_signin.channel_id;
-                closed = make_si_closed_msg();
-            }
-            save_signin();
-            if (m_id != 0) { closed.id = m_id; closed.channel_id = m_ch; bot.message_edit(closed); }
-            ev.reply(dpp::ir_channel_message_with_source, dpp::message("✅ 簽到已強制結束。"));
-        }
-        else if (cmd_name == "簽到重整" || cmd_name == "resyncsignin") {
-            if (!si_perm(ev.command)) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 只有副會長、會長或管理員才能重整簽到名單！").set_flags(dpp::m_ephemeral));
-                return;
-            }
-            ev.thinking(true);
-            dpp::snowflake gid = ev.command.guild_id;
-            bot.guild_get_members(gid, 1000, 0, [&bot, ev, gid](const dpp::confirmation_callback_t& cc) {
-                if (cc.is_error()) {
-                    ev.edit_original_response(dpp::message("❌ 無法取得伺服器成員列表！"));
-                    return;
-                }
-                auto& gmap = std::get<dpp::guild_member_map>(cc.value);
-                int added = 0;
-                {
-                    std::lock_guard<std::mutex> lk(data_mutex);
-                    for (auto& [muid, gm] : gmap) {
-                        if (g_signin.signed_in.count(muid)) continue;
-                        if (g_signin.not_signed.count(muid)) continue;
-                        const dpp::user* user = dpp::find_user(muid);
-                        if (user && user->is_bot()) continue;
-                        std::string name;
-                        if (!gm.get_nickname().empty()) name = gm.get_nickname();
-                        else if (user) name = user->global_name.empty() ? user->username : user->global_name;
-                        else name = "<@" + std::to_string((uint64_t)muid) + ">";
-                        g_signin.not_signed[muid] = name;
-                        added++;
-                    }
-                }
-                save_signin();
-                grant_unsigned_role_to_all(bot, gid, [ev, added](int granted) {
-                    std::string note = granted < 0
-                        ? "\n⚠️ 「未簽到人員」身分組建立/發放失敗，請確認機器人有「管理身分組」權限。"
-                        : "，並補發「未簽到人員」身分組給 " + std::to_string(granted) + " 人。";
-                    ev.edit_original_response(dpp::message(
-                        "✅ 已用目前伺服器成員名單重新比對，補回 **" + std::to_string(added) + "** 位未簽到成員" + note));
-                });
-            });
-        }
         else if (cmd_name == "擊殺紀錄") {
             if (cfg.notify_user_id.empty() || std::to_string(uid) != cfg.notify_user_id) {
                 ev.reply(dpp::ir_channel_message_with_source,
@@ -4466,7 +4066,7 @@ int main(int argc, char* argv[]) {
             time_t until = parse_si_deadline(time_arg);
             if (until <= time(nullptr)) {
                 ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 「持續時間」格式錯誤或已經過去，格式同 `/簽到`：HH:MM／Xm／Xh／M/D HH:MM")
+                    dpp::message("❌ 「持續時間」格式錯誤或已經過去，格式：HH:MM／Xm／Xh／M/D HH:MM")
                         .set_flags(dpp::m_ephemeral));
                 return;
             }
@@ -4635,8 +4235,7 @@ int main(int argc, char* argv[]) {
                  cmd_name == "火箭" || cmd_name == "rocket" ||
                  cmd_name == "刮刮樂" || cmd_name == "scratch" ||
                  cmd_name == "骰子" || cmd_name == "dice" ||
-                 cmd_name == "轉" || cmd_name == "spin" ||
-                 cmd_name == "摸彩" || cmd_name == "摸彩紀錄") {
+                 cmd_name == "轉" || cmd_name == "spin") {
             handle_games_slash(ev, cmd_name, uid, ch); return;
         }
         // ── 21點 slash → handlers_bj.cpp ─────────────────────────────────────
@@ -5209,8 +4808,6 @@ int main(int argc, char* argv[]) {
                     .add_option(dpp::command_option(dpp::co_integer, "入場費", "每人入場費（不填＝0，純娛樂）", false).set_min_value(0)),
                 dpp::slashcommand("numberbomb", "Party game: guess numbers, avoid the bomb", bot.me.id)
                     .add_option(dpp::command_option(dpp::co_integer, "入場費", "Entry fee per player (default 0)", false).set_min_value(0)),
-                dpp::slashcommand("摸彩",      "消耗1張彩券抽獎",               bot.me.id),
-                dpp::slashcommand("摸彩紀錄",  "查看自己最近的摸彩紀錄",         bot.me.id),
                 giveaway_cmd, giveaway_en,
                 bj, warn_cmd, lucky, transfer, dice_cmd, shoot_cmd, shoot_en,
                 rocket_cmd, rocket_en, scratch_cmd, scratch_en,
@@ -5220,14 +4817,6 @@ int main(int argc, char* argv[]) {
                 dice_en, bj_en,
                 roulette_cmd, roulette_en,
                 rps_cmd, rps_en,
-                [&]() {
-                    dpp::slashcommand c("簽到", "開始全體簽到（副會長/會長/管理員）", bot.me.id);
-                    c.add_option(dpp::command_option(dpp::co_string, "截止時間", "例：22:30、30m、1h（選填）", false));
-                    return c;
-                }(),
-                dpp::slashcommand("簽到名單",  "查看簽到名單（副會長/會長/管理員）", bot.me.id),
-                dpp::slashcommand("結束簽到",  "強制結束目前的簽到（副會長/會長/管理員）", bot.me.id),
-                dpp::slashcommand("簽到重整",  "用目前伺服器成員補回誤刪的未簽到名單（副會長/會長/管理員）", bot.me.id),
                 [&]() {
                     dpp::slashcommand c("擊殺紀錄", "查看野外首領擊殺紀錄：時間／伺服器／誰（擁有者限定）", bot.me.id);
                     c.add_option(dpp::command_option(dpp::co_string, "首領", "只看某隻首領或地區，例：黑輪王（不填＝全部）", false));
@@ -5324,8 +4913,6 @@ int main(int argc, char* argv[]) {
         cleanup_expired();
         fprintf(stderr, "[STARTUP] before apply_daily_interest\n"); fflush(stderr);
         apply_daily_interest(); // 啟動時補算可能錯過的利息
-        fprintf(stderr, "[STARTUP] before lot_settle_orphaned_games\n"); fflush(stderr);
-        lot_settle_orphaned_games(); // 補結算上次重啟前卡在動畫中的摸彩
         fprintf(stderr, "[STARTUP] before start_stock_price_timer\n"); fflush(stderr);
         bot.start_timer([](dpp::timer)     { cleanup_expired(); },  3600);
         // 限定收藏只給本家伺服器成員：開機抓一次成員名單，之後每 10 分鐘更新
@@ -5339,45 +4926,6 @@ int main(int argc, char* argv[]) {
         bot.start_timer([](dpp::timer)     { apply_daily_interest(); }, 300); // 每 5 分鐘檢查是否跨日
         start_stock_price_timer(); // 開機立即抓一次股價，之後每 5 分鐘更新
         fprintf(stderr, "[STARTUP] after start_stock_price_timer\n"); fflush(stderr);
-
-        // ── 重啟後恢復簽到截止 timer ──────────────────────────────────────────
-        {
-            bool need_timer = false;
-            time_t dl = 0;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                if (g_signin.active && g_signin.deadline > 0) {
-                    dl = g_signin.deadline;
-                    long long secs = (long long)dl - (long long)time(nullptr);
-                    if (secs <= 0) {
-                        // 停機期間截止時間已過 → 直接關閉
-                        g_signin.active = false;
-                    } else {
-                        need_timer = true;
-                    }
-                }
-            }
-            if (!need_timer && dl > 0) save_signin(); // 儲存 active=false
-            if (need_timer) {
-                long long secs = (long long)dl - (long long)time(nullptr);
-                dpp::timer tid = bot.start_timer([&bot](dpp::timer t) {
-                    dpp::snowflake m_id = 0, m_ch = 0;
-                    dpp::message closed;
-                    {
-                        std::lock_guard<std::mutex> lk(data_mutex);
-                        if (!g_signin.active) { bot.stop_timer(t); return; }
-                        g_signin.active = false;
-                        m_id = g_signin.message_id;
-                        m_ch = g_signin.channel_id;
-                        closed = make_si_closed_msg();
-                    }
-                    save_signin();
-                    if (m_id != 0) { closed.id = m_id; closed.channel_id = m_ch; bot.message_edit(closed); }
-                    bot.stop_timer(t);
-                }, (uint64_t)secs);
-                { std::lock_guard<std::mutex> lk(data_mutex); g_signin.timer_id = tid; }
-            }
-        }
 
         // ── 每小時自動備份所有 JSON 資料（覆蓋同一份，不累積） ──────────────
         bot.start_timer([](dpp::timer) {

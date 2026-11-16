@@ -19,6 +19,12 @@
       "shares": 5
     }
   },
+  "1344707940057092237": {
+    "stock_mood": {
+      "avg_cost": 1125,
+      "shares": 18
+    }
+  },
   "1376473181724082227": {
     "stock_purse": {
       "avg_cost": 890,
@@ -70,14 +76,6 @@
     }
   },
   "527334459708538883": {
-    "stock_0050": {
-      "avg_cost": 93,
-      "shares": 40
-    },
-    "stock_nvda": {
-      "avg_cost": 202,
-      "shares": 5
-    },
     "stock_tsmc": {
       "avg_cost": 2295,
       "shares": 3
@@ -120,13 +118,9 @@
     }
   },
   "649615198562418710": {
-    "stock_mood": {
-      "avg_cost": 1200,
-      "shares": 3
-    },
     "stock_tsmc": {
       "avg_cost": 2277,
-      "shares": 5
+      "shares": 4
     }
   },
   "651090037102084096": {

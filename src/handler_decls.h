@@ -65,8 +65,6 @@ void handle_maple_select (const dpp::select_click_t& ev, dpp::snowflake uid);
 void handle_maple_modal  (const dpp::form_submit_t& ev);
 void handle_maple_slash  (const dpp::slashcommand_t& ev, const std::string& cmd_name, dpp::snowflake uid, dpp::snowflake ch);
 void load_maple_all_data(); // 啟動時呼叫，載入角色資料與進行中的戰鬥
-void load_lotterystats();   // 啟動時呼叫，載入摸彩累積統計＋進行中的摸彩狀態（定義在 handlers_games.cpp；main.cpp 不直接 include lottery.h，避免跟 maple.h 在同一個 TU 編譯出錯）
-void lot_settle_orphaned_games(); // bot 連線後（on_ready_once）呼叫：把啟動前卡在動畫中的摸彩直接結算掉
 void maple_save_exp_event(); // !經驗活動 設定/結束後呼叫，存檔（maple_exp_event 這個全域struct在types.h，main.cpp可以直接讀寫欄位）
 std::string maple_wb_kill_log_text(const std::string& keyword, int limit); // 舊版純文字擊殺紀錄
 dpp::message maple_wb_kill_log_msg(const std::string& keyword, int page); // !擊殺紀錄（最近 12 小時，可翻頁）

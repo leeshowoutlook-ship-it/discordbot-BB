@@ -19,9 +19,9 @@ struct Config {
     std::string img_flame;
     std::string min_bet_thread_id;  // thread that enforces 5000 minimum bet
     std::string allin_thread_id;    // thread that enforces ALLIN (full balance, min 20000)
-    std::string allin_500k_thread_id; // thread that enforces ALLIN (full balance, min 500000)；下注會發一張彩券，不論輸贏
+    std::string allin_500k_thread_id; // 不能玩遊戲的討論串
     std::string claim_blocked_thread_id; // 這個討論串禁止 !領取／/領取，誤用會自動警告
-    std::string lottery_thread2_id; // 除了 allin_500k_thread_id 之外，另一個也可以 !摸彩／/摸彩 的討論串
+    std::string lottery_thread2_id; // 另一個不能玩遊戲的討論串
 };
 
 struct RegState {
@@ -112,19 +112,6 @@ static const int CLAIM_VERIFY_SECS     = 60; // 驗證時限（秒）：逾時�
 static const int CLAIM_PENALTY_HOURS   = 2;  // 答錯／逾時：基礎鎖定時數，會依連續失敗次數累加
 static const int CLAIM_PENALTY_MAX_HRS = 24; // 鎖定時數上限
 inline bool g_claim_verify_enabled = true;   // 全局開關：false = 所有人領取跳過驗證
-
-struct SignInSession {
-    bool active = false;
-    dpp::snowflake guild_id    = 0;
-    dpp::snowflake channel_id  = 0;
-    dpp::snowflake message_id  = 0;
-    time_t deadline  = 0;       // Unix timestamp；0 = 無截止時間
-    dpp::timer timer_id = 0;    // 截止時間自動結束 timer handle
-    std::map<dpp::snowflake, std::string> signed_in;   // uid -> display_name
-    std::map<dpp::snowflake, std::string> not_signed;  // uid -> display_name
-    dpp::snowflake unsigned_role_id = 0;  // 「未簽到人員」身分組 id，0＝尚未建立
-};
-inline SignInSession g_signin;
 
 struct BankData {
     int64_t deposited         = 0;
@@ -680,34 +667,6 @@ struct ScratchStats {
     int64_t profit = 0;
 };
 
-// ─── 摸彩 ──────────────────────────────────────────────────────────────────
-
-struct LotteryStats {
-    int     draws     = 0;   // 摸彩總次數
-    int     wins      = 0;   // 非空包次數
-    int64_t chips_won = 0;   // 累積獲得籌碼（不含隱藏的瘋幣加碼）
-};
-
-struct LotteryGame {
-    dpp::snowflake uid;
-    dpp::snowflake channel_id;
-    dpp::snowflake msg_id;
-    int         prize_idx    = 0;   // 已預先決定的中獎結果（LOTTERY_PRIZES 索引）
-    int         spin_frame   = 0;
-    int         last_display = -1;  // 上一個動畫格子索引，避免連續兩格一樣
-    dpp::timer  timer_id     = 0;
-    std::string avatar_url;
-    std::string display_name;
-};
-
-// 摸彩單次紀錄（!摸彩紀錄／/摸彩紀錄 用）：記錄當下的獎品名稱/emoji，不是存 LOTTERY_PRIZES 的索引，
-// 這樣就算獎品池以後調整，舊紀錄顯示的名稱還是當初實際抽到的那個，不會因為獎品池改版跟著變。
-struct LotteryDrawRecord {
-    time_t      ts = 0;
-    std::string name;
-    std::string emoji;
-};
-
 struct WolfPlayerStats {
     int good_games = 0;
     int good_wins  = 0;
@@ -830,6 +789,7 @@ inline MapleDropEventState maple_drop_event;
 struct MapleRaidMember {
     dpp::snowflake uid;
     std::string    display_name;
+    bool           claim = true;   // 這場結算要不要消耗領獎次數領獎（只有不限次數的玩家可以關掉＝只幫打）
 };
 struct MapleRaidRoom {
     std::string      id;
@@ -895,10 +855,6 @@ inline std::map<dpp::snowflake, RocketGame>     rocket_games;
 inline std::map<dpp::snowflake, RocketStats>    rocket_stats_data;
 inline std::map<dpp::snowflake, ScratchGame>    scratch_games;
 inline std::map<dpp::snowflake, ScratchStats>   scratch_stats_data;
-inline std::map<dpp::snowflake, LotteryGame>    lottery_games;
-inline std::map<dpp::snowflake, LotteryStats>   lottery_stats_data;
-inline std::map<dpp::snowflake, std::vector<LotteryDrawRecord>> lottery_history; // 每人最近N筆摸彩紀錄
-inline std::map<std::string, int> lottery_stock; // 限量獎品全服共用剩餘組數，key=LotteryPrize.key
 inline std::map<dpp::snowflake, WolfPlayerStats> wolf_player_stats_data;
 inline std::map<dpp::snowflake, ONWStats>           onw_stats_data;
 inline std::map<dpp::snowflake, PlayerEquipment>    equipped_data;

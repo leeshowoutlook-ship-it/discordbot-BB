@@ -9,14 +9,7 @@
 #include "roulette_eu.h"
 #include "scroll.h"
 #include "guess.h"
-#include "lottery.h"
 #include "handler_decls.h"
-
-// main.cpp 啟動時透過 handler_decls.h 的宣告呼叫（main.cpp 不直接 include lottery.h，
-// 避免 maple.h 被編進第三個 TU）
-void load_lotterystats() { lot_load_stats_impl(); lot_load_games_impl(); lot_load_history_impl(); lot_load_stock_impl(); }
-// on_ready_once（main.cpp，bot 連線後）呼叫：把啟動前卡在動畫中的摸彩直接結算掉
-void lot_settle_orphaned_games() { lot_settle_orphaned_games_impl(); }
 
 // ─── Games message handler (!骰子 !射 !火箭 !刮 !猜 !卷軸使用) ─────────────────
 
@@ -32,15 +25,13 @@ void handle_games_message(const dpp::message_create_t& ev,
         for (auto& c2 : rest_lo) c2 = (char)std::tolower((unsigned char)c2);
         bool is_all = (rest_lo == "all");
         int64_t bet = is_all ? get_chips(uid) : (rest.empty() ? 0 : std::atoll(rest.c_str()));
-        bool got_ticket_ = false;
         {
-            BetRoomCheck r = resolve_bet_room(uid, ch, bet, got_ticket_);
+            BetRoomCheck r = resolve_bet_room(uid, ch, bet);
             if (r != BetRoomCheck::OK) {
                 dpp::message m; m.set_content(bet_room_check_msg(r, "用法：`!骰子 <籌碼量>`  例：`!骰子 100` 或 `!骰子 ALL`"));
                 m.channel_id = ch; g_bot->message_create(m); return;
             }
         }
-        grant_lottery_ticket_if_needed(uid, got_ticket_);
         if (get_chips(uid) < bet) {
             dpp::embed e; e.set_title("❌  籌碼不足").set_color(0xE74C3C);
             dpp::message m; m.add_embed(e); m.channel_id = ch; g_bot->message_create(m); return;
@@ -59,15 +50,13 @@ void handle_games_message(const dpp::message_create_t& ev,
         for (auto& c2 : rest_lo) c2 = (char)std::tolower((unsigned char)c2);
         bool is_all = (rest_lo == "all");
         int64_t bet = is_all ? get_chips(uid) : (rest.empty() ? 0 : std::atoll(rest.c_str()));
-        bool got_ticket_ = false;
         {
-            BetRoomCheck r = resolve_bet_room(uid, ch, bet, got_ticket_);
+            BetRoomCheck r = resolve_bet_room(uid, ch, bet);
             if (r != BetRoomCheck::OK) {
                 dpp::message m; m.set_content(bet_room_check_msg(r, "用法：`!射 <籌碼量>`  例：`!射 100` 或 `!射 ALL`"));
                 m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
             }
         }
-        grant_lottery_ticket_if_needed(uid, got_ticket_);
         dpp::message start_msg = handle_shoot_start(uid, ch, bet,
             ev.msg.author.get_avatar_url(), ev.msg.member.get_nickname());
         start_msg.set_reference(ev.msg.id); start_msg.channel_id = ch;
@@ -84,8 +73,8 @@ void handle_games_message(const dpp::message_create_t& ev,
 
     // !火箭 <碼|ALL>
     if (content.rfind("!火箭", 0) == 0 && (content.size() == 7 || content[7] == ' ')) {
-        if (is_lottery_room(ch)) {
-            dpp::message m; m.set_content("❌ 摸彩房不能玩火箭升空！");
+        if (is_no_game_room(ch)) {
+            dpp::message m; m.set_content("❌ 此討論串不能玩遊戲！");
             m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
         }
         size_t sp = content.find(' ');
@@ -94,15 +83,13 @@ void handle_games_message(const dpp::message_create_t& ev,
         for (auto& c2 : rest_lo) c2 = (char)std::tolower((unsigned char)c2);
         bool is_all = (rest_lo == "all");
         int64_t bet = is_all ? get_chips(uid) : (rest.empty() ? 0 : std::atoll(rest.c_str()));
-        bool got_ticket_ = false;
         {
-            BetRoomCheck r = resolve_bet_room(uid, ch, bet, got_ticket_);
+            BetRoomCheck r = resolve_bet_room(uid, ch, bet);
             if (r != BetRoomCheck::OK) {
                 dpp::message m; m.set_content(bet_room_check_msg(r, "用法：`!火箭 <籌碼量>`  例：`!火箭 100` 或 `!火箭 ALL`"));
                 m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
             }
         }
-        grant_lottery_ticket_if_needed(uid, got_ticket_);
         start_cmd(*g_bot, uid, ch, handle_rocket_start(uid, ch, bet,
             ev.msg.author.get_avatar_url(), ev.msg.member.get_nickname()), ev.msg.id);
         return;
@@ -135,15 +122,13 @@ void handle_games_message(const dpp::message_create_t& ev,
         for (auto& c2 : rest_lo) c2 = (char)std::tolower((unsigned char)c2);
         bool is_all = (rest_lo == "all");
         int64_t bet = is_all ? get_chips(uid) : (rest.empty() ? 0 : std::atoll(rest.c_str()));
-        bool got_ticket_ = false;
         {
-            BetRoomCheck r = resolve_bet_room(uid, ch, bet, got_ticket_);
+            BetRoomCheck r = resolve_bet_room(uid, ch, bet);
             if (r != BetRoomCheck::OK) {
                 dpp::message m; m.set_content(bet_room_check_msg(r, "用法：`!刮 <籌碼量>`  例：`!刮 100` 或 `!刮 ALL`"));
                 m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
             }
         }
-        grant_lottery_ticket_if_needed(uid, got_ticket_);
         // 私訊等情境可能會送出失敗（例如對方拒收私訊），遊戲狀態卻已經落地存檔，
         // 玩家會卡在「有進行中的遊戲」但完全沒收到可以互動的訊息。只有「這次真的新建了一局」
         // （started_new）才需要在送出失敗時復原，不然已經有進行中的另一局時，把那局也一起清掉就錯了。
@@ -171,15 +156,13 @@ void handle_games_message(const dpp::message_create_t& ev,
         for (auto& c2 : rest_lo) c2 = (char)std::tolower((unsigned char)c2);
         bool is_all = (rest_lo == "all");
         int64_t bet = is_all ? get_chips(uid) : (rest.empty() ? 0 : std::atoll(rest.c_str()));
-        bool got_ticket_ = false;
         {
-            BetRoomCheck r = resolve_bet_room(uid, ch, bet, got_ticket_);
+            BetRoomCheck r = resolve_bet_room(uid, ch, bet);
             if (r != BetRoomCheck::OK) {
                 dpp::message m; m.set_content(bet_room_check_msg(r, "用法：`!轉 <籌碼量>`  例：`!轉 100` 或 `!轉 ALL`"));
                 m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
             }
         }
-        grant_lottery_ticket_if_needed(uid, got_ticket_);
         if (get_chips(uid) < bet) {
             dpp::embed e; e.set_title("❌  籌碼不足").set_color(0xE74C3C);
             dpp::message m; m.add_embed(e); m.set_reference(ev.msg.id); m.channel_id = ch; g_bot->message_create(m); return;
@@ -236,37 +219,6 @@ void handle_games_message(const dpp::message_create_t& ev,
         return;
     }
 
-    // !摸彩：消耗 1 張彩券抽獎
-    if (content == "!摸彩") {
-        std::string dn = ev.msg.member.get_nickname().empty()
-                        ? ev.msg.author.username : ev.msg.member.get_nickname();
-        std::string av = ev.msg.author.get_avatar_url();
-        bool ok = false;
-        dpp::message m = handle_lottery_start(uid, ch, av, dn, &ok);
-        m.set_reference(ev.msg.id); m.channel_id = ch;
-        g_bot->message_create(m, [uid, ok](const dpp::confirmation_callback_t& cb) {
-            if (!cb.is_error() && ok) {
-                auto& sent = std::get<dpp::message>(cb.value);
-                { std::lock_guard<std::mutex> lk(data_mutex);
-                  auto it = lottery_games.find(uid);
-                  if (it != lottery_games.end()) it->second.msg_id = sent.id;
-                }
-                save_lottery_games(); // msg_id 已知，現在存檔才有意義（重啟後才找得到訊息補結算）
-                lot_start_spin(uid);
-            }
-        });
-        return;
-    }
-
-    // !摸彩紀錄：查看自己最近的摸彩結果
-    if (content == "!摸彩紀錄") {
-        std::string dn = ev.msg.member.get_nickname().empty()
-                        ? ev.msg.author.username : ev.msg.member.get_nickname();
-        dpp::message m = make_lottery_history_msg(uid, dn);
-        m.set_reference(ev.msg.id); m.channel_id = ch;
-        g_bot->message_create(m);
-        return;
-    }
 }
 
 // ─── Games button handler ─────────────────────────────────────────────────────
@@ -276,35 +228,6 @@ void handle_games_button(const dpp::button_click_t& ev)
     const std::string& cid = ev.custom_id;
     const dpp::user&   user = ev.command.get_issuing_user();
     dpp::snowflake     uid  = user.id;
-
-    // ── 摸彩再抽一次 ─────────────────────────────────────────────────────────
-    if (cid.rfind("lot_again_", 0) == 0) {
-        dpp::snowflake owner(std::stoull(cid.substr(10)));
-        if (uid != owner) {
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
-        }
-        std::string dn = ev.command.member.get_nickname().empty()
-                        ? user.username : ev.command.member.get_nickname();
-        std::string av = user.get_avatar_url();
-        bool ok = false;
-        dpp::message m = handle_lottery_start(uid, ev.command.channel_id, av, dn, &ok);
-        ev.reply(dpp::ir_channel_message_with_source, m);
-        if (ok) {
-            ev.get_original_response([uid](const dpp::confirmation_callback_t& cb) {
-                if (!cb.is_error()) {
-                    auto& sent = std::get<dpp::message>(cb.value);
-                    { std::lock_guard<std::mutex> lk(data_mutex);
-                      auto it = lottery_games.find(uid);
-                      if (it != lottery_games.end()) it->second.msg_id = sent.id;
-                    }
-                    save_lottery_games(); // msg_id 已知，現在存檔才有意義（重啟後才找得到訊息補結算）
-                    lot_start_spin(uid);
-                }
-            });
-        }
-        return;
-    }
 
     // ── 骰子押注選擇 ─────────────────────────────────────────────────────────
     if (cid.rfind("dc_", 0) == 0 && cid.rfind("dc_again_", 0) != 0) {
@@ -498,9 +421,8 @@ void handle_games_button(const dpp::button_click_t& ev)
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
         }
-        bool got_ticket_ = false;
         {
-            BetRoomCheck r = resolve_bet_room(uid, ev.command.channel_id, bet, got_ticket_);
+            BetRoomCheck r = resolve_bet_room(uid, ev.command.channel_id, bet);
             if (r != BetRoomCheck::OK) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message(bet_room_check_msg(r, "")).set_flags(dpp::m_ephemeral)); return;
@@ -510,7 +432,6 @@ void handle_games_button(const dpp::button_click_t& ev)
                     dpp::message("❌ 籌碼不足 " + std::to_string(bet) + " 碼！").set_flags(dpp::m_ephemeral)); return;
             }
         }
-        grant_lottery_ticket_if_needed(uid, got_ticket_);
         ev.reply(dpp::ir_channel_message_with_source, start_dice(uid, ev.command.channel_id, bet,
             user.get_avatar_url(), user.username));
         return;
@@ -552,9 +473,8 @@ void handle_games_button(const dpp::button_click_t& ev)
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 不是你的遊戲！").set_flags(dpp::m_ephemeral)); return;
         }
-        bool got_ticket_ = false;
         {
-            BetRoomCheck r = resolve_bet_room(uid, ev.command.channel_id, bet, got_ticket_);
+            BetRoomCheck r = resolve_bet_room(uid, ev.command.channel_id, bet);
             if (r != BetRoomCheck::OK) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message(bet_room_check_msg(r, "")).set_flags(dpp::m_ephemeral)); return;
@@ -564,7 +484,6 @@ void handle_games_button(const dpp::button_click_t& ev)
                     dpp::message("❌ 籌碼不足 " + std::to_string(bet) + " 碼！").set_flags(dpp::m_ephemeral)); return;
             }
         }
-        grant_lottery_ticket_if_needed(uid, got_ticket_);
         ev.reply(dpp::ir_channel_message_with_source, start_euroulette(uid, ev.command.channel_id, bet,
             user.get_avatar_url(), user.username));
         return;
@@ -835,15 +754,13 @@ void handle_games_button(const dpp::button_click_t& ev)
             int64_t bet = std::stoll(rest.substr(sep + 1));
             if (bet <= 0) { ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 無效下柱！").set_flags(dpp::m_ephemeral)); return; }
-            bool got_ticket_ = false;
             {
-                BetRoomCheck r = resolve_bet_room(uid, ev.command.channel_id, bet, got_ticket_);
+                BetRoomCheck r = resolve_bet_room(uid, ev.command.channel_id, bet);
                 if (r != BetRoomCheck::OK) {
                     ev.reply(dpp::ir_channel_message_with_source,
                         dpp::message(bet_room_check_msg(r, "")).set_flags(dpp::m_ephemeral)); return;
                 }
             }
-            grant_lottery_ticket_if_needed(uid, got_ticket_);
             dpp::message start_msg = handle_shoot_start(uid, ev.command.channel_id, bet,
                 user.get_avatar_url(), ev.command.member.get_nickname());
             ev.reply(dpp::ir_channel_message_with_source, start_msg);
@@ -914,15 +831,13 @@ void handle_games_button(const dpp::button_click_t& ev)
             int64_t bet = std::stoll(rest.substr(sep + 1));
             if (bet <= 0) { ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 無效下注！").set_flags(dpp::m_ephemeral)); return; }
-            bool got_ticket_ = false;
             {
-                BetRoomCheck r = resolve_bet_room(uid, ev.command.channel_id, bet, got_ticket_);
+                BetRoomCheck r = resolve_bet_room(uid, ev.command.channel_id, bet);
                 if (r != BetRoomCheck::OK) {
                     ev.reply(dpp::ir_channel_message_with_source,
                         dpp::message(bet_room_check_msg(r, "")).set_flags(dpp::m_ephemeral)); return;
                 }
             }
-            grant_lottery_ticket_if_needed(uid, got_ticket_);
             ev.reply(dpp::ir_channel_message_with_source,
                 handle_rocket_start(uid, ev.command.channel_id, bet,
                     user.get_avatar_url(), ev.command.member.get_nickname()));
@@ -1016,15 +931,13 @@ void handle_games_button(const dpp::button_click_t& ev)
             int64_t bet = std::stoll(rest.substr(sep + 1));
             if (bet <= 0) { ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 無效下注！").set_flags(dpp::m_ephemeral)); return; }
-            bool got_ticket_ = false;
             {
-                BetRoomCheck r = resolve_bet_room(uid, ev.command.channel_id, bet, got_ticket_);
+                BetRoomCheck r = resolve_bet_room(uid, ev.command.channel_id, bet);
                 if (r != BetRoomCheck::OK) {
                     ev.reply(dpp::ir_channel_message_with_source,
                         dpp::message(bet_room_check_msg(r, "")).set_flags(dpp::m_ephemeral)); return;
                 }
             }
-            grant_lottery_ticket_if_needed(uid, got_ticket_);
             bool started_new = false;
             dpp::message scratch_msg = handle_scratch_start(uid, ev.command.channel_id, bet,
                 user.get_avatar_url(), ev.command.member.get_nickname(), &started_new);
@@ -1218,9 +1131,8 @@ void handle_games_modal(const dpp::form_submit_t& ev)
         int64_t bet = is_all ? get_chips(issuer) : 0;
         if (!is_all) { try { bet = std::stoll(input); } catch (...) { bet = 0; } }
 
-        bool got_ticket_ = false;
         {
-            BetRoomCheck r = resolve_bet_room(issuer, ch, bet, got_ticket_);
+            BetRoomCheck r = resolve_bet_room(issuer, ch, bet);
             if (r != BetRoomCheck::OK) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message(bet_room_check_msg(r, "❌ 請輸入有效的籌碼量（或輸入 ALL）！")).set_flags(dpp::m_ephemeral)); return;
@@ -1230,7 +1142,6 @@ void handle_games_modal(const dpp::form_submit_t& ev)
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 籌碼不足！").set_flags(dpp::m_ephemeral)); return;
         }
-        grant_lottery_ticket_if_needed(issuer, got_ticket_);
 
         dpp::user issuer_user = ev.command.get_issuing_user();
         EuRouletteMultiGame snap; bool ok = false;
@@ -1300,13 +1211,11 @@ void handle_games_slash(const dpp::slashcommand_t& ev,
     };
 
     auto check_allin_min = [&](int64_t& bet, const std::string& usage) -> bool {
-        bool got_ticket_ = false;
-        BetRoomCheck r = resolve_bet_room(uid, ch, bet, got_ticket_);
+        BetRoomCheck r = resolve_bet_room(uid, ch, bet);
         if (r != BetRoomCheck::OK) {
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message(bet_room_check_msg(r, usage)).set_flags(dpp::m_ephemeral)); return false;
         }
-        grant_lottery_ticket_if_needed(uid, got_ticket_);
         return true;
     };
 
@@ -1325,9 +1234,9 @@ void handle_games_slash(const dpp::slashcommand_t& ev,
         });
     }
     else if (cmd_name == "火箭" || cmd_name == "rocket") {
-        if (is_lottery_room(ch)) {
+        if (is_no_game_room(ch)) {
             ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("❌ 摸彩房不能玩火箭升空！").set_flags(dpp::m_ephemeral)); return;
+                dpp::message("❌ 此討論串不能玩遊戲！").set_flags(dpp::m_ephemeral)); return;
         }
         int64_t bet = get_bet();
         if (!check_allin_min(bet, "用法：`/火箭 籌碼:100` 或 `/火箭 籌碼:ALL`")) return;
@@ -1374,30 +1283,5 @@ void handle_games_slash(const dpp::slashcommand_t& ev,
         }
         ev.reply(dpp::ir_channel_message_with_source, start_euroulette(uid, ch, bet,
             user.get_avatar_url(), ev.command.member.get_nickname()));
-    }
-    else if (cmd_name == "摸彩") {
-        std::string dn = ev.command.member.get_nickname().empty()
-                        ? user.username : ev.command.member.get_nickname();
-        bool ok = false;
-        dpp::message m = handle_lottery_start(uid, ch, user.get_avatar_url(), dn, &ok);
-        ev.reply(dpp::ir_channel_message_with_source, m);
-        if (ok) {
-            ev.get_original_response([uid](const dpp::confirmation_callback_t& cb) {
-                if (!cb.is_error()) {
-                    auto& sent = std::get<dpp::message>(cb.value);
-                    { std::lock_guard<std::mutex> lk(data_mutex);
-                      auto it = lottery_games.find(uid);
-                      if (it != lottery_games.end()) it->second.msg_id = sent.id;
-                    }
-                    save_lottery_games(); // msg_id 已知，現在存檔才有意義（重啟後才找得到訊息補結算）
-                    lot_start_spin(uid);
-                }
-            });
-        }
-    }
-    else if (cmd_name == "摸彩紀錄") {
-        std::string dn = ev.command.member.get_nickname().empty()
-                        ? user.username : ev.command.member.get_nickname();
-        ev.reply(dpp::ir_channel_message_with_source, make_lottery_history_msg(uid, dn));
     }
 }

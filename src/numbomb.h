@@ -5,7 +5,7 @@
 // 每回合 60 秒，超時系統幫他亂猜；範圍只剩炸彈時，輪到的人直接踩到。
 // 一個頻道同時只能有一局。大廳 15 分鐘沒開始自動取消退費。
 // 所有狀態存在 numbomb.json，重開 bot 會接著玩（計時器在 on_ready 重新掛上）。
-// 討論串規則：摸彩房、ALLIN 房不能開（團康沒辦法每個人都 ALLIN）；最低下注房入場費至少 5,000。
+// 討論串規則：不能玩遊戲的討論串、ALLIN 房不能開（團康沒辦法每個人都 ALLIN）；最低下注房入場費至少 5,000。
 #include "chips.h"
 #include <random>
 
@@ -203,7 +203,7 @@ static void nb_refund_all_locked(NbGame& g) {
 }
 // 開局檢查（頻道規則）；回傳錯誤訊息或空字串
 static std::string nb_room_error(dpp::snowflake ch, int64_t fee) {
-    if (is_lottery_room(ch)) return "❌ 此討論串只能 `!摸彩`，不能玩遊戲！";
+    if (is_no_game_room(ch)) return "❌ 此討論串不能玩遊戲！";
     if (is_allin_room(ch))   return "❌ ALLIN 房不能開數字炸彈（團康遊戲沒辦法讓每個人都 ALLIN）。";
     if (fee < 0) return "❌ 入場費不能是負的。";
     if (!cfg.min_bet_thread_id.empty() && std::to_string((uint64_t)ch) == cfg.min_bet_thread_id && fee < 5000)

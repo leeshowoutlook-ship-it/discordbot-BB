@@ -2349,8 +2349,7 @@ static void load_maple_drop_event() {
 }
 // maple_exp_event_archive_current() 的實作移到 handlers_maple.cpp（這裡只保留 forward
 // declaration via handler_decls.h）——因為它是非 static/inline 的一般函式，maple.h 現在
-// 會被 handlers_games.cpp（!摸彩 需要 maple_data/save_maple_data）也 include 一次，
-// 留在這裡會造成重複定義（LNK2005）。
+// 被多個 TU include 時會造成重複定義（LNK2005）。
 
 // ─── 突襲首領（多人組隊房間）────────────────────────────────────────────────────
 // 選王 → 開房間／加入房間（上限6人，同一隻可以多間並行）→ 隊長開始討伐（自動計算，不用一直點）
@@ -2393,6 +2392,10 @@ static int maple_raid_week_allowed(const MapleCharacter& c) {
 }
 static bool maple_raid_week_has_attempt(const MapleCharacter& c) {
     return maple_raid_week_used(c) < maple_raid_week_allowed(c);
+}
+// 不限突襲次數的玩家：次數用完也能開房／加入，但只有「這場領獎」打開且還有次數時，結算才會扣次數拿獎勵
+static bool maple_raid_unlimited(dpp::snowflake uid) {
+    return (uint64_t)uid == 1036953796007448606ULL;
 }
 
 // 陣營捐贈：每人每週限捐一次，2000 瘋幣 → 陣營（全服共用）+20 經驗；跟突襲首領同一套週次
@@ -2878,7 +2881,7 @@ static void save_maple_raid_rooms() {
         for (auto& [id, r] : maple_raid_rooms) {
             nlohmann::json members = nlohmann::json::array();
             for (auto& m : r.members)
-                members.push_back({{"uid", (uint64_t)m.uid}, {"display_name", m.display_name}});
+                members.push_back({{"uid", (uint64_t)m.uid}, {"display_name", m.display_name}, {"claim", m.claim}});
             j.push_back({
                 {"id", r.id}, {"boss_key", r.boss_key}, {"leader_uid", (uint64_t)r.leader_uid},
                 {"channel_id", (uint64_t)r.channel_id}, {"members", members}, {"state", r.state},
@@ -2971,6 +2974,7 @@ static void load_maple_raid_rooms() {
                     MapleRaidMember m;
                     m.uid          = dpp::snowflake(mv.value("uid", (uint64_t)0));
                     m.display_name = mv.value("display_name", std::string());
+                    m.claim        = mv.value("claim", true);
                     r.members.push_back(m);
                 }
             }
@@ -5120,6 +5124,8 @@ static dpp::message make_maple_raid_lobby_msg(dpp::snowflake uid, const std::str
     std::vector<std::string> member_lines;
     bool has_companion = false, can_toggle_companion_on = false;
     std::string companion_buff_name;
+    bool show_claim_toggle = false, my_claim = true, my_has_attempt = false;
+    std::string attempt_text;
     {
         std::lock_guard<std::mutex> lk(data_mutex);
         MapleRaidRoom* room = maple_find_raid_room(room_id);
@@ -5131,8 +5137,20 @@ static dpp::message make_maple_raid_lobby_msg(dpp::snowflake uid, const std::str
             boss_name = boss ? boss->name : room->boss_key;
             boss_hp = boss ? boss->hp : 0;
             hide_hp = boss && boss->hide_hp;
-            for (auto& m : room->members)
-                member_lines.push_back((m.uid == room->leader_uid ? "👑 " : "• ") + m.display_name);
+            for (auto& m : room->members) {
+                member_lines.push_back((m.uid == room->leader_uid ? "👑 " : "• ") + m.display_name
+                                       + (m.claim ? "" : "（只幫打，不領獎）"));
+                if (m.uid == uid && maple_raid_unlimited(uid)) {
+                    show_claim_toggle = true;
+                    my_claim = m.claim;
+                    auto cit = maple_data.find(uid);
+                    if (cit != maple_data.end()) {
+                        my_has_attempt = maple_raid_week_has_attempt(cit->second);
+                        attempt_text = std::to_string(maple_raid_week_used(cit->second)) + " / "
+                                     + std::to_string(maple_raid_week_allowed(cit->second));
+                    }
+                }
+            }
             has_companion = room->has_companion;
             auto lit = maple_data.find(room->leader_uid);
             const MapleCompanionBuffDef* lb = (lit != maple_data.end()) ? maple_companion_active(lit->second) : nullptr;
@@ -5147,12 +5165,25 @@ static dpp::message make_maple_raid_lobby_msg(dpp::snowflake uid, const std::str
         content = "## 💥 " + boss_name + "（招募中）\n" + (hide_hp ? "血量未知" : ("HP " + std::to_string(boss_hp)))
                  + "\n\n**隊員 " + std::to_string(member_lines.size()) + "/" + std::to_string(MAPLE_RAID_ROOM_MAX_MEMBERS) + "**\n";
         for (auto& l : member_lines) content += l + "\n";
+        if (show_claim_toggle)
+            content += "\n🎁 這場結算：" + std::string(my_claim ? "**消耗 1 次領獎次數領獎**" : "**只幫打，不領獎**")
+                     + "（本週已用 " + attempt_text + "）";
     }
 
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xC0, 0x39, 0x2B));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
     msg.add_component_v2(container);
+
+    if (exists && show_claim_toggle) {
+        dpp::component crow; crow.set_type(dpp::cot_action_row);
+        crow.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label(my_claim ? "🙅 改成只幫打" : (my_has_attempt ? "🎁 改成領獎" : "🎁 改成領獎（次數已用完）"))
+            .set_id("maple_raidclaim_" + uid_s + "_" + room_id)
+            .set_style(my_claim ? dpp::cos_secondary : dpp::cos_success)
+            .set_disabled(!my_claim && !my_has_attempt));
+        msg.add_component_v2(crow);
+    }
 
     if (exists) {
         dpp::component row; row.set_type(dpp::cot_action_row);
@@ -6808,7 +6839,8 @@ static dpp::message make_maple_box_msg(dpp::snowflake uid, int page = 0, const s
     tabs.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📦 其他").set_id("maple_bag_" + uid_s + "_other").set_style(dpp::cos_secondary));
     tabs.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🎁 寶箱").set_id("maple_boxes_" + uid_s + "_0").set_style(dpp::cos_primary).set_disabled(true));
+        // ID 後面加 _tab：不然會跟第 2 頁的「上一頁」(maple_boxes_<uid>_0) 撞 ID，Discord 會拒收整則訊息
+        .set_label("🎁 寶箱").set_id("maple_boxes_" + uid_s + "_0_tab").set_style(dpp::cos_primary).set_disabled(true));
     msg.add_component_v2(tabs);
 
     if (total_pages > 1) {

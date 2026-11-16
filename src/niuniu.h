@@ -119,12 +119,10 @@ static dpp::message nn_play(dpp::snowflake uid, dpp::snowflake ch, std::string r
     std::string lo = raw; for (auto& c : lo) c = (char)std::tolower((unsigned char)c);
     bool all = (lo == "all" || lo == "allin");
     int64_t bet = all ? get_chips(uid) : (raw.empty() ? 0 : std::atoll(raw.c_str()));
-    bool got_ticket = false;
-    BetRoomCheck rc = resolve_bet_room(uid, ch, bet, got_ticket);
+    BetRoomCheck rc = resolve_bet_room(uid, ch, bet);
     if (rc != BetRoomCheck::OK)
         return fail(bet_room_check_msg(rc, "用法：`!妞妞 <籌碼>` 或 `/妞妞 籌碼:100`（ALL＝全押）\n-# 輸了照莊家牌型倍數賠（最多 10 倍），不夠的會扣成負債。"));
     if (bet <= 0) return fail("❌ 籌碼不足，沒有籌碼不能玩。");
-    grant_lottery_ticket_if_needed(uid, got_ticket);
 
     std::array<int, 52> deck; for (int i = 0; i < 52; i++) deck[i] = i;
     std::shuffle(deck.begin(), deck.end(), sh_rng());

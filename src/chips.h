@@ -103,15 +103,13 @@ static void add_chips(dpp::snowflake uid, int64_t delta) {
 // ─── 討論串下注門檻（三階）───────────────────────────────────────────────────
 // 一般頻道：bet<=0 擋掉；min_bet_thread_id：最低 5,000；
 // allin_thread_id：強制 ALLIN，持有需 >=20,000。
-// allin_500k_thread_id 現在改成「只能摸彩，不能玩遊戲」的房間（跟 lottery_thread2_id 一樣），
-// 不再開放下注、也不再靠下注發彩券。
-enum class BetRoomCheck { OK, NEED_USAGE, FAIL_MIN_BET, FAIL_ALLIN, FAIL_LOTTERY_ONLY };
+// allin_500k_thread_id 和 lottery_thread2_id 是「不能玩遊戲」的討論串。
+enum class BetRoomCheck { OK, NEED_USAGE, FAIL_MIN_BET, FAIL_ALLIN, FAIL_NO_GAME };
 
-static BetRoomCheck resolve_bet_room(dpp::snowflake uid, dpp::snowflake ch, int64_t& bet, bool& got_ticket) {
-    got_ticket = false;
+static BetRoomCheck resolve_bet_room(dpp::snowflake uid, dpp::snowflake ch, int64_t& bet) {
     std::string ch_s = std::to_string((uint64_t)ch);
     if (!cfg.allin_500k_thread_id.empty() && ch_s == cfg.allin_500k_thread_id) {
-        return BetRoomCheck::FAIL_LOTTERY_ONLY;
+        return BetRoomCheck::FAIL_NO_GAME;
     }
     if (!cfg.allin_thread_id.empty() && ch_s == cfg.allin_thread_id) {
         bet = get_chips(uid);
@@ -129,14 +127,13 @@ static std::string bet_room_check_msg(BetRoomCheck r, const std::string& usage) 
         case BetRoomCheck::NEED_USAGE:       return usage;
         case BetRoomCheck::FAIL_MIN_BET:     return "❌ 此討論串最低下注為 **5,000** 碼！";
         case BetRoomCheck::FAIL_ALLIN:       return "❌ 此房間需持有至少 **20,000** 碼才能 ALLIN！";
-        case BetRoomCheck::FAIL_LOTTERY_ONLY:return "❌ 此討論串只能 `!摸彩`，不能玩遊戲！";
+        case BetRoomCheck::FAIL_NO_GAME:     return "❌ 此討論串不能玩遊戲！";
         default:                             return "";
     }
 }
 
-// 摸彩房＝發放彩券的 500k ALLIN 討論串，或另一個也能 !摸彩 的討論串。
-// 火箭升空可以隨時收手兌現，跟 ALLIN 房間「全押全贏/全輸」的設計衝突，所以摸彩房禁止玩火箭。
-static bool is_lottery_room(dpp::snowflake ch) {
+// 不能玩遊戲的討論串（allin_500k_thread_id／lottery_thread2_id）。
+static bool is_no_game_room(dpp::snowflake ch) {
     std::string ch_s = std::to_string((uint64_t)ch);
     return (!cfg.allin_500k_thread_id.empty() && ch_s == cfg.allin_500k_thread_id)
         || (!cfg.lottery_thread2_id.empty()  && ch_s == cfg.lottery_thread2_id);
@@ -148,13 +145,6 @@ static bool is_allin_room(dpp::snowflake ch) {
     std::string ch_s = std::to_string((uint64_t)ch);
     return (!cfg.allin_thread_id.empty()      && ch_s == cfg.allin_thread_id)
         || (!cfg.allin_500k_thread_id.empty() && ch_s == cfg.allin_500k_thread_id);
-}
-
-// 在 500k ALLIN 房間下注成功發送前呼叫：不論輸贏都發一張彩券
-static void grant_lottery_ticket_if_needed(dpp::snowflake uid, bool got_ticket) {
-    if (!got_ticket) return;
-    { std::lock_guard<std::mutex> lk(data_mutex); inventory_data[uid]["lottery_ticket"]++; }
-    save_inventory();
 }
 
 // ─── Claim embed ──────────────────────────────────────────────────────────────

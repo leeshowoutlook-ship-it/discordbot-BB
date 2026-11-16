@@ -948,7 +948,8 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
                         .set_flags(dpp::m_ephemeral)); return;
             }
             maple_raid_week_reset_if_needed(c);
-            if (!maple_raid_week_has_attempt(c)) {
+            const bool unlimited = maple_raid_unlimited(uid);
+            if (!unlimited && !maple_raid_week_has_attempt(c)) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 本週的突襲首領次數已經用完了！（" + std::to_string(maple_raid_week_used(c))
                         + "/" + std::to_string(maple_raid_week_allowed(c)) + "，可以去特殊商店花瘋幣買額外次數）")
@@ -960,7 +961,7 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
             room.boss_key = boss_key;
             room.leader_uid = uid;
             room.channel_id = ev.command.channel_id;
-            room.members.push_back({uid, dn});
+            room.members.push_back({uid, dn, !unlimited || maple_raid_week_has_attempt(c)});
             room.created_at = time(nullptr);
             maple_raid_rooms[room_id] = room;
             c.raid_room_id = room_id;
@@ -995,11 +996,11 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
             else if ((int)room->members.size() >= MAPLE_RAID_ROOM_MAX_MEMBERS - (room->has_companion ? 1 : 0)) err = "這間房間已經滿了。";
             else if (boss && c.level < boss->min_level)
                 err = "挑戰 " + boss->name + " 需要等級 " + std::to_string(boss->min_level) + " 以上！";
-            else if (!maple_raid_week_has_attempt(c))
+            else if (!maple_raid_unlimited(uid) && !maple_raid_week_has_attempt(c))
                 err = "本週的突襲首領次數已經用完了！（" + std::to_string(maple_raid_week_used(c))
                     + "/" + std::to_string(maple_raid_week_allowed(c)) + "，可以去特殊商店花瘋幣買額外次數）";
             else {
-                room->members.push_back({uid, dn});
+                room->members.push_back({uid, dn, !maple_raid_unlimited(uid) || maple_raid_week_has_attempt(c)});
                 c.raid_room_id = room_id;
             }
         }
@@ -1023,6 +1024,41 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
             ev.reply(dpp::ir_channel_message_with_source,
                 dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
         }
+        ev.reply(dpp::ir_update_message, make_maple_raid_lobby_msg(uid, room_id));
+        return;
+    }
+
+    // maple_raidclaim_<uid>_<room>：不限次數的玩家切換「這場領獎／只幫打」（只在招募中可以改）
+    if (cid.rfind("maple_raidclaim_", 0) == 0) {
+        std::string rest = cid.substr(16);
+        size_t sep = rest.find('_');
+        if (sep == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, sep)));
+        std::string room_id = rest.substr(sep + 1);
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string err;
+        bool changed = false;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            MapleRaidRoom* room = maple_find_raid_room(room_id);
+            auto& c = maple_data[uid];
+            maple_raid_week_reset_if_needed(c);
+            MapleRaidMember* me = nullptr;
+            if (room) for (auto& m : room->members) if (m.uid == uid) me = &m;
+            if (!maple_raid_unlimited(uid)) err = "你不能切換這個設定。";
+            else if (!room || !me) err = "你不在這間房間裡。";
+            else if (room->state != "waiting") err = "已經開始討伐，不能再更改了。";
+            else if (!me->claim && !maple_raid_week_has_attempt(c)) err = "本週的領獎次數已經用完了！可以去特殊商店花瘋幣買額外次數。";
+            else { me->claim = !me->claim; changed = true; }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        if (changed) save_maple_raid_rooms();
         ev.reply(dpp::ir_update_message, make_maple_raid_lobby_msg(uid, room_id));
         return;
     }
@@ -1352,6 +1388,12 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
                     for (auto& m : room->members) {
                         auto& c = maple_data[m.uid];
                         maple_raid_week_reset_if_needed(c);
+                        // 不限次數的玩家：沒勾領獎、或次數已經用完＝只幫打，什麼都拿不到也不扣次數
+                        if (maple_raid_unlimited(m.uid) && (!m.claim || !maple_raid_week_has_attempt(c))) {
+                            summary += "**" + m.display_name + "**：只幫打，沒有獎勵\n";
+                            c.raid_room_id.clear();
+                            continue;
+                        }
                         c.raid_week_used++;
                         int64_t exp_gain = boss ? boss->exp : 0;
                         int64_t coin_gain = boss ? std::uniform_int_distribution<int64_t>(boss->coin_min, boss->coin_max)(rng) : 0;
