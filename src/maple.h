@@ -1688,20 +1688,42 @@ static double maple_adv_underlevel_mult(const MapleCharacter& c, const MapleAdvR
     return maple_underlevel_mult(c.level, region.suggested_level);
 }
 
-// 擊殺一隻怪物需要的攻擊次數（用平均傷害＋爆擊期望算，無條件進位，最少1下）
+// 期望刀數估計（取代單純 ceil(hp/平均傷害)）：單純用平均傷害算，刀數越少時會系統性低估
+// ──因為平均「剛好」夠在N刀內打死時，實際上常常某幾刀骰到低於平均，得多補一刀，這個效應刀數
+// 越少佔比越重。改用 renewal theory 的二階修正，把傷害變異度（含爆擊）一起算進去：
+//   E[刀數] ≈ hp/μ + (σ²/μ²+1)/2 （μ、σ²＝單刀有效傷害的期望值／變異數，Wald's identity 推導）
+// 極端保護：
+//   ①連最差一刀（min_dmg）都打得死：一定是1刀，直接回傳——這個區間刀數最少，上面的估計公式反而最不準
+//   ②傷害沒有變異（min==max，例如固定傷害技能）：退回精確的 ceil(hp/μ)，否則二階修正會在零變異時多算一刀
+static int maple_hits_to_kill_from_dist(double min_dmg, double max_dmg, double crit_p, double def, double hp) {
+    double mu_raw  = (min_dmg + max_dmg) / 2.0 * (1.0 + crit_p);
+    double min_eff = std::max(1.0, min_dmg - def);
+    if (hp <= min_eff) return 1; // 保護①
+    double mu = std::max(1.0, mu_raw - def);
+    double ex2_raw = (min_dmg*min_dmg + min_dmg*max_dmg + max_dmg*max_dmg) / 3.0 * (1.0 + 3.0*crit_p);
+    double var = std::max(0.0, ex2_raw - mu_raw*mu_raw);
+    if (var < 1e-6) { // 保護②
+        int hits = (int)std::ceil(hp / mu);
+        return hits < 1 ? 1 : hits;
+    }
+    double est = hp / mu + (var / (mu*mu) + 1.0) / 2.0;
+    int hits = (int)std::llround(est);
+    return hits < 1 ? 1 : hits;
+}
+// 擊殺一隻怪物需要的攻擊次數（見 maple_hits_to_kill_from_dist 的估計公式與極端保護）
 static int maple_adv_hits_to_kill(const MapleCharacter& c, const MapleAdvRegionDef& region) {
     double angel_override = maple_companion_angel_override(c);
     double encourage_override = maple_companion_encourage_override(c);
     int extra_wpn_atk = maple_faction_atk_bonus(c) + maple_companion_snowcrystal_bonus(c);
-    double avg_dmg = std::max(1.0, maple_atk_power_avg(c, angel_override, extra_wpn_atk, encourage_override) * maple_crit_avg_mult(c, angel_override)
-                                  * maple_adv_region_job_mult(c, region)
-                                  * region.all_dmg_mult
-                                  * maple_adv_underlevel_mult(c, region)
-                                  * maple_adv_dmg_pct_bonus(c)
-                                  * (1.0 + maple_companion_magicbreak_pct(c) / 100.0)); // 假人夥伴租借「魔防消除」
-    double eff_dmg = std::max(1.0, avg_dmg - region.monster.def); // 怪物防禦力：傷害－防禦力，至少造成1點傷害
-    int hits = (int)std::ceil(region.monster.hp / eff_dmg);
-    return hits < 1 ? 1 : hits;
+    double mult = maple_adv_region_job_mult(c, region)
+                 * region.all_dmg_mult
+                 * maple_adv_underlevel_mult(c, region)
+                 * maple_adv_dmg_pct_bonus(c)
+                 * (1.0 + maple_companion_magicbreak_pct(c) / 100.0); // 假人夥伴租借「魔防消除」
+    double min_dmg = maple_atk_power_min(c, angel_override, extra_wpn_atk, encourage_override) * mult;
+    double max_dmg = maple_atk_power_max(c, angel_override, extra_wpn_atk, encourage_override) * mult;
+    double crit_p  = maple_crit_avg_mult(c, angel_override) - 1.0;
+    return maple_hits_to_kill_from_dist(min_dmg, max_dmg, crit_p, region.monster.def, region.monster.hp);
 }
 // 純攻擊時間（不含休息）
 static int64_t maple_adv_attack_secs(const MapleCharacter& c, const MapleAdvRegionDef& region) {
@@ -2205,11 +2227,11 @@ static int64_t maple_wb_kill_secs(const MapleCharacter& c, const MapleWbRegionDe
     // 魔防消除：法師系隊友吃得到，騎士本人（見習騎士／騎士線）也吃得到自己的這份首領傷害加成
     if (maple_base_job(c) == "mage" || maple_tier2_base_job(c) == "page") boss_dmg_bonus += team_magic_break;
 
-    double avg_dmg = std::max(1.0, maple_atk_power_avg(c, team_angel, 0, team_encourage) * maple_crit_avg_mult(c, team_angel)
-                                  * (1.0 + boss_dmg_bonus / 100.0)
-                                  * maple_underlevel_mult(c.level, region.suggested_level));
-    int hits = (int)std::ceil((double)boss.hp / avg_dmg);
-    if (hits < 1) hits = 1;
+    double mult = (1.0 + boss_dmg_bonus / 100.0) * maple_underlevel_mult(c.level, region.suggested_level);
+    double min_dmg = maple_atk_power_min(c, team_angel, 0, team_encourage) * mult;
+    double max_dmg = maple_atk_power_max(c, team_angel, 0, team_encourage) * mult;
+    double crit_p  = maple_crit_avg_mult(c, team_angel) - 1.0;
+    int hits = maple_hits_to_kill_from_dist(min_dmg, max_dmg, crit_p, 0.0, (double)boss.hp);
     int64_t secs = (int64_t)hits * maple_eff_atk_interval(c, team_haste);
 
     double time_bonus = maple_buff_value(c, "strong_berserker") + maple_buff_value(c, "strong_page")

@@ -329,8 +329,16 @@ static dpp::message handle_bj_button(const std::string& action, uint64_t gid,
             // Move to split hand, or resolve
             if (!g.split_active && g.has_split && !g.split_hand.done) {
                 g.split_active = true;
-                if (g.split_hand.cards.size() == 1) // deal 2nd card to split
+                if (g.split_hand.cards.size() == 1) { // deal 2nd card to split
                     g.split_hand.cards.push_back(draw_card(g));
+                    int val = hand_value(g.split_hand.cards);
+                    // 分牌後這手直接湊到21：硬21、或兩張湊21的BJ都直接結算；只有3張以上的軟21才繼續開放要牌
+                    if (val > 21 || (val == 21 && !is_soft(g.split_hand.cards)) || is_blackjack(g.split_hand.cards)) {
+                        g.split_hand.done = true;
+                        status  = resolve_bj(g, bj_net);
+                        do_save = true;
+                    }
+                }
             } else {
                 status  = resolve_bj(g, bj_net); // modifies chip_data under lock
                 do_save = true;
@@ -376,6 +384,9 @@ static dpp::message handle_bj_button(const std::string& action, uint64_t gid,
                     cur.cards.push_back(draw_card(g)); // deal new card to main
                     // split hand's 2nd card dealt when we advance to it
                     do_save = true;
+                    int val = hand_value(cur.cards);
+                    // 分牌後這手直接湊到21：硬21、或兩張湊21的BJ都直接換下一手；只有3張以上的軟21才繼續開放要牌
+                    if (val > 21 || (val == 21 && !is_soft(cur.cards)) || is_blackjack(cur.cards)) { cur.done = true; advance(); }
                 }
             }
         }
