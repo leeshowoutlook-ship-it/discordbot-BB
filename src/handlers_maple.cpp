@@ -3505,6 +3505,46 @@ static void handle_maple_button_impl(const dpp::button_click_t& ev, const std::s
         return;
     }
 
+    if (cid.rfind("maple_j4visit_", 0) == 0) {
+        if (!check_owner("maple_j4visit_")) return;
+        MapleCharacter c = maple_get_or_create(uid);
+        if (!maple_can_fourth_job(c) || c.job4_stage != 2) {
+            ev.reply(dpp::ir_update_message, make_maple_job4_quest_msg(uid)); return;
+        }
+        ev.reply(dpp::ir_update_message, make_maple_job4_quest_msg(uid, true));
+        return;
+    }
+
+    // maple_j4pay_<uid>_<stage>：四轉任務第三階段，上交五百萬瘋幣給女神使徒
+    if (cid.rfind("maple_j4pay_", 0) == 0) {
+        std::string rest = cid.substr(12);
+        size_t s1 = rest.find('_');
+        if (s1 == std::string::npos) return;
+        dpp::snowflake owner(std::stoull(rest.substr(0, s1)));
+        int stage = 0;
+        try { stage = std::stoi(rest.substr(s1 + 1)); } catch (...) { return; }
+        if (owner != uid) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ 這不是你的角色！").set_flags(dpp::m_ephemeral)); return;
+        }
+        std::string err;
+        {
+            std::lock_guard<std::mutex> lk(data_mutex);
+            auto& c = maple_data[uid];
+            if (!maple_can_fourth_job(c)) err = "還不能四轉！";
+            else if (stage != 2 || c.job4_stage != 2) err = "任務進度已經變動，請重新開啟四轉畫面。";
+            else if (c.coins < MAPLE_JOB4_APOSTLE_FEE) err = "瘋幣不足！";
+            else { c.coins -= MAPLE_JOB4_APOSTLE_FEE; c.job4_stage = 3; }
+        }
+        if (!err.empty()) {
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("❌ " + err).set_flags(dpp::m_ephemeral)); return;
+        }
+        save_maple_data();
+        ev.reply(dpp::ir_update_message, make_maple_job4_quest_msg(uid));
+        return;
+    }
+
     // maple_j4give_<uid>_<stage>_<itemkey>：四轉任務上交道具（stage 用來擋重複點擊／舊訊息）
     if (cid.rfind("maple_j4give_", 0) == 0) {
         std::string rest = cid.substr(13);

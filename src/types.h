@@ -394,7 +394,7 @@ struct MapleCharacter {
     time_t         created_at = 0;
     std::string    companion_buff;     // 假人夥伴目前「使用中」的buff key，空字串＝沒有使用
     std::map<std::string, time_t> companion_owned; // 已購買的假人buff key -> 到期時間；每個buff各自購買、各自計時7天，期限內可以隨意切換使用
-    int            job4_stage = 0;       // 四轉任務進度：0＝第一階段；1＝第二階段；2＝第二階段已完成
+    int            job4_stage = 0;       // 四轉任務進度：0＝第一階段；1＝第二階段；2＝第三階段（付女神使徒五百萬）；3＝第三階段已完成
     std::string    job4_medium;          // 四轉任務第二階段上交的媒介道具key（神偷可選不同媒介，會決定轉職結果）
 };
 

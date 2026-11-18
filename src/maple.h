@@ -4270,8 +4270,12 @@ static dpp::message make_maple_job3_select_msg(dpp::snowflake uid) {
     return msg;
 }
 
+// 四轉任務第三階段：女神使徒收取的費用（瘋幣）
+static const int64_t MAPLE_JOB4_APOSTLE_FEE = 5000000;
+
 // 四轉任務：依目前進度顯示對應階段；沒有道具的按鈕顯示「上交????」且無法按
-static dpp::message make_maple_job4_quest_msg(dpp::snowflake uid) {
+// apostle＝第三階段按了「拜訪女神使徒」之後的畫面
+static dpp::message make_maple_job4_quest_msg(dpp::snowflake uid, bool apostle = false) {
     MapleCharacter c = maple_get_or_create(uid);
     std::string uid_s = std::to_string((uint64_t)uid);
     dpp::message msg;
@@ -4297,8 +4301,14 @@ static dpp::message make_maple_job4_quest_msg(dpp::snowflake uid) {
                 "而是你的力量已到達上限，需要一些媒介幫助你突破...";
         needs = maple_job4_mediums(c.job);
         if (needs.size() > 1) text += "\n\n⚠️ **請謹慎選擇**：上交不同的媒介會導致不同的轉職結果";
+    } else if (c.job4_stage == 2 && !apostle) {
+        text += "　第三階段\n你將「" + item_name(c.job4_medium) + "」獻給了女神，感覺體內的力量開始產生變化...\n\n"
+                "你雖然知道接下來要走上哪條道路，但卻不知道該如何使用它的力量....但或許某個人會知道該如何使用它的力量?";
+    } else if (c.job4_stage == 2) {
+        text += "　第三階段\n女神使徒知道了你的來意，但是做為每款遊戲都會出現的貪官汙吏，"
+                "他需要先跟你收取五百萬的費用才告訴你接下來該怎麼做";
     } else {
-        text += "\n你將「" + item_name(c.job4_medium) + "」獻給了女神，感覺體內的力量開始產生變化...\n\n"
+        text += "\n你將五百萬瘋幣交給了女神使徒，他滿意地收下了...\n\n"
                 "📜 後續的轉職任務尚未開放，敬請期待";
     }
 
@@ -4324,10 +4334,29 @@ static dpp::message make_maple_job4_quest_msg(dpp::snowflake uid) {
         }
         msg.add_component_v2(row);
     }
+    if (c.job4_stage == 2) {
+        dpp::component row; row.set_type(dpp::cot_action_row);
+        if (!apostle) {
+            row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("拜訪女神使徒").set_id("maple_j4visit_" + uid_s).set_style(dpp::cos_primary));
+        } else if (c.coins >= MAPLE_JOB4_APOSTLE_FEE) {
+            row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("上交瘋幣五百萬").set_id("maple_j4pay_" + uid_s + "_2").set_style(dpp::cos_primary));
+        } else {
+            row.add_component(dpp::component().set_type(dpp::cot_button)
+                .set_label("上交 " + std::to_string(c.coins) + "/" + std::to_string(MAPLE_JOB4_APOSTLE_FEE))
+                .set_id("maple_j4none_" + uid_s + "_pay").set_style(dpp::cos_secondary).set_disabled(true));
+        }
+        msg.add_component_v2(row);
+    }
 
     dpp::component row2; row2.set_type(dpp::cot_action_row);
-    row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
+    if (apostle)
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("↩ 返回").set_id("maple_j4open_" + uid_s).set_style(dpp::cos_secondary));
+    else
+        row2.add_component(dpp::component().set_type(dpp::cot_button)
+            .set_label("↩ 返回").set_id("maple_home_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row2);
     return msg;
 }
