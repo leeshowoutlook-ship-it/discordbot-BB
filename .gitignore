@@ -36,3 +36,7 @@ CMakeUserPresets.json
 .vscode/settings.json
 .vs/
 .DS_Store
+
+# 本機每日快照與還原前留存（不進 git）
+build/Release/daily_backup/
+build/Release/restore_backup_*/

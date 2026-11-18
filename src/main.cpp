@@ -894,6 +894,7 @@ int main(int argc, char* argv[]) {
     cfg = load_config();
     if (cfg.token.empty()) { fprintf(stderr, "找不到 BOT_TOKEN\n"); return 1; }
     static std::string g_recover_report = recover_corrupt_data_files();
+    try { daily_snapshot_data_files(); } catch (...) {}
     load_chips();
     load_bank();
     load_warns();
@@ -4930,6 +4931,7 @@ int main(int argc, char* argv[]) {
         // ── 每小時自動備份所有 JSON 資料（覆蓋同一份，不累積） ──────────────
         bot.start_timer([](dpp::timer) {
             try { backup_data_files(); } catch (...) {}
+            try { daily_snapshot_data_files(); } catch (...) {}
         }, 3600);
 
         // ── 拍賣行到期自動下架（開機先掃一次，之後每 5 分鐘掃一次） ────────────

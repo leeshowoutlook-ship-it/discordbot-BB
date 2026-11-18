@@ -1,68 +1,5 @@
 [
   {
-    "id": 2005,
-    "item_name": "尊爵VIP（每日）",
-    "price": 8000,
-    "source": "virtual",
-    "timestamp": 1788178019,
-    "uid": 479900597013708802,
-    "username": "allenchou01"
-  },
-  {
-    "id": 2006,
-    "item_name": "寵物監工（每日） ×5",
-    "price": 5000,
-    "source": "virtual",
-    "timestamp": 1788178033,
-    "uid": 479900597013708802,
-    "username": "allenchou01"
-  },
-  {
-    "id": 2007,
-    "item_name": "尊爵VIP（每日） ×3",
-    "price": 24000,
-    "source": "virtual",
-    "timestamp": 1788183443,
-    "uid": 559287346131107861,
-    "username": "soli110819"
-  },
-  {
-    "id": 2008,
-    "item_name": "寵物監工（每日） ×3",
-    "price": 3000,
-    "source": "virtual",
-    "timestamp": 1788183449,
-    "uid": 559287346131107861,
-    "username": "soli110819"
-  },
-  {
-    "id": 2009,
-    "item_name": "尊爵VIP（每日）",
-    "price": 8000,
-    "source": "virtual",
-    "timestamp": 1788191768,
-    "uid": 308970166287466497,
-    "username": "bedakun"
-  },
-  {
-    "id": 2010,
-    "item_name": "寵物監工（每日）",
-    "price": 1000,
-    "source": "virtual",
-    "timestamp": 1788191795,
-    "uid": 308970166287466497,
-    "username": "bedakun"
-  },
-  {
-    "id": 2011,
-    "item_name": "尊爵VIP（每日）",
-    "price": 8000,
-    "source": "virtual",
-    "timestamp": 1788194152,
-    "uid": 651090037102084096,
-    "username": "xiao_yu5928"
-  },
-  {
     "id": 2012,
     "item_name": "高級傷藥",
     "price": 2000,
@@ -448,5 +385,68 @@
     "timestamp": 1788281812,
     "uid": 1367598479110836335,
     "username": "xu_dk"
+  },
+  {
+    "id": 2055,
+    "item_name": "第二天賦解鎖石",
+    "price": 50000,
+    "source": "virtual",
+    "timestamp": 1788282541,
+    "uid": 1367598479110836335,
+    "username": "xu_dk"
+  },
+  {
+    "id": 2056,
+    "item_name": "天賦賦予卷軸",
+    "price": 15000,
+    "source": "virtual",
+    "timestamp": 1788282548,
+    "uid": 1367598479110836335,
+    "username": "xu_dk"
+  },
+  {
+    "id": 2057,
+    "item_name": "尊爵VIP（每日）",
+    "price": 8000,
+    "source": "virtual",
+    "timestamp": 1788282645,
+    "uid": 308970166287466497,
+    "username": "bedakun"
+  },
+  {
+    "id": 2058,
+    "item_name": "寵物監工（每日）",
+    "price": 1000,
+    "source": "virtual",
+    "timestamp": 1788282740,
+    "uid": 308970166287466497,
+    "username": "bedakun"
+  },
+  {
+    "id": 2059,
+    "item_name": "尊爵VIP（每日）",
+    "price": 8000,
+    "source": "virtual",
+    "timestamp": 1795012403,
+    "uid": 741919638505652226,
+    "username": "leaf1002_"
+  },
+  {
+    "id": 2060,
+    "item_name": "抗憂鬱藥物 ×3",
+    "price": 6000,
+    "source": "virtual",
+    "timestamp": 1795017000,
+    "uid": 1036953796007448606,
+    "username": "chu___0112"
+  },
+  {
+    "id": 2061,
+    "item_name": "溫馨家書 ×3",
+    "price": 6000,
+    "source": "virtual",
+    "timestamp": 1795017013,
+    "uid": 1036953796007448606,
+    "username": "chu___0112"
   }
 ]

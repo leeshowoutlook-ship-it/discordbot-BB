@@ -1,15 +1,33 @@
 {
+  "1008386641834025011": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_SPEED",
+    "ring": "",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
+  },
   "1036953796007448606": {
     "clothes": "EQ_C_D_UR",
     "glove": "EQ_G_D_UR",
     "orb": "EQ_K_WARGOD",
+    "ring": "",
     "shoes": "EQ_S_D_UR",
     "weapon": "EQ_W_D_UR"
+  },
+  "1047734346372612116": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_SPEED",
+    "ring": "",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
   },
   "1115212853289427004": {
     "clothes": "EQ_C_A_UR",
     "glove": "EQ_G_A_UR",
     "orb": "EQ_K_UR",
+    "ring": "",
     "shoes": "EQ_S_A_UR",
     "weapon": "EQ_W_A_UR"
   },
@@ -17,6 +35,7 @@
     "clothes": "EQ_C_A_SR",
     "glove": "EQ_G_B_SR",
     "orb": "",
+    "ring": "",
     "shoes": "EQ_S_A_R",
     "weapon": "EQ_W_C_UR"
   },
@@ -24,6 +43,7 @@
     "clothes": "EQ_C_C_UR",
     "glove": "EQ_G_C_UR",
     "orb": "EQ_K_WARGOD",
+    "ring": "",
     "shoes": "EQ_S_C_UR",
     "weapon": "EQ_W_C_UR"
   },
@@ -31,6 +51,7 @@
     "clothes": "EQ_C_C_UR",
     "glove": "EQ_G_C_UR",
     "orb": "EQ_K_UR",
+    "ring": "",
     "shoes": "EQ_S_A_SR",
     "weapon": "EQ_W_A_UR"
   },
@@ -38,6 +59,7 @@
     "clothes": "EQ_C_A_UR",
     "glove": "EQ_G_A_UR",
     "orb": "EQ_K_UR",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_B_UR"
   },
@@ -45,6 +67,7 @@
     "clothes": "EQ_C_A_UR",
     "glove": "EQ_G_A_UR",
     "orb": "EQ_K_UR",
+    "ring": "",
     "shoes": "EQ_S_A_UR",
     "weapon": "EQ_W_A_UR"
   },
@@ -52,6 +75,7 @@
     "clothes": "EQ_C_C_UR",
     "glove": "EQ_G_C_UR",
     "orb": "EQ_K_WARGOD",
+    "ring": "",
     "shoes": "EQ_S_C_UR",
     "weapon": "EQ_W_C_UR"
   },
@@ -59,13 +83,31 @@
     "clothes": "EQ_C_C_SR",
     "glove": "EQ_G_C_SR",
     "orb": "",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_B_SR"
+  },
+  "1500454493043822602": {
+    "clothes": "EQ_C_B_UR",
+    "glove": "EQ_G_B_UR",
+    "orb": "EQ_K_ATHENA",
+    "ring": "",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_B_UR"
+  },
+  "1503509660311752714": {
+    "clothes": "EQ_C_B_UR",
+    "glove": "EQ_G_B_UR",
+    "orb": "EQ_K_VIKING",
+    "ring": "",
+    "shoes": "EQ_S_B_UR",
+    "weapon": "EQ_W_B_UR"
   },
   "308970166287466497": {
     "clothes": "EQ_C_B_UR",
     "glove": "EQ_G_B_UR",
     "orb": "EQ_K_UR",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_B_UR"
   },
@@ -73,6 +115,15 @@
     "clothes": "EQ_C_A_UR",
     "glove": "EQ_G_A_UR",
     "orb": "EQ_K_SPEED",
+    "ring": "",
+    "shoes": "EQ_S_A_UR",
+    "weapon": "EQ_W_A_UR"
+  },
+  "439624259589898250": {
+    "clothes": "EQ_C_A_UR",
+    "glove": "EQ_G_A_UR",
+    "orb": "EQ_K_SPEED",
+    "ring": "",
     "shoes": "EQ_S_A_UR",
     "weapon": "EQ_W_A_UR"
   },
@@ -80,6 +131,7 @@
     "clothes": "EQ_C_B_UR",
     "glove": "EQ_G_B_UR",
     "orb": "EQ_K_LIFEGODDESS",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_B_UR"
   },
@@ -87,6 +139,7 @@
     "clothes": "EQ_C_C_SR",
     "glove": "EQ_G_A_UR",
     "orb": "",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_C_UR"
   },
@@ -94,6 +147,7 @@
     "clothes": "EQ_C_B_UR",
     "glove": "EQ_G_B_UR",
     "orb": "EQ_K_LIFEGODDESS",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_B_UR"
   },
@@ -101,6 +155,7 @@
     "clothes": "EQ_C_B_UR",
     "glove": "EQ_G_B_UR",
     "orb": "EQ_K_SPEED",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_B_UR"
   },
@@ -108,6 +163,7 @@
     "clothes": "EQ_C_A_UR",
     "glove": "EQ_G_A_UR",
     "orb": "EQ_K_UR",
+    "ring": "",
     "shoes": "EQ_S_A_UR",
     "weapon": "EQ_W_A_UR"
   },
@@ -115,6 +171,7 @@
     "clothes": "EQ_C_C_UR",
     "glove": "EQ_G_C_SR",
     "orb": "",
+    "ring": "",
     "shoes": "EQ_S_C_UR",
     "weapon": "EQ_W_C_UR"
   },
@@ -122,6 +179,7 @@
     "clothes": "EQ_C_B_UR",
     "glove": "EQ_G_A_UR",
     "orb": "EQ_K_UR",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_C_UR"
   },
@@ -129,6 +187,7 @@
     "clothes": "EQ_C_C_UR",
     "glove": "EQ_G_C_UR",
     "orb": "EQ_K_WARGOD",
+    "ring": "",
     "shoes": "EQ_S_C_UR",
     "weapon": "EQ_W_C_UR"
   },
@@ -136,6 +195,7 @@
     "clothes": "EQ_C_A_UR",
     "glove": "EQ_G_C_UR",
     "orb": "EQ_K_SPEED",
+    "ring": "",
     "shoes": "EQ_S_C_UR",
     "weapon": "EQ_W_A_UR"
   },
@@ -143,6 +203,7 @@
     "clothes": "EQ_C_C_C",
     "glove": "",
     "orb": "",
+    "ring": "",
     "shoes": "",
     "weapon": ""
   },
@@ -150,6 +211,7 @@
     "clothes": "EQ_C_C_SR",
     "glove": "EQ_G_B_UR",
     "orb": "",
+    "ring": "",
     "shoes": "EQ_S_A_SR",
     "weapon": "EQ_W_A_R"
   },
@@ -157,6 +219,7 @@
     "clothes": "EQ_C_B_SR",
     "glove": "EQ_G_A_UR",
     "orb": "EQ_K_SPEED",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_B_SR"
   },
@@ -164,6 +227,7 @@
     "clothes": "EQ_C_C_UR",
     "glove": "EQ_G_C_UR",
     "orb": "EQ_K_VIKING",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_B_UR"
   },
@@ -171,6 +235,23 @@
     "clothes": "EQ_C_C_UR",
     "glove": "EQ_G_C_UR",
     "orb": "EQ_K_BEAR",
+    "ring": "",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
+  },
+  "687270072385142807": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "",
+    "ring": "",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
+  },
+  "723170866892111984": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_SPEED",
+    "ring": "",
     "shoes": "EQ_S_C_UR",
     "weapon": "EQ_W_C_UR"
   },
@@ -178,13 +259,23 @@
     "clothes": "EQ_C_A_UR",
     "glove": "EQ_G_A_UR",
     "orb": "EQ_K_ATHENA",
+    "ring": "",
     "shoes": "EQ_S_A_UR",
     "weapon": "EQ_W_A_UR"
+  },
+  "741919638505652226": {
+    "clothes": "EQ_C_C_UR",
+    "glove": "EQ_G_C_UR",
+    "orb": "EQ_K_WARGOD",
+    "ring": "",
+    "shoes": "EQ_S_C_UR",
+    "weapon": "EQ_W_C_UR"
   },
   "811232678590152790": {
     "clothes": "EQ_C_B_UR",
     "glove": "EQ_G_B_UR",
     "orb": "EQ_K_WARGOD",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_B_UR"
   },
@@ -192,6 +283,7 @@
     "clothes": "EQ_C_C_UR",
     "glove": "EQ_G_C_UR",
     "orb": "EQ_K_UR",
+    "ring": "",
     "shoes": "EQ_S_C_UR",
     "weapon": "EQ_W_C_UR"
   },
@@ -199,6 +291,7 @@
     "clothes": "EQ_C_C_UR",
     "glove": "EQ_G_A_UR",
     "orb": "EQ_K_WARGOD",
+    "ring": "",
     "shoes": "EQ_S_C_UR",
     "weapon": "EQ_W_A_UR"
   },
@@ -206,6 +299,7 @@
     "clothes": "EQ_C_C_UR",
     "glove": "EQ_G_C_UR",
     "orb": "EQ_K_VIKING",
+    "ring": "",
     "shoes": "EQ_S_C_UR",
     "weapon": "EQ_W_C_UR"
   },
@@ -213,6 +307,7 @@
     "clothes": "EQ_C_C_UR",
     "glove": "EQ_G_C_UR",
     "orb": "EQ_K_VIKING",
+    "ring": "",
     "shoes": "EQ_S_C_UR",
     "weapon": "EQ_W_C_UR"
   },
@@ -220,6 +315,7 @@
     "clothes": "EQ_C_B_UR",
     "glove": "EQ_G_B_UR",
     "orb": "EQ_K_UR",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_B_UR"
   },
@@ -227,6 +323,7 @@
     "clothes": "EQ_C_A_SR",
     "glove": "EQ_G_A_SR",
     "orb": "",
+    "ring": "",
     "shoes": "EQ_S_A_SR",
     "weapon": "EQ_W_A_SR"
   },
@@ -234,6 +331,7 @@
     "clothes": "EQ_C_B_UR",
     "glove": "EQ_G_C_UR",
     "orb": "EQ_K_SPEED",
+    "ring": "",
     "shoes": "EQ_S_B_UR",
     "weapon": "EQ_W_C_UR"
   }

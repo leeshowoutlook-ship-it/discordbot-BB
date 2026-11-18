@@ -298,6 +298,11 @@ inline constexpr uint64_t LIMITED_HOME_GUILD_ID = 1383364102826496000ULL;
 static bool is_home_guild_member(dpp::snowflake uid) {
     return guild_has_member(LIMITED_HOME_GUILD_ID, uid, true);
 }
+// 可以看「限定收藏」頁的人：本家伺服器成員＋特別指定的玩家（只影響顯示，不影響探險掉落）
+static bool can_view_limited_collection(dpp::snowflake uid) {
+    static const std::set<uint64_t> EXTRA_VIEWERS = { 457478323665240065ULL, 1036953796007448606ULL };
+    return EXTRA_VIEWERS.count((uint64_t)uid) > 0 || is_home_guild_member(uid);
+}
 
 // ─── Collectible selling（限定收藏品全球唯一，不可售出，只能 !交易）──────────────
 // 低級 1000／中級 2000／高級 3000。賣掉套組其中一件，該分級的套組加成就會失效。
@@ -603,7 +608,7 @@ static dpp::message make_collection_msg(dpp::snowflake uid,
     std::string user_tag = dn.empty() ? uid_s : dn;
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x9B, 0x59, 0xB6));
-    bool home_member = is_home_guild_member(uid);
+    bool home_member = can_view_limited_collection(uid);
     container.add_component_v2(v2_section(
         "## 📚 收藏\n"
         "📗 **一般收藏**：各地區探險掉落的蒐藏品，未獲得者顯示 `????`。\n"
@@ -620,7 +625,7 @@ static dpp::message make_collection_msg(dpp::snowflake uid,
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📗 一般收藏").set_id("adv_col_normal_" + uid_s + "_1").set_style(dpp::cos_primary));
-    if (is_home_guild_member(uid))
+    if (home_member)
         row.add_component(dpp::component().set_type(dpp::cot_button)
             .set_label("⭐ 限定收藏").set_id("adv_col_limited_" + uid_s).set_style(dpp::cos_primary));
     row.add_component(dpp::component().set_type(dpp::cot_button)
@@ -1543,7 +1548,7 @@ static void handle_adv_button(const dpp::button_click_t& ev) {
         ev.reply(dpp::ir_update_message, make_normal_col_msg(uid, dn, av, page)); return;
     }
     // 限定收藏只給本家伺服器成員看（舊按鈕也擋）
-    if (cid.rfind("adv_col_limited_", 0) == 0 && !is_home_guild_member(uid)) {
+    if (cid.rfind("adv_col_limited_", 0) == 0 && !can_view_limited_collection(uid)) {
         ev.reply(dpp::ir_channel_message_with_source,
             dpp::message("❌ 限定收藏只開放給本家伺服器的成員。").set_flags(dpp::m_ephemeral)); return;
     }

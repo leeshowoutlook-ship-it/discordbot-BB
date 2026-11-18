@@ -2,16 +2,16 @@
   "stock_0050": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1794841592,
-    "prev_close": 96,
-    "price": 96
+    "last_update": 1795019734,
+    "prev_close": 94,
+    "price": 94
   },
   "stock_btc": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1794841592,
-    "prev_close": 64920,
-    "price": 64629
+    "last_update": 1795019734,
+    "prev_close": 62425,
+    "price": 62409
   },
   "stock_catbro": {
     "day_number": 20764,
@@ -23,30 +23,30 @@
   "stock_mood": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1794480951,
-    "prev_close": 1200,
-    "price": 1111
+    "last_update": 1794842302,
+    "prev_close": 1111,
+    "price": 1150
   },
   "stock_mstr": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1794841592,
-    "prev_close": 104,
-    "price": 104
+    "last_update": 1795019734,
+    "prev_close": 92,
+    "price": 92
   },
   "stock_ntdo": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1794841592,
-    "prev_close": 8894,
-    "price": 8894
+    "last_update": 1795019734,
+    "prev_close": 9002,
+    "price": 9002
   },
   "stock_nvda": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1794841592,
-    "prev_close": 160,
-    "price": 159
+    "last_update": 1795019734,
+    "prev_close": 153,
+    "price": 153
   },
   "stock_purse": {
     "day_number": 20734,
@@ -58,15 +58,15 @@
   "stock_tsmc": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1794841592,
-    "prev_close": 2215,
-    "price": 2215
+    "last_update": 1795019734,
+    "prev_close": 2175,
+    "price": 2175
   },
   "stock_yageo": {
     "day_number": 0,
     "day_open_price": 0,
-    "last_update": 1794841592,
-    "prev_close": 374,
-    "price": 374
+    "last_update": 1795019734,
+    "prev_close": 352,
+    "price": 352
   }
 }

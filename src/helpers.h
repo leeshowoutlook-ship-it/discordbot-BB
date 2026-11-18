@@ -64,7 +64,7 @@ static const char* const DATA_FILES[] = {
     "rlstats.json","rocketstats.json","rpsstats.json","scratch_games.json","scratchstats.json",
     "settings.json","shootstats.json","shop.json","stock_holdings.json",
     "stock_market.json","uc_stats.json","warnings.json","wolfplayerstats.json",
-    "lolbet.json","niuniu_stats.json","numbomb.json", nullptr
+    "lolbet.json","niuniu_stats.json","numbomb.json","signin.json", nullptr
 };
 
 static inline bool json_file_valid(const std::filesystem::path& p) {
@@ -122,6 +122,54 @@ static inline void backup_data_files() {
             continue;
         }
         fs::copy_file(p, fs::path("backup") / p, fs::copy_options::overwrite_existing, ec);
+    }
+}
+
+// 每日快照：每天一個資料夾 daily_backup/YYYY-MM-DD，不會被之後的存檔覆蓋，保留最近 keep_days 份。
+// 開機時（load 之前）和每小時備份時各檢查一次，當天已經有快照就跳過。
+static inline void daily_snapshot_data_files(size_t keep_days = 14) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    char day[16]; time_t now = time(nullptr); tm lt{}; localtime_s(&lt, &now);
+    strftime(day, sizeof(day), "%Y-%m-%d", &lt);
+    const fs::path root("daily_backup");
+    const fs::path dir = root / day;
+    if (fs::exists(dir, ec)) return;
+
+    // 先寫到暫存資料夾，全部完成才改名，避免留下只複製一半的快照
+    const fs::path tmp = root / (std::string(day) + ".tmp");
+    fs::remove_all(tmp, ec);
+    ec.clear();
+    fs::create_directories(tmp, ec);
+    if (ec) { fprintf(stderr, "[DAILY_BACKUP] create failed: %s\n", ec.message().c_str()); fflush(stderr); return; }
+    int copied = 0;
+    for (int i = 0; DATA_FILES[i]; i++) {
+        fs::path p(DATA_FILES[i]);
+        std::error_code fe;
+        if (!fs::exists(p, fe)) continue;
+        if (!json_file_valid(p)) {
+            fprintf(stderr, "[DAILY_BACKUP] skip corrupt %s\n", DATA_FILES[i]); fflush(stderr);
+            continue;
+        }
+        fs::copy_file(p, tmp / p, fs::copy_options::overwrite_existing, fe);
+        if (fe) { fprintf(stderr, "[DAILY_BACKUP] copy failed %s: %s\n", DATA_FILES[i], fe.message().c_str()); fflush(stderr); }
+        else copied++;
+    }
+    fs::rename(tmp, dir, ec);
+    if (ec) { fprintf(stderr, "[DAILY_BACKUP] rename failed: %s\n", ec.message().c_str()); fflush(stderr); return; }
+    fprintf(stderr, "[DAILY_BACKUP] %s: %d files\n", day, copied); fflush(stderr);
+
+    // 只清理日期格式的資料夾，其他東西一律不動
+    std::vector<fs::path> days;
+    for (auto& e : fs::directory_iterator(root, ec)) {
+        const std::string n = e.path().filename().string();
+        if (e.is_directory() && n.size() == 10 && n[4] == '-' && n[7] == '-') days.push_back(e.path());
+    }
+    std::sort(days.begin(), days.end());
+    while (days.size() > keep_days) {
+        std::error_code re;
+        fs::remove_all(days.front(), re);
+        days.erase(days.begin());
     }
 }
 

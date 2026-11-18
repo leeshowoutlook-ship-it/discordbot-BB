@@ -91,6 +91,7 @@
   "oh_shield_10",
   "sc_earring_atk100",
   "sc_earring_atk60",
+  "sc_earring_atk_curse80",
   "sc_wpn_purewhite70",
   "wpn_spore_rifle",
   "wpn_spore_sniper",
@@ -100,6 +101,7 @@
  "memory_road5": [
   "sc_clothes20",
   "sc_earring60",
+  "sc_equip_cleanwhite10",
   "sc_helmet20",
   "sc_helmet_curse50",
   "wpn_dark_red_brick_rifle",
@@ -125,6 +127,7 @@
  "night_market7_1": [
   "oh_grimoire_10",
   "oh_scope_10",
+  "oh_shield_10",
   "sc_curse_shield",
   "sc_equip_cleanwhite15",
   "sc_necklace60",

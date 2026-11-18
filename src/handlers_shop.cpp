@@ -69,7 +69,9 @@ void handle_shop_button(const dpp::button_click_t& ev)
         } else if (cid.rfind("gacha_banner_hero_", 0) == 0) {
             ev.reply(dpp::ir_update_message, make_gacha_banner_msg(uid, 2, dn, av));
         } else if (cid.rfind("gacha_banner_mystery_", 0) == 0) {
-            ev.reply(dpp::ir_update_message, make_gacha_banner_msg(uid, 3, dn, av));
+            // 天選之子已關閉：舊訊息上的按鈕還按得到，這裡擋掉（保底進度保留在 gacha_mystery_pity.json）
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("🔒 天選之子已關閉！").set_flags(dpp::m_ephemeral));
         } else if (cid.rfind("gacha_norm_", 0) == 0) {
             std::string mid = cid.substr(11);
             size_t sep = mid.find('_');
@@ -122,12 +124,7 @@ void handle_shop_button(const dpp::button_click_t& ev)
             save_inventory();
             ev.reply(dpp::ir_update_message, make_gacha_result_msg(uid, pulls, 1, dn, av));
         } else if (cid.rfind("gacha_hero_", 0) == 0) {
-            // 俠客之路暫停開放：主頁面按鈕是 disabled，正常流程進不來這裡；
-            // 保留防呆，萬一有人直接偽造互動也直接擋掉，不會真的扣款/抽卡
-            ev.reply(dpp::ir_channel_message_with_source,
-                dpp::message("🔒 俠客之路暫停開放！敬請期待。").set_flags(dpp::m_ephemeral));
-        } else if (cid.rfind("gacha_mystery_", 0) == 0) {
-            std::string mid = cid.substr(14);
+            std::string mid = cid.substr(11);
             size_t sep = mid.find('_');
             int count = std::stoi(mid.substr(0, sep));
             int cost = count * 200;
@@ -137,21 +134,25 @@ void handle_shop_button(const dpp::button_click_t& ev)
             }
             add_chips(uid, -(int64_t)cost);
             std::vector<const GachaItem*> pulls;
-            for (int i = 0; i < count; i++) pulls.push_back(&gacha_pull_mystery());
+            for (int i = 0; i < count; i++) pulls.push_back(&gacha_pull_hero());
 
-            int mystery_pity_after = 0; bool mystery_pity_fired = false;
+            int hero_pity_after = 0; bool hero_pity_fired = false;
             {
                 std::lock_guard<std::mutex> lk(data_mutex);
-                gacha_mystery_pity_data[(uint64_t)uid] += count;
-                if (gacha_mystery_pity_data[(uint64_t)uid] >= 200) {
-                    gacha_mystery_pity_data[(uint64_t)uid] -= 200;
-                    mystery_pity_fired = true;
+                gacha_hero_pity_data[(uint64_t)uid] += count;
+                if (gacha_hero_pity_data[(uint64_t)uid] >= 200) {
+                    gacha_hero_pity_data[(uint64_t)uid] -= 200;
+                    hero_pity_fired = true;
                 }
-                mystery_pity_after = gacha_mystery_pity_data[(uint64_t)uid];
+                hero_pity_after = gacha_hero_pity_data[(uint64_t)uid];
             }
-            if (mystery_pity_fired) pulls.push_back(&gacha_pull_mystery_ur_pity());
-            save_chips(); save_inventory(); save_gacha_mystery_pity();
-            ev.reply(dpp::ir_update_message, make_gacha_result_msg(uid, pulls, 3, dn, av, mystery_pity_after, mystery_pity_fired));
+            if (hero_pity_fired) pulls.push_back(&gacha_pull_hero_ur_pity());
+            save_chips(); save_inventory(); save_gacha_hero_pity();
+            ev.reply(dpp::ir_update_message, make_gacha_result_msg(uid, pulls, 2, dn, av, hero_pity_after, hero_pity_fired));
+        } else if (cid.rfind("gacha_mystery_", 0) == 0) {
+            // 天選之子已關閉：舊訊息上的按鈕不會扣款也不會抽卡
+            ev.reply(dpp::ir_channel_message_with_source,
+                dpp::message("🔒 天選之子已關閉！").set_flags(dpp::m_ephemeral));
         }
         return;
     }

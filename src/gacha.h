@@ -668,9 +668,9 @@ static dpp::message make_gacha_main_msg(dpp::snowflake uid,
     e.add_field("⭐ 群星閃耀之時",
         "每抽 **1 顆星星**（目前持有：" + std::to_string(stars) + " 顆）\n"
         "機率：💜SR 80% ｜ ✨UR 20%", false);
-    e.add_field("🌟 天選之子",
+    e.add_field("🗡️ 俠客之路",
         "每抽 **200 籌碼**\n機率：⬜C 68% ｜ 🔵R 20% ｜ 💜SR 10% ｜ ✨UR 2%\n"
-        "UR 中：⚡赫耳墨斯套裝 各0.375%（共1.5%）｜ 🗡️俠客之心 0.1% ｜ 其餘一般UR 0.4%\n"
+        "UR 中：🗡️江湖套裝 各0.35%（共1.4%）｜ 💗生命女神寶珠 0.2% ｜ 其餘一般UR 0.4%\n"
         "🔮 每 **200 抽**保底出 UR（獨立計算，跟一般池分開算）", false);
     dpp::embed_footer footer;
     footer.text = "👤 " + display_name;
@@ -686,7 +686,7 @@ static dpp::message make_gacha_main_msg(dpp::snowflake uid,
     };
     mk("🎲 一般池",       "gacha_banner_normal_" + uid_s, dpp::cos_primary);
     mk("⭐ 群星閃耀之時", "gacha_banner_star_"   + uid_s, dpp::cos_success);
-    mk("🌟 天選之子",    "gacha_banner_mystery_" + uid_s, dpp::cos_danger);
+    mk("🗡️ 俠客之路",    "gacha_banner_hero_" + uid_s, dpp::cos_danger);
     msg.add_component(row);
 
     dpp::component row2; row2.set_type(dpp::cot_action_row);
@@ -698,7 +698,7 @@ static dpp::message make_gacha_main_msg(dpp::snowflake uid,
 
 // ─── Banner detail + pull message ────────────────────────────────────────────
 
-// pool_type: 0=一般池, 1=群星閃耀之時, 2=俠客之路（暫停開放）, 3=天選之子
+// pool_type: 0=一般池, 1=群星閃耀之時, 2=俠客之路, 3=天選之子（已關閉）
 static dpp::message make_gacha_banner_msg(dpp::snowflake uid, int pool_type,
                                           const std::string& display_name,
                                           const std::string& avatar_url) {
@@ -727,9 +727,8 @@ static dpp::message make_gacha_banner_msg(dpp::snowflake uid, int pool_type,
             auto it = gacha_hero_pity_data.find((uint64_t)uid);
             if (it != gacha_hero_pity_data.end()) hero_pity = it->second;
         }
-        e.set_title("🔒  俠客之路（暫停開放）").set_color(0x95A5A6);
-        e.set_description("暫停開放：\n"
-                          "機率：⬜C **68%** ｜ 🔵R **20%** ｜ 💜SR **10%** ｜ ✨UR **2%**\n"
+        e.set_title("🗡️  俠客之路").set_color(0xC0392B);
+        e.set_description("機率：⬜C **68%** ｜ 🔵R **20%** ｜ 💜SR **10%** ｜ ✨UR **2%**\n"
                           "✨UR 中：🗡️江湖套裝 各 **0.35%**（合計1.4%）｜ 💗生命女神寶珠 **0.2%** ｜ 其餘一般UR **0.4%**\n"
                           "每 **200 抽**保底出 UR（獨立計算）！");
         e.add_field("💰 餘額",      std::to_string(chips) + " 碼", true);
@@ -787,8 +786,8 @@ static dpp::message make_gacha_banner_msg(dpp::snowflake uid, int pool_type,
         mk("⭐ 1連（1顆）",  pfx + "1_"  + uid_s, stars < 1);
         mk("⭐ 10連（10顆）",pfx + "10_" + uid_s, stars < 10);
     } else if (pool_type == 2) {
-        mk("🔒 尚未開放",   pfx + "1_"  + uid_s, true);
-        mk("🔒 尚未開放",   pfx + "10_" + uid_s, true);
+        mk("🗡️ 1連（200碼）",   pfx + "1_"  + uid_s, chips < 200);
+        mk("🗡️ 10連（2000碼）",pfx + "10_" + uid_s, chips < 2000);
     } else if (pool_type == 3) {
         mk("🌟 1連（200碼）",   pfx + "1_"  + uid_s, chips < 200);
         mk("🌟 10連（2000碼）",pfx + "10_" + uid_s, chips < 2000);
@@ -806,7 +805,7 @@ static dpp::message make_gacha_banner_msg(dpp::snowflake uid, int pool_type,
 
 // ─── Pull result message ──────────────────────────────────────────────────────
 
-// pool_type: 0=一般池, 1=群星閃耀之時, 2=俠客之路（暫停開放）, 3=天選之子
+// pool_type: 0=一般池, 1=群星閃耀之時, 2=俠客之路, 3=天選之子（已關閉）
 static dpp::message make_gacha_result_msg(dpp::snowflake uid,
                                           const std::vector<const GachaItem*>& pulls,
                                           int pool_type,
@@ -857,8 +856,8 @@ static dpp::message make_gacha_result_msg(dpp::snowflake uid,
     std::string pfx    = pool_type == 1 ? "gacha_star_"        : pool_type == 2 ? "gacha_hero_"        : pool_type == 3 ? "gacha_mystery_"        : "gacha_norm_";
     std::string bpfx   = pool_type == 1 ? "gacha_banner_star_" : pool_type == 2 ? "gacha_banner_hero_"  : pool_type == 3 ? "gacha_banner_mystery_"  : "gacha_banner_normal_";
     dpp::component_style sty = pool_type == 1 ? dpp::cos_success : (pool_type == 2 || pool_type == 3) ? dpp::cos_danger : dpp::cos_primary;
-    std::string ten_lbl  = pool_type == 1 ? "⭐ 再抽十次（10顆）" : pool_type == 2 ? "🔒 尚未開放" : pool_type == 3 ? "🌟 再抽十次（2000碼）" : "🎲 再抽十次（500碼）";
-    std::string again_lbl= pool_type == 1 ? "⭐ 繼續抽（星星池）" : pool_type == 2 ? "🔒 尚未開放" : pool_type == 3 ? "🌟 繼續抽（天選之子）" : "🎲 繼續抽（一般池）";
+    std::string ten_lbl  = pool_type == 1 ? "⭐ 再抽十次（10顆）" : pool_type == 2 ? "🗡️ 再抽十次（2000碼）" : pool_type == 3 ? "🌟 再抽十次（2000碼）" : "🎲 再抽十次（500碼）";
+    std::string again_lbl= pool_type == 1 ? "⭐ 繼續抽（星星池）" : pool_type == 2 ? "🗡️ 繼續抽（俠客之路）" : pool_type == 3 ? "🌟 繼續抽（天選之子）" : "🎲 繼續抽（一般池）";
     if (pulls.size() == 10) {
         int64_t chips2 = 0; int stars2 = 0;
         {
@@ -867,7 +866,7 @@ static dpp::message make_gacha_result_msg(dpp::snowflake uid,
             if (inventory_data.count(uid) && inventory_data.at(uid).count("star_unknown"))
                 stars2 = inventory_data.at(uid).at("star_unknown");
         }
-        bool disabled = pool_type == 1 ? (stars2 < 10) : pool_type == 2 ? true : pool_type == 3 ? (chips2 < 2000) : (chips2 < 500);
+        bool disabled = pool_type == 1 ? (stars2 < 10) : (pool_type == 2 || pool_type == 3) ? (chips2 < 2000) : (chips2 < 500);
         dpp::component row10; row10.set_type(dpp::cot_action_row);
         dpp::component ten;
         ten.set_type(dpp::cot_button)
