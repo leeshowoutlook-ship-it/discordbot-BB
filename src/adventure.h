@@ -1439,41 +1439,6 @@ static dpp::message make_adv_duration_select_msg(dpp::snowflake uid, const std::
 
 // ─── Sub-page: funds select ───────────────────────────────────────────────────
 
-static dpp::message make_adv_funds_select_msg(dpp::snowflake uid, const std::string& dn = "", const std::string& av = "") {
-    std::string uid_s = std::to_string((uint64_t)uid);
-    std::string user_tag = dn.empty() ? uid_s : dn;
-    int64_t cur = get_chips(uid);
-
-    dpp::component container;
-    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
-    container.add_component_v2(v2_section(
-        "## 💰 選擇探險資金\n"
-        "投入的資金在探索完成前無法取回；若中途取消探索，只會退還 60%。\n上限 10000 碼。\n\n"
-        "目前錢包：**" + std::to_string(cur) + "** 碼\n\n-# 👤 " + user_tag, av));
-
-    dpp::message msg;
-    msg.set_flags(dpp::m_using_components_v2);
-    msg.add_component_v2(container);
-
-    dpp::component row1; row1.set_type(dpp::cot_action_row);
-    for (int64_t amt : {(int64_t)0, (int64_t)2500, (int64_t)5000, (int64_t)7500, (int64_t)10000}) {
-        bool disabled = (amt > 0 && cur < amt);
-        std::string lbl = (amt == 0) ? "0碼" : (std::to_string(amt) + "碼+" + std::to_string((int)(amt/250)));
-        row1.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label(lbl)
-            .set_id("adv_funds_" + uid_s + "_" + std::to_string(amt))
-            .set_style(disabled ? dpp::cos_secondary : dpp::cos_primary)
-            .set_disabled(disabled));
-    }
-    msg.add_component_v2(row1);
-
-    dpp::component row2; row2.set_type(dpp::cot_action_row);
-    row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("↩ 返回").set_id("adv_main_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component_v2(row2);
-    return msg;
-}
-
 // ─── Sub-page: partner select ─────────────────────────────────────────────────
 
 static dpp::message make_adv_partner_select_msg(dpp::snowflake uid, const std::string& dn = "", const std::string& av = "") {

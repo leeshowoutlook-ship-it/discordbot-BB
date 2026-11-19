@@ -45,15 +45,6 @@ static bool is_blackjack(const std::vector<BJCard>& hand) {
     return hand.size() == 2 && hand_value(hand) == 21;
 }
 
-static std::string hand_str(const std::vector<BJCard>& hand, bool hide_second = false) {
-    std::ostringstream oss;
-    for (size_t i = 0; i < hand.size(); i++) {
-        if (i > 0) oss << " ";
-        oss << (i == 1 && hide_second ? "🃏" : card_str(hand[i]));
-    }
-    return oss.str();
-}
-
 // ─── Deck ─────────────────────────────────────────────────────────────────────
 
 static std::vector<BJCard> make_deck() {

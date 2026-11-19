@@ -3,11 +3,6 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
-struct ShopItem { std::string name; int64_t price; int total; int sold; };
-// 楓之谷商店（一般商店內的分館）目前沒有上架商品，之後要新增就往這裡加。
-static std::vector<ShopItem> maple_items = {
-};
-static const std::string SHOP_FILE      = "shop.json";
 static const std::string PURCHASES_FILE = "purchases.json";
 
 static void load_purchases() {
@@ -51,19 +46,6 @@ static void save_purchases() {
     atomic_write(PURCHASES_FILE, j.dump(2));
 }
 
-static bool has_maple_bought_this_month(dpp::snowflake uid, const std::string& item_name) {
-    time_t now = time(nullptr);
-    struct tm t{}; localtime_s(&t, &now);
-    int yr = t.tm_year, mo = t.tm_mon;
-    for (auto& r : purchase_records) {
-        if (r.source == "maple" && r.uid == uid && r.item_name == item_name) {
-            struct tm rt{}; localtime_s(&rt, &r.timestamp);
-            if (rt.tm_year == yr && rt.tm_mon == mo) return true;
-        }
-    }
-    return false;
-}
-
 // ─── Ledger UI (admin only) ────────────────────────────────────────────────────
 // filter: "all" | "maple" | "virtual"
 
@@ -86,8 +68,7 @@ static dpp::message make_ledger_msg(int page = 0, const std::string& filter = "a
     int start = page * PAGE_SIZE;
     int end   = std::min(start + PAGE_SIZE, total);
 
-    std::string title = (filter == "maple") ? "📒  楓之谷商店帳本"
-                      : (filter == "virtual") ? "📒  虛擬商店帳本"
+    std::string title = (filter == "virtual") ? "📒  虛擬商店帳本"
                       : "📒  購買記帳本";
     dpp::embed e;
     e.set_title(title).set_color(0x9B59B6);
@@ -114,7 +95,7 @@ static dpp::message make_ledger_msg(int page = 0, const std::string& filter = "a
     // Tab row
     dpp::component tab_row; tab_row.set_type(dpp::cot_action_row);
     for (auto& [lbl, f] : std::vector<std::pair<std::string,std::string>>{
-            {"全部", "all"}, {"🍁 瘋子谷", "maple"}, {"💻 虛擬商店", "virtual"}}) {
+            {"全部", "all"}, {"💻 虛擬商店", "virtual"}}) {
         dpp::component btn;
         btn.set_type(dpp::cot_button).set_label(lbl)
            .set_id("ledger_tab_" + f)
@@ -188,8 +169,7 @@ static dpp::message make_my_ledger_msg(dpp::snowflake uid, int page = 0, const s
     int start = page * PAGE_SIZE;
     int end   = std::min(start + PAGE_SIZE, total);
 
-    std::string title = (filter == "maple") ? "📒  我的瘋子谷購買紀錄"
-                      : (filter == "virtual") ? "📒  我的虛擬商店紀錄"
+    std::string title = (filter == "virtual") ? "📒  我的虛擬商店紀錄"
                       : "📒  我的購買紀錄";
     dpp::embed e;
     e.set_title(title).set_color(0x3498DB);
@@ -214,7 +194,7 @@ static dpp::message make_my_ledger_msg(dpp::snowflake uid, int page = 0, const s
     // Tab row
     dpp::component tab_row; tab_row.set_type(dpp::cot_action_row);
     for (auto& [lbl, f] : std::vector<std::pair<std::string,std::string>>{
-            {"全部", "all"}, {"🍁 瘋子谷", "maple"}, {"💻 虛擬商店", "virtual"}}) {
+            {"全部", "all"}, {"💻 虛擬商店", "virtual"}}) {
         dpp::component btn;
         btn.set_type(dpp::cot_button).set_label(lbl)
            .set_id("my_ledger_tab_" + uid_s + "_" + f)
@@ -240,37 +220,15 @@ static dpp::message make_my_ledger_msg(dpp::snowflake uid, int page = 0, const s
     return msg;
 }
 
-static void load_shop() {
-    std::ifstream f(SHOP_FILE);
-    if (!f.is_open()) return;
-    try {
-        nlohmann::json j; f >> j;
-        if (!j.contains("maple")) return;
-        for (auto& item : maple_items) {
-            if (j["maple"].contains(item.name))
-                item.sold = j["maple"][item.name].value("sold", 0);
-        }
-    } catch (...) {}
-}
-
-static void save_shop() {
-    nlohmann::json j;
-    for (auto& item : maple_items)
-        j["maple"][item.name] = {{"total", item.total}, {"sold", item.sold}};
-    atomic_write(SHOP_FILE, j.dump(2));
-}
-
 // ─── Shop UI ──────────────────────────────────────────────────────────────────
 
 static dpp::message make_shop_main_msg(const std::string& back_uid = "") {
     dpp::component container;
     container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x1A, 0xBC, 0x9C));
     container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 🏪 商店\n請選擇要前往的商店：\n\n**🍁 楓之谷商店** — 購買瘋子谷道具\n**💻 虛擬商店** — 購買寵物蛋、孵蛋工具、成長道具等"));
+        .set_content("## 🏪 商店\n請選擇要前往的商店：\n\n**💻 虛擬商店** — 購買寵物蛋、孵蛋工具、成長道具等"));
 
     dpp::component row; row.set_type(dpp::cot_action_row);
-    row.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("🍁 楓之谷商店").set_id("shop_maple_0").set_style(dpp::cos_success));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("💻 虛擬商店").set_id("shop_virtual").set_style(dpp::cos_primary));
     if (!back_uid.empty()) {
@@ -283,160 +241,6 @@ static dpp::message make_shop_main_msg(const std::string& back_uid = "") {
     msg.add_component_v2(container);
     msg.add_component_v2(row);
     return msg;
-}
-
-static dpp::message make_maple_shop_msg(int page = 0) {
-    const int PAGE_SIZE = 5;
-    int total_pages = std::max(1, ((int)maple_items.size() + PAGE_SIZE - 1) / PAGE_SIZE);
-    page = std::max(0, std::min(page, total_pages - 1));
-    int start = page * PAGE_SIZE;
-    int end   = std::min(start + PAGE_SIZE, (int)maple_items.size());
-
-    std::string content = "## 🍁 楓之谷商店\n";
-    if (maple_items.empty()) {
-        content += "目前沒有上架商品。\n";
-    } else {
-        for (int i = start; i < end; i++) {
-            auto& item = maple_items[i];
-            std::string remain_str = (item.total == -1) ? "∞" : std::to_string(item.total - item.sold);
-            content += "**" + item.name + "** 💰 **" + std::to_string(item.price) + "** 碼  |  剩餘：**" + remain_str + "**\n";
-        }
-    }
-    content += "\n-# 第 " + std::to_string(page+1) + "/" + std::to_string(total_pages) + " 頁";
-
-    dpp::component container;
-    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-
-    dpp::message msg;
-    msg.set_flags(dpp::m_using_components_v2);
-    msg.add_component_v2(container);
-
-    // Buy buttons
-    dpp::component row1; row1.set_type(dpp::cot_action_row);
-    for (int i = start; i < end; i++) {
-        auto& item = maple_items[i];
-        bool out = (item.total != -1 && item.sold >= item.total);
-        dpp::component b;
-        b.set_type(dpp::cot_button)
-         .set_label((out ? "❌ " : "購買 ") + item.name)
-         .set_id("shop_buy_" + std::to_string(i))
-         .set_style(out ? dpp::cos_secondary : dpp::cos_primary)
-         .set_disabled(out);
-        row1.add_component(b);
-    }
-    msg.add_component_v2(row1);
-
-    // Nav buttons
-    dpp::component row2; row2.set_type(dpp::cot_action_row);
-    row2.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("↩ 返回商店").set_id("shop_main").set_style(dpp::cos_secondary));
-    if (total_pages > 1) {
-        row2.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("◀ 上一頁").set_id("shop_maple_" + std::to_string(page-1))
-            .set_style(dpp::cos_secondary).set_disabled(page == 0));
-        row2.add_component(dpp::component().set_type(dpp::cot_button)
-            .set_label("下一頁 ▶").set_id("shop_maple_" + std::to_string(page+1))
-            .set_style(dpp::cos_secondary).set_disabled(page == total_pages-1));
-    }
-    msg.add_component_v2(row2);
-    return msg;
-}
-
-static dpp::message make_buy_confirm_msg(dpp::snowflake uid, int item_idx) {
-    if (item_idx < 0 || item_idx >= (int)maple_items.size()) return {};
-    auto& item = maple_items[item_idx];
-    bool unlimited = (item.total == -1);
-    int remain = unlimited ? 1 : (item.total - item.sold);
-    int64_t bal = get_chips(uid);
-
-    dpp::embed e;
-    e.set_title("🛒  購買確認").set_color(0xF39C12);
-    e.add_field("📦  商品",   item.name,                             true);
-    e.add_field("💰  售價",   std::to_string(item.price) + " 碼",   true);
-    e.add_field("📊  剩餘",   unlimited ? "∞" : (std::to_string(remain) + " 份"), true);
-    e.add_field("💼  你的餘額", std::to_string(bal) + " 碼",        false);
-
-    dpp::message msg; msg.set_flags(dpp::m_using_components_v2);
-    if (remain <= 0 || bal < item.price) {
-        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
-        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-            .set_content("## ❌ 無法購買\n" + std::string(remain <= 0 ? "商品已售完" : "籌碼不足")));
-        msg.add_component_v2(ct); return msg;
-    }
-    std::string content = "## 🛒 購買確認\n";
-    content += "📦 **商品** " + item.name + "\n";
-    content += "💰 **售價** " + std::to_string(item.price) + " 碼\n";
-    content += "📊 **剩餘** " + (unlimited ? std::string("∞") : std::to_string(remain) + " 份") + "\n";
-    content += "💼 **你的餘額** " + std::to_string(bal) + " 碼";
-    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xF3, 0x9C, 0x12));
-    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(content));
-    msg.add_component_v2(ct);
-    dpp::component row; row.set_type(dpp::cot_action_row);
-    dpp::component ok, cancel;
-    ok.set_type(dpp::cot_button).set_label("✅ 確認購買")
-      .set_id("shop_confirm_" + std::to_string(item_idx))
-      .set_style(dpp::cos_success);
-    cancel.set_type(dpp::cot_button).set_label("❌ 取消")
-          .set_id("shop_maple_0").set_style(dpp::cos_danger);
-    row.add_component(ok); row.add_component(cancel);
-    msg.add_component_v2(row);
-    return msg;
-}
-
-static dpp::message handle_buy(dpp::snowflake uid, const std::string& username, int item_idx) {
-    auto v2_err = [](const std::string& text) {
-        dpp::message m; m.set_flags(dpp::m_using_components_v2);
-        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
-        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(text));
-        m.add_component_v2(ct); return m;
-    };
-    if (item_idx < 0 || item_idx >= (int)maple_items.size()) return {};
-    auto& item = maple_items[item_idx];
-    if (item.total != -1 && item.sold >= item.total)
-        return v2_err("## ❌ 商品已售完");
-    // Monthly limit: one purchase per item per person per calendar month
-    {
-        std::lock_guard<std::mutex> lk(data_mutex);
-        if (has_maple_bought_this_month(uid, item.name))
-            return v2_err("## ❌ 本月已購買過\n**" + item.name + "** 每人每月限購一次。");
-    }
-    int64_t bal;
-    bool ok = false;
-    PurchaseRecord rec;
-    {
-        std::lock_guard<std::mutex> lk(data_mutex);
-        bal = chip_data[uid].chips;
-        if (bal >= item.price) {
-            chip_data[uid].chips -= item.price;
-            item.sold++;
-            ok = true;
-            bal = chip_data[uid].chips;
-            rec.id        = purchase_counter.fetch_add(1);
-            rec.uid       = uid;
-            rec.username  = username;
-            rec.item_name = item.name;
-            rec.price     = item.price;
-            rec.timestamp = std::time(nullptr);
-            rec.source    = "maple";
-            purchase_records.push_back(rec);
-        }
-    }
-    if (!ok) {
-        dpp::message m; m.set_flags(dpp::m_using_components_v2);
-        dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0xE7, 0x4C, 0x3C));
-        ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content("## ❌ 籌碼不足"));
-        m.add_component_v2(ct); return m;
-    }
-    save_chips(); save_shop(); save_purchases();
-    dpp::message ret; ret.set_flags(dpp::m_using_components_v2);
-    dpp::component ct; ct.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x2E, 0xCC, 0x71));
-    ct.add_component_v2(dpp::component().set_type(dpp::cot_text_display).set_content(
-        "## ✅ 購買成功\n"
-        "📦 **商品** " + item.name + "\n" +
-        "💰 **花費** " + std::to_string(item.price) + " 碼\n" +
-        "💼 **餘額** " + std::to_string(bal) + " 碼\n\n-# 請聯繫管理員領取商品"));
-    ret.add_component_v2(ct); return ret;
 }
 
 // ─── Virtual shop ─────────────────────────────────────────────────────────────

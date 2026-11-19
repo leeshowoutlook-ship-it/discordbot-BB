@@ -11,6 +11,11 @@ static const std::string STOCK_HOLDINGS_FILE = "stock_holdings.json";
 static const std::string STOCK_MARKET_FILE   = "stock_market.json";
 static const double      STOCK_FEE_RATE      = 0.02; // 買賣手續費 2%
 
+// 已下市的股票：不開放買進
+static bool stock_buy_closed(const std::string& key) {
+    return key == "stock_catbro" || key == "stock_purse";
+}
+
 // UTC+8 day number，用來判斷手動股票是否跨天（跨天要重置每日漲跌幅限制的開盤價基準）
 static int64_t stock_utc8_day_number() {
     return ((int64_t)time(nullptr) + 8 * 3600) / 86400;
@@ -133,86 +138,15 @@ static void fetch_stock_price(const std::string& key, const std::string& ticker)
     );
 }
 
-// 走勢圖資料：另外抓近一個月的日收盤價（跟目前價格/漲跌%用的 1d 端點分開，
-// 因為 1mo 範圍的 meta.previousClose 是「一個月前」而不是「昨天」，不能拿來算漲跌%）
-static void fetch_stock_history(const std::string& key, const std::string& ticker) {
-    std::string url = "https://query1.finance.yahoo.com/v8/finance/chart/" + ticker + "?interval=1d&range=1mo";
-    g_bot->request(url, dpp::m_get,
-        [key](const dpp::http_request_completion_t& cc) {
-            if (cc.status != 200) return;
-            std::vector<int64_t> hist;
-            try {
-                auto j = nlohmann::json::parse(cc.body);
-                auto& closes = j.at("chart").at("result").at(0).at("indicators").at("quote").at(0).at("close");
-                for (auto& v : closes) {
-                    if (v.is_null()) continue;
-                    hist.push_back((int64_t)(v.get<double>() + 0.5));
-                }
-            } catch (...) { return; }
-            if (hist.size() > 30) hist.erase(hist.begin(), hist.end() - 30);
-            if (hist.empty()) return;
-            std::lock_guard<std::mutex> lk(stock_mutex);
-            auto it = stock_market.find(key);
-            if (it != stock_market.end()) it->second.history = hist;
-        },
-        "", "application/json", {{"User-Agent", "Mozilla/5.0"}}
-    );
-}
-
 static void start_stock_price_timer() {
     auto fetch_all = []() {
         for (auto& d : STOCK_DEFS) {
             if (d.ticker.empty()) continue; // 心情股不接 API
             fetch_stock_price(d.key, d.ticker);
-            fetch_stock_history(d.key, d.ticker);
         }
     };
     fetch_all(); // 開機立即抓一次，不用等第一次計時器觸發
     g_bot->start_timer([fetch_all](dpp::timer) { fetch_all(); }, 300); // 每 5 分鐘更新一次
-}
-
-// ─── 走勢圖：組 QuickChart.io 網址，不用本地畫圖函式庫 ─────────────────────────
-
-static std::string url_encode(const std::string& s) {
-    std::string out;
-    for (unsigned char c : s) {
-        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') out += (char)c;
-        else { char buf[4]; snprintf(buf, sizeof(buf), "%%%02X", c); out += buf; }
-    }
-    return out;
-}
-
-static std::string build_stock_chart_url(const std::vector<int64_t>& history) {
-    if (history.size() < 2) return "";
-    bool up = history.back() >= history.front();
-    std::string color = up ? "#2ECC71" : "#E74C3C";
-    nlohmann::json data = nlohmann::json::array();
-    for (auto v : history) data.push_back(v);
-    nlohmann::json labels = nlohmann::json::array();
-    for (size_t i = 0; i < history.size(); i++) labels.push_back("");
-    nlohmann::json cfg = {
-        {"type", "line"},
-        {"data", {
-            {"labels", labels},
-            {"datasets", {{
-                {"data", data},
-                {"borderColor", color},
-                {"backgroundColor", color},
-                {"fill", false},
-                {"pointRadius", 0},
-                {"borderWidth", 2},
-                {"tension", 0.15},
-            }}}
-        }},
-        {"options", {
-            {"legend", {{"display", false}}},
-            {"scales", {
-                {"xAxes", {{{"display", false}}}},
-                {"yAxes", {{{"display", false}}}},
-            }},
-        }},
-    };
-    return "https://quickchart.io/chart?width=520&height=200&backgroundColor=white&c=" + url_encode(cfg.dump());
 }
 
 // ─── UI：股票市場首頁（Components V2 清單）────────────────────────────────────
@@ -346,7 +280,7 @@ static dpp::message make_stock_detail_msg(dpp::snowflake uid, const std::string&
     dpp::component row; row.set_type(dpp::cot_action_row);
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("💰 買進").set_id("stock_buy_" + uid_s + "_" + key)
-        .set_style(dpp::cos_success).set_disabled(info.price <= 0 || chips < info.price));
+        .set_style(dpp::cos_success).set_disabled(stock_buy_closed(key) || info.price <= 0 || chips < info.price));
     row.add_component(dpp::component().set_type(dpp::cot_button)
         .set_label("📤 賣出").set_id("stock_sell_" + uid_s + "_" + key)
         .set_style(dpp::cos_danger).set_disabled(shares <= 0));
@@ -423,6 +357,7 @@ static dpp::message make_stock_holders_msg(dpp::snowflake uid, const std::string
 // ─── 買賣執行 ─────────────────────────────────────────────────────────────────
 
 static std::string do_stock_buy(dpp::snowflake uid, const std::string& key, int64_t qty) {
+    if (stock_buy_closed(key)) return "⛔ 此股票已下市，無法買進！";
     if (qty <= 0) return "❌ 股數需為正整數！";
     int64_t price = 0;
     { std::lock_guard<std::mutex> lk(stock_mutex); auto it = stock_market.find(key); if (it != stock_market.end()) price = it->second.price; }

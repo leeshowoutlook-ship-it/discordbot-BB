@@ -5,7 +5,7 @@
     "enh_atk": 0,
     "enh_def": 0,
     "enh_hp": 0,
-    "exp": 99,
+    "exp": 49,
     "is_supervisor_work": false,
     "notify_after_work": true,
     "onsen_end": 0,
@@ -174,7 +174,7 @@
     "talent2_unlocked": false,
     "variant": "沙漠",
     "work_end": 1795020997,
-    "work_notified": false,
+    "work_notified": true,
     "work_task": 1
   },
   "1366408266615230464": {
@@ -315,7 +315,7 @@
     "enh_atk": 9,
     "enh_def": 8,
     "enh_hp": 9,
-    "exp": 92,
+    "exp": 95,
     "is_supervisor_work": false,
     "notify_after_work": false,
     "onsen_end": 0,
@@ -327,9 +327,9 @@
     "talent2": "求生專家",
     "talent2_unlocked": true,
     "variant": "",
-    "work_end": 1795015545,
+    "work_end": 1795056464,
     "work_notified": false,
-    "work_task": 4
+    "work_task": 8
   },
   "1396006204802728062": {
     "chain": "肥肥",
@@ -449,7 +449,7 @@
     "enh_atk": 0,
     "enh_def": 0,
     "enh_hp": 0,
-    "exp": 79,
+    "exp": 32,
     "is_supervisor_work": false,
     "notify_after_work": false,
     "onsen_end": 0,
@@ -461,9 +461,9 @@
     "talent2": "迅捷",
     "talent2_unlocked": true,
     "variant": "",
-    "work_end": 1795020881,
+    "work_end": 1795045471,
     "work_notified": false,
-    "work_task": 1
+    "work_task": 4
   },
   "1506454940221177958": {
     "chain": "小企鵝",
@@ -581,7 +581,7 @@
     "enh_atk": 8,
     "enh_def": 8,
     "enh_hp": 9,
-    "exp": 483,
+    "exp": 487,
     "is_supervisor_work": true,
     "notify_after_work": false,
     "onsen_end": 0,
@@ -593,7 +593,7 @@
     "talent2": "幸運",
     "talent2_unlocked": true,
     "variant": "藍菇",
-    "work_end": 1795020976,
+    "work_end": 1795037977,
     "work_notified": false,
     "work_task": 1
   },
@@ -647,7 +647,7 @@
     "enh_atk": 0,
     "enh_def": 0,
     "enh_hp": 0,
-    "exp": 85,
+    "exp": 87,
     "is_supervisor_work": false,
     "notify_after_work": true,
     "onsen_end": 0,
@@ -659,8 +659,8 @@
     "talent2": "",
     "talent2_unlocked": false,
     "variant": "",
-    "work_end": 1795023116,
-    "work_notified": false,
+    "work_end": 1795034149,
+    "work_notified": true,
     "work_task": 1
   },
   "439624259589898250": {
@@ -691,7 +691,7 @@
     "enh_atk": 1,
     "enh_def": 0,
     "enh_hp": 1,
-    "exp": 896,
+    "exp": 900,
     "is_supervisor_work": true,
     "notify_after_work": false,
     "onsen_end": 0,
@@ -703,7 +703,7 @@
     "talent2": "膽小鬼",
     "talent2_unlocked": true,
     "variant": "",
-    "work_end": 1795020976,
+    "work_end": 1795037977,
     "work_notified": false,
     "work_task": 1
   },
@@ -926,7 +926,7 @@
     "talent2_unlocked": false,
     "variant": "沙漠",
     "work_end": 1795029062,
-    "work_notified": false,
+    "work_notified": true,
     "work_task": 8
   },
   "563348903861157888": {
@@ -1077,7 +1077,8 @@
     "onsen_pending_reward": true,
     "stage": 1,
     "statuses": [
-      "受傷"
+      "受傷",
+      "憂鬱"
     ],
     "talent": "",
     "talent2": "",
@@ -1137,7 +1138,7 @@
     "enh_atk": 0,
     "enh_def": 0,
     "enh_hp": 0,
-    "exp": 30,
+    "exp": 34,
     "is_supervisor_work": false,
     "notify_after_work": true,
     "onsen_end": 0,
@@ -1149,7 +1150,7 @@
     "talent2": "招人喜歡",
     "talent2_unlocked": true,
     "variant": "",
-    "work_end": 1795021890,
+    "work_end": 1795037157,
     "work_notified": false,
     "work_task": 1
   },
@@ -1181,7 +1182,7 @@
     "enh_atk": 0,
     "enh_def": 0,
     "enh_hp": 0,
-    "exp": 45,
+    "exp": 46,
     "is_supervisor_work": false,
     "notify_after_work": true,
     "onsen_end": 0,
@@ -1193,9 +1194,9 @@
     "talent2": "迅捷",
     "talent2_unlocked": true,
     "variant": "",
-    "work_end": 1795020937,
+    "work_end": 1795050543,
     "work_notified": false,
-    "work_task": 1
+    "work_task": 8
   },
   "689544582018760897": {
     "chain": "小企鵝",
@@ -1225,7 +1226,7 @@
     "enh_atk": 0,
     "enh_def": 0,
     "enh_hp": 0,
-    "exp": 14,
+    "exp": 17,
     "is_supervisor_work": true,
     "notify_after_work": false,
     "onsen_end": 0,
@@ -1237,7 +1238,7 @@
     "talent2": "迅捷",
     "talent2_unlocked": true,
     "variant": "企鵝王",
-    "work_end": 1795022467,
+    "work_end": 1795034317,
     "work_notified": false,
     "work_task": 1
   },
@@ -1269,7 +1270,7 @@
     "enh_atk": 0,
     "enh_def": 0,
     "enh_hp": 0,
-    "exp": 46,
+    "exp": 47,
     "is_supervisor_work": false,
     "notify_after_work": true,
     "onsen_end": 0,
@@ -1281,9 +1282,9 @@
     "talent2": "招人喜歡",
     "talent2_unlocked": true,
     "variant": "",
-    "work_end": 1795022675,
+    "work_end": 1795048798,
     "work_notified": false,
-    "work_task": 1
+    "work_task": 8
   },
   "811232678590152790": {
     "chain": "嫩寶",
@@ -1470,7 +1471,7 @@
     "enh_atk": 0,
     "enh_def": 0,
     "enh_hp": 0,
-    "exp": 151,
+    "exp": 154,
     "is_supervisor_work": false,
     "notify_after_work": true,
     "onsen_end": 0,
@@ -1482,9 +1483,9 @@
     "talent2": "",
     "talent2_unlocked": false,
     "variant": "",
-    "work_end": 1795021114,
+    "work_end": 1795049967,
     "work_notified": false,
-    "work_task": 4
+    "work_task": 8
   },
   "959450115007975444": {
     "chain": "嫩寶",
@@ -1514,7 +1515,7 @@
     "enh_atk": 9,
     "enh_def": 8,
     "enh_hp": 9,
-    "exp": 406,
+    "exp": 407,
     "is_supervisor_work": false,
     "notify_after_work": true,
     "onsen_end": 0,
@@ -1526,9 +1527,9 @@
     "talent2": "喜歡作夢",
     "talent2_unlocked": true,
     "variant": "",
-    "work_end": 1795022020,
+    "work_end": 1795050801,
     "work_notified": false,
-    "work_task": 1
+    "work_task": 8
   },
   "979985312291901490": {
     "chain": "肥肥",
@@ -1558,7 +1559,7 @@
     "enh_atk": 0,
     "enh_def": 0,
     "enh_hp": 0,
-    "exp": 14,
+    "exp": 15,
     "is_supervisor_work": false,
     "notify_after_work": false,
     "onsen_end": 0,
@@ -1570,8 +1571,8 @@
     "talent2": "",
     "talent2_unlocked": false,
     "variant": "",
-    "work_end": 1795019190,
+    "work_end": 1795046777,
     "work_notified": false,
-    "work_task": 1
+    "work_task": 8
   }
 }

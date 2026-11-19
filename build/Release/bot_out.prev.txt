@@ -1,60 +1,7 @@
-[Mon Nov 16 01:08:20 2026] DEBUG: Cluster: 999 of 1000 session starts remaining
-[Mon Nov 16 01:08:20 2026] INFO: Auto Shard: Bot requires 1 shard
-[Mon Nov 16 01:08:20 2026] DEBUG: Starting with 1 shards...
-[Mon Nov 16 01:08:21 2026] DEBUG: Connecting new session...
-[Mon Nov 16 01:08:21 2026] INFO: Shard id 0 (1/1) ready!
-[Mon Nov 16 01:08:21 2026] DEBUG: Resume URL for session 72675f1c04389e2b828f2f1d9010547c is wss://gateway-us-east1-d.discord.gg (host: gateway-us-east1-d.discord.gg)
+[Thu Nov 19 01:44:36 2026] DEBUG: Cluster: 990 of 1000 session starts remaining
+[Thu Nov 19 01:44:36 2026] INFO: Auto Shard: Bot requires 1 shard
+[Thu Nov 19 01:44:36 2026] DEBUG: Starting with 1 shards...
+[Thu Nov 19 01:44:36 2026] DEBUG: Connecting new session...
+[Thu Nov 19 01:44:37 2026] INFO: Shard id 0 (1/1) ready!
+[Thu Nov 19 01:44:37 2026] DEBUG: Resume URL for session 35fafa781e4450dc6c82672518064794 is wss://gateway-us-east1-d.discord.gg (host: gateway-us-east1-d.discord.gg)
 Bot 已上線：分類帽
-[Mon Nov 16 01:08:25 2026] DEBUG: Shards started.
-[Mon Nov 16 01:29:03 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 01:33:03 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 02:28:18 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 02:28:22 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 02:33:51 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 02:35:40 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 03:00:30 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 03:37:03 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 03:37:37 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 03:45:23 2026] DEBUG: Receiving exception: Reconnection requested, closing session 72675f1c04389e2b828f2f1d9010547c
-[Mon Nov 16 03:45:23 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
-[Mon Nov 16 03:45:30 2026] INFO: Reconnecting shard 0
-[Mon Nov 16 03:45:30 2026] DEBUG: Resuming session 72675f1c04389e2b828f2f1d9010547c with seq=13725
-[Mon Nov 16 03:45:30 2026] DEBUG: Successfully resumed session id 72675f1c04389e2b828f2f1d9010547c
-[Mon Nov 16 04:25:49 2026] DEBUG: Receiving exception: Reconnection requested, closing session 72675f1c04389e2b828f2f1d9010547c
-[Mon Nov 16 04:25:49 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
-[Mon Nov 16 04:25:55 2026] INFO: Reconnecting shard 0
-[Mon Nov 16 04:25:56 2026] DEBUG: Resuming session 72675f1c04389e2b828f2f1d9010547c with seq=15886
-[Mon Nov 16 04:25:56 2026] DEBUG: Successfully resumed session id 72675f1c04389e2b828f2f1d9010547c
-[Mon Nov 16 04:25:56 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 04:25:56 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 04:58:48 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 05:15:49 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 05:23:32 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 05:43:07 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 05:43:34 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 05:44:28 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 05:45:59 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 06:39:25 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 06:45:47 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 07:25:35 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 07:32:23 2026] DEBUG: Receiving exception: Reconnection requested, closing session 72675f1c04389e2b828f2f1d9010547c
-[Mon Nov 16 07:32:23 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
-[Mon Nov 16 07:32:30 2026] INFO: Reconnecting shard 0
-[Mon Nov 16 07:32:30 2026] DEBUG: Resuming session 72675f1c04389e2b828f2f1d9010547c with seq=26481
-[Mon Nov 16 07:32:30 2026] DEBUG: Successfully resumed session id 72675f1c04389e2b828f2f1d9010547c
-[Mon Nov 16 07:32:31 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 08:51:10 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 08:51:29 2026] DEBUG: Receiving exception: Reconnection requested, closing session 72675f1c04389e2b828f2f1d9010547c
-[Mon Nov 16 08:51:29 2026] DEBUG: Lost connection to websocket on shard 0, reconnecting...
-[Mon Nov 16 08:51:35 2026] INFO: Reconnecting shard 0
-[Mon Nov 16 08:51:35 2026] DEBUG: Resuming session 72675f1c04389e2b828f2f1d9010547c with seq=28884
-[Mon Nov 16 08:51:36 2026] DEBUG: Successfully resumed session id 72675f1c04389e2b828f2f1d9010547c
-[Mon Nov 16 08:51:36 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 08:51:36 2026] ERROR: Error: 10015: Unknown Webhook
-[Mon Nov 16 08:56:13 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 08:56:15 2026] ERROR: Error: 10015: Unknown Webhook
-[Mon Nov 16 09:20:28 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 10:03:01 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 10:19:39 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 10:26:26 2026] ERROR: Error: 10062: Unknown interaction
-[Mon Nov 16 10:44:46 2026] ERROR: Error: 10062: Unknown intera

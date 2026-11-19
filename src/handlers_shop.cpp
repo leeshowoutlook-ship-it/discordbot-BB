@@ -30,15 +30,6 @@ void handle_shop_button(const dpp::button_click_t& ev)
             ev.reply(dpp::ir_update_message, make_vbuy_confirm_msg(uid, cid.substr(10)));
         } else if (cid.rfind("shop_vconfirm_", 0) == 0) {
             ev.reply(dpp::ir_update_message, handle_vbuy(uid, user.username, cid.substr(14)));
-        } else if (cid.rfind("shop_maple_", 0) == 0) {
-            int page = std::stoi(cid.substr(11));
-            ev.reply(dpp::ir_update_message, make_maple_shop_msg(page));
-        } else if (cid.rfind("shop_buy_", 0) == 0) {
-            int idx = std::stoi(cid.substr(9));
-            ev.reply(dpp::ir_update_message, make_buy_confirm_msg(uid, idx));
-        } else if (cid.rfind("shop_confirm_", 0) == 0) {
-            int idx = std::stoi(cid.substr(13));
-            ev.reply(dpp::ir_update_message, handle_buy(uid, user.username, idx));
         }
         return;
     }

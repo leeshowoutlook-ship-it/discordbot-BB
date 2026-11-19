@@ -51,6 +51,8 @@ void handle_stock_button(const dpp::button_click_t& ev)
         auto [bu, key] = split_uid_key(cid.substr(10));
         if (uid != bu) { ev.reply(dpp::ir_channel_message_with_source,
             dpp::message("❌ 這不是你的股市！").set_flags(dpp::m_ephemeral)); return; }
+        if (stock_buy_closed(key)) { ev.reply(dpp::ir_channel_message_with_source,
+            dpp::message("⛔ 此股票已下市，無法買進！").set_flags(dpp::m_ephemeral)); return; }
         int64_t price = 0;
         { std::lock_guard<std::mutex> lk(stock_mutex); auto it = stock_market.find(key); if (it != stock_market.end()) price = it->second.price; }
         dpp::interaction_modal_response modal("stock_buy_modal_" + uid_s + "_" + key, "買進股票");
@@ -190,10 +192,6 @@ void handle_stock_modal(const dpp::form_submit_t& ev)
                 }
             }
             if (notice.empty()) {
-                if (s.price > 0) {
-                    s.history.push_back(s.price);
-                    if (s.history.size() > 30) s.history.erase(s.history.begin());
-                }
                 s.prev_close = s.price;
                 s.price = new_price;
                 s.last_update = time(nullptr);

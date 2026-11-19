@@ -1,17 +1,17 @@
 {
   "mushroom_baby": {
-    "atk_pts": 13,
+    "atk_pts": 14,
     "coin_pts": 0,
-    "exp": 1885,
+    "exp": 838,
     "exp_pts": 15,
-    "level": 28
+    "level": 29
   },
   "star_pixie": {
     "atk_pts": 15,
     "coin_pts": 0,
-    "exp": 59,
-    "exp_pts": 3,
-    "level": 19
+    "exp": 806,
+    "exp_pts": 5,
+    "level": 20
   },
   "stone_ball": {
     "atk_pts": 0,
@@ -21,17 +21,17 @@
     "level": 15
   },
   "three_eye_octopus": {
-    "atk_pts": 9,
+    "atk_pts": 10,
     "coin_pts": 0,
-    "exp": 436,
+    "exp": 156,
     "exp_pts": 15,
-    "level": 24
+    "level": 25
   },
   "water_spirit": {
     "atk_pts": 15,
-    "coin_pts": 3,
-    "exp": 1907,
+    "coin_pts": 4,
+    "exp": 1601,
     "exp_pts": 15,
-    "level": 33
+    "level": 34
   }
 }

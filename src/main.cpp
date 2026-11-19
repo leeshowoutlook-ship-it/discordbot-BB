@@ -5,7 +5,7 @@
 #define _getpid getpid
 #endif
 #include <fstream> // 記錄 slash command 註冊結果用（guild_bulk_command_create 本身沒有掛 callback 會靜默失敗）
-#include "team.h"
+#include "helpers.h"
 #include "giveaway.h"
 #include "bjstats.h"
 // blackjack.h → moved to handlers_bj.cpp
@@ -908,12 +908,9 @@ int main(int argc, char* argv[]) {
     load_onw_stats();
     load_bj_games();
     load_dice_games();
-    load_shop();
     load_purchases();
     load_pet_data();
     load_inventory();
-    load_registrations();
-    load_proposed_teams();
     load_giveaways();
     load_auction();
     load_equipped();
@@ -937,7 +934,6 @@ int main(int argc, char* argv[]) {
     load_stock_holdings();
     load_announcement();
     load_settings();
-    load_lolbet();
     load_nn_stats();
     load_numbomb();
     load_blacklist();
@@ -967,7 +963,7 @@ int main(int argc, char* argv[]) {
         // Only delete messages that are recognized bot commands
         auto is_our_cmd = [&]() -> bool {
             static const std::vector<std::string> EXACT = {
-                "!王團報名","!王團紀錄","!富豪榜","!虧損榜","!領取","!每週領取",
+                "!富豪榜","!虧損榜","!領取","!每週領取",
                 "!錢包","!幫助","!help","!寵物","!背包","!寵物圖鑑","!商店","!大廳",
                 "!管理員權限","!警告榜單","!記帳","!狼人殺","!狼人殺榜單","!銀行",
                 "!一夜狼人","!一夜狼人規則","!狼人殺規則",
@@ -981,7 +977,6 @@ int main(int argc, char* argv[]) {
                 "!掉落活動","！掉落活動","!擊殺紀錄","！擊殺紀錄",
                 "!抽獎","！抽獎",
                 "!猜數字",
-                "!世界賽",
                 "!妞妞","!數字炸彈",
             };
             for (auto& s : EXACT) if (content == s) return true;
@@ -996,7 +991,6 @@ int main(int argc, char* argv[]) {
                 "!經驗活動 ","！經驗活動 ",
                 "!掉落活動 ","！掉落活動 ","!擊殺紀錄 ","！擊殺紀錄 ",
                 "!抽獎 ","！抽獎 ",
-                "!世界賽 ",
                 "!妞妞 ","!數字炸彈 ",
             };
             for (auto& s : PREFIX) if (content.rfind(s, 0) == 0) return true;
@@ -1010,13 +1004,7 @@ int main(int argc, char* argv[]) {
         if (!is_our_cmd()) return;
         if (ev.msg.guild_id != 0) bot.message_delete(ev.msg.id, ch); // 隱藏使用者輸入的 ! 指令（DM 不刪）
 
-        if (content == "!王團報名") {
-            start_cmd(bot, uid, ch, make_boss_msg(ev.msg.author), ev.msg.id);
-        }
-        else if (content == "!王團紀錄") {
-            start_cmd(bot, uid, ch, make_records_select_msg(ev.msg.author), ev.msg.id);
-        }
-        else if (content == "!ping") {
+        if (content == "!ping") {
             ev.reply("Pong! 🏓");
         }
         else if (content == "!emoji偵錯") {
@@ -1053,22 +1041,6 @@ int main(int argc, char* argv[]) {
                     msg_owner[std::get<dpp::message>(cb.value).id] = uid;
                 }
             });
-        }
-        // ── 英雄聯盟世界賽下注 ─────────────────────────────────────────────────
-        else if (content == "!世界賽") {
-            dpp::message m = make_lol_board_msg(false);
-            m.channel_id = ch;
-            bot.message_create(m);
-        }
-        else if (content.rfind("!世界賽 ", 0) == 0) {
-            if (!si_perm(uid, ev.msg.member.get_roles())) {
-                dpp::message m("❌ 世界賽的管理指令只有副會長、會長或管理員能用；下注請打 `!世界賽` 或 `/世界賽`。");
-                m.channel_id = ch; bot.message_create(m); return;
-            }
-            std::vector<std::string> args;
-            { std::istringstream iss(content.substr(std::string("!世界賽 ").size())); std::string w; while (iss >> w) args.push_back(w); }
-            auto reply_later = [&bot, ch](const std::string& t) { dpp::message m(ch, t); m.set_allowed_mentions(false, false, false, false, {}, {}); bot.message_create(m); };
-            reply_later(lol_admin_cmd(bot, ch, args, reply_later));
         }
         // ── 妞妞 ───────────────────────────────────────────────────────────────
         else if (content == "!妞妞" || content.rfind("!妞妞 ", 0) == 0) {
@@ -1825,16 +1797,8 @@ int main(int argc, char* argv[]) {
         bool               adm  = is_admin(ev.command);
 
       try {
-        if (lol_handle_button(ev)) return;
         if (nn_handle_button(ev)) return;
         if (nb_handle_button(ev)) return;
-        // 報名流程按鈕需要 owner 驗證
-        if (cid.rfind("boss_",0)==0 || cid.rfind("slot_",0)==0 ||
-            cid == "confirm_time"   || cid.rfind("pos_",0)==0   ||
-            cid == "back_to_boss"   || cid == "back_to_time") {
-            if (!check_owner(ev, uid)) return;
-        }
-
         // ── 幫助翻頁 ──────────────────────────────────────────────────────────
         if (cid.rfind("help_prev_", 0) == 0 || cid.rfind("help_next_", 0) == 0) {
             bool is_prev = cid.rfind("help_prev_", 0) == 0;
@@ -2330,190 +2294,6 @@ int main(int argc, char* argv[]) {
         // ── 楓之谷世界養成按鈕 → handlers_maple.cpp ───────────────────────────
         else if (cid.rfind("maple_", 0) == 0) {
             handle_maple_button(ev); return;
-        }
-        // ── 王團報名：選王 ──────────────────────────────────────────────────────
-        else if (cid.rfind("boss_", 0) == 0) {
-            std::string boss = cid.substr(5);
-            { std::lock_guard<std::mutex> lk(data_mutex); user_states[uid] = RegState{boss, 0, {}}; }
-            ev.reply(dpp::ir_update_message, make_time_msg(boss, user, 0, {}));
-        }
-        // ── 王團報名：時段切換 ──────────────────────────────────────────────────
-        else if (cid.rfind("slot_", 0) == 0) {
-            std::string tval = cid.substr(5);
-            std::string boss; int view_day;
-            std::set<std::pair<std::string,std::string>> slots;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto it = user_states.find(uid);
-                if (it == user_states.end()) return;
-                auto& state = it->second;
-                auto week = get_game_week();
-                std::string cur_label = week[state.view_day].second;
-                auto key = std::make_pair(cur_label, tval);
-                if (state.slots.count(key)) state.slots.erase(key);
-                else state.slots.insert(key);
-                boss = state.boss; view_day = state.view_day; slots = state.slots;
-            }
-            ev.reply(dpp::ir_update_message, make_time_msg(boss, user, view_day, slots));
-        }
-        // ── 王團報名：返回：時間 → 選王 ────────────────────────────────────────
-        else if (cid == "back_to_boss") {
-            { std::lock_guard<std::mutex> lk(data_mutex); user_states.erase(uid); }
-            ev.reply(dpp::ir_update_message, make_boss_msg(user));
-        }
-        // ── 王團報名：返回：位置 → 時間 ────────────────────────────────────────
-        else if (cid == "back_to_time") {
-            std::string boss; int view_day;
-            std::set<std::pair<std::string,std::string>> slots;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto it = user_states.find(uid);
-                if (it == user_states.end()) return;
-                boss = it->second.boss; view_day = it->second.view_day; slots = it->second.slots;
-            }
-            ev.reply(dpp::ir_update_message, make_time_msg(boss, user, view_day, slots));
-        }
-        // ── 王團報名：確定時段 ──────────────────────────────────────────────────
-        else if (cid == "confirm_time") {
-            std::string boss;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto it = user_states.find(uid);
-                if (it == user_states.end() || it->second.slots.empty()) {
-                    ev.reply(dpp::ir_channel_message_with_source,
-                        dpp::message("⚠️ 請先選擇至少一個時段！").set_flags(dpp::m_ephemeral));
-                    return;
-                }
-                boss = it->second.boss;
-            }
-            ev.reply(dpp::ir_update_message, make_position_msg(boss, user));
-        }
-        // ── 王團報名：選職業 → 報名完成 ────────────────────────────────────────
-        else if (cid.rfind("pos_", 0) == 0) {
-            std::string pos = cid.substr(4);
-            Registration reg;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto it = user_states.find(uid);
-                if (it == user_states.end()) return;
-                reg.id         = reg_counter++;
-                reg.user_id    = uid;
-                reg.channel_id = ev.command.channel_id;
-                reg.username   = user.username;
-                reg.boss       = it->second.boss;
-                reg.slots      = std::vector<std::pair<std::string,std::string>>(
-                                     it->second.slots.begin(), it->second.slots.end());
-                reg.position   = pos;
-                registrations.push_back(reg);
-                user_states.erase(it);
-                user_active_msg.erase(uid);
-                msg_owner.erase(ev.command.message_id);
-            }
-            save_registrations();
-            ev.reply(dpp::ir_update_message, make_success_msg(reg));
-            check_team_formation(bot, reg.boss, reg.channel_id);
-            save_proposed_teams();
-        }
-        // ── 王團報名：紀錄刪除 ──────────────────────────────────────────────────
-        else if (cid.rfind("del_", 0) == 0) {
-            if (!adm && !check_owner(ev, uid)) return;
-            uint64_t rid = std::stoull(cid.substr(4));
-            bool ok = false; std::string cur_filter;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto it = std::find_if(registrations.begin(), registrations.end(),
-                    [rid](const Registration& r){ return r.id == rid; });
-                if (it != registrations.end() && (it->user_id == uid || adm)) {
-                    ok = true; registrations.erase(it);
-                }
-                auto vf = view_filters.find(uid);
-                cur_filter = (vf != view_filters.end()) ? vf->second : "mine";
-            }
-            if (!ok) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 你只能刪除自己的報名！").set_flags(dpp::m_ephemeral));
-                return;
-            }
-            save_registrations();
-            ev.reply(dpp::ir_update_message, make_records_view_msg(cur_filter, uid, adm));
-        }
-        // ── 王團報名：紀錄返回 ──────────────────────────────────────────────────
-        else if (cid == "records_back") {
-            { std::lock_guard<std::mutex> lk(data_mutex); view_filters.erase(uid); }
-            ev.reply(dpp::ir_update_message, make_records_select_msg(user));
-        }
-        // ── 王團報名：組隊確認 ──────────────────────────────────────────────────
-        else if (cid.rfind("team_confirm_", 0) == 0 || cid.rfind("team_cancel_", 0) == 0) {
-            bool is_confirm = cid.rfind("team_confirm_", 0) == 0;
-            uint64_t tid = std::stoull(cid.substr(is_confirm ? 13 : 12));
-            bool authorized = adm ||
-                (!cfg.notify_user_id.empty() && std::to_string(uid) == cfg.notify_user_id);
-            if (!authorized) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("❌ 只有管理員可以操作！").set_flags(dpp::m_ephemeral));
-                return;
-            }
-            ProposedTeam pt; bool found = false;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto it = proposed_teams.find(tid);
-                if (it != proposed_teams.end()) {
-                    found = true; pt = it->second;
-                    proposed_teams.erase(it);
-                    proposed_slots.erase({pt.boss, pt.day, pt.time_slot});
-                }
-            }
-            if (!found) {
-                ev.reply(dpp::ir_channel_message_with_source,
-                    dpp::message("⚠️ 此組隊通知已失效。").set_flags(dpp::m_ephemeral));
-                return;
-            }
-            if (is_confirm) {
-                // 把確認組團的成員之前所有報名都清掉
-                {
-                    std::lock_guard<std::mutex> lk(data_mutex);
-                    std::set<dpp::snowflake> member_ids;
-                    for (auto& m : pt.members) member_ids.insert(m.user_id);
-                    registrations.erase(
-                        std::remove_if(registrations.begin(), registrations.end(),
-                            [&](const Registration& r){ return member_ids.count(r.user_id); }),
-                        registrations.end());
-                }
-
-                dpp::embed done_e;
-                done_e.set_title("✅  組隊已確認！").set_color(0x2ECC71);
-                done_e.add_field("⚔️  王",   pt.boss,                       true);
-                done_e.add_field("🕐  時間", pt.day + "  " + pt.time_slot,  true);
-                done_e.set_footer(dpp::embed_footer().set_text("王團報名系統"));
-                dpp::message done_msg; done_msg.add_embed(done_e);
-                ev.reply(dpp::ir_update_message, done_msg);
-
-                std::ostringstream ann;
-                for (auto& m : pt.members) ann << "<@" << m.user_id << "> ";
-                dpp::embed ann_e;
-                ann_e.set_title("🎉  組隊成功！").set_color(0x2ECC71);
-                if (!get_boss_img(pt.boss).empty()) ann_e.set_thumbnail(get_boss_img(pt.boss));
-                ann_e.add_field("⚔️  王",   pt.boss,                       true);
-                ann_e.add_field("🕐  時間", pt.day + "  " + pt.time_slot,  true);
-                std::ostringstream mem_oss;
-                for (size_t i = 0; i < pt.members.size(); i++)
-                    mem_oss << std::to_string(i+1) << ". **" << pt.members[i].username
-                            << "** · " << pt.members[i].position << "\n";
-                ann_e.add_field("👥  成員", mem_oss.str(), false);
-                ann_e.set_footer(dpp::embed_footer().set_text("王團報名系統"));
-                dpp::message ann_msg(ev.command.channel_id, ann.str());
-                ann_msg.add_embed(ann_e);
-                save_registrations(); save_proposed_teams();
-                bot.message_create(ann_msg);
-            } else {
-                save_proposed_teams();
-                dpp::embed cancel_e;
-                cancel_e.set_title("❌  組隊已撤銷").set_color(0x808080);
-                cancel_e.add_field("⚔️  王",   pt.boss,                       true);
-                cancel_e.add_field("🕐  時間", pt.day + "  " + pt.time_slot,  true);
-                dpp::message cancel_msg; cancel_msg.add_embed(cancel_e);
-                ev.reply(dpp::ir_update_message, cancel_msg);
-            }
         }
         // ── 21點按鈕 → handlers_bj.cpp ──────────────────────────────────────
         else if (cid.rfind("bj_", 0) == 0) {
@@ -3303,7 +3083,6 @@ int main(int argc, char* argv[]) {
         dpp::snowflake issuer = ev.command.get_issuing_user().id;
 
         if (cid.rfind("maple_raidguessm_", 0) == 0 || cid.rfind("maple_factionptsm_", 0) == 0) { handle_maple_modal(ev); return; }
-        if (lol_handle_form(ev)) return;
         if (nb_handle_form(ev)) return;
 
         // Pet rename modal
@@ -3793,30 +3572,7 @@ int main(int argc, char* argv[]) {
         const dpp::user&   user = ev.command.get_issuing_user();
         dpp::snowflake     uid  = user.id;
 
-        if (lol_handle_select(ev)) return;
-        if (cid == "day_select") {
-            if (!check_owner(ev, uid)) return;
-            int new_day = std::stoi(ev.values[0]);
-            std::string boss;
-            std::set<std::pair<std::string,std::string>> slots;
-            {
-                std::lock_guard<std::mutex> lk(data_mutex);
-                auto it = user_states.find(uid);
-                if (it == user_states.end()) return;
-                it->second.view_day = new_day;
-                boss  = it->second.boss;
-                slots = it->second.slots;
-            }
-            ev.reply(dpp::ir_update_message, make_time_msg(boss, user, new_day, slots));
-        }
-        else if (cid == "records_view") {
-            if (!check_owner(ev, uid)) return;
-            const std::string& filter = ev.values[0];
-            bool adm = is_admin(ev.command);
-            { std::lock_guard<std::mutex> lk(data_mutex); view_filters[uid] = filter; }
-            ev.reply(dpp::ir_update_message, make_records_view_msg(filter, uid, adm));
-        }
-        else if (cid == "losers_game_sel") {
+        if (cid == "losers_game_sel") {
             if (!page_is_mine(ev.command.message_id, uid)) {
                 ev.reply(dpp::ir_channel_message_with_source,
                     dpp::message("❌ 這不是你的頁面！").set_flags(dpp::m_ephemeral)); return;
@@ -3961,22 +3717,7 @@ int main(int argc, char* argv[]) {
         dpp::snowflake     ch       = ev.command.channel_id;
 
       try {
-        if (cmd_name == "王團報名" || cmd_name == "王團紀錄" ||
-            cmd_name == "raid" || cmd_name == "raidlog") {
-            invalidate_old_msg(bot, uid);
-            dpp::message m = (cmd_name == "王團報名" || cmd_name == "raid")
-                             ? make_boss_msg(user) : make_records_select_msg(user);
-            ev.reply(dpp::ir_channel_message_with_source, m);
-            ev.get_original_response([uid, ch](const dpp::confirmation_callback_t& cb) {
-                if (!cb.is_error()) {
-                    const auto& m = std::get<dpp::message>(cb.value);
-                    std::lock_guard<std::mutex> lk(data_mutex);
-                    msg_owner[m.id] = uid;
-                    user_active_msg[uid] = {m.id, ch};
-                }
-            });
-        }
-        else if (cmd_name == "ping") {
+        if (cmd_name == "ping") {
             ev.reply("Pong! 🏓");
         }
         else if (cmd_name == "公告" || cmd_name == "announcement") {
@@ -4219,9 +3960,6 @@ int main(int argc, char* argv[]) {
             ev.get_original_response([chu](const dpp::confirmation_callback_t& cb) {
                 if (!cb.is_error()) nb_set_msg_id(chu, std::get<dpp::message>(cb.value).id);
             });
-        }
-        else if (cmd_name == "世界賽" || cmd_name == "worlds") {
-            ev.reply(dpp::ir_channel_message_with_source, make_lol_board_msg(false));
         }
         else if (cmd_name == "虧損榜" || cmd_name == "lossboard") {
             ev.reply(dpp::ir_channel_message_with_source, handle_losers_board(0, "", true, 0, ev.command.guild_id));
@@ -4742,14 +4480,13 @@ int main(int argc, char* argv[]) {
 
             fprintf(stderr, "[STARTUP] about to call guild_bulk_command_create\n"); fflush(stderr);
             bot.guild_bulk_command_create({
-                dpp::slashcommand("王團報名",  "王團報名",                      bot.me.id),
                 dpp::slashcommand("幫助",      "查看所有指令說明",              bot.me.id),
                 dpp::slashcommand("領取",      "每整點領取 500 碼",             bot.me.id),
                 dpp::slashcommand("每週領取",  "每週二可領取 2000 碼",          bot.me.id),
                 dpp::slashcommand("錢包",      "查看籌碼量與21點統計",          bot.me.id),
                 dpp::slashcommand("富豪榜",    "查看全伺服器籌碼排行榜",        bot.me.id),
                 dpp::slashcommand("商店",      "瀏覽並購買道具",                bot.me.id),
-                // 記帳/警告榜單/小黑屋/寵物圖鑑/裝備圖鑑/道具圖鑑/規則類/抽獎/公告/王團紀錄 一律不註冊 slash，
+                // 記帳/警告榜單/小黑屋/寵物圖鑑/裝備圖鑑/道具圖鑑/規則類/抽獎/公告 一律不註冊 slash，
                 // 保留 !/！ 訊息指令即可（低頻或管理員專用，Discord 每伺服器 slash 指令上限 100 個）
                 dpp::slashcommand("大廳",      "進入大廳（寵物/背包/裝備/商店）",bot.me.id),
                 dpp::slashcommand("寵物",      "查看你的寵物狀態",              bot.me.id),
@@ -4772,7 +4509,6 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("一夜狼人",  "開始一夜終極狼人遊戲",            bot.me.id),
                 dpp::slashcommand("誰是臥底",  "開始誰是臥底遊戲",                bot.me.id),
                 dpp::slashcommand("bank",      "Deposit/borrow/repay chips",    bot.me.id),
-                dpp::slashcommand("raid",      "Sign up for raid",              bot.me.id),
                 dpp::slashcommand("合成",      "查看並合成寶珠（需要碎片×10）", bot.me.id),
                 dpp::slashcommand("craft",     "Craft orbs from shards (×10)",  bot.me.id),
                 dpp::slashcommand("怪物狩獵",  "開始怪物狩獵",                  bot.me.id),
@@ -4799,8 +4535,6 @@ int main(int argc, char* argv[]) {
                 dpp::slashcommand("undercover","Start Undercover (Who is spy?)", bot.me.id),
                 dpp::slashcommand("猜數字",    "猜四位不重複數字（1A2B）",       bot.me.id),
                 dpp::slashcommand("guess",     "Guess the 4-digit number (1A2B)",bot.me.id),
-                dpp::slashcommand("世界賽",    "英雄聯盟世界賽下注（勝負／比分／冠軍）", bot.me.id),
-                dpp::slashcommand("worlds",    "Bet on the LoL World Championship", bot.me.id),
                 dpp::slashcommand("妞妞", "妞妞 — 跟莊家比牛（輸贏都照牌型倍數）", bot.me.id)
                     .add_option(dpp::command_option(dpp::co_string, "籌碼", "下注碼數（數字 或 ALL）", true)),
                 dpp::slashcommand("niuniu", "Niu Niu card game vs the dealer", bot.me.id)
@@ -4920,9 +4654,6 @@ int main(int argc, char* argv[]) {
         // 各伺服器成員名單：on_guild_create 抓第一次，這裡每 10 分鐘全部更新（富豪榜本伺服器篩選、限定收藏）
         bot.start_timer([&bot](dpp::timer) { refresh_all_guild_members(bot); }, 600);
         nb_resume_all(); // 數字炸彈：重開後把回合計時器／大廳逾時掛回去
-        bot.start_timer([](dpp::timer)     { lol_tick(); }, 60);            // 世界賽：開賽時間到自動封盤
-        bot.start_timer([&bot](dpp::timer) { lol_sync(bot); }, 900);       // 世界賽：每 15 分鐘從 Leaguepedia 抓賽程／結果
-        bot.start_timer([&bot](dpp::timer t) { bot.stop_timer(t); lol_sync(bot); }, 20); // 開機後先抓一次
         bot.start_timer([&bot](dpp::timer) { check_giveaways(bot); save_giveaways(); }, 30);
         bot.start_timer([](dpp::timer)     { apply_daily_interest(); }, 300); // 每 5 分鐘檢查是否跨日
         start_stock_price_timer(); // 開機立即抓一次股價，之後每 5 分鐘更新

@@ -1,11 +1,11 @@
 {
   "1008386641834025011": {
-    "chips": 2332,
+    "chips": -12605,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 0,
     "insurance_until": 0,
-    "last_claim": 1795018437,
+    "last_claim": 1795021939,
     "last_hunt_daily": 1795018437,
     "last_weekly": 1794880525,
     "last_weekly_scroll": 1794880525,
@@ -32,28 +32,28 @@
     "vip_until": 0
   },
   "1036953796007448606": {
-    "chips": 624957,
+    "chips": 621457,
     "claim_fail_streak": 0,
     "claim_fail_total": 1,
     "free_xfer": 1,
     "insurance_until": 1786470311,
-    "last_claim": 1795017676,
+    "last_claim": 1795032277,
     "last_hunt_daily": 1795017676,
     "last_weekly": 1794846898,
     "last_weekly_scroll": 1794846898,
     "risk_dice_day": 1788157941,
     "risk_dice_uses": 2,
     "supervisor_until": 0,
-    "vip_last_claim": 1795017676,
+    "vip_last_claim": 1795032277,
     "vip_until": 1795583579
   },
   "1047734346372612116": {
-    "chips": 3330,
+    "chips": 8299,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795017621,
+    "last_claim": 1795021235,
     "last_hunt_daily": 1795017621,
     "last_weekly": 1794881055,
     "last_weekly_scroll": 1794881055,
@@ -64,19 +64,19 @@
     "vip_until": 0
   },
   "1066961006460416030": {
-    "chips": 5941,
+    "chips": 7941,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 1,
     "insurance_until": 0,
-    "last_claim": 1795017676,
+    "last_claim": 1795032277,
     "last_hunt_daily": 1794950354,
     "last_weekly": 1794873795,
     "last_weekly_scroll": 1794873795,
     "risk_dice_day": 0,
     "risk_dice_uses": 0,
     "supervisor_until": 0,
-    "vip_last_claim": 1795017676,
+    "vip_last_claim": 1795032277,
     "vip_until": 1795046939
   },
   "1085900521761685596": {
@@ -112,7 +112,7 @@
     "vip_until": 0
   },
   "1115212853289427004": {
-    "chips": 12500,
+    "chips": 22333,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
@@ -261,8 +261,8 @@
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795016291,
-    "last_hunt_daily": 1794941957,
+    "last_claim": 1795021335,
+    "last_hunt_daily": 1795021052,
     "last_weekly": 1794907767,
     "last_weekly_scroll": 1794907767,
     "risk_dice_day": 0,
@@ -272,31 +272,31 @@
     "vip_until": 0
   },
   "1367598479110836335": {
-    "chips": 164123,
+    "chips": 166123,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 1790741230,
-    "last_claim": 1795017676,
+    "last_claim": 1795032277,
     "last_hunt_daily": 1794954962,
     "last_weekly": 1794714558,
     "last_weekly_scroll": 1794714558,
     "risk_dice_day": 0,
     "risk_dice_uses": 0,
     "supervisor_until": 0,
-    "vip_last_claim": 1795017676,
+    "vip_last_claim": 1795032277,
     "vip_until": 1797198689
   },
   "1367858482174234657": {
-    "chips": 18000,
+    "chips": 20500,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1794802075,
-    "last_hunt_daily": 1794802075,
-    "last_weekly": 1794413992,
-    "last_weekly_scroll": 1794413992,
+    "last_claim": 1795020556,
+    "last_hunt_daily": 1795020556,
+    "last_weekly": 1795020563,
+    "last_weekly_scroll": 1795020563,
     "risk_dice_day": 0,
     "risk_dice_uses": 0,
     "supervisor_until": 0,
@@ -320,7 +320,7 @@
     "vip_until": 0
   },
   "1376473181724082227": {
-    "chips": 55117,
+    "chips": 61117,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
@@ -336,7 +336,7 @@
     "vip_until": 0
   },
   "1376834202275676170": {
-    "chips": 84726,
+    "chips": 166716,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
@@ -352,13 +352,13 @@
     "vip_until": 1791974643
   },
   "1387417573100093493": {
-    "chips": -31836,
+    "chips": -20836,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 0,
     "insurance_until": 1793900591,
-    "last_claim": 1795015928,
-    "last_hunt_daily": 1794931220,
+    "last_claim": 1795021221,
+    "last_hunt_daily": 1795020768,
     "last_weekly": 1794877188,
     "last_weekly_scroll": 1794877188,
     "risk_dice_day": 0,
@@ -368,7 +368,7 @@
     "vip_until": 0
   },
   "1390285382381338627": {
-    "chips": 500,
+    "chips": 6500,
     "claim_fail_streak": 0,
     "claim_fail_total": 3,
     "free_xfer": 2,
@@ -384,7 +384,7 @@
     "vip_until": 1794584489
   },
   "1393804953516118066": {
-    "chips": 102507,
+    "chips": 104527,
     "claim_fail_streak": 0,
     "claim_fail_total": 1,
     "free_xfer": 2,
@@ -448,12 +448,12 @@
     "vip_until": 0
   },
   "1408774946267729960": {
-    "chips": 24500,
+    "chips": 25163,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795019206,
+    "last_claim": 1795023568,
     "last_hunt_daily": 1795019206,
     "last_weekly": 1794881409,
     "last_weekly_scroll": 1794881409,
@@ -512,12 +512,12 @@
     "vip_until": 0
   },
   "1500454493043822602": {
-    "chips": -23,
+    "chips": 0,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 0,
     "insurance_until": 0,
-    "last_claim": 1795017731,
+    "last_claim": 1795021209,
     "last_hunt_daily": 1795017731,
     "last_weekly": 1794881168,
     "last_weekly_scroll": 1794881168,
@@ -528,12 +528,12 @@
     "vip_until": 0
   },
   "1503509660311752714": {
-    "chips": 0,
+    "chips": -1373,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 1,
     "insurance_until": 0,
-    "last_claim": 1795017656,
+    "last_claim": 1795032466,
     "last_hunt_daily": 1795017656,
     "last_weekly": 1794877918,
     "last_weekly_scroll": 1794877918,
@@ -768,13 +768,13 @@
     "vip_until": 0
   },
   "335959081984720896": {
-    "chips": 24500,
+    "chips": 10750,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 1794068145,
-    "last_claim": 1795009246,
-    "last_hunt_daily": 1794943193,
+    "last_claim": 1795029750,
+    "last_hunt_daily": 1795021053,
     "last_weekly": 1794877835,
     "last_weekly_scroll": 1794877835,
     "risk_dice_day": 0,
@@ -816,19 +816,19 @@
     "vip_until": 0
   },
   "353567910285017090": {
-    "chips": 48333,
+    "chips": 51837,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 1788398235,
-    "last_claim": 1795017676,
+    "last_claim": 1795032277,
     "last_hunt_daily": 1793584241,
     "last_weekly": 1794220996,
     "last_weekly_scroll": 1794220996,
     "risk_dice_day": 1787297694,
     "risk_dice_uses": 2,
     "supervisor_until": 1804570969,
-    "vip_last_claim": 1795017676,
+    "vip_last_claim": 1795032277,
     "vip_until": 1802927726
   },
   "357388411910225922": {
@@ -912,13 +912,13 @@
     "vip_until": 0
   },
   "414789398891069450": {
-    "chips": 21916,
+    "chips": 10638,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 0,
     "insurance_until": 0,
-    "last_claim": 1795015926,
-    "last_hunt_daily": 1794932527,
+    "last_claim": 1795021206,
+    "last_hunt_daily": 1795020562,
     "last_weekly": 1794882349,
     "last_weekly_scroll": 1794882349,
     "risk_dice_day": 0,
@@ -928,18 +928,18 @@
     "vip_until": 0
   },
   "416236509918789632": {
-    "chips": 6357,
+    "chips": 1754,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795016859,
-    "last_hunt_daily": 1794932645,
+    "last_claim": 1795031017,
+    "last_hunt_daily": 1795020441,
     "last_weekly": 1794932649,
     "last_weekly_scroll": 1794932649,
     "risk_dice_day": 0,
     "risk_dice_uses": 0,
-    "supervisor_until": 0,
+    "supervisor_until": 1795117512,
     "vip_last_claim": 0,
     "vip_until": 0
   },
@@ -992,19 +992,19 @@
     "vip_until": 0
   },
   "457478323665240065": {
-    "chips": 561045,
+    "chips": 564413,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 1,
     "insurance_until": 0,
-    "last_claim": 1795017676,
+    "last_claim": 1795032277,
     "last_hunt_daily": 1793458115,
     "last_weekly": 1793763331,
     "last_weekly_scroll": 1793763331,
     "risk_dice_day": 1788066200,
     "risk_dice_uses": 2,
     "supervisor_until": 1795657189,
-    "vip_last_claim": 1795017676,
+    "vip_last_claim": 1795032277,
     "vip_until": 1795657183
   },
   "465549256732704780": {
@@ -1184,19 +1184,19 @@
     "vip_until": 0
   },
   "544064175479980032": {
-    "chips": 61008,
+    "chips": 63008,
     "claim_fail_streak": 0,
     "claim_fail_total": 1,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795017676,
+    "last_claim": 1795032277,
     "last_hunt_daily": 1793194820,
     "last_weekly": 1793666998,
     "last_weekly_scroll": 1793666998,
     "risk_dice_day": 0,
     "risk_dice_uses": 0,
     "supervisor_until": 1795667725,
-    "vip_last_claim": 1795017676,
+    "vip_last_claim": 1795032277,
     "vip_until": 1795667718
   },
   "553800259189604353": {
@@ -1216,19 +1216,19 @@
     "vip_until": 0
   },
   "558513044632895509": {
-    "chips": 40000,
+    "chips": 42000,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 1791874672,
-    "last_claim": 1795017676,
+    "last_claim": 1795032277,
     "last_hunt_daily": 1794818597,
     "last_weekly": 1794818609,
     "last_weekly_scroll": 1794818609,
     "risk_dice_day": 1786609039,
     "risk_dice_uses": 2,
     "supervisor_until": 1790300769,
-    "vip_last_claim": 1795017676,
+    "vip_last_claim": 1795032277,
     "vip_until": 1795682745
   },
   "559287346131107861": {
@@ -1312,13 +1312,13 @@
     "vip_until": 0
   },
   "590819539357532190": {
-    "chips": -29792,
+    "chips": -29292,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795011888,
-    "last_hunt_daily": 1794931768,
+    "last_claim": 1795033081,
+    "last_hunt_daily": 1795033081,
     "last_weekly": 1794883891,
     "last_weekly_scroll": 1794883891,
     "risk_dice_day": 0,
@@ -1344,19 +1344,19 @@
     "vip_until": 0
   },
   "592685139717390346": {
-    "chips": 67587,
+    "chips": 69587,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 1787531007,
-    "last_claim": 1795017676,
+    "last_claim": 1795032277,
     "last_hunt_daily": 1794547182,
     "last_weekly": 1793938750,
     "last_weekly_scroll": 1793938750,
     "risk_dice_day": 1793939748,
     "risk_dice_uses": 2,
     "supervisor_until": 0,
-    "vip_last_claim": 1795017676,
+    "vip_last_claim": 1795032277,
     "vip_until": 1796191285
   },
   "593773897887776779": {
@@ -1504,19 +1504,19 @@
     "vip_until": 0
   },
   "649615198562418710": {
-    "chips": 6519,
+    "chips": 8519,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795017676,
+    "last_claim": 1795032277,
     "last_hunt_daily": 1795017775,
     "last_weekly": 1794879085,
     "last_weekly_scroll": 1794879085,
     "risk_dice_day": 0,
     "risk_dice_uses": 0,
     "supervisor_until": 0,
-    "vip_last_claim": 1795017676,
+    "vip_last_claim": 1795032277,
     "vip_until": 1795244543
   },
   "651090037102084096": {
@@ -1584,13 +1584,13 @@
     "vip_until": 0
   },
   "675750304138133545": {
-    "chips": 51384,
+    "chips": -248,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795016959,
-    "last_hunt_daily": 1794933375,
+    "last_claim": 1795032048,
+    "last_hunt_daily": 1795021224,
     "last_weekly": 1794878048,
     "last_weekly_scroll": 1794878048,
     "risk_dice_day": 0,
@@ -1632,12 +1632,12 @@
     "vip_until": 1790436934
   },
   "687270072385142807": {
-    "chips": -9588,
+    "chips": -7461,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 1794232039,
-    "last_claim": 1795017971,
+    "last_claim": 1795024631,
     "last_hunt_daily": 1795017971,
     "last_weekly": 1794878054,
     "last_weekly_scroll": 1794878054,
@@ -1680,20 +1680,20 @@
     "vip_until": 0
   },
   "723170866892111984": {
-    "chips": 17980,
+    "chips": 2108,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795017676,
+    "last_claim": 1795032277,
     "last_hunt_daily": 1795018049,
     "last_weekly": 1794885052,
     "last_weekly_scroll": 1794885052,
     "risk_dice_day": 0,
     "risk_dice_uses": 0,
-    "supervisor_until": 1795023663,
-    "vip_last_claim": 1795017676,
-    "vip_until": 1795030854
+    "supervisor_until": 1795110809,
+    "vip_last_claim": 1795032277,
+    "vip_until": 1795117254
   },
   "724983832788598805": {
     "chips": 610500,
@@ -1712,19 +1712,19 @@
     "vip_until": 0
   },
   "741919638505652226": {
-    "chips": 3127,
+    "chips": 2022,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 1,
     "insurance_until": 0,
-    "last_claim": 1795017676,
-    "last_hunt_daily": 1794933066,
+    "last_claim": 1795032277,
+    "last_hunt_daily": 1795020763,
     "last_weekly": 1794328648,
     "last_weekly_scroll": 1794328648,
     "risk_dice_day": 0,
     "risk_dice_uses": 0,
     "supervisor_until": 0,
-    "vip_last_claim": 1795017676,
+    "vip_last_claim": 1795032277,
     "vip_until": 1795098818
   },
   "811232678590152790": {
@@ -1792,20 +1792,20 @@
     "vip_until": 0
   },
   "843071419671904308": {
-    "chips": 20537,
+    "chips": 6537,
     "claim_fail_streak": 0,
     "claim_fail_total": 1,
     "free_xfer": 2,
     "insurance_until": 1786847421,
-    "last_claim": 1795017676,
+    "last_claim": 1795032277,
     "last_hunt_daily": 1794852402,
     "last_weekly": 1794802616,
     "last_weekly_scroll": 1794802616,
     "risk_dice_day": 1787025207,
     "risk_dice_uses": 2,
     "supervisor_until": 0,
-    "vip_last_claim": 1795017676,
-    "vip_until": 1795232524
+    "vip_last_claim": 1795032277,
+    "vip_until": 1795405324
   },
   "849778938308853821": {
     "chips": 0,
@@ -1824,12 +1824,12 @@
     "vip_until": 0
   },
   "850359830404661258": {
-    "chips": 55991,
+    "chips": 58627,
     "claim_fail_streak": 0,
     "claim_fail_total": 2,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795019708,
+    "last_claim": 1795028622,
     "last_hunt_daily": 1795019708,
     "last_weekly": 1794588169,
     "last_weekly_scroll": 1794588169,
@@ -1856,13 +1856,13 @@
     "vip_until": 0
   },
   "854140533890744350": {
-    "chips": -2464,
+    "chips": 250,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795011790,
-    "last_hunt_daily": 1794933425,
+    "last_claim": 1795021138,
+    "last_hunt_daily": 1795021138,
     "last_weekly": 1794489295,
     "last_weekly_scroll": 1794489295,
     "risk_dice_day": 0,
@@ -1888,7 +1888,7 @@
     "vip_until": 0
   },
   "856481432581701643": {
-    "chips": 1337,
+    "chips": 13337,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
@@ -1936,12 +1936,12 @@
     "vip_until": 0
   },
   "879413644495028254": {
-    "chips": -5234,
+    "chips": -4064,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795017772,
+    "last_claim": 1795022542,
     "last_hunt_daily": 1795017772,
     "last_weekly": 1794933713,
     "last_weekly_scroll": 1794933713,
@@ -2016,19 +2016,19 @@
     "vip_until": 1787156828
   },
   "978574913306755084": {
-    "chips": 79343,
+    "chips": 81976,
     "claim_fail_streak": 0,
     "claim_fail_total": 1,
     "free_xfer": 2,
     "insurance_until": 1792389498,
-    "last_claim": 1795017676,
+    "last_claim": 1795032277,
     "last_hunt_daily": 1794978779,
     "last_weekly": 1794832626,
     "last_weekly_scroll": 1794832626,
     "risk_dice_day": 0,
     "risk_dice_uses": 0,
     "supervisor_until": 1788539367,
-    "vip_last_claim": 1795017676,
+    "vip_last_claim": 1795032277,
     "vip_until": 1795761064
   },
   "979985312291901490": {
@@ -2048,13 +2048,13 @@
     "vip_until": 0
   },
   "988795213768171581": {
-    "chips": -17192,
+    "chips": 514,
     "claim_fail_streak": 0,
     "claim_fail_total": 0,
     "free_xfer": 2,
     "insurance_until": 0,
-    "last_claim": 1795015935,
-    "last_hunt_daily": 1794937573,
+    "last_claim": 1795028986,
+    "last_hunt_daily": 1795020817,
     "last_weekly": 1794877132,
     "last_weekly_scroll": 1794877132,
     "risk_dice_day": 0,

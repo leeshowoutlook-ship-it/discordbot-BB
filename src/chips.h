@@ -669,55 +669,6 @@ static dpp::message handle_leaderboard(int page = 0, dpp::snowflake scope_guild 
 
 // ─── Wallet (formerly status) ─────────────────────────────────────────────────
 
-static dpp::message handle_wallet(dpp::snowflake uid) {
-    int64_t chips = get_chips(uid);
-    int wins = 0, losses = 0, pushes = 0; int64_t profit = 0;
-    {
-        std::lock_guard<std::mutex> lk(data_mutex);
-        auto it = bj_stats_data.find(uid);
-        if (it != bj_stats_data.end()) {
-            wins = it->second.wins; losses = it->second.losses;
-            pushes = it->second.pushes; profit = it->second.profit;
-        }
-    }
-    int total_games = wins + losses + pushes;
-    double win_rate = total_games > 0 ? (wins * 100.0 / total_games) : 0.0;
-
-    int d_wins = 0, d_losses = 0; int64_t d_profit = 0;
-    {
-        std::lock_guard<std::mutex> lk(data_mutex);
-        auto it = dice_stats_data.find(uid);
-        if (it != dice_stats_data.end()) {
-            d_wins = it->second.wins; d_losses = it->second.losses;
-            d_profit = it->second.profit;
-        }
-    }
-    int d_total = d_wins + d_losses;
-    double d_win_rate = d_total > 0 ? (d_wins * 100.0 / d_total) : 0.0;
-
-    dpp::embed e;
-    e.set_title("💼  我的錢包").set_color(0x5865F2);
-    e.set_description("<@" + std::to_string((uint64_t)uid) + ">");
-    e.add_field("💰  目前持有", std::to_string(chips) + " 碼", false);
-    if (total_games > 0) {
-        char rate_buf[16]; snprintf(rate_buf, sizeof(rate_buf), "%.1f%%", win_rate);
-        e.add_field("🃏  21點  勝/負/平",
-            std::to_string(wins) + " / " + std::to_string(losses) + " / " + std::to_string(pushes), true);
-        e.add_field("📈  勝率", rate_buf, true);
-        e.add_field("💹  21點盈虧",
-            (profit >= 0 ? "+" : "") + std::to_string(profit) + " 碼", false);
-    }
-    if (d_total > 0) {
-        char dr_buf[16]; snprintf(dr_buf, sizeof(dr_buf), "%.1f%%", d_win_rate);
-        e.add_field("🎲  骰子  勝/負",
-            std::to_string(d_wins) + " / " + std::to_string(d_losses), true);
-        e.add_field("📈  勝率", dr_buf, true);
-        e.add_field("💹  骰子盈虧",
-            (d_profit >= 0 ? "+" : "") + std::to_string(d_profit) + " 碼", false);
-    }
-    dpp::message msg; msg.add_embed(e); return msg;
-}
-
 // ─── Transfer (execute immediately) ───────────────────────────────────────────
 
 static dpp::message handle_transfer(dpp::snowflake from_uid,
@@ -919,7 +870,7 @@ inline void announce_bankrupt(dpp::snowflake uid, dpp::snowflake channel_id) {
 }
 
 // ─── Loss leaderboard ─────────────────────────────────────────────────────────
-// 移到 wallet.h（handle_losers_board），因為妞妞／數字炸彈／世界賽下注的統計表是在
-// niuniu.h／numbomb.h／lolbet.h 裡定義的，而那些檔案本身會 include 這個 chips.h，
+// 移到 wallet.h（handle_losers_board），因為妞妞／數字炸彈的統計表是在
+// niuniu.h／numbomb.h 裡定義的，而那些檔案本身會 include 這個 chips.h，
 // 放在這裡會造成循環 include，所以挪到已經 include 了那三個檔案的 wallet.h。
 

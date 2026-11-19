@@ -1051,25 +1051,6 @@ static void maple_auto_unequip_invalid_offhand_locked(MapleCharacter& c) {
     maple_set_equipped(c, "offhand", "");
 }
 
-// 是否擁有此裝備（新手木劍人人皆有；已裝備中的視為擁有；強化實例或 equipment 庫存皆算）
-static bool maple_owns_item(const MapleCharacter& c, const std::string& key) {
-    if (key.empty()) return false;
-    if (key == "wooden_sword") return true;
-    const MapleItemDef* it = maple_find_item(key);
-    if (it && maple_equipped_key(c, it->slot) == key) return true;
-    if (it && it->slot == "ring" && maple_equipped_key(c, "ring2") == key) return true;
-    auto eit = c.equipment.find(key);
-    if (eit != c.equipment.end() && eit->second > 0) return true;
-    for (auto& e : c.enh_items) if (e.base_key == key) return true;
-    return false;
-}
-// 該 base_key 目前有沒有「未穿在身上」的強化實例（給裝備欄／交易用）
-static const MapleEnhItem* maple_spare_enh(const MapleCharacter& c, const std::string& key) {
-    for (auto& e : c.enh_items)
-        if (e.base_key == key && !maple_enh_is_equipped(c, e.id)) return &e;
-    return nullptr;
-}
-
 // 武器等裝備提供的攻擊力加總（未裝備武器時為0；含強化卷軸累積）
 static int maple_total_atk(const MapleCharacter& c) {
     int total = 0;
@@ -6378,24 +6359,6 @@ static dpp::message make_maple_spbuyreset_confirm_msg(dpp::snowflake uid) {
         .set_label("❌ 取消").set_id("maple_tokenshop_" + uid_s).set_style(dpp::cos_secondary));
     msg.add_component_v2(row);
 
-    return msg;
-}
-
-static dpp::message make_maple_shop_soon_msg(dpp::snowflake uid, const std::string& name) {
-    std::string uid_s = std::to_string((uint64_t)uid);
-    dpp::message msg;
-    msg.set_flags(dpp::m_using_components_v2);
-
-    dpp::component container;
-    container.set_type(dpp::cot_container).set_accent(dpp::utility::rgb(0x95, 0x95, 0x95));
-    container.add_component_v2(dpp::component().set_type(dpp::cot_text_display)
-        .set_content("## 🚧 " + name + "\n尚未開放，敬請期待。"));
-    msg.add_component_v2(container);
-
-    dpp::component nav; nav.set_type(dpp::cot_action_row);
-    nav.add_component(dpp::component().set_type(dpp::cot_button)
-        .set_label("↩ 返回商店").set_id("maple_shop_" + uid_s).set_style(dpp::cos_secondary));
-    msg.add_component_v2(nav);
     return msg;
 }
 

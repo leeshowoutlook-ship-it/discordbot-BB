@@ -30,11 +30,6 @@ static ONWPlayer* onw_find(ONWGame& g, dpp::snowflake uid) {
     for (auto& p : g.players) if (p.uid == uid) return &p;
     return nullptr;
 }
-static int onw_count_original(const ONWGame& g, const std::string& role) {
-    int n = 0;
-    for (auto& p : g.players) if (p.original_role == role) n++;
-    return n;
-}
 static std::string onw_emoji(const std::string& role) {
     auto it = ONW_EMOJI.find(role);
     return it != ONW_EMOJI.end() ? it->second : "❓";

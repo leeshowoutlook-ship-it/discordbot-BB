@@ -151,11 +151,6 @@ static int wolf_alive_cnt(const WolfGame& g) {
     for (auto& p : g.players) if (p.alive && p.role == "狼人") n++;
     return n;
 }
-static int good_alive_cnt(const WolfGame& g) {
-    int n = 0;
-    for (auto& p : g.players) if (p.alive && p.role != "狼人") n++;
-    return n;
-}
 static bool check_win(const WolfGame& g, std::string& winner) {
     int wolves = wolf_alive_cnt(g);
     if (wolves == 0) { winner = "好人"; return true; }

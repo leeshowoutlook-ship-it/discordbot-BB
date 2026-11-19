@@ -58,22 +58,6 @@ static std::vector<dpp::snowflake> rps_winners(
 }
 
 // ── 統計字串（供 wallet.h 用） ────────────────────────────────────────────────
-static std::string rps_stats_line(dpp::snowflake uid) {
-    int w = 0, l = 0; int64_t profit = 0;
-    {
-        auto it = rps_stats_data.find(uid);
-        if (it != rps_stats_data.end()) {
-            w = it->second.wins; l = it->second.losses; profit = it->second.profit;
-        }
-    }
-    int total = w + l;
-    if (total == 0) return "尚無紀錄";
-    char buf[16]; snprintf(buf, sizeof(buf), "%.1f%%", w * 100.0 / total);
-    return "勝/負 **" + std::to_string(w) + "/" + std::to_string(l) + "**"
-         + "　勝率 **" + buf + "**"
-         + "\n盈虧 **" + (profit >= 0 ? "+" : "") + std::to_string(profit) + " 碼**";
-}
-
 // ── 訊息建構 ──────────────────────────────────────────────────────────────────
 static dpp::message make_rps_lobby_msg(const RpsGame& g) {
     dpp::embed e;

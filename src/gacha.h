@@ -150,10 +150,6 @@ static const GachaItem* find_gacha_item_by_id(int id) {
     return nullptr;
 }
 
-static bool is_eq_key(const std::string& k) {
-    return k.size() > 3 && k[0]=='E' && k[1]=='Q' && k[2]=='_';
-}
-
 // ─── Rarity helpers ───────────────────────────────────────────────────────────
 
 static uint32_t rarity_color(const std::string& r) {
@@ -168,13 +164,6 @@ static std::string rarity_label(const std::string& r) {
     if (r == "SR") return "💜SR";
     if (r == "R")  return "🔵R";
     return "⬜C";
-}
-
-static int rarity_sell_price(const std::string& r) {
-    if (r == "UR") return 100;
-    if (r == "SR") return 10;
-    if (r == "R")  return 5;
-    return 1; // C
 }
 
 static std::string slot_label(const std::string& s) {

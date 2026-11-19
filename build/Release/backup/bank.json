@@ -52,8 +52,8 @@
     "deposit_time": 0,
     "deposited": 0,
     "last_interest_day": 0,
-    "loan": 41710,
-    "loan_time": 1794329769
+    "loan": 61125,
+    "loan_time": 1795020969
   },
   "1367598479110836335": {
     "daily_min": 16425410,
@@ -104,9 +104,9 @@
     "loan_time": 0
   },
   "1500454493043822602": {
-    "daily_min": 230525,
+    "daily_min": 210325,
     "deposit_time": 0,
-    "deposited": 230525,
+    "deposited": 210325,
     "last_interest_day": 20776,
     "loan": 0,
     "loan_time": 0
@@ -116,7 +116,7 @@
     "deposit_time": 0,
     "deposited": 0,
     "last_interest_day": 0,
-    "loan": 8250,
+    "loan": 7750,
     "loan_time": 1794980996
   },
   "1506454940221177958": {
@@ -168,9 +168,9 @@
     "loan_time": 1794973604
   },
   "414789398891069450": {
-    "daily_min": 223842,
+    "daily_min": 208842,
     "deposit_time": 0,
-    "deposited": 223842,
+    "deposited": 208842,
     "last_interest_day": 20776,
     "loan": 0,
     "loan_time": 0
@@ -308,7 +308,7 @@
     "deposit_time": 0,
     "deposited": 0,
     "last_interest_day": 0,
-    "loan": 41192,
+    "loan": 40942,
     "loan_time": 1795018503
   },
   "679878467097329719": {
@@ -338,7 +338,7 @@
   "723170866892111984": {
     "daily_min": 13198,
     "deposit_time": 0,
-    "deposited": 13198,
+    "deposited": 23198,
     "last_interest_day": 20776,
     "loan": 0,
     "loan_time": 0
@@ -354,7 +354,7 @@
   "741919638505652226": {
     "daily_min": 24209,
     "deposit_time": 0,
-    "deposited": 29317,
+    "deposited": 27317,
     "last_interest_day": 20776,
     "loan": 0,
     "loan_time": 0
@@ -404,8 +404,8 @@
     "deposit_time": 0,
     "deposited": 0,
     "last_interest_day": 0,
-    "loan": 10500,
-    "loan_time": 1794900214
+    "loan": 9239,
+    "loan_time": 1794986614
   },
   "856481432581701643": {
     "daily_min": 3660632,

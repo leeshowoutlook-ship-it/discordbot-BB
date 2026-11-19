@@ -24,30 +24,6 @@ struct Config {
     std::string lottery_thread2_id; // 另一個不能玩遊戲的討論串
 };
 
-struct RegState {
-    std::string boss;
-    int         view_day = 0;  // 0=週四 … 6=週三
-    std::set<std::pair<std::string,std::string>> slots; // (date_label, time_val)
-};
-
-struct Registration {
-    uint64_t       id;
-    dpp::snowflake user_id;
-    dpp::snowflake channel_id;
-    std::string    username;
-    std::string    boss;
-    std::vector<std::pair<std::string,std::string>> slots; // (date_label, time_val)
-    std::string    position;
-};
-
-struct ProposedTeam {
-    uint64_t       id;
-    std::string    boss;
-    std::string    day;       // date_label like "6/12(四)"
-    std::string    time_slot;
-    std::vector<Registration> members;
-};
-
 struct ActiveMsg {
     dpp::snowflake msg_id;
     dpp::snowflake channel_id;
@@ -71,7 +47,6 @@ struct Giveaway {
     bool           ended = false;
 };
 
-using SlotKey = std::tuple<std::string, std::string, std::string>; // boss,day,time
 
 // ─── Chip system ──────────────────────────────────────────────────────────────
 
@@ -702,18 +677,11 @@ struct ScratchGame {
 // ─── Global state ─────────────────────────────────────────────────────────────
 
 inline Config cfg;
-inline std::atomic<uint64_t> reg_counter{1};
-inline std::atomic<uint64_t> team_counter{1};
 inline std::atomic<uint64_t> giveaway_counter{1};
 inline std::atomic<uint64_t> bj_counter{1};
 
-inline std::map<dpp::snowflake, RegState>       user_states;
-inline std::map<dpp::snowflake, std::string>    view_filters;
 inline std::map<dpp::snowflake, dpp::snowflake> msg_owner;
 inline std::map<dpp::snowflake, ActiveMsg>      user_active_msg;
-inline std::map<uint64_t, ProposedTeam>         proposed_teams;
-inline std::set<SlotKey>                        proposed_slots;
-inline std::vector<Registration>                registrations;
 inline std::map<uint64_t, Giveaway>             giveaways;
 inline std::map<dpp::snowflake, ChipData>       chip_data;
 inline std::map<dpp::snowflake, BankData>       bank_data;
@@ -1290,7 +1258,6 @@ struct StockInfo {
     int64_t     prev_close = 0; // 前一次價格，用來算漲跌
     time_t      last_update = 0;
     bool        fetch_ok    = true; // 上次抓取是否成功（心情股恆為 true）
-    std::vector<int64_t> history; // 走勢圖用的近期收盤價（僅存於記憶體，不落地存檔，重啟後重新累積即可）
     int64_t     day_open_price = 0; // 當日開盤價，僅供有每日漲跌幅限制的手動股票使用（例如貓哥的心情）
     int64_t     day_number     = 0; // 上次更新對應的 UTC+8 day number，跨天時重置 day_open_price
 };
@@ -1313,9 +1280,9 @@ struct StockDef {
 static const std::vector<StockDef> STOCK_DEFS = {
     // ── 第一頁前三個：心情股（手動，無API）────────────────────────────────────
     {"stock_mood",  "LeeShoW的心情",      "",        "😶", "價格全憑 LeeShoW 心情決定，僅供娛樂。", 98005}, // ticker="" 代表不接 API，價格由管理員手動調整
-    {"stock_catbro","貓哥的心情",      "",        "😶", "價格全憑貓哥心情決定，但每天最多只能浮動5%，僅供娛樂。", 98011,
+    {"stock_catbro","貓哥的心情（已下市）",      "",        "😶", "已下市，持股已依下市時市值的一半退還為籌碼。", 98011,
         "604244623124070423", 5}, // ticker="" 不接API；只有這個使用者能調整；單日漲跌幅限制5%
-    {"stock_purse", "皮包的心情",      "",        "😶", "價格全憑皮包心情決定，但每天最多只能浮動5%，僅供娛樂。", 98012,
+    {"stock_purse", "皮包的心情（已下市）",      "",        "😶", "已下市，持股已依下市時市值的一半退還為籌碼。", 98012,
         "353567910285017090", 5}, // ticker="" 不接API；只有這個使用者能調整；單日漲跌幅限制5%
     {"stock_0050",  "元大台灣50 (0050)", "0050.TW", "📈", "追蹤台灣市值前50大企業的ETF，波動較穩健。", 98001},
     {"stock_tsmc",  "台積電 (2330)",      "2330.TW", "🏭", "台灣護國神山，全球晶圓代工龍頭。", 98002},

@@ -450,18 +450,6 @@ static void raid_advance_turn(RaidGame& g) {
 }
 
 // ─── Handle stunned skip ──────────────────────────────────────────────────────
-// Returns true if the current player was stunned and turn was advanced
-static bool raid_skip_if_stunned(RaidGame& g, std::string& log_out) {
-    if (g.boss_turn || g.game_over) return false;
-    auto& cp = g.players[g.current_player];
-    if (!cp.alive || cp.stunned_turns <= 0) return false;
-    cp.stunned_turns--;
-    log_out = "🔒 **" + cp.display_name + "** 被封鎖，跳過本回合（剩餘 " +
-              std::to_string(cp.stunned_turns) + " 回合）";
-    raid_advance_turn(g);
-    return true;
-}
-
 // ─── 雅典娜 heal at turn start ────────────────────────────────────────────────
 static std::string raid_athena_heal(RaidGame& g) {
     if (g.boss_turn || g.game_over) return "";
